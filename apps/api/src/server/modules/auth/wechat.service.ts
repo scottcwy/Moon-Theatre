@@ -12,6 +12,14 @@ interface WeChatCode2SessionResponse {
 }
 
 export async function exchangeWeChatCode(code: string): Promise<{ openid: string; sessionKey: string }> {
+  if (!config.wechatAppId || !config.wechatAppSecret) {
+    const safeCode = code.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+    return {
+      openid: `dev-openid-${safeCode}`,
+      sessionKey: 'dev-session-key',
+    };
+  }
+
   const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${config.wechatAppId}&secret=${config.wechatAppSecret}&js_code=${code}&grant_type=authorization_code`;
 
   const response = await fetch(url);
