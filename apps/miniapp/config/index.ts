@@ -1,5 +1,7 @@
 import path from 'path';
 
+const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:3000';
+
 const config = {
   projectName: 'juben-sha-miniapp',
   date: '2026-6-11',
@@ -12,7 +14,9 @@ const config = {
   sourceRoot: 'src',
   outputRoot: 'dist',
   plugins: ['@tarojs/plugin-framework-react'],
-  defineConstants: {},
+  defineConstants: {
+    API_BASE_URL: JSON.stringify(apiBaseUrl),
+  },
   copy: {
     patterns: [
       {
