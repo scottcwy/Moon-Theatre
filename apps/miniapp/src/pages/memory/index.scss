@@ -1,0 +1,7 @@
+@import '../../styles/tokens.scss';
+
+.memory-page {
+  padding: var(--space-4);
+  min-height: 100vh;
+  background-color: var(--color-background);
+}

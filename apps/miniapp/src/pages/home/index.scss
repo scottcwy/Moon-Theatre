@@ -1,0 +1,32 @@
+@import '../../styles/tokens.scss';
+
+.home-page {
+  padding: var(--space-4);
+  min-height: 100vh;
+  background-color: var(--color-background);
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-6);
+  }
+
+  &__title {
+    font-size: var(--font-display-sm);
+    font-weight: 700;
+    color: var(--color-on-background);
+  }
+
+  &__characters {
+    margin-top: var(--space-4);
+  }
+
+  &__section-title {
+    font-size: var(--font-headline-md);
+    font-weight: 600;
+    color: var(--color-on-background);
+    margin-bottom: var(--space-4);
+    display: block;
+  }
+}

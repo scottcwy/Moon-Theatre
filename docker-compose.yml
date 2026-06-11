@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: juben-sha-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: juben_sha
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - juben-sha-network
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: juben-sha-api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/juben_sha
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - WECHAT_APP_ID=${WECHAT_APP_ID:-}
+      - WECHAT_APP_SECRET=${WECHAT_APP_SECRET:-}
+      - FASTCLAW_BASE_URL=http://fastclaw:18953
+      - FASTCLAW_API_KEY=${FASTCLAW_API_KEY:-}
+      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
+      - PAYMENT_MERCHANT_ID=${PAYMENT_MERCHANT_ID:-}
+      - PAYMENT_APP_ID=${PAYMENT_APP_ID:-}
+      - PAYMENT_SECRET=${PAYMENT_SECRET:-}
+      - PAYMENT_PUBLIC_KEY=${PAYMENT_PUBLIC_KEY:-}
+      - PAYMENT_PRIVATE_KEY=${PAYMENT_PRIVATE_KEY:-}
+      - PAYMENT_NOTIFY_URL=${PAYMENT_NOTIFY_URL:-}
+      - PAYMENT_RETURN_URL=${PAYMENT_RETURN_URL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      fastclaw:
+        condition: service_started
+    networks:
+      - juben-sha-network
+
+  fastclaw:
+    build:
+      context: ./fastclaw
+      dockerfile: Dockerfile
+    container_name: juben-sha-fastclaw
+    restart: unless-stopped
+    ports:
+      - '18953:18953'
+    environment:
+      - FASTCLAW_AUTH_TOKEN=${FASTCLAW_API_KEY:-}
+      - FASTCLAW_STORAGE_DSN=${FASTCLAW_STORAGE_DSN:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    networks:
+      - juben-sha-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: juben-sha-caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    networks:
+      - juben-sha-network
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  juben-sha-network:
+    driver: bridge

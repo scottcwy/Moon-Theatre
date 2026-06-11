@@ -1,0 +1,17 @@
+export const config = {
+  port: parseInt(process.env.PORT || '3000', 10),
+  databaseUrl: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/juben_sha',
+  jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+  wechatAppId: process.env.WECHAT_APP_ID || '',
+  wechatAppSecret: process.env.WECHAT_APP_SECRET || '',
+  fastclawBaseUrl: process.env.FASTCLAW_BASE_URL || 'http://localhost:18953',
+  fastclawApiKey: process.env.FASTCLAW_API_KEY || '',
+  paymentProvider: process.env.PAYMENT_PROVIDER || 'mock',
+  paymentMerchantId: process.env.PAYMENT_MERCHANT_ID || '',
+  paymentAppId: process.env.PAYMENT_APP_ID || '',
+  paymentSecret: process.env.PAYMENT_SECRET || '',
+  paymentPublicKey: process.env.PAYMENT_PUBLIC_KEY || '',
+  paymentPrivateKey: process.env.PAYMENT_PRIVATE_KEY || '',
+  paymentNotifyUrl: process.env.PAYMENT_NOTIFY_URL || '',
+  paymentReturnUrl: process.env.PAYMENT_RETURN_URL || '',
+} as const;

@@ -1,0 +1,367 @@
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+
+export const modelTierEnum = pgEnum('model_tier', ['casual', 'standard', 'immersive']);
+export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'system']);
+export const moodTypeEnum = pgEnum('mood_type', ['neutral', 'happy', 'sad', 'angry', 'thinking']);
+export const memoryTypeEnum = pgEnum('memory_type', ['user_info', 'relationship', 'story']);
+export const orderStatusEnum = pgEnum('order_status', ['created', 'prepay_created', 'paid', 'credited', 'closed', 'failed', 'refunded']);
+export const paymentStatusEnum = pgEnum('payment_status', ['pending', 'success', 'failed', 'cancelled']);
+export const walletTxTypeEnum = pgEnum('wallet_tx_type', ['recharge', 'consume', 'adjust']);
+export const modelUsageStatusEnum = pgEnum('model_usage_status', ['success', 'failed', 'filtered']);
+export const sessionStatusEnum = pgEnum('session_status', ['active', 'archived']);
+export const userStatusEnum = pgEnum('user_status', ['active', 'banned']);
+export const characterStatusEnum = pgEnum('character_status', ['active', 'inactive']);
+export const reviewStatusEnum = pgEnum('review_status', ['normal', 'flagged', 'resolved']);
+
+export const users = pgTable('users', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  openid: varchar('openid', { length: 128 }).notNull().unique(),
+  nickname: varchar('nickname', { length: 64 }),
+  avatarUrl: varchar('avatar_url', { length: 512 }),
+  status: userStatusEnum('status').default('active').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const scripts = pgTable('scripts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: varchar('title', { length: 128 }).notNull(),
+  description: text('description').notNull(),
+  worldSetting: text('world_setting').notNull(),
+  status: varchar('status', { length: 32 }).default('active').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const characters = pgTable('characters', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  avatarUrl: varchar('avatar_url', { length: 512 }).notNull(),
+  identity: varchar('identity', { length: 128 }).notNull(),
+  description: text('description').notNull(),
+  scriptId: uuid('script_id').references(() => scripts.id),
+  initialRelationship: varchar('initial_relationship', { length: 256 }).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  status: characterStatusEnum('status').default('active').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const characterPrompts = pgTable('character_prompts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  characterId: uuid('character_id').references(() => characters.id, { onDelete: 'cascade' }).notNull(),
+  systemPrompt: text('system_prompt').notNull(),
+  personalityPrompt: text('personality_prompt'),
+  scenarioPrompt: text('scenario_prompt'),
+  safetyPrompt: text('safety_prompt'),
+  outputFormatPrompt: text('output_format_prompt'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const scenes = pgTable('scenes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  scriptId: uuid('script_id').references(() => scripts.id).notNull(),
+  name: varchar('name', { length: 128 }).notNull(),
+  description: text('description').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const storyNodes = pgTable('story_nodes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  scriptId: uuid('script_id').references(() => scripts.id).notNull(),
+  name: varchar('name', { length: 128 }).notNull(),
+  description: text('description'),
+  triggerCondition: jsonb('trigger_condition'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const userStoryState = pgTable('user_story_state', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  scriptId: uuid('script_id').references(() => scripts.id).notNull(),
+  currentNodeId: uuid('current_node_id').references(() => storyNodes.id),
+  state: jsonb('state').default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const chatSessions = pgTable('chat_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  characterId: uuid('character_id').references(() => characters.id).notNull(),
+  title: varchar('title', { length: 256 }),
+  modelTier: modelTierEnum('model_tier').default('standard').notNull(),
+  status: sessionStatusEnum('status').default('active').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const messages = pgTable('messages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sessionId: uuid('session_id').references(() => chatSessions.id, { onDelete: 'cascade' }).notNull(),
+  role: messageRoleEnum('role').notNull(),
+  content: text('content').notNull(),
+  mood: moodTypeEnum('mood'),
+  modelTier: modelTierEnum('model_tier'),
+  tokensUsed: integer('tokens_used'),
+  pointsConsumed: integer('points_consumed'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const memories = pgTable('memories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  characterId: uuid('character_id').references(() => characters.id).notNull(),
+  type: memoryTypeEnum('type').notNull(),
+  content: text('content').notNull(),
+  enabled: boolean('enabled').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const relationships = pgTable('relationships', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  characterId: uuid('character_id').references(() => characters.id).notNull(),
+  bondLevel: integer('bond_level').default(1).notNull(),
+  bondExp: integer('bond_exp').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const titles = pgTable('titles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  description: varchar('description', { length: 256 }),
+  iconUrl: varchar('icon_url', { length: 512 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const userTitles = pgTable('user_titles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  titleId: uuid('title_id').references(() => titles.id).notNull(),
+  unlockedAt: timestamp('unlocked_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const achievements = pgTable('achievements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  description: varchar('description', { length: 256 }),
+  condition: jsonb('condition').notNull(),
+  iconUrl: varchar('icon_url', { length: 512 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const userAchievements = pgTable('user_achievements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  achievementId: uuid('achievement_id').references(() => achievements.id).notNull(),
+  unlockedAt: timestamp('unlocked_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const modelProfiles = pgTable('model_profiles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tier: modelTierEnum('tier').notNull().unique(),
+  modelName: varchar('model_name', { length: 128 }).notNull(),
+  provider: varchar('provider', { length: 64 }).notNull(),
+  enabled: boolean('enabled').default(true).notNull(),
+  pointsPerCall: integer('points_per_call').notNull(),
+  displayName: varchar('display_name', { length: 64 }).notNull(),
+  description: varchar('description', { length: 256 }),
+  costEstimateCents: integer('cost_estimate_cents'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const modelUsageLogs = pgTable('model_usage_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  characterId: uuid('character_id').references(() => characters.id).notNull(),
+  sessionId: uuid('session_id').references(() => chatSessions.id).notNull(),
+  modelTier: modelTierEnum('model_tier').notNull(),
+  modelName: varchar('model_name', { length: 128 }).notNull(),
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  costEstimateCents: integer('cost_estimate_cents'),
+  pointsConsumed: integer('points_consumed').notNull(),
+  walletTransactionId: uuid('wallet_transaction_id').references(() => walletTransactions.id),
+  status: modelUsageStatusEnum('status').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const quotaPackages = pgTable('quota_packages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  priceCents: integer('price_cents').notNull(),
+  points: integer('points').notNull(),
+  description: varchar('description', { length: 256 }),
+  recommended: boolean('recommended').default(false).notNull(),
+  active: boolean('active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const orders = pgTable('orders', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  quotaPackageId: uuid('quota_package_id').references(() => quotaPackages.id).notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  pointsAmount: integer('points_amount').notNull(),
+  status: orderStatusEnum('status').default('created').notNull(),
+  merchantOrderNo: varchar('merchant_order_no', { length: 128 }).notNull().unique(),
+  providerTransactionId: varchar('provider_transaction_id', { length: 256 }),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  creditedAt: timestamp('credited_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const payments = pgTable('payments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orderId: uuid('order_id').references(() => orders.id).notNull(),
+  provider: varchar('provider', { length: 64 }).notNull(),
+  providerTransactionId: varchar('provider_transaction_id', { length: 256 }),
+  prepayParams: jsonb('prepay_params'),
+  callbackRawDigest: text('callback_raw_digest'),
+  verifyResult: varchar('verify_result', { length: 32 }).default('pending').notNull(),
+  status: paymentStatusEnum('status').default('pending').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const walletAccounts = pgTable('wallet_accounts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull().unique(),
+  balancePoints: integer('balance_points').default(0).notNull(),
+  totalRechargedPoints: integer('total_recharged_points').default(0).notNull(),
+  totalConsumedPoints: integer('total_consumed_points').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const walletTransactions = pgTable('wallet_transactions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  type: walletTxTypeEnum('type').notNull(),
+  amount: integer('amount').notNull(),
+  balanceAfter: integer('balance_after').notNull(),
+  orderId: uuid('order_id').references(() => orders.id),
+  modelUsageLogId: uuid('model_usage_log_id'),
+  idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull().unique(),
+  description: varchar('description', { length: 256 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const reviewLogs = pgTable('review_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sessionId: uuid('session_id').references(() => chatSessions.id).notNull(),
+  messageId: uuid('message_id').references(() => messages.id),
+  reviewerId: varchar('reviewer_id', { length: 128 }),
+  status: reviewStatusEnum('status').default('normal').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const blockedKeywords = pgTable('blocked_keywords', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  keyword: varchar('keyword', { length: 128 }).notNull().unique(),
+  category: varchar('category', { length: 64 }),
+  enabled: boolean('enabled').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const usersRelations = relations(users, ({ many }) => ({
+  chatSessions: many(chatSessions),
+  relationships: many(relationships),
+  memories: many(memories),
+  userTitles: many(userTitles),
+  userAchievements: many(userAchievements),
+  orders: many(orders),
+  walletAccount: many(walletAccounts),
+  walletTransactions: many(walletTransactions),
+}));
+
+export const scriptsRelations = relations(scripts, ({ many }) => ({
+  characters: many(characters),
+  scenes: many(scenes),
+  storyNodes: many(storyNodes),
+}));
+
+export const charactersRelations = relations(characters, ({ one, many }) => ({
+  script: one(scripts, { fields: [characters.scriptId], references: [scripts.id] }),
+  prompts: many(characterPrompts),
+  chatSessions: many(chatSessions),
+  relationships: many(relationships),
+}));
+
+export const characterPromptsRelations = relations(characterPrompts, ({ one }) => ({
+  character: one(characters, { fields: [characterPrompts.characterId], references: [characters.id] }),
+}));
+
+export const scenesRelations = relations(scenes, ({ one }) => ({
+  script: one(scripts, { fields: [scenes.scriptId], references: [scripts.id] }),
+}));
+
+export const storyNodesRelations = relations(storyNodes, ({ one }) => ({
+  script: one(scripts, { fields: [storyNodes.scriptId], references: [scripts.id] }),
+}));
+
+export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
+  user: one(users, { fields: [chatSessions.userId], references: [users.id] }),
+  character: one(characters, { fields: [chatSessions.characterId], references: [characters.id] }),
+  messages: many(messages),
+  reviewLogs: many(reviewLogs),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  session: one(chatSessions, { fields: [messages.sessionId], references: [chatSessions.id] }),
+}));
+
+export const memoriesRelations = relations(memories, ({ one }) => ({
+  user: one(users, { fields: [memories.userId], references: [users.id] }),
+  character: one(characters, { fields: [memories.characterId], references: [characters.id] }),
+}));
+
+export const relationshipsRelations = relations(relationships, ({ one }) => ({
+  user: one(users, { fields: [relationships.userId], references: [users.id] }),
+  character: one(characters, { fields: [relationships.characterId], references: [characters.id] }),
+}));
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  user: one(users, { fields: [orders.userId], references: [users.id] }),
+  quotaPackage: one(quotaPackages, { fields: [orders.quotaPackageId], references: [quotaPackages.id] }),
+  payments: many(payments),
+  walletTransactions: many(walletTransactions),
+}));
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  order: one(orders, { fields: [payments.orderId], references: [orders.id] }),
+}));
+
+export const walletAccountsRelations = relations(walletAccounts, ({ one }) => ({
+  user: one(users, { fields: [walletAccounts.userId], references: [users.id] }),
+}));
+
+export const walletTransactionsRelations = relations(walletTransactions, ({ one }) => ({
+  user: one(users, { fields: [walletTransactions.userId], references: [users.id] }),
+  order: one(orders, { fields: [walletTransactions.orderId], references: [orders.id] }),
+}));
+
+export const modelUsageLogsRelations = relations(modelUsageLogs, ({ one }) => ({
+  user: one(users, { fields: [modelUsageLogs.userId], references: [users.id] }),
+  character: one(characters, { fields: [modelUsageLogs.characterId], references: [characters.id] }),
+  session: one(chatSessions, { fields: [modelUsageLogs.sessionId], references: [chatSessions.id] }),
+  walletTransaction: one(walletTransactions, { fields: [modelUsageLogs.walletTransactionId], references: [walletTransactions.id] }),
+}));
+
+export const reviewLogsRelations = relations(reviewLogs, ({ one }) => ({
+  session: one(chatSessions, { fields: [reviewLogs.sessionId], references: [chatSessions.id] }),
+  message: one(messages, { fields: [reviewLogs.messageId], references: [messages.id] }),
+}));

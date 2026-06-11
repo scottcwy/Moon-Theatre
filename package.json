@@ -1,0 +1,21 @@
+{
+  "name": "juben-sha-miniprogram",
+  "private": true,
+  "version": "1.0.0",
+  "description": "剧本杀角色扮演小程序 - Monorepo",
+  "scripts": {
+    "dev:api": "pnpm --filter @juben-sha/api dev",
+    "dev:miniapp": "pnpm --filter @juben-sha/miniapp dev",
+    "build:api": "pnpm --filter @juben-sha/api build",
+    "build:miniapp": "pnpm --filter @juben-sha/miniapp build",
+    "db:generate": "pnpm --filter @juben-sha/api db:generate",
+    "db:migrate": "pnpm --filter @juben-sha/api db:migrate",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

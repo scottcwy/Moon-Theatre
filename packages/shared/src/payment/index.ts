@@ -1,0 +1,1 @@
+export type { PaymentProvider } from './provider.interface.js';

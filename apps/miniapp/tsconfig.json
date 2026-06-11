@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@juben-sha/shared": ["../../packages/shared/src"]
+    },
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["src/**/*", "global.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

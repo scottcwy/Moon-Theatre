@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@juben-sha/shared": ["../../packages/shared/src"]
+    },
+    "plugins": [{ "name": "next" }],
+    "outDir": "./dist"
+  },
+  "include": ["next-env.d.ts", "src/**/*", "../../packages/shared/src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

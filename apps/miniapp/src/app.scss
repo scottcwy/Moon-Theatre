@@ -1,0 +1,9 @@
+@import './styles/tokens.scss';
+
+page {
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 28px;
+  line-height: 1.5;
+}

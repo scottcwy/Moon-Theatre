@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.taro/
+.next/
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo
+.DS_Store
+coverage/
+.turbo/
+drizzle/
+apps/api/drizzle/
+fastclaw/
