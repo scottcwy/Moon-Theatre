@@ -12,6 +12,7 @@
     "build:weapp": "taro build --type weapp",
     "dev:weapp": "taro build --type weapp --watch",
     "lint": "eslint src/",
+    "verify:weapp": "node scripts/verify-weapp-build.mjs",
     "typecheck": "tsc --noEmit"
   },
   "browserslist": ["last 3 versions", "Android >= 4.1", "ios >= 8"],

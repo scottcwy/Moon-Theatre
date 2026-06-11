@@ -21,6 +21,14 @@ interface AppConfig {
     navigationBarTitleText: string;
     navigationBarTextStyle: string;
   };
+  networkTimeout?: {
+    request: number;
+    downloadFile: number;
+    uploadFile: number;
+    connectSocket: number;
+  };
+  sitemapLocation?: string;
+  lazyCodeLoading?: 'requiredComponents';
 }
 
 declare function defineAppConfig(config: AppConfig): AppConfig;

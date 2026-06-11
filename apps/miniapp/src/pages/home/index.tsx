@@ -1,7 +1,7 @@
 import { View, Text, Image } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
-import { api } from '../../services/api';
+import { api, isLoggedIn } from '../../services/api';
 import './index.scss';
 
 interface CharacterItem {
@@ -17,7 +17,7 @@ export default function Home() {
   const [characters, setCharacters] = useState<CharacterItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [pointsBalance] = useState(0);
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null);
   const [modelTier] = useState<'casual' | 'standard' | 'immersive'>('standard');
 
   const modelTierLabels: Record<string, string> = {
@@ -47,6 +47,22 @@ export default function Home() {
     }
 
     fetchCharacters();
+
+    if (isLoggedIn()) {
+      api
+        .get<{ balancePoints: number }>('/api/quota/balance')
+        .then((data) => {
+          if (!cancelled) {
+            setPointsBalance(data.balancePoints);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setPointsBalance(null);
+          }
+        });
+    }
+
     return () => { cancelled = true; };
   }, []);
 
@@ -60,7 +76,7 @@ export default function Home() {
         <View className="home-page__header-left">
           <Text className="home-page__title">夜色围城</Text>
           <View className="chip chip-points">
-            <Text className="chip__text">{pointsBalance} 点数</Text>
+            <Text className="chip__text">{pointsBalance ?? 0} 点数</Text>
           </View>
         </View>
         <View className="home-page__model-tier">

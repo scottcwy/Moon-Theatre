@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, Input } from '@tarojs/components';
-import { useRouter } from '@tarojs/taro';
+import { useRouter, useUnload } from '@tarojs/taro';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MODEL_TIER_LABELS, MOOD_LABELS } from '../../types';
 import type { ModelTier, MoodType } from '../../types';
@@ -54,6 +54,25 @@ export default function Chat() {
 
   const sessionIdRef = useRef<string | undefined>(routeSessionId);
   const scrollIntoViewRef = useRef('');
+  const activeStreamRef = useRef<{ abort: () => void } | null>(null);
+  const mountedRef = useRef(true);
+
+  const abortActiveStream = useCallback(() => {
+    activeStreamRef.current?.abort();
+    activeStreamRef.current = null;
+  }, []);
+
+  useUnload(() => {
+    mountedRef.current = false;
+    abortActiveStream();
+  });
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      abortActiveStream();
+    };
+  }, [abortActiveStream]);
 
   useEffect(() => {
     if (!characterId) {
@@ -150,7 +169,7 @@ export default function Chat() {
 
     scrollIntoViewRef.current = `msg-${tempAssistantId}`;
 
-    streamChat(
+    activeStreamRef.current = streamChat(
       {
         characterId,
         sessionId: sessionIdRef.current,
@@ -159,6 +178,7 @@ export default function Chat() {
       },
       {
         onDelta(content) {
+          if (!mountedRef.current) return;
           updateLastAssistant((current) => ({
             ...current,
             content: current.content + content,
@@ -166,6 +186,7 @@ export default function Chat() {
           scrollIntoViewRef.current = `msg-${tempAssistantId}`;
         },
         onDone(result) {
+          if (!mountedRef.current) return;
           if (!sessionIdRef.current) {
             sessionIdRef.current = result.sessionId;
           }
@@ -179,15 +200,18 @@ export default function Chat() {
           if (typeof result.bondLevel === 'number') {
             setBondLevel(result.bondLevel);
           }
+          activeStreamRef.current = null;
           setSending(false);
           scrollIntoViewRef.current = `msg-${result.messageId}`;
         },
         onError(message) {
+          if (!mountedRef.current) return;
           updateLastAssistant((current) => ({
             ...current,
             content: current.content || `[发送失败] ${message}`,
           }));
           setStreamError(message);
+          activeStreamRef.current = null;
           setSending(false);
         },
       }
