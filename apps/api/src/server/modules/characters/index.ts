@@ -1,0 +1,1 @@
+export { listCharacters, getCharacterById } from './service.js';
