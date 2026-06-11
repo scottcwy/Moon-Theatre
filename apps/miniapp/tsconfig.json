@@ -8,8 +8,7 @@
       "@/*": ["./src/*"],
       "@juben-sha/shared": ["../../packages/shared/src"]
     },
-    "outDir": "./dist",
-    "rootDir": "."
+    "outDir": "./dist"
   },
   "include": ["src/**/*", "global.d.ts"],
   "exclude": ["node_modules", "dist"]

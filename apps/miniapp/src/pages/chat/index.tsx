@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, Input } from '@tarojs/components';
-import Taro, { useRouter } from '@tarojs/taro';
+import { useRouter } from '@tarojs/taro';
 import { useState } from 'react';
 import { MODEL_TIER_LABELS, MOOD_LABELS } from '../../types';
 import type { ModelTier, MoodType } from '../../types';

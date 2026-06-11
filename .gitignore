@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .taro/
+.swc/
 .next/
 .env
 .env.local

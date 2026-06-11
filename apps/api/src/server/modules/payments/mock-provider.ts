@@ -17,7 +17,7 @@ export class MockPaymentProvider implements PaymentProvider {
     };
   }
 
-  async verifyNotify(_headers: Record<string, string>, _rawBody: string): Promise<VerifiedPaymentNotify> {
+  async verifyNotify(): Promise<VerifiedPaymentNotify> {
     return {
       providerTransactionId: `mock_txn_${randomUUID()}`,
       orderId: '',

@@ -17,6 +17,15 @@ const config = {
   framework: 'react',
   compiler: 'webpack5',
   mini: {
+    compile: {
+      include: [path.resolve(__dirname, '../../../packages/shared/src')],
+    },
+    webpackChain(chain) {
+      chain.resolve.set('extensionAlias', {
+        '.js': ['.ts', '.tsx', '.js'],
+        '.mjs': ['.mts', '.mjs'],
+      });
+    },
     postcss: {
       pxtransform: { enable: true, config: {} },
       cssModules: {

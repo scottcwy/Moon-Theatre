@@ -5,9 +5,9 @@
   "description": "剧本杀角色扮演小程序 - Monorepo",
   "scripts": {
     "dev:api": "pnpm --filter @juben-sha/api dev",
-    "dev:miniapp": "pnpm --filter @juben-sha/miniapp dev",
+    "dev:miniapp": "pnpm --filter @juben-sha/miniapp dev:weapp",
     "build:api": "pnpm --filter @juben-sha/api build",
-    "build:miniapp": "pnpm --filter @juben-sha/miniapp build",
+    "build:miniapp": "pnpm --filter @juben-sha/miniapp build:weapp",
     "db:generate": "pnpm --filter @juben-sha/api db:generate",
     "db:migrate": "pnpm --filter @juben-sha/api db:migrate",
     "lint": "pnpm -r lint",
@@ -17,5 +17,10 @@
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0"
   }
 }

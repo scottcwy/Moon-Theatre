@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { exchangeWeChatCode, findOrCreateUser, signJwt } from '@/server/modules/auth/index.js';
 import { errorResponse, successResponse } from '@/server/middleware/auth.js';
-import { corsPreflightResponse, withCors } from '@/server/middleware/cors.js';
+import { corsPreflightResponse } from '@/server/middleware/cors.js';
 
 const wechatLoginSchema = z.object({
   code: z.string().min(1),

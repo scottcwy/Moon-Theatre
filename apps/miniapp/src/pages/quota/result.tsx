@@ -1,5 +1,5 @@
 import { View, Text } from '@tarojs/components';
-import Taro, { useRouter } from '@tarojs/taro';
+import Taro from '@tarojs/taro';
 import { useState } from 'react';
 import type { PaymentStatus } from '../../types';
 import { PAYMENT_STATUSES } from '../../types';
@@ -29,7 +29,6 @@ const STATUS_CONFIG: Record<string, { title: string; message: string; icon: stri
 };
 
 export default function QuotaResult() {
-  const router = useRouter();
   const [status] = useState<PaymentStatus>('success');
   const [pointsCredited] = useState(500);
 

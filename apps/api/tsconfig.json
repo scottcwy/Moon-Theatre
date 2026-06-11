@@ -5,12 +5,30 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "paths": {
-      "@/*": ["./src/*"],
-      "@juben-sha/shared": ["../../packages/shared/src"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@juben-sha/shared": [
+        "../../packages/shared/src"
+      ]
     },
-    "plugins": [{ "name": "next" }],
-    "outDir": "./dist"
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "outDir": "./dist",
+    "allowJs": true,
+    "incremental": true
   },
-  "include": ["next-env.d.ts", "src/**/*", "../../packages/shared/src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "../../packages/shared/src/**/*",
+    "next-env.d.ts",
+    "src/**/*",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
