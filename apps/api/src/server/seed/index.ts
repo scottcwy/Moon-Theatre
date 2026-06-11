@@ -1,7 +1,14 @@
+import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { scripts, characters, characterPrompts, modelProfiles, quotaPackages } from '../db/schema.js';
 
 async function seed() {
+  const existingScripts = await db.select().from(scripts).where(eq(scripts.title, '夜色围城')).limit(1);
+  if (existingScripts.length > 0) {
+    console.log('V1 seed data already exists, skipping.');
+    process.exit(0);
+  }
+
   console.log('Seeding database...');
 
   const scriptRows = await db.insert(scripts).values({

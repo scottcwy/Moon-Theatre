@@ -1,17 +1,43 @@
 import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
+import { useState } from 'react';
+import { api, setToken, setUser } from '../../services/api';
 import './index.scss';
 
 export default function Login() {
+  const [loading, setLoading] = useState(false);
+
   const handleWechatLogin = () => {
+    if (loading) return;
+    setLoading(true);
+
     Taro.login({
-      success: (res) => {
-        if (res.code) {
-          // TODO: Send code to backend for openid
+      success: async (res) => {
+        try {
+          if (!res.code) {
+            Taro.showToast({ title: '获取登录凭证失败', icon: 'none' });
+            return;
+          }
+
+          const data = await api.post<{
+            token: string;
+            user: { id: string; nickname: string | null; avatarUrl: string | null };
+          }>('/api/auth/wechat-login', { code: res.code });
+
+          setToken(data.token);
+          setUser(data.user);
+
+          Taro.switchTab({ url: '/pages/home/index' });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : '登录失败，请重试';
+          Taro.showToast({ title: message, icon: 'none', duration: 3000 });
+        } finally {
+          setLoading(false);
         }
       },
       fail: () => {
         Taro.showToast({ title: '登录失败，请重试', icon: 'none' });
+        setLoading(false);
       },
     });
   };
@@ -30,7 +56,9 @@ export default function Login() {
 
         <View className="login-page__action">
           <View className="button-primary login-page__wechat-btn" onClick={handleWechatLogin}>
-            <Text className="login-page__wechat-btn-text">微信登录</Text>
+            <Text className="login-page__wechat-btn-text">
+              {loading ? '登录中…' : '微信登录'}
+            </Text>
           </View>
         </View>
 

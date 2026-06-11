@@ -1,55 +1,95 @@
 import { View, Text, Image } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../../services/api';
 import { MOOD_LABELS } from '../../types';
 import type { MoodType } from '../../types';
 import './detail.scss';
 
-const CHARACTER_MAP: Record<string, {
+interface CharacterDetailData {
+  id: string;
   name: string;
+  avatarUrl: string;
   identity: string;
   description: string;
   initialRelationship: string;
-  avatarUrl: string;
-}> = {
-  'char-jiang': {
-    name: '蒋伯驾',
-    identity: '巡城铁骑',
-    description: '沉默寡言的巡逻者，守夜人的利刃。他穿行于城墙之上，目光如鹰，声若洪钟——那是白天。入夜后，他独自坐在岗楼，对着风中无人回应的信号灯发愣。',
-    initialRelationship: '同路人',
-    avatarUrl: '',
-  },
-  'char-cheng': {
-    name: '程聿怀',
-    identity: '坊间策士',
-    description: '笑面藏锋的谋士，暗中编织着旧城的命运。他永远端着一杯冷掉的茶，对每个人都客客气气，却从未让任何人真正靠近。',
-    initialRelationship: '旁观者',
-    avatarUrl: '',
-  },
-  'char-yisa': {
-    name: '以撒',
-    identity: '流浪医者',
-    description: '背棺行医的异乡人，药方里藏着解不开的过往。他的眼神温柔而疲惫，总在别人看不见的时候，对着那口漆黑的木箱低声说话。',
-    initialRelationship: '医患',
-    avatarUrl: '',
-  },
-};
+  script: {
+    title: string;
+    description: string;
+    worldSetting: string;
+  } | null;
+}
 
 export default function CharacterDetail() {
   const router = useRouter();
-  const characterId = router.params.characterId || 'char-jiang';
-  const character = CHARACTER_MAP[characterId] ?? CHARACTER_MAP['char-jiang']!;
+  const characterId = router.params.characterId || '';
+
+  const [character, setCharacter] = useState<CharacterDetailData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const [bondLevel] = useState(1);
   const [bondExp] = useState(30);
   const [bondMaxExp] = useState(100);
   const [mood] = useState<MoodType>('neutral');
 
+  useEffect(() => {
+    if (!characterId) {
+      setError('缺少角色 ID');
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchCharacter() {
+      try {
+        const data = await api.get<CharacterDetailData>(`/api/characters/${characterId}`);
+        if (!cancelled) {
+          setCharacter(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : '加载角色失败');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchCharacter();
+    return () => { cancelled = true; };
+  }, [characterId]);
+
   const handleEnterChat = () => {
     Taro.navigateTo({ url: `/pages/chat/index?characterId=${characterId}` });
   };
 
   const bondPercent = Math.min(Math.round((bondExp / bondMaxExp) * 100), 100);
+
+  if (loading) {
+    return (
+      <View className="character-detail-page">
+        <View className="character-detail-page__state">
+          <Text className="character-detail-page__state-text">加载中…</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error || !character) {
+    return (
+      <View className="character-detail-page">
+        <View className="character-detail-page__state">
+          <Text className="character-detail-page__state-text character-detail-page__state-text--error">
+            {error || '角色不存在'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View className="character-detail-page">
@@ -79,6 +119,14 @@ export default function CharacterDetail() {
           <Text className="chip__text">{character.initialRelationship}</Text>
         </View>
       </View>
+
+      {character.script && (
+        <View className="character-detail-page__section">
+          <Text className="character-detail-page__section-title">世界观 · {character.script.title}</Text>
+          <Text className="character-detail-page__description">{character.script.description}</Text>
+          <Text className="character-detail-page__description">{character.script.worldSetting}</Text>
+        </View>
+      )}
 
       <View className="character-detail-page__section">
         <Text className="character-detail-page__section-title">羁绊等级</Text>

@@ -1,36 +1,22 @@
 import { View, Text, Image } from '@tarojs/components';
 import Taro from '@tarojs/taro';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../../services/api';
 import './index.scss';
 
-const CHARACTERS = [
-  {
-    id: 'char-jiang',
-    name: '蒋伯驾',
-    identity: '巡城铁骑',
-    description: '沉默寡言的巡逻者，守夜人的利刃。',
-    initialRelationship: '同路人',
-    avatarUrl: '',
-  },
-  {
-    id: 'char-cheng',
-    name: '程聿怀',
-    identity: '坊间策士',
-    description: '笑面藏锋的谋士，暗中编织着旧城的命运。',
-    initialRelationship: '旁观者',
-    avatarUrl: '',
-  },
-  {
-    id: 'char-yisa',
-    name: '以撒',
-    identity: '流浪医者',
-    description: '背棺行医的异乡人，药方里藏着解不开的过往。',
-    initialRelationship: '医患',
-    avatarUrl: '',
-  },
-];
+interface CharacterItem {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  identity: string;
+  description: string;
+  initialRelationship: string;
+}
 
 export default function Home() {
+  const [characters, setCharacters] = useState<CharacterItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [pointsBalance] = useState(0);
   const [modelTier] = useState<'casual' | 'standard' | 'immersive'>('standard');
 
@@ -39,6 +25,30 @@ export default function Home() {
     standard: '标准',
     immersive: '沉浸',
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCharacters() {
+      try {
+        const data = await api.get<{ characters: CharacterItem[] }>('/api/characters');
+        if (!cancelled) {
+          setCharacters(data.characters);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : '加载角色失败');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchCharacters();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleCharacterTap = (characterId: string) => {
     Taro.navigateTo({ url: `/pages/character/detail?characterId=${characterId}` });
@@ -62,7 +72,26 @@ export default function Home() {
 
       <View className="home-page__characters">
         <Text className="home-page__section-title">选择角色</Text>
-        {CHARACTERS.map((character) => (
+
+        {loading && (
+          <View className="home-page__state">
+            <Text className="home-page__state-text">加载中…</Text>
+          </View>
+        )}
+
+        {!loading && error && (
+          <View className="home-page__state">
+            <Text className="home-page__state-text home-page__state-text--error">{error}</Text>
+          </View>
+        )}
+
+        {!loading && !error && characters.length === 0 && (
+          <View className="home-page__state">
+            <Text className="home-page__state-text">暂无可用角色</Text>
+          </View>
+        )}
+
+        {!loading && !error && characters.map((character) => (
           <View
             key={character.id}
             className="home-page__character-card card"
