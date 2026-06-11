@@ -1,7 +1,90 @@
 @import '../../styles/tokens.scss';
 
 .quota-result-page {
-  padding: var(--space-4);
   min-height: 100vh;
   background-color: var(--color-background);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+
+  &__icon {
+    width: 128rpx;
+    height: 128rpx;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-5);
+
+    &--success {
+      background-color: var(--color-success);
+    }
+
+    &--error {
+      background-color: var(--color-error);
+    }
+
+    &--pending {
+      background-color: var(--color-warning);
+    }
+  }
+
+  &__icon-text {
+    font-size: var(--font-display-sm);
+    color: #fff;
+    font-weight: 700;
+  }
+
+  &__title {
+    font-size: var(--font-headline-md);
+    font-weight: 700;
+    color: var(--color-on-background);
+    margin-bottom: var(--space-2);
+  }
+
+  &__message {
+    font-size: var(--font-body-md);
+    color: var(--color-on-surface-variant);
+    text-align: center;
+    margin-bottom: var(--space-6);
+  }
+
+  &__credited {
+    background-color: var(--color-tertiary-container);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4) var(--space-6);
+    text-align: center;
+    margin-bottom: var(--space-8);
+  }
+
+  &__credited-label {
+    font-size: var(--font-label-md);
+    color: var(--color-on-tertiary-container);
+    display: block;
+    margin-bottom: var(--space-1);
+  }
+
+  &__credited-value {
+    font-size: var(--font-display-sm);
+    font-weight: 700;
+    color: var(--color-on-tertiary-container);
+  }
+
+  &__actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  &__btn-secondary {
+    width: 100%;
+  }
+
+  &__btn-text {
+    font-size: var(--font-title-md);
+    font-weight: 500;
+  }
 }

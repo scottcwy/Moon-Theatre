@@ -1,7 +1,68 @@
 @import '../../styles/tokens.scss';
 
 .login-page {
-  padding: var(--space-4);
   min-height: 100vh;
   background-color: var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+
+  &__content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  &__title {
+    font-size: var(--font-display-sm);
+    font-weight: 700;
+    color: var(--color-on-background);
+    margin-bottom: var(--space-2);
+  }
+
+  &__subtitle {
+    font-size: var(--font-body-lg);
+    color: var(--color-on-surface-variant);
+    margin-bottom: var(--space-8);
+  }
+
+  &__body {
+    width: 100%;
+    margin-bottom: var(--space-10);
+  }
+
+  &__description {
+    font-size: var(--font-body-md);
+    color: var(--color-on-surface-variant);
+    line-height: 1.6;
+    text-align: center;
+  }
+
+  &__action {
+    width: 100%;
+    margin-bottom: var(--space-8);
+  }
+
+  &__wechat-btn {
+    width: 100%;
+  }
+
+  &__wechat-btn-text {
+    font-size: var(--font-title-md);
+    font-weight: 500;
+  }
+
+  &__notice {
+    width: 100%;
+    padding: var(--space-3);
+  }
+
+  &__notice-text {
+    font-size: var(--font-label-sm);
+    color: var(--color-outline);
+    line-height: 1.5;
+    text-align: center;
+  }
 }

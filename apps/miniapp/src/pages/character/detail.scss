@@ -2,6 +2,125 @@
 
 .character-detail-page {
   padding: var(--space-4);
+  padding-bottom: calc(var(--space-8) + 120rpx);
   min-height: 100vh;
   background-color: var(--color-background);
+
+  &__avatar-section {
+    display: flex;
+    justify-content: center;
+    margin-bottom: var(--space-5);
+  }
+
+  &__avatar {
+    width: 192rpx;
+    height: 192rpx;
+    border-radius: var(--radius-full);
+  }
+
+  &__avatar-placeholder {
+    width: 192rpx;
+    height: 192rpx;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary-container);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__avatar-text {
+    font-size: var(--font-display-sm);
+    font-weight: 700;
+    color: var(--color-on-primary-container);
+  }
+
+  &__info {
+    text-align: center;
+    margin-bottom: var(--space-6);
+  }
+
+  &__name {
+    font-size: var(--font-headline-md);
+    font-weight: 700;
+    color: var(--color-on-surface);
+    display: block;
+    margin-bottom: var(--space-1);
+  }
+
+  &__identity {
+    font-size: var(--font-body-md);
+    color: var(--color-on-surface-variant);
+    display: block;
+  }
+
+  &__section {
+    margin-bottom: var(--space-5);
+  }
+
+  &__section-title {
+    font-size: var(--font-title-md);
+    font-weight: 600;
+    color: var(--color-on-surface);
+    display: block;
+    margin-bottom: var(--space-2);
+  }
+
+  &__description {
+    font-size: var(--font-body-md);
+    color: var(--color-on-surface-variant);
+    line-height: 1.6;
+  }
+
+  &__bond {
+    background-color: var(--color-surface-container);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  &__bond-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+  }
+
+  &__bond-level {
+    font-size: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-primary);
+  }
+
+  &__bond-exp {
+    font-size: var(--font-label-sm);
+    color: var(--color-on-surface-variant);
+  }
+
+  &__bond-progress {
+    height: 12rpx;
+    background-color: var(--color-surface-container-high);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+
+  &__bond-progress-bar {
+    height: 100%;
+    background-color: var(--color-primary-container);
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+  }
+
+  &__cta {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: var(--space-4);
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+    background-color: var(--color-background);
+  }
+
+  &__cta-text {
+    font-size: var(--font-title-md);
+    font-weight: 500;
+  }
 }
