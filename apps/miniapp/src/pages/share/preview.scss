@@ -88,4 +88,12 @@
     font-size: var(--font-title-md);
     font-weight: 500;
   }
+
+  &__canvas {
+    position: fixed;
+    left: -9999px;
+    top: -9999px;
+    width: 600px;
+    height: 840px;
+  }
 }

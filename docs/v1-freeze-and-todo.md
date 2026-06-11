@@ -472,16 +472,37 @@ To Do：
 - [ ] 真机 HTTP Streaming POC。
 - [ ] 真机支付流程验证。
 - [ ] 分享图保存到相册验证。
-- [ ] 敏感词拦截验证。
+- [x] 敏感词拦截验证。
 - [ ] 长对话性能验证。
 - [ ] 生产环境 Docker Compose 验证。
 
 验收：
 
 - [ ] PRD 第 8 节整体通过标准逐项通过。
-- [ ] 技术 SPEC 第 9 节 API 范围完成。
-- [ ] 支付、钱包、模型调用日志可审计。
-- [ ] 关键错误路径有用户可理解提示。
+- [x] 技术 SPEC 第 9 节 API 范围完成。
+- [x] 支付、钱包、模型调用日志可审计。
+- [x] 关键错误路径有用户可理解提示。
+
+Phase 6 本地验收记录：
+
+| 项目 | 本地结果 | 仍需外部条件 |
+| --- | --- | --- |
+| 小程序编译 | `pnpm build:miniapp` 通过，Taro weapp 产物可生成；仍有既有 Sass `@import` deprecation warning | 微信开发者工具导入项目并完整编译 |
+| 分享图保存 | 分享预览页已接入 canvas 绘制、`Taro.canvasToTempFilePath`、`Taro.saveImageToPhotosAlbum`，`pnpm -r typecheck` 与 `pnpm build:miniapp` 已通过 | 真机相册权限、保存成功 toast、生成图片视觉效果 |
+| 敏感词拦截 | `apps/api/src/server/modules/moderation/__tests__/service.test.ts` 覆盖输入命中写 review log、输出未命中不写；`pnpm --filter @juben-sha/api test` 60/60 通过 | 结合真实聊天链路做人工 smoke test |
+| API 与 admin | `pnpm build:api` 通过；admin 页面为动态 server-rendered，admin API 覆盖会话、消息、审核、订单、支付、钱包、额度包、模型日志、关键词 | admin 独立角色权限仍未实现，当前只做 V1 内部演示边界 |
+| Docker Compose | `docker compose config` 通过 | 完整 `docker compose up` 仍等待 `fastclaw/Dockerfile` 或外部 FastClaw 镜像/服务 |
+| FastClaw | Adapter 与 fallback tests 通过 | `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、可访问 FastClaw 服务 |
+| 微信登录 | API 与小程序登录链路已实现并可编译 | 微信小程序 appId/appSecret、开发者工具/真机 code2session 验证 |
+| 真机 HTTP Streaming | 小程序端 `enableChunked`/chunk callback 代码路径已实现并可编译 | 目标微信基础库、HTTPS 合法域名、真机 POC |
+| 真机支付 | mock/aggregate provider、预支付、回调验签、幂等入账、微信支付拉起代码路径已实现并可编译 | 聚合支付商户凭证、微信支付商户绑定、真实回调 |
+| 长对话性能 | FastClaw fallback 单元测试通过 | 20 轮真机/真实 API 连续对话压测 |
+
+Phase 6 未关闭项：
+
+- PRD 第 8 节整体通过仍未勾选，因为真机登录、真机 streaming、真机支付、相册保存和完整 Docker stack 均依赖外部环境。
+- `docker-compose.yml` 仍引用 `./fastclaw/Dockerfile`，但当前仓库没有 `fastclaw/Dockerfile`。完整生产 compose 启动需要补齐 FastClaw 镜像来源或改为外部服务地址。
+- V1 admin 尚无独立 admin role/权限系统，当前 API 只要求普通 JWT；页面为内部演示用 server-rendered 页面。
 
 ## 5. 后续会话交接建议
 
