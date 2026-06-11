@@ -25,7 +25,7 @@
     "es6": true,
     "postcss": true,
     "minified": true,
-    "urlCheck": true,
+    "urlCheck": false,
     "enhance": true,
     "coverView": true,
     "autoAudits": false,
