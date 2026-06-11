@@ -45,7 +45,7 @@ export default function Chat() {
   const [characterError, setCharacterError] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [modelTier, setModelTier] = useState<ModelTier>('standard');
-  const [pointsBalance] = useState(0);
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null);
   const [bondLevel, setBondLevel] = useState(1);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -71,6 +71,15 @@ export default function Chat() {
       .catch(() => {
         setCharacterError('加载角色信息失败');
         setCharacterLoading(false);
+      });
+
+    api
+      .get<{ balancePoints: number }>('/api/quota/balance')
+      .then((data) => {
+        setPointsBalance(data.balancePoints);
+      })
+      .catch(() => {
+        setPointsBalance(null);
       });
   }, [characterId]);
 
@@ -222,7 +231,7 @@ export default function Chat() {
             <Text className="chip__text">Lv.{bondLevel}</Text>
           </View>
           <View className="chip chip-points">
-            <Text className="chip__text">{pointsBalance} 点</Text>
+            <Text className="chip__text">{pointsBalance ?? 0} 点</Text>
           </View>
         </View>
       </View>

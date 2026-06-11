@@ -16,6 +16,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [balance, setBalance] = useState<number | null>(null);
   const [titles] = useState<string[]>([]);
   const [achievements] = useState<Array<{ id: string; name: string; description: string }>>([]);
 
@@ -29,9 +30,13 @@ export default function Profile() {
 
     async function fetchProfile() {
       try {
-        const data = await api.get<ProfileData>('/api/me');
+        const [profileData, balData] = await Promise.all([
+          api.get<ProfileData>('/api/me'),
+          api.get<{ balancePoints: number }>('/api/quota/balance'),
+        ]);
         if (!cancelled) {
-          setProfile(data);
+          setProfile(profileData);
+          setBalance(balData.balancePoints);
         }
       } catch (err) {
         if (!cancelled) {
@@ -100,7 +105,7 @@ export default function Profile() {
         <View className="profile-page__user-info">
           <Text className="profile-page__nickname">{nickname}</Text>
           <View className="chip chip-points" onClick={handleBuyPoints}>
-            <Text className="chip__text">0 点数 · 充值</Text>
+            <Text className="chip__text">{balance ?? 0} 点数 · 充值</Text>
           </View>
         </View>
       </View>

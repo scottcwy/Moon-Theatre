@@ -135,7 +135,21 @@ export function streamChat(
     },
     enableChunked: true,
     responseType: 'text',
-    success() {},
+    success(res) {
+      if (res.statusCode === 402) {
+        const data = res.data as string;
+        try {
+          const parsed = JSON.parse(data);
+          callbacks.onError(parsed.error || '点数不足');
+        } catch {
+          callbacks.onError('点数不足');
+        }
+        return;
+      }
+      if (res.statusCode >= 400) {
+        callbacks.onError(`请求失败 (${res.statusCode})`);
+      }
+    },
     fail(err) {
       const message = err.errMsg || 'Stream request failed';
       callbacks.onError(message);

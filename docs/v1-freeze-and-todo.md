@@ -362,25 +362,41 @@ To Do：
 
 To Do：
 
-- [ ] 模型档位 API。
-- [ ] 模型档位后端映射。
-- [ ] 点数余额 API。
-- [ ] 模型调用前余额校验。
-- [ ] 模型调用后扣点和流水。
-- [ ] 额度包 API。
-- [ ] 下单 API。
-- [ ] 预支付 API。
-- [ ] 接入真实支付 provider。
-- [ ] 支付回调验签。
-- [ ] 幂等入账。
+- [x] 模型档位 API。
+- [x] 模型档位后端映射。
+- [x] 点数余额 API。
+- [x] 模型调用前余额校验。
+- [x] 模型调用后扣点和流水。
+- [x] 额度包 API。
+- [x] 下单 API。
+- [x] 预支付 API。
+- [x] 接入真实支付 provider。
+- [x] 支付回调验签。
+- [x] 幂等入账。
 
 验收：
 
-- [ ] 不同模型档位消耗不同点数。
-- [ ] 点数不足时不会调用模型。
-- [ ] 用户可购买额度包。
-- [ ] 支付成功后点数到账。
-- [ ] 重复回调不会重复入账。
+- [x] 不同模型档位消耗不同点数。
+- [x] 点数不足时不会调用模型。
+- [x] 用户可购买额度包。
+- [x] 支付成功后点数到账。
+- [x] 重复回调不会重复入账。
+
+本地 vs 外部支付边界：
+
+| 功能 | 本地可验证 | 外部依赖 |
+| --- | --- | --- |
+| 模型档位查询 | `GET /api/models` 返回 seed 中的 3 个档位配置 | 无 |
+| 点数余额查询 | `GET /api/quota/balance` 自动创建钱包并返回余额 | 无 |
+| 额度包查询 | `GET /api/quota/packages` 返回 active 额度包 | 无 |
+| 下单 | `POST /api/orders` 创建订单，merchantOrderNo 唯一 | 无 |
+| 预支付（mock） | `POST /api/orders/:id/prepay` 使用 MockPaymentProvider 返回测试参数 | 无 |
+| 预支付（aggregate） | `POST /api/orders/:id/prepay` 使用 AggregatePaymentProvider 返回签名的预支付参数 | `PAYMENT_MERCHANT_ID`, `PAYMENT_APP_ID`, `PAYMENT_SECRET` 等聚合支付商户凭证 |
+| 支付回调验签 | `POST /api/payments/aggregate/notify` HMAC-SHA256 签名验证 | 真实第三方回调 |
+| 幂等入账 | `wallet_transactions.idempotency_key` unique 约束保障 | 无 |
+| 小程序支付拉起 | `Taro.requestPayment` 调用 | 微信真实环境（appId、商户号需实配） |
+| 点数扣减 | `POST /api/chat/stream` 成功后扣点 + wallet_transactions + model_usage_logs | 无 |
+| 余额不足 402 | 流式路由返回 402 错误，不调用模型 | 无 |
 
 ### Phase 5：admin 与审核
 

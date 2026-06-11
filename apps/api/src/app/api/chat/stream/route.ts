@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { and, eq } from 'drizzle-orm';
+import { db } from '@/server/db/index.js';
+import { modelProfiles, modelUsageLogs } from '@/server/db/schema.js';
 import { verifyAuth, unauthorizedResponse, errorResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import {
@@ -14,6 +17,7 @@ import {
 import { streamChat, isFastClawConfigured } from '@/server/modules/fastclaw/index.js';
 import { extractAndUpsertMemories, getEnabledMemories } from '@/server/modules/memory/index.js';
 import { incrementBondExp, getRelationship } from '@/server/modules/relationships/index.js';
+import { getBalance, consumePoints, getOrCreateWallet } from '@/server/modules/wallet/index.js';
 
 const streamRequestSchema = z.object({
   characterId: z.string().uuid(),
@@ -46,6 +50,26 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   const { characterId, sessionId, message, modelTier } = parsed.data;
 
+  const [profile] = await db
+    .select({
+      modelName: modelProfiles.modelName,
+      pointsPerCall: modelProfiles.pointsPerCall,
+    })
+    .from(modelProfiles)
+    .where(and(eq(modelProfiles.tier, modelTier), eq(modelProfiles.enabled, true)))
+    .limit(1);
+
+  if (!profile) {
+    return errorResponse(`Model tier "${modelTier}" is not available`, 400);
+  }
+
+  await getOrCreateWallet(auth.userId);
+  const balance = await getBalance(auth.userId);
+
+  if (balance < profile.pointsPerCall) {
+    return errorResponse('Insufficient points', 402);
+  }
+
   try {
     const character = await getCharacterWithPrompts(characterId);
     if (!character) {
@@ -54,7 +78,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     const session = await findOrCreateSession(auth.userId, characterId, modelTier, sessionId);
 
-    await saveUserMessage(session.id, message);
+    const userMsg = await saveUserMessage(session.id, message);
 
     const script = character.scriptId ? await getScriptById(character.scriptId) : null;
 
@@ -94,6 +118,26 @@ export async function POST(request: NextRequest): Promise<Response> {
 
           const { mood, cleanedText } = parseMood(fullContent);
           const saved = await saveAssistantMessage(session.id, cleanedText, mood);
+
+          const consumeIdempotencyKey = `consume_${userMsg.id}`;
+          const consumeResult = await consumePoints(
+            auth.userId,
+            profile.pointsPerCall,
+            consumeIdempotencyKey,
+          );
+
+          await db
+            .insert(modelUsageLogs)
+            .values({
+              userId: auth.userId,
+              characterId,
+              sessionId: session.id,
+              modelTier,
+              modelName: profile.modelName,
+              pointsConsumed: profile.pointsPerCall,
+              walletTransactionId: consumeResult.transactionId,
+              status: 'success',
+            });
 
           const [bondResult] = await Promise.allSettled([
             incrementBondExp(auth.userId, characterId),
