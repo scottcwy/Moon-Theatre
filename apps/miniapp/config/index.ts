@@ -1,10 +1,6 @@
 import path from 'path';
 
-const apiBaseUrl = process.env.API_BASE_URL ?? (
-  process.env.NODE_ENV === 'production'
-    ? 'https://api.example.com'
-    : 'http://localhost:3000'
-);
+const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:3000';
 
 const config = {
   projectName: 'juben-sha-miniapp',
