@@ -97,4 +97,43 @@ describe('buildSystemPrompt', () => {
     const sections = prompt.split('\n\n');
     expect(sections.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('injects bond level when context provided', () => {
+    const character = makeCharacter();
+    const script = makeScript();
+    const prompt = buildSystemPrompt(character, script, { bondLevel: 3, bondExp: 250 });
+
+    expect(prompt).toContain('当前羁绊等级：Lv.3');
+  });
+
+  it('injects memory lines when context provided', () => {
+    const character = makeCharacter();
+    const script = makeScript();
+    const prompt = buildSystemPrompt(character, script, {
+      memories: [
+        { type: 'user_info', content: '用户自称张三。' },
+        { type: 'story', content: '围城中的事件被讨论。' },
+      ],
+    });
+
+    expect(prompt).toContain('已知信息：');
+    expect(prompt).toContain('[记忆-user_info]');
+    expect(prompt).toContain('用户自称张三');
+  });
+
+  it('does not inject empty memory sections', () => {
+    const character = makeCharacter();
+    const script = makeScript();
+    const prompt = buildSystemPrompt(character, script, { memories: [] });
+
+    expect(prompt).not.toContain('已知信息：');
+  });
+
+  it('does not inject bond section when no bond context', () => {
+    const character = makeCharacter();
+    const script = makeScript();
+    const prompt = buildSystemPrompt(character, script);
+
+    expect(prompt).not.toContain('羁绊');
+  });
 });

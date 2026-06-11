@@ -18,7 +18,13 @@ interface CharacterDetailData {
     description: string;
     worldSetting: string;
   } | null;
+  relationship: {
+    bondLevel: number;
+    bondExp: number;
+  } | null;
 }
+
+const BOND_EXP_PER_LEVEL = 100;
 
 export default function CharacterDetail() {
   const router = useRouter();
@@ -28,9 +34,6 @@ export default function CharacterDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [bondLevel] = useState(1);
-  const [bondExp] = useState(30);
-  const [bondMaxExp] = useState(100);
   const [mood] = useState<MoodType>('neutral');
 
   useEffect(() => {
@@ -67,6 +70,9 @@ export default function CharacterDetail() {
     Taro.navigateTo({ url: `/pages/chat/index?characterId=${characterId}` });
   };
 
+  const bondLevel = character?.relationship?.bondLevel ?? 1;
+  const bondExp = character?.relationship?.bondExp ?? 0;
+  const bondMaxExp = bondLevel * BOND_EXP_PER_LEVEL;
   const bondPercent = Math.min(Math.round((bondExp / bondMaxExp) * 100), 100);
 
   if (loading) {

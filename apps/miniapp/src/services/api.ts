@@ -87,7 +87,14 @@ async function request<T>(options: RequestOptions): Promise<T> {
 
 export interface StreamCallbacks {
   onDelta: (content: string) => void;
-  onDone: (result: { messageId: string; sessionId: string; mood?: string; fallback?: boolean }) => void;
+  onDone: (result: {
+    messageId: string;
+    sessionId: string;
+    mood?: string;
+    fallback?: boolean;
+    bondLevel?: number;
+    bondExp?: number;
+  }) => void;
   onError: (message: string) => void;
 }
 
@@ -158,6 +165,8 @@ export function streamChat(
             sessionId: parsed.sessionId,
             mood: parsed.mood,
             fallback: parsed.fallback,
+            bondLevel: parsed.bondLevel,
+            bondExp: parsed.bondExp,
           });
         } else if (parsed.type === 'error') {
           callbacks.onError(parsed.message || 'Stream error');

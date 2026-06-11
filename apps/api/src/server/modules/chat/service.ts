@@ -53,7 +53,12 @@ export async function findOrCreateSession(
 ): Promise<{ id: string }> {
   if (sessionId) {
     const [existing] = await db
-      .select({ id: chatSessions.id, userId: chatSessions.userId, status: chatSessions.status })
+      .select({
+        id: chatSessions.id,
+        userId: chatSessions.userId,
+        characterId: chatSessions.characterId,
+        status: chatSessions.status,
+      })
       .from(chatSessions)
       .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.status, 'active')))
       .limit(1);
@@ -63,6 +68,9 @@ export async function findOrCreateSession(
     }
     if (existing.userId !== userId) {
       throw new Error('Session does not belong to current user');
+    }
+    if (existing.characterId !== characterId) {
+      throw new Error('Session character mismatch');
     }
     return { id: existing.id };
   }
@@ -99,6 +107,13 @@ export async function findOrCreateSession(
   return { id: created.id };
 }
 
+async function touchSession(sessionId: string): Promise<void> {
+  await db
+    .update(chatSessions)
+    .set({ updatedAt: new Date() })
+    .where(eq(chatSessions.id, sessionId));
+}
+
 export async function saveUserMessage(
   sessionId: string,
   content: string
@@ -115,6 +130,7 @@ export async function saveUserMessage(
   if (!msg) {
     throw new Error('Failed to save user message');
   }
+  await touchSession(sessionId);
   return { id: msg.id };
 }
 
@@ -137,5 +153,6 @@ export async function saveAssistantMessage(
   if (!msg) {
     throw new Error('Failed to save assistant message');
   }
+  await touchSession(sessionId);
   return { id: msg.id };
 }

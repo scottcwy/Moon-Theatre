@@ -12,6 +12,8 @@ import {
   parseMood,
 } from '@/server/modules/chat/index.js';
 import { streamChat, isFastClawConfigured } from '@/server/modules/fastclaw/index.js';
+import { extractAndUpsertMemories, getEnabledMemories } from '@/server/modules/memory/index.js';
+import { incrementBondExp, getRelationship } from '@/server/modules/relationships/index.js';
 
 const streamRequestSchema = z.object({
   characterId: z.string().uuid(),
@@ -55,7 +57,17 @@ export async function POST(request: NextRequest): Promise<Response> {
     await saveUserMessage(session.id, message);
 
     const script = character.scriptId ? await getScriptById(character.scriptId) : null;
-    const systemPrompt = buildSystemPrompt(character, script);
+
+    const [existingMemories, existingRelationship] = await Promise.all([
+      getEnabledMemories(auth.userId, characterId),
+      getRelationship(auth.userId, characterId),
+    ]);
+
+    const systemPrompt = buildSystemPrompt(character, script, {
+      memories: existingMemories.map((m) => ({ type: m.type, content: m.content })),
+      bondLevel: existingRelationship?.bondLevel,
+      bondExp: existingRelationship?.bondExp,
+    });
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -83,6 +95,13 @@ export async function POST(request: NextRequest): Promise<Response> {
           const { mood, cleanedText } = parseMood(fullContent);
           const saved = await saveAssistantMessage(session.id, cleanedText, mood);
 
+          const [bondResult] = await Promise.allSettled([
+            incrementBondExp(auth.userId, characterId),
+            extractAndUpsertMemories(auth.userId, characterId, message, cleanedText),
+          ]);
+
+          const updatedBond = bondResult.status === 'fulfilled' ? bondResult.value : null;
+
           const donePayload: Record<string, unknown> = {
             type: 'done',
             messageId: saved.id,
@@ -93,6 +112,10 @@ export async function POST(request: NextRequest): Promise<Response> {
           }
           if (usedFallback) {
             donePayload.fallback = true;
+          }
+          if (updatedBond) {
+            donePayload.bondLevel = updatedBond.relationship.bondLevel;
+            donePayload.bondExp = updatedBond.relationship.bondExp;
           }
           const doneLine = JSON.stringify(donePayload) + '\n';
           controller.enqueue(encoder.encode(doneLine));

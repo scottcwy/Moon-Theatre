@@ -329,21 +329,32 @@ To Do：
 
 To Do：
 
-- [ ] 会话列表 API。
-- [ ] 会话消息分页 API。
-- [ ] 对话列表页接入真实数据。
-- [ ] 聊天页恢复历史消息。
-- [ ] 记忆抽取和写入。
-- [ ] 记忆检索和 Prompt 注入。
-- [ ] 羁绊经验和等级。
-- [ ] mood 解析、保存和展示。
+- [x] 会话列表 API。
+- [x] 会话消息分页 API。
+- [x] 对话列表页接入真实数据。
+- [x] 聊天页恢复历史消息。
+- [x] 记忆抽取和写入。
+- [x] 记忆检索和 Prompt 注入。
+- [x] 羁绊经验和等级。
+- [x] mood 解析、保存和展示。
 
 验收：
 
-- [ ] 退出再进可以恢复历史会话。
-- [ ] 记忆页展示真实记忆。
-- [ ] 聊天后羁绊值发生变化。
-- [ ] AI 回复 mood 可展示。
+- [x] 退出再进可以恢复历史会话。
+- [x] 记忆页展示真实记忆。
+- [x] 聊天后羁绊值发生变化。
+- [x] AI 回复 mood 可展示。
+
+实现说明：
+
+- 记忆模块使用确定性规则抽取（无 LLM 依赖），基于中文关键词/句式匹配 `user_info`、`relationship`、`story` 三类候选记忆，每轮最多 3 条，按 (userId, characterId, type, content) 去重写入。
+- 记忆在流式完成后、done 事件发送前写入；下一轮同角色对话可被 Prompt builder 检索注入。
+- 羁绊经验每轮固定 +10 递增，等级按 `floor(exp / 100) + 1` 计算，上限 Lv.10，无随机性，无重复跳变。
+- 会话列表 API 返回 characterName/avatar/lastMessage/modelTier/updatedAt，支持分页。
+- 会话消息 API 返回 role/content/mood/createdAt，按时间升序，验证会话归属。
+- 角色详情 API 新增 `relationship` 字段（bondLevel, bondExp）。
+- 流式 done 事件新增 `bondLevel` 和 `bondExp` 字段。
+- Prompt builder 支持注入记忆和羁绊上下文。
 
 ### Phase 4：点数、模型档位和支付
 

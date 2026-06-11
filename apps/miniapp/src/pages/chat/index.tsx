@@ -21,11 +21,24 @@ interface CharacterHeader {
   identity: string;
 }
 
+interface MessagesResponse {
+  messages: Array<{
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    mood: string | null;
+    createdAt: string;
+  }>;
+  page: number;
+  limit: number;
+}
+
 const MODEL_TIERS: ModelTier[] = ['casual', 'standard', 'immersive'];
 
 export default function Chat() {
   const router = useRouter();
-  const characterId = router.params.characterId || '';
+  const characterId = (router.params.characterId as string) || '';
+  const routeSessionId = (router.params.sessionId as string) || undefined;
 
   const [character, setCharacter] = useState<CharacterHeader | null>(null);
   const [characterLoading, setCharacterLoading] = useState(true);
@@ -33,12 +46,13 @@ export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [modelTier, setModelTier] = useState<ModelTier>('standard');
   const [pointsBalance] = useState(0);
-  const [bondLevel] = useState(1);
+  const [bondLevel, setBondLevel] = useState(1);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [streamError, setStreamError] = useState('');
 
-  const sessionIdRef = useRef<string | undefined>(undefined);
+  const sessionIdRef = useRef<string | undefined>(routeSessionId);
   const scrollIntoViewRef = useRef('');
 
   useEffect(() => {
@@ -59,6 +73,31 @@ export default function Chat() {
         setCharacterLoading(false);
       });
   }, [characterId]);
+
+  useEffect(() => {
+    if (!routeSessionId) return;
+
+    setHistoryLoading(true);
+    api
+      .get<MessagesResponse>(`/api/chat/sessions/${routeSessionId}/messages?page=1&limit=50`)
+      .then((data) => {
+        const historyMessages: ChatMessage[] = data.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          mood: m.mood ? (m.mood as MoodType) : undefined,
+        }));
+        setMessages(historyMessages);
+        if (historyMessages.length > 0) {
+          const last = historyMessages[historyMessages.length - 1]!;
+          scrollIntoViewRef.current = `msg-${last.id}`;
+        }
+        setHistoryLoading(false);
+      })
+      .catch(() => {
+        setHistoryLoading(false);
+      });
+  }, [routeSessionId]);
 
   const handleTierChange = (tier: ModelTier) => {
     setModelTier(tier);
@@ -93,7 +132,6 @@ export default function Chat() {
     const userMsgId = `user-${Date.now()}`;
 
     addMessage({ id: userMsgId, role: 'user', content: userMessage });
-
     addMessage({
       id: tempAssistantId,
       role: 'assistant',
@@ -129,6 +167,9 @@ export default function Chat() {
             mood: result.mood as MoodType | undefined,
             fallback: result.fallback,
           }));
+          if (typeof result.bondLevel === 'number') {
+            setBondLevel(result.bondLevel);
+          }
           setSending(false);
           scrollIntoViewRef.current = `msg-${result.messageId}`;
         },
@@ -144,11 +185,11 @@ export default function Chat() {
     );
   };
 
-  if (characterLoading) {
+  if (characterLoading || historyLoading) {
     return (
       <View className="chat-page">
         <View className="chat-page__loading">
-          <Text>加载中...</Text>
+          <Text>{historyLoading ? '加载历史消息...' : '加载中...'}</Text>
         </View>
       </View>
     );
