@@ -13,7 +13,15 @@ const config = {
   outputRoot: 'dist',
   plugins: ['@tarojs/plugin-framework-react'],
   defineConstants: {},
-  copy: { patterns: [], options: {} },
+  copy: {
+    patterns: [
+      {
+        from: 'src/assets',
+        to: 'dist/assets',
+      },
+    ],
+    options: {},
+  },
   framework: 'react',
   compiler: 'webpack5',
   mini: {
