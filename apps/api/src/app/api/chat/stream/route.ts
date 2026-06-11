@@ -1,0 +1,120 @@
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { verifyAuth, unauthorizedResponse, errorResponse } from '@/server/middleware/auth.js';
+import { corsPreflightResponse } from '@/server/middleware/cors.js';
+import {
+  getCharacterWithPrompts,
+  getScriptById,
+  findOrCreateSession,
+  saveUserMessage,
+  saveAssistantMessage,
+  buildSystemPrompt,
+  parseMood,
+} from '@/server/modules/chat/index.js';
+import { streamChat, isFastClawConfigured } from '@/server/modules/fastclaw/index.js';
+
+const streamRequestSchema = z.object({
+  characterId: z.string().uuid(),
+  sessionId: z.string().uuid().optional(),
+  message: z.string().min(1).max(5000),
+  modelTier: z.enum(['casual', 'standard', 'immersive']),
+});
+
+export async function OPTIONS(request: NextRequest) {
+  return corsPreflightResponse(request);
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  const auth = await verifyAuth(request);
+  if (!auth) {
+    return unauthorizedResponse();
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON body', 400);
+  }
+
+  const parsed = streamRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return errorResponse('Invalid request: ' + parsed.error.issues.map((i) => i.message).join(', '), 400);
+  }
+
+  const { characterId, sessionId, message, modelTier } = parsed.data;
+
+  try {
+    const character = await getCharacterWithPrompts(characterId);
+    if (!character) {
+      return errorResponse('Character not found', 404);
+    }
+
+    const session = await findOrCreateSession(auth.userId, characterId, modelTier, sessionId);
+
+    await saveUserMessage(session.id, message);
+
+    const script = character.scriptId ? await getScriptById(character.scriptId) : null;
+    const systemPrompt = buildSystemPrompt(character, script);
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        let fullContent = '';
+        let usedFallback = !isFastClawConfigured();
+
+        try {
+          for await (const event of streamChat(systemPrompt, message)) {
+            if (event.type === 'delta') {
+              fullContent += event.content;
+              const line = JSON.stringify({ type: 'delta', content: event.content }) + '\n';
+              controller.enqueue(encoder.encode(line));
+            } else if (event.type === 'done') {
+              usedFallback = event.fallback;
+              break;
+            } else if (event.type === 'error') {
+              const errorLine = JSON.stringify({ type: 'error', message: event.message }) + '\n';
+              controller.enqueue(encoder.encode(errorLine));
+              controller.close();
+              return;
+            }
+          }
+
+          const { mood, cleanedText } = parseMood(fullContent);
+          const saved = await saveAssistantMessage(session.id, cleanedText, mood);
+
+          const donePayload: Record<string, unknown> = {
+            type: 'done',
+            messageId: saved.id,
+            sessionId: session.id,
+          };
+          if (mood) {
+            donePayload.mood = mood;
+          }
+          if (usedFallback) {
+            donePayload.fallback = true;
+          }
+          const doneLine = JSON.stringify(donePayload) + '\n';
+          controller.enqueue(encoder.encode(doneLine));
+          controller.close();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Stream error';
+          const errorLine = JSON.stringify({ type: 'error', message }) + '\n';
+          controller.enqueue(encoder.encode(errorLine));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal server error';
+    return errorResponse(message, 500);
+  }
+}

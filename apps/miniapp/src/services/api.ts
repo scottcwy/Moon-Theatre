@@ -85,10 +85,99 @@ async function request<T>(options: RequestOptions): Promise<T> {
   return response.data as T;
 }
 
+export interface StreamCallbacks {
+  onDelta: (content: string) => void;
+  onDone: (result: { messageId: string; sessionId: string; mood?: string; fallback?: boolean }) => void;
+  onError: (message: string) => void;
+}
+
+function decodeChunk(data: unknown): string {
+  if (typeof data === 'string') {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    const textDecoderCtor = (globalThis as unknown as {
+      TextDecoder?: new () => { decode: (input: ArrayBuffer) => string };
+    }).TextDecoder;
+    if (textDecoderCtor) {
+      return new textDecoderCtor().decode(data);
+    }
+    return String.fromCharCode(...new Uint8Array(data));
+  }
+  return '';
+}
+
+export function streamChat(
+  payload: {
+    characterId: string;
+    sessionId?: string;
+    message: string;
+    modelTier: string;
+  },
+  callbacks: StreamCallbacks
+): { abort: () => void } {
+  const token = getToken() || '';
+
+  const requestTask = Taro.request({
+    url: `${BASE_URL}/api/chat/stream`,
+    method: 'POST',
+    data: payload,
+    header: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    enableChunked: true,
+    responseType: 'text',
+    success() {},
+    fail(err) {
+      const message = err.errMsg || 'Stream request failed';
+      callbacks.onError(message);
+    },
+  });
+
+  let buffer = '';
+
+  requestTask.onChunkReceived((res) => {
+    const chunk = decodeChunk(res.data);
+    buffer += chunk;
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.type === 'delta' && parsed.content) {
+          callbacks.onDelta(parsed.content);
+        } else if (parsed.type === 'done') {
+          callbacks.onDone({
+            messageId: parsed.messageId,
+            sessionId: parsed.sessionId,
+            mood: parsed.mood,
+            fallback: parsed.fallback,
+          });
+        } else if (parsed.type === 'error') {
+          callbacks.onError(parsed.message || 'Stream error');
+        }
+      } catch {
+        continue;
+      }
+    }
+  });
+
+  return {
+    abort: () => requestTask.abort(),
+  };
+}
+
 export const api = {
   get: <T>(url: string, header?: Record<string, string>) => request<T>({ url, method: 'GET', header }),
   post: <T>(url: string, data?: unknown, header?: Record<string, string>) => request<T>({ url, method: 'POST', data, header }),
   put: <T>(url: string, data?: unknown, header?: Record<string, string>) => request<T>({ url, method: 'PUT', data, header }),
   patch: <T>(url: string, data?: unknown, header?: Record<string, string>) => request<T>({ url, method: 'PATCH', data, header }),
   delete: <T>(url: string, header?: Record<string, string>) => request<T>({ url, method: 'DELETE', header }),
+  streamChat,
 };

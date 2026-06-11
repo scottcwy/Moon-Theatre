@@ -12,4 +12,4 @@ coverage/
 .turbo/
 drizzle/
 apps/api/drizzle/
-fastclaw/
+/fastclaw/

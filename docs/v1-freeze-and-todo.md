@@ -278,21 +278,50 @@ To Do：
 
 To Do：
 
-- [ ] 实现 `POST /api/chat/stream`。
-- [ ] 实现 FastClaw adapter。
-- [ ] 实现 PromptBuilder。
-- [ ] 保存 user message。
-- [ ] 流式返回 assistant reply。
-- [ ] 保存 assistant 完整回复。
-- [ ] 小程序聊天页接入真实流式。
-- [ ] 实现基础失败提示。
+- [x] 实现 `POST /api/chat/stream`。
+- [x] 实现 FastClaw adapter。
+- [x] 实现 PromptBuilder。
+- [x] 保存 user message。
+- [x] 流式返回 assistant reply。
+- [x] 保存 assistant 完整回复。
+- [x] 小程序聊天页接入真实流式。
+- [x] 实现基础失败提示。
 
 验收：
 
-- [ ] 用户能向任一角色发送文本。
-- [ ] AI 能流式回复。
-- [ ] 数据库可查到用户消息和 AI 完整回复。
-- [ ] 连续 20 轮基础对话不崩溃。
+- [x] 用户能向任一角色发送文本。
+- [x] AI 能流式回复。
+- [x] 数据库可查到用户消息和 AI 完整回复。
+- [ ] 连续 20 轮基础对话不崩溃（需真机/POC 环境验证）。
+
+本地 vs FastClaw 边界：
+
+| 场景 | 行为 | 说明 |
+| --- | --- | --- |
+| `FASTCLAW_BASE_URL` + `FASTCLAW_API_KEY` 均已配置 | 调用 FastClaw `/v1/chat/completions` 流式端点 | 生产路径 |
+| 上述配置缺失任意一项 | 使用本地确定性回退流（`fallbackStream`） | 开发/本地路径；done 事件携带 `fallback: true` |
+| FastClaw 已配置但 fetch 失败 | 自动降级到本地回退流 | 容错；done 事件携带 `fallback: true` |
+| 本地回退流 | 基于关键词匹配的确定性角色回复，包含 mood 标签 | 仅用于本地开发验证，非生产行为 |
+
+核心实现文件：
+
+| 文件 | 职责 |
+| --- | --- |
+| `apps/api/src/server/modules/chat/service.ts` | 会话管理、消息持久化 |
+| `apps/api/src/server/modules/chat/prompt-builder.ts` | 拼接角色+剧本+prompt 行（无记忆/羁绊注入） |
+| `apps/api/src/server/modules/chat/mood-parser.ts` | 解析 `[情绪: X]` 标签到 mood 枚举 |
+| `apps/api/src/server/modules/fastclaw/adapter.ts` | FastClaw 调用 + 本地回退流 |
+| `apps/api/src/app/api/chat/stream/route.ts` | NDJSON 流式 HTTP 入口 |
+| `apps/miniapp/src/pages/chat/index.tsx` | 小程序聊天页：真实流式消费 |
+| `apps/miniapp/src/services/api.ts` | 新增 `streamChat` 方法（`enableChunked` + `onChunkReceived`） |
+
+测试覆盖：
+
+| 文件 | 覆盖范围 |
+| --- | --- |
+| `apps/api/src/server/modules/chat/__tests__/mood-parser.test.ts` | mood 标签解析：所有枚举值、大小写、空白、无标签、无效值 |
+| `apps/api/src/server/modules/chat/__tests__/prompt-builder.test.ts` | prompt 拼接：全字段、null script、缺失字段、空 prompts |
+| `apps/api/src/server/modules/fastclaw/__tests__/adapter.test.ts` | fallback 流：delta 事件产出、mood 标签、done 事件、isFastClawConfigured 检测 |
 
 ### Phase 3：历史、记忆和羁绊
 
