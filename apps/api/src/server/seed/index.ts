@@ -1,8 +1,35 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { scripts, characters, characterPrompts, modelProfiles, quotaPackages } from '../db/schema.js';
+import { scripts, characters, characterPrompts, modelProfiles, quotaPackages, blockedKeywords } from '../db/schema.js';
+
+const initialBlockedKeywords = [
+  { keyword: 'fuck', category: 'profanity' },
+  { keyword: 'shit', category: 'profanity' },
+  { keyword: 'asshole', category: 'profanity' },
+  { keyword: 'bitch', category: 'profanity' },
+  { keyword: 'damn', category: 'profanity' },
+  { keyword: 'porn', category: 'adult' },
+  { keyword: 'sex', category: 'adult' },
+  { keyword: 'nude', category: 'adult' },
+  { keyword: 'kill', category: 'violence' },
+  { keyword: 'murder', category: 'violence' },
+  { keyword: 'suicide', category: 'self_harm' },
+  { keyword: '毒品', category: 'drugs' },
+  { keyword: '赌博', category: 'gambling' },
+  { keyword: '诈骗', category: 'fraud' },
+  { keyword: '恐怖主义', category: 'extremism' },
+];
+
+async function seedBlockedKeywords() {
+  await db
+    .insert(blockedKeywords)
+    .values(initialBlockedKeywords)
+    .onConflictDoNothing({ target: blockedKeywords.keyword });
+}
 
 async function seed() {
+  await seedBlockedKeywords();
+
   const existingScripts = await db.select().from(scripts).where(eq(scripts.title, '夜色围城')).limit(1);
   if (existingScripts.length > 0) {
     console.log('V1 seed data already exists, skipping.');
@@ -156,6 +183,8 @@ async function seed() {
   ]);
 
   console.log('Created quota packages');
+
+  console.log('Created blocked keywords');
   console.log('Seed completed successfully!');
 }
 

@@ -404,22 +404,62 @@ To Do：
 
 To Do：
 
-- [ ] admin 页面壳。
-- [ ] 会话和消息查看。
-- [ ] 异常标记和备注。
-- [ ] 订单、支付记录、余额流水查看。
-- [ ] 额度包配置。
-- [ ] 模型调用日志。
-- [ ] blocked keywords 管理或初始配置。
-- [ ] 内容安全命中记录。
+- [x] admin 页面壳。
+- [x] 会话和消息查看。
+- [x] 异常标记和备注。
+- [x] 订单、支付记录、余额流水查看。
+- [x] 额度包配置。
+- [x] 模型调用日志。
+- [x] blocked keywords 管理或初始配置。
+- [x] 内容安全命中记录。
 
 验收：
 
-- [ ] admin 可查看会话和消息。
-- [ ] admin 可标记异常。
-- [ ] admin 可查看订单、支付、流水。
-- [ ] admin 可配置 3 个额度包。
-- [ ] admin 可查看模型调用日志。
+- [x] admin 可查看会话和消息。
+- [x] admin 可标记异常。
+- [x] admin 可查看订单、支付、流水。
+- [x] admin 可配置 3 个额度包。
+- [x] admin 可查看模型调用日志。
+
+#### Implementation Summary
+
+**Admin pages** (`apps/api/src/app/admin/`):
+- Dashboard with section links (`/admin` → `page.tsx`)
+- Sidebar navigation layout (`layout.tsx`)
+- Server-rendered list pages for: sessions, orders, payments, wallet (accounts + transactions), model usage logs, quota packages, blocked keywords, review logs
+
+**Admin API routes** (`apps/api/src/app/api/admin/`):
+- `GET /api/admin/sessions` — paginated session list (filterable by userId, status)
+- `GET /api/admin/messages` — paginated messages by sessionId
+- `POST /api/admin/review` — create review log (status: normal/flagged/resolved, with note)
+- `GET /api/admin/orders` — paginated orders list (filterable by userId, status)
+- `GET /api/admin/payments` — paginated payments list (filterable by orderId, status)
+- `GET /api/admin/wallet-accounts` — paginated wallet accounts (filterable by userId)
+- `GET /api/admin/wallet-transactions` — paginated wallet transactions (filterable by userId, type)
+- `GET /api/admin/quota-packages` — list all quota packages
+- `PATCH /api/admin/quota-packages/[id]` — update quota package (price, points, active, recommended, sort)
+- `GET /api/admin/model-usage-logs` — paginated model usage logs (filterable by userId, sessionId, modelTier)
+- `GET /api/admin/blocked-keywords` — list all blocked keywords
+- `POST /api/admin/blocked-keywords` — add blocked keyword
+- `GET /api/admin/review-logs` — paginated review logs (filterable by sessionId, status)
+All admin API routes require JWT authentication.
+
+**Moderation module** (`apps/api/src/server/modules/moderation/`):
+- `checkInput(message, sessionId, userId, messageId?)` — checks user input against `blocked_keywords` table; creates `review_log` on hit
+- `checkOutput(content, sessionId, messageId?)` — checks AI output against `blocked_keywords` table; creates `review_log` on hit
+- Case-insensitive substring matching against all enabled keywords
+
+**Chat stream moderation** (`apps/api/src/app/api/chat/stream/route.ts`):
+- Input check: runs before FastClaw call; on hit, saves user message, creates review_log, returns safety response without invoking model or deducting points
+- Output check: buffers the AI response, checks it before sending any assistant delta to the client, and only streams the safe final content. On hit, creates review_log, saves a safe replacement message, writes a filtered model_usage_log, and does NOT deduct points
+
+**Seed data** (`apps/api/src/server/seed/index.ts`):
+- 15 initial blocked keywords in categories: profanity, adult, violence, self_harm, drugs, gambling, fraud, extremism
+- Blocked keyword seed is independently idempotent and still runs when the main story seed already exists
+
+#### V1 Admin Auth Limitation
+
+V1 admin does NOT have a separate admin authentication system. Admin API routes require the same JWT authentication as C-end users, but the server-rendered admin pages currently read from the database directly and do not enforce an admin role. Any authenticated user can call admin API endpoints. For production, a proper admin role/authorization system should be added. The `reviewerId` field in `review_logs` records the authenticated user's ID for API-created reviews.
 
 ### Phase 6：V1 验收与真机验证
 

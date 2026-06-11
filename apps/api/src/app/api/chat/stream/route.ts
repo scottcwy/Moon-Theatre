@@ -18,6 +18,7 @@ import { streamChat, isFastClawConfigured } from '@/server/modules/fastclaw/inde
 import { extractAndUpsertMemories, getEnabledMemories } from '@/server/modules/memory/index.js';
 import { incrementBondExp, getRelationship } from '@/server/modules/relationships/index.js';
 import { getBalance, consumePoints, getOrCreateWallet } from '@/server/modules/wallet/index.js';
+import { checkInput, checkOutput } from '@/server/modules/moderation/index.js';
 
 const streamRequestSchema = z.object({
   characterId: z.string().uuid(),
@@ -63,13 +64,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     return errorResponse(`Model tier "${modelTier}" is not available`, 400);
   }
 
-  await getOrCreateWallet(auth.userId);
-  const balance = await getBalance(auth.userId);
-
-  if (balance < profile.pointsPerCall) {
-    return errorResponse('Insufficient points', 402);
-  }
-
   try {
     const character = await getCharacterWithPrompts(characterId);
     if (!character) {
@@ -79,6 +73,34 @@ export async function POST(request: NextRequest): Promise<Response> {
     const session = await findOrCreateSession(auth.userId, characterId, modelTier, sessionId);
 
     const userMsg = await saveUserMessage(session.id, message);
+
+    const inputCheck = await checkInput(message, session.id, auth.userId, userMsg.id);
+    if (inputCheck.blocked) {
+      const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
+      const saved = await saveAssistantMessage(session.id, safeMsg, null);
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: safeMsg }) + '\n'));
+          controller.enqueue(encoder.encode(JSON.stringify({ type: 'done', messageId: saved.id, sessionId: session.id, blocked: true }) + '\n'));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'application/x-ndjson',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
+    }
+
+    await getOrCreateWallet(auth.userId);
+    const balance = await getBalance(auth.userId);
+
+    if (balance < profile.pointsPerCall) {
+      return errorResponse('Insufficient points', 402);
+    }
 
     const script = character.scriptId ? await getScriptById(character.scriptId) : null;
 
@@ -103,8 +125,6 @@ export async function POST(request: NextRequest): Promise<Response> {
           for await (const event of streamChat(systemPrompt, message)) {
             if (event.type === 'delta') {
               fullContent += event.content;
-              const line = JSON.stringify({ type: 'delta', content: event.content }) + '\n';
-              controller.enqueue(encoder.encode(line));
             } else if (event.type === 'done') {
               usedFallback = event.fallback;
               break;
@@ -117,45 +137,79 @@ export async function POST(request: NextRequest): Promise<Response> {
           }
 
           const { mood, cleanedText } = parseMood(fullContent);
-          const saved = await saveAssistantMessage(session.id, cleanedText, mood);
 
-          const consumeIdempotencyKey = `consume_${userMsg.id}`;
-          const consumeResult = await consumePoints(
-            auth.userId,
-            profile.pointsPerCall,
-            consumeIdempotencyKey,
-          );
+          const outputCheck = await checkOutput(cleanedText, session.id);
+          let finalContent = cleanedText;
+          let finalMood = mood;
+          let blocked = false;
 
-          await db
-            .insert(modelUsageLogs)
-            .values({
-              userId: auth.userId,
-              characterId,
-              sessionId: session.id,
-              modelTier,
-              modelName: profile.modelName,
-              pointsConsumed: profile.pointsPerCall,
-              walletTransactionId: consumeResult.transactionId,
-              status: 'success',
-            });
+          if (outputCheck.blocked) {
+            finalContent = 'AI 回复触发了安全机制，该消息已被替换。';
+            finalMood = null;
+            blocked = true;
+          }
 
-          const [bondResult] = await Promise.allSettled([
-            incrementBondExp(auth.userId, characterId),
-            extractAndUpsertMemories(auth.userId, characterId, message, cleanedText),
-          ]);
+          const saved = await saveAssistantMessage(session.id, finalContent, finalMood);
 
-          const updatedBond = bondResult.status === 'fulfilled' ? bondResult.value : null;
+          if (!blocked) {
+            const consumeIdempotencyKey = `consume_${userMsg.id}`;
+            const consumeResult = await consumePoints(
+              auth.userId,
+              profile.pointsPerCall,
+              consumeIdempotencyKey,
+            );
+
+            await db
+              .insert(modelUsageLogs)
+              .values({
+                userId: auth.userId,
+                characterId,
+                sessionId: session.id,
+                modelTier,
+                modelName: profile.modelName,
+                pointsConsumed: profile.pointsPerCall,
+                walletTransactionId: consumeResult.transactionId,
+                status: 'success',
+              });
+          } else {
+            await db
+              .insert(modelUsageLogs)
+              .values({
+                userId: auth.userId,
+                characterId,
+                sessionId: session.id,
+                modelTier,
+                modelName: profile.modelName,
+                pointsConsumed: 0,
+                status: 'filtered',
+              });
+          }
+
+          let updatedBond: Awaited<ReturnType<typeof incrementBondExp>> | null = null;
+          if (!blocked) {
+            const [bondResult] = await Promise.allSettled([
+              incrementBondExp(auth.userId, characterId),
+              extractAndUpsertMemories(auth.userId, characterId, message, finalContent),
+            ]);
+            updatedBond = bondResult.status === 'fulfilled' ? bondResult.value : null;
+          }
+
+          const finalLine = JSON.stringify({ type: 'delta', content: finalContent }) + '\n';
+          controller.enqueue(encoder.encode(finalLine));
 
           const donePayload: Record<string, unknown> = {
             type: 'done',
             messageId: saved.id,
             sessionId: session.id,
           };
-          if (mood) {
-            donePayload.mood = mood;
+          if (finalMood) {
+            donePayload.mood = finalMood;
           }
           if (usedFallback) {
             donePayload.fallback = true;
+          }
+          if (blocked) {
+            donePayload.blocked = true;
           }
           if (updatedBond) {
             donePayload.bondLevel = updatedBond.relationship.bondLevel;
