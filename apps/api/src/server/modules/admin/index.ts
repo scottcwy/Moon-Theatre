@@ -1,9 +1,12 @@
 export {
   listSessions,
+  getSessionDetail,
   listMessages,
   createReview,
   listOrders,
+  getOrderDetail,
   listPayments,
+  getPaymentDetail,
   listWalletTransactions,
   listWalletAccounts,
   listQuotaPackages,
@@ -14,3 +17,5 @@ export {
   listReviewLogs,
 } from './service.js';
 export type { PaginationParams, PaginatedResult } from './service.js';
+export { getAdminStats } from './stats.js';
+export type { AdminStats } from './stats.js';

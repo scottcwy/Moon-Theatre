@@ -105,6 +105,67 @@ export async function listMessages(params: PaginationParams & { sessionId: strin
   return { items, total: totalRow[0]?.total ?? 0, page, pageSize };
 }
 
+export async function getSessionDetail(id: string) {
+  const [session] = await db
+    .select({
+      id: chatSessions.id,
+      userId: chatSessions.userId,
+      characterId: chatSessions.characterId,
+      title: chatSessions.title,
+      modelTier: chatSessions.modelTier,
+      status: chatSessions.status,
+      createdAt: chatSessions.createdAt,
+      updatedAt: chatSessions.updatedAt,
+      characterName: characters.name,
+      userName: users.nickname,
+    })
+    .from(chatSessions)
+    .leftJoin(characters, eq(chatSessions.characterId, characters.id))
+    .leftJoin(users, eq(chatSessions.userId, users.id))
+    .where(eq(chatSessions.id, id))
+    .limit(1);
+
+  if (!session) {
+    throw new Error('Session not found');
+  }
+
+  const [messageRows, reviewRows] = await Promise.all([
+    db
+      .select({
+        id: messages.id,
+        role: messages.role,
+        content: messages.content,
+        mood: messages.mood,
+        modelTier: messages.modelTier,
+        tokensUsed: messages.tokensUsed,
+        pointsConsumed: messages.pointsConsumed,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(eq(messages.sessionId, id))
+      .orderBy(asc(messages.createdAt)),
+    db
+      .select({
+        id: reviewLogs.id,
+        messageId: reviewLogs.messageId,
+        reviewerId: reviewLogs.reviewerId,
+        status: reviewLogs.status,
+        note: reviewLogs.note,
+        createdAt: reviewLogs.createdAt,
+        updatedAt: reviewLogs.updatedAt,
+      })
+      .from(reviewLogs)
+      .where(eq(reviewLogs.sessionId, id))
+      .orderBy(desc(reviewLogs.createdAt)),
+  ]);
+
+  return {
+    ...session,
+    messages: messageRows,
+    reviewLogs: reviewRows,
+  };
+}
+
 export async function createReview(input: {
   sessionId: string;
   messageId?: string;
@@ -169,6 +230,70 @@ export async function listOrders(params: PaginationParams & { userId?: string; s
   return { items, total: totalRow[0]?.total ?? 0, page, pageSize };
 }
 
+export async function getOrderDetail(id: string) {
+  const [order] = await db
+    .select({
+      id: orders.id,
+      userId: orders.userId,
+      quotaPackageId: orders.quotaPackageId,
+      amountCents: orders.amountCents,
+      pointsAmount: orders.pointsAmount,
+      status: orders.status,
+      merchantOrderNo: orders.merchantOrderNo,
+      providerTransactionId: orders.providerTransactionId,
+      paidAt: orders.paidAt,
+      creditedAt: orders.creditedAt,
+      createdAt: orders.createdAt,
+      updatedAt: orders.updatedAt,
+      userName: users.nickname,
+      quotaPackageName: quotaPackages.name,
+      quotaPackagePoints: quotaPackages.points,
+    })
+    .from(orders)
+    .leftJoin(users, eq(orders.userId, users.id))
+    .leftJoin(quotaPackages, eq(orders.quotaPackageId, quotaPackages.id))
+    .where(eq(orders.id, id))
+    .limit(1);
+
+  if (!order) {
+    throw new Error('Order not found');
+  }
+
+  const paymentRows = await db
+    .select({
+      id: payments.id,
+      provider: payments.provider,
+      providerTransactionId: payments.providerTransactionId,
+      verifyResult: payments.verifyResult,
+      status: payments.status,
+      createdAt: payments.createdAt,
+      updatedAt: payments.updatedAt,
+    })
+    .from(payments)
+    .where(eq(payments.orderId, id))
+    .orderBy(desc(payments.createdAt));
+
+  const walletTransactionRows = await db
+    .select({
+      id: walletTransactions.id,
+      type: walletTransactions.type,
+      amount: walletTransactions.amount,
+      balanceAfter: walletTransactions.balanceAfter,
+      idempotencyKey: walletTransactions.idempotencyKey,
+      description: walletTransactions.description,
+      createdAt: walletTransactions.createdAt,
+    })
+    .from(walletTransactions)
+    .where(eq(walletTransactions.orderId, id))
+    .orderBy(desc(walletTransactions.createdAt));
+
+  return {
+    ...order,
+    payments: paymentRows,
+    walletTransactions: walletTransactionRows,
+  };
+}
+
 export async function listPayments(params: PaginationParams & { orderId?: string; status?: string }): Promise<PaginatedResult<unknown>> {
   const { page, pageSize, offset } = normalizePagination(params);
 
@@ -203,6 +328,38 @@ export async function listPayments(params: PaginationParams & { orderId?: string
   ]);
 
   return { items, total: totalRow[0]?.total ?? 0, page, pageSize };
+}
+
+export async function getPaymentDetail(id: string) {
+  const [payment] = await db
+    .select({
+      id: payments.id,
+      orderId: payments.orderId,
+      provider: payments.provider,
+      providerTransactionId: payments.providerTransactionId,
+      prepayParams: payments.prepayParams,
+      callbackRawDigest: payments.callbackRawDigest,
+      verifyResult: payments.verifyResult,
+      status: payments.status,
+      createdAt: payments.createdAt,
+      updatedAt: payments.updatedAt,
+      orderMerchantOrderNo: orders.merchantOrderNo,
+      orderAmountCents: orders.amountCents,
+      orderStatus: orders.status,
+      userId: orders.userId,
+      userName: users.nickname,
+    })
+    .from(payments)
+    .leftJoin(orders, eq(payments.orderId, orders.id))
+    .leftJoin(users, eq(orders.userId, users.id))
+    .where(eq(payments.id, id))
+    .limit(1);
+
+  if (!payment) {
+    throw new Error('Payment not found');
+  }
+
+  return payment;
 }
 
 export async function listWalletTransactions(params: PaginationParams & { userId?: string; type?: string }): Promise<PaginatedResult<unknown>> {

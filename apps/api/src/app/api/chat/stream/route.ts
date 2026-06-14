@@ -19,6 +19,7 @@ import { extractAndUpsertMemories, getEnabledMemories } from '@/server/modules/m
 import { incrementBondExp, getRelationship } from '@/server/modules/relationships/index.js';
 import { getBalance, consumePoints, getOrCreateWallet, refundConsumedPoints } from '@/server/modules/wallet/index.js';
 import { checkInput, checkOutput } from '@/server/modules/moderation/index.js';
+import { unlockAchievementsForChat } from '@/server/modules/achievements/index.js';
 
 const streamRequestSchema = z.object({
   characterId: z.string().uuid(),
@@ -207,12 +208,19 @@ export async function POST(request: NextRequest): Promise<Response> {
           }
 
           let updatedBond: Awaited<ReturnType<typeof incrementBondExp>> | null = null;
+          let unlockedAchievements: string[] = [];
+          let unlockedTitles: string[] = [];
           if (!blocked) {
-            const [bondResult] = await Promise.allSettled([
+            const [bondResult, , achievementResult] = await Promise.allSettled([
               incrementBondExp(auth.userId, characterId),
               extractAndUpsertMemories(auth.userId, characterId, message, finalContent),
+              unlockAchievementsForChat(auth.userId),
             ]);
             updatedBond = bondResult.status === 'fulfilled' ? bondResult.value : null;
+            if (achievementResult.status === 'fulfilled') {
+              unlockedAchievements = achievementResult.value.unlockedAchievements;
+              unlockedTitles = achievementResult.value.unlockedTitles;
+            }
           }
 
           const finalLine = JSON.stringify({ type: 'delta', content: finalContent }) + '\n';
@@ -235,6 +243,12 @@ export async function POST(request: NextRequest): Promise<Response> {
           if (updatedBond) {
             donePayload.bondLevel = updatedBond.relationship.bondLevel;
             donePayload.bondExp = updatedBond.relationship.bondExp;
+          }
+          if (unlockedAchievements.length > 0) {
+            donePayload.unlockedAchievements = unlockedAchievements;
+          }
+          if (unlockedTitles.length > 0) {
+            donePayload.unlockedTitles = unlockedTitles;
           }
           donePayload.balanceAfter = balanceAfter;
           const doneLine = JSON.stringify(donePayload) + '\n';

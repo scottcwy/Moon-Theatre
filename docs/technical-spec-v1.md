@@ -248,9 +248,11 @@ Taro 调 wx.login
 
 第一版只做微信登录，不做手机号登录，不做 refresh token。
 
-### 7.2 单 Agent 流式聊天
+### 7.2 单 Agent moderated-buffered 聊天
 
-聊天必须流式输出，采用 HTTP Streaming。本项目不规划 WebSocket；后续群聊也继续使用 HTTP Streaming。
+V1 聊天接口采用 HTTP NDJSON streaming 形态，当前安全策略是 `moderated-buffered`：服务端可以流式接收 FastClaw 输出，但会先累积完整回复、完成 mood 解析和输出关键词过滤，再向小程序发送最终可展示文本。当前不承诺真正逐 token 实时展示。
+
+本项目不规划 WebSocket；后续如要恢复真正逐 token 实时展示，必须先补充分段审核、风险中断和已展示内容处理策略。
 
 ```text
 Taro
@@ -265,11 +267,11 @@ Taro
   -> 输入关键词过滤
   -> 拼接上下文
   -> 调用 FastClaw 现有 API
-  -> 接收 FastClaw 流式输出
-  -> 输出关键词过滤
-  -> 流式返回给 Taro
+  -> 接收并缓冲 FastClaw 输出
+  -> 完整回复输出关键词过滤
+  -> 以 NDJSON streaming 形态返回最终内容给 Taro
   -> 保存 messages
-  -> 按模型档位扣减点数
+  -> 保留生成前预扣点数结果
   -> 写入 wallet_transactions
   -> 写入 model_usage_logs
   -> 异步触发记忆、羁绊、成就
@@ -316,11 +318,11 @@ ChatService
   -> 注入 Prompt 上下文
 ```
 
-admin 需要支持禁用或覆盖错误记忆。
+admin 需要支持列表筛选、禁用和覆盖错误记忆；相关 route、service 和测试属于 V1 后端验收项。
 
 ### 7.5 羁绊、称号、成就
 
-建议采用事件驱动。
+V1 先采用对话完成后的简单规则服务，不引入复杂事件总线。
 
 核心事件：
 
@@ -337,6 +339,8 @@ admin 需要支持禁用或覆盖错误记忆。
 - `user_titles`
 - `user_achievements`
 
+最小后端闭环需要覆盖：成就查询 API、规则服务、聊天成功后触发解锁、重复达成不重复发放。更复杂事件体系和 admin 配置能力后续再扩展。
+
 ### 7.6 模型档位与点数扣减
 
 V1 用户端提供三个模型档位：轻松、标准、沉浸。模型档位映射由后端 `model_profiles` 配置，包含模型标识、供应商、启用状态、每次调用消耗点数、展示文案和成本估算字段。
@@ -346,9 +350,10 @@ V1 用户端提供三个模型档位：轻松、标准、沉浸。模型档位�
 - 不同档位消耗不同点数。
 - 发送消息前必须校验用户点数余额。
 - 点数不足时不创建模型调用，不调用 FastClaw。
-- 模型调用完成后按实际使用档位扣减点数。
+- 模型调用前按实际使用档位预扣点数。
 - 扣减必须写入 `wallet_transactions`，关联 `model_usage_logs`。
-- 模型调用失败、被输入安全拦截、未产生有效回复时不扣点数。
+- 模型调用失败、被输出安全过滤、未产生有效回复时必须退款。
+- 输入安全拦截发生在预扣前，不扣点数。
 - 如果流式过程中服务端已收到有效模型回复但客户端中断，按服务端保存的完整回复和调用日志决定是否扣减。
 
 V1 不按真实人民币逐 token 扣费；人民币只用于购买额度包，用户侧消耗单位统一为点数。
@@ -561,11 +566,13 @@ V1 数据库必须包含支付和点数闭环需要的 6 张核心表：`quota_p
 | Stats | `GET /api/admin/stats` |
 | Orders | `GET /api/admin/orders`, `GET /api/admin/orders/:id` |
 | Payments | `GET /api/admin/payments`, `GET /api/admin/payments/:id` |
+| Sessions | `GET /api/admin/sessions/:id` |
+| Memories | `GET /api/admin/memories`, `PATCH /api/admin/memories/:id` |
 | Wallet | `GET /api/admin/wallet-accounts`, `GET /api/admin/wallet-transactions` |
 | Quota Packages | `GET /api/admin/quota-packages`, `POST /api/admin/quota-packages`, `PATCH /api/admin/quota-packages/:id` |
 | Model Usage | `GET /api/admin/model-usage-logs` |
 
-角色、剧本、关键词等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置和模型调用日志属于 V1 admin 必做范围。
+当前仍需持续验收和补强的后端范围包括：admin stats 和详情 API、memory admin、achievement/title 最小闭环，以及 OpenAPI 或 `docs/api-v1.md` 初版。角色、剧本、关键词等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置和模型调用日志属于 V1 admin 必做范围。
 
 ### 9.3 内网 FastClaw API
 
