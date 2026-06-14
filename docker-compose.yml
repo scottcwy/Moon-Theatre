@@ -31,12 +31,12 @@ services:
       - '3000:3000'
     environment:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/juben_sha
-      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - WECHAT_APP_ID=${WECHAT_APP_ID:-}
       - WECHAT_APP_SECRET=${WECHAT_APP_SECRET:-}
       - FASTCLAW_BASE_URL=http://fastclaw:18953
       - FASTCLAW_API_KEY=${FASTCLAW_API_KEY:-}
-      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
+      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:?PAYMENT_PROVIDER is required}
       - PAYMENT_MERCHANT_ID=${PAYMENT_MERCHANT_ID:-}
       - PAYMENT_APP_ID=${PAYMENT_APP_ID:-}
       - PAYMENT_SECRET=${PAYMENT_SECRET:-}
@@ -44,6 +44,9 @@ services:
       - PAYMENT_PRIVATE_KEY=${PAYMENT_PRIVATE_KEY:-}
       - PAYMENT_NOTIFY_URL=${PAYMENT_NOTIFY_URL:-}
       - PAYMENT_RETURN_URL=${PAYMENT_RETURN_URL:-}
+      - ADMIN_USER_IDS=${ADMIN_USER_IDS:?ADMIN_USER_IDS is required}
+      - ADMIN_BASIC_AUTH_USER=${ADMIN_BASIC_AUTH_USER:?ADMIN_BASIC_AUTH_USER is required}
+      - ADMIN_BASIC_AUTH_PASSWORD=${ADMIN_BASIC_AUTH_PASSWORD:?ADMIN_BASIC_AUTH_PASSWORD is required}
     depends_on:
       postgres:
         condition: service_healthy

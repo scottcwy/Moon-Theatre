@@ -17,7 +17,7 @@ import {
 import { streamChat, isFastClawConfigured } from '@/server/modules/fastclaw/index.js';
 import { extractAndUpsertMemories, getEnabledMemories } from '@/server/modules/memory/index.js';
 import { incrementBondExp, getRelationship } from '@/server/modules/relationships/index.js';
-import { getBalance, consumePoints, getOrCreateWallet } from '@/server/modules/wallet/index.js';
+import { getBalance, consumePoints, getOrCreateWallet, refundConsumedPoints } from '@/server/modules/wallet/index.js';
 import { checkInput, checkOutput } from '@/server/modules/moderation/index.js';
 
 const streamRequestSchema = z.object({
@@ -26,6 +26,13 @@ const streamRequestSchema = z.object({
   message: z.string().min(1).max(5000),
   modelTier: z.enum(['casual', 'standard', 'immersive']),
 });
+
+const STREAM_HEADERS = {
+  'Content-Type': 'application/x-ndjson',
+  'Cache-Control': 'no-cache',
+  Connection: 'keep-alive',
+  'X-Stream-Mode': 'moderated-buffered',
+};
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
@@ -87,11 +94,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         },
       });
       return new Response(stream, {
-        headers: {
-          'Content-Type': 'application/x-ndjson',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        },
+        headers: STREAM_HEADERS,
       });
     }
 
@@ -101,6 +104,13 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (balance < profile.pointsPerCall) {
       return errorResponse('Insufficient points', 402);
     }
+
+    const consumeIdempotencyKey = `consume_${userMsg.id}`;
+    const consumeResult = await consumePoints(
+      auth.userId,
+      profile.pointsPerCall,
+      consumeIdempotencyKey,
+    );
 
     const script = character.scriptId ? await getScriptById(character.scriptId) : null;
 
@@ -122,6 +132,8 @@ export async function POST(request: NextRequest): Promise<Response> {
         let usedFallback = !isFastClawConfigured();
 
         try {
+          controller.enqueue(encoder.encode(JSON.stringify({ type: 'status', mode: 'moderated_buffered', stage: 'generating' }) + '\n'));
+
           for await (const event of streamChat(systemPrompt, message)) {
             if (event.type === 'delta') {
               fullContent += event.content;
@@ -129,6 +141,11 @@ export async function POST(request: NextRequest): Promise<Response> {
               usedFallback = event.fallback;
               break;
             } else if (event.type === 'error') {
+              await refundConsumedPoints(
+                auth.userId,
+                profile.pointsPerCall,
+                `refund_${userMsg.id}`,
+              ).catch(() => undefined);
               const errorLine = JSON.stringify({ type: 'error', message: event.message }) + '\n';
               controller.enqueue(encoder.encode(errorLine));
               controller.close();
@@ -152,13 +169,6 @@ export async function POST(request: NextRequest): Promise<Response> {
           const saved = await saveAssistantMessage(session.id, finalContent, finalMood);
 
           if (!blocked) {
-            const consumeIdempotencyKey = `consume_${userMsg.id}`;
-            const consumeResult = await consumePoints(
-              auth.userId,
-              profile.pointsPerCall,
-              consumeIdempotencyKey,
-            );
-
             await db
               .insert(modelUsageLogs)
               .values({
@@ -172,6 +182,12 @@ export async function POST(request: NextRequest): Promise<Response> {
                 status: 'success',
               });
           } else {
+            await refundConsumedPoints(
+              auth.userId,
+              profile.pointsPerCall,
+              `refund_${userMsg.id}`,
+            );
+
             await db
               .insert(modelUsageLogs)
               .values({
@@ -219,6 +235,12 @@ export async function POST(request: NextRequest): Promise<Response> {
           controller.enqueue(encoder.encode(doneLine));
           controller.close();
         } catch (err) {
+          await refundConsumedPoints(
+            auth.userId,
+            profile.pointsPerCall,
+            `refund_${userMsg.id}`,
+          ).catch(() => undefined);
+
           const message = err instanceof Error ? err.message : 'Stream error';
           const errorLine = JSON.stringify({ type: 'error', message }) + '\n';
           controller.enqueue(encoder.encode(errorLine));
@@ -228,11 +250,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
 
     return new Response(stream, {
-      headers: {
-        'Content-Type': 'application/x-ndjson',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
+      headers: STREAM_HEADERS,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal server error';

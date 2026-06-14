@@ -98,6 +98,7 @@ export default function QuotaBuy() {
       const isMock = !params.appId || params.appId === '';
 
       if (isMock) {
+        await api.post(`/api/orders/${order.id}/mock-confirm`);
         Taro.navigateTo({
           url: `/pages/quota/result?orderId=${order.id}`,
         });

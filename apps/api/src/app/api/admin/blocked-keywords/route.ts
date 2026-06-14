@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { listBlockedKeywords, createBlockedKeyword } from '@/server/modules/admin/index.js';
 
@@ -14,11 +14,10 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  if (!auth) {
-    return unauthorizedResponse();
+  const admin = await verifyAdminAuth(request);
+  if (!admin.ok) {
+    return admin.response;
   }
-
   try {
     const result = await listBlockedKeywords();
     return successResponse({ keywords: result });
@@ -29,11 +28,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  if (!auth) {
-    return unauthorizedResponse();
+  const admin = await verifyAdminAuth(request);
+  if (!admin.ok) {
+    return admin.response;
   }
-
   try {
     const body = await request.json();
     const parsed = createSchema.safeParse(body);

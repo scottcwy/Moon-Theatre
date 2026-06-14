@@ -149,6 +149,12 @@ export interface ConsumeResult {
   alreadyConsumed: boolean;
 }
 
+export interface RefundResult {
+  transactionId: string;
+  balanceAfter: number;
+  alreadyRefunded: boolean;
+}
+
 /**
  * Deducts points from the user's wallet with idempotency protection.
  * If a transaction with the same idempotencyKey already exists, returns the existing result.
@@ -227,6 +233,80 @@ export async function consumePoints(
       transactionId: txRow.id,
       balanceAfter: newBalance,
       alreadyConsumed: false,
+    };
+  });
+}
+
+export async function refundConsumedPoints(
+  userId: string,
+  amount: number,
+  idempotencyKey: string,
+  modelUsageLogId?: string,
+): Promise<RefundResult> {
+  if (amount <= 0) {
+    throw new Error('Refund amount must be positive');
+  }
+
+  return db.transaction(async (tx) => {
+    const [existingTx] = await tx
+      .select({ id: walletTransactions.id, balanceAfter: walletTransactions.balanceAfter })
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, idempotencyKey))
+      .limit(1);
+
+    if (existingTx) {
+      return {
+        transactionId: existingTx.id,
+        balanceAfter: existingTx.balanceAfter,
+        alreadyRefunded: true,
+      };
+    }
+
+    const wallet = await tx
+      .select()
+      .from(walletAccounts)
+      .where(eq(walletAccounts.userId, userId))
+      .limit(1)
+      .for('update');
+
+    const account = wallet[0];
+    if (!account) {
+      throw new Error('Wallet account not found');
+    }
+
+    const newBalance = account.balancePoints + amount;
+    const newConsumed = Math.max(0, account.totalConsumedPoints - amount);
+
+    await tx
+      .update(walletAccounts)
+      .set({
+        balancePoints: newBalance,
+        totalConsumedPoints: newConsumed,
+        updatedAt: new Date(),
+      })
+      .where(eq(walletAccounts.id, account.id));
+
+    const [txRow] = await tx
+      .insert(walletTransactions)
+      .values({
+        userId,
+        type: 'adjust',
+        amount,
+        balanceAfter: newBalance,
+        modelUsageLogId: modelUsageLogId ?? null,
+        idempotencyKey,
+        description: `Refunded ${amount} consumed points`,
+      })
+      .returning({ id: walletTransactions.id });
+
+    if (!txRow) {
+      throw new Error('Failed to create wallet refund transaction');
+    }
+
+    return {
+      transactionId: txRow.id,
+      balanceAfter: newBalance,
+      alreadyRefunded: false,
     };
   });
 }

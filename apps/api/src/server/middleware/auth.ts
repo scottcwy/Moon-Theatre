@@ -26,6 +26,23 @@ export async function verifyAuth(request: NextRequest): Promise<{ userId: string
   }
 }
 
+export type AdminAuthResult =
+  | { ok: true; auth: { userId: string } }
+  | { ok: false; response: NextResponse };
+
+export async function verifyAdminAuth(request: NextRequest): Promise<AdminAuthResult> {
+  const auth = await verifyAuth(request);
+  if (!auth) {
+    return { ok: false, response: unauthorizedResponse() };
+  }
+
+  if (!config.adminUserIds.includes(auth.userId)) {
+    return { ok: false, response: forbiddenResponse() };
+  }
+
+  return { ok: true, auth };
+}
+
 export function unauthorizedResponse(message = 'Unauthorized') {
   return NextResponse.json({ error: message }, { status: 401 });
 }

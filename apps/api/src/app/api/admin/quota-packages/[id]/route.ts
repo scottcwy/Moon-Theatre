@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { updateQuotaPackage } from '@/server/modules/admin/index.js';
 
@@ -22,11 +22,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await verifyAuth(request);
-  if (!auth) {
-    return unauthorizedResponse();
+  const admin = await verifyAdminAuth(request);
+  if (!admin.ok) {
+    return admin.response;
   }
-
   try {
     const { id } = await params;
     const body = await request.json();
