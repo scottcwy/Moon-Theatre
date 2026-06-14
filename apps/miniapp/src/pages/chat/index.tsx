@@ -9,6 +9,7 @@ import { ModelTierSegmentedControl } from '../../components/chat/ModelTierSegmen
 import { ChatBubble } from '../../components/chat/ChatBubble';
 import { ChatInputBar } from '../../components/chat/ChatInputBar';
 import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
+import { shouldRenderStandaloneTypingIndicator } from './index.model';
 import './index.scss';
 
 interface ChatMessage {
@@ -381,7 +382,7 @@ export default function Chat() {
             />
           </View>
         ))}
-        {sending && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && !messages[messages.length - 1]?.content && (
+        {shouldRenderStandaloneTypingIndicator(sending, messages) && (
           <ChatBubble role="assistant" content="正在输入..." avatarUrl={character.avatarUrl} characterName={character.name} />
         )}
       </ScrollView>
