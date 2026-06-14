@@ -74,6 +74,13 @@ export function setUser(user: StoredUser): void {
   Taro.setStorageSync(USER_KEY, JSON.stringify(user));
 }
 
+export function applyDevAuthBypass(): boolean {
+  if (!DEV_AUTH_BYPASS) return false;
+  setToken(DEV_TOKEN);
+  setUser(DEV_USER);
+  return true;
+}
+
 export function clearAuth(): void {
   Taro.removeStorageSync(TOKEN_KEY);
   Taro.removeStorageSync(USER_KEY);
@@ -85,21 +92,28 @@ export function isLoggedIn(): boolean {
 
 async function request<T>(options: RequestOptions): Promise<T> {
   const { url, method = 'GET', data, header = {} } = options;
+  const requestUrl = `${BASE_URL}${url}`;
 
   const token = getToken();
   if (token) {
     header['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await Taro.request({
-    url: `${BASE_URL}${url}`,
-    method,
-    data,
-    header: {
-      'Content-Type': 'application/json',
-      ...header,
-    },
-  });
+  let response: Taro.request.SuccessCallbackResult;
+  try {
+    response = await Taro.request({
+      url: requestUrl,
+      method,
+      data,
+      header: {
+        'Content-Type': 'application/json',
+        ...header,
+      },
+    });
+  } catch (err) {
+    const reason = getNetworkErrorMessage(err);
+    throw new ApiError('API_ERROR', 0, `网络请求失败: ${method} ${requestUrl} (${reason})`, err);
+  }
 
   if (response.statusCode === 401) {
     clearAuth();
@@ -112,6 +126,17 @@ async function request<T>(options: RequestOptions): Promise<T> {
   }
 
   return response.data as T;
+}
+
+function getNetworkErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    if (typeof record.errMsg === 'string') return record.errMsg;
+    if (typeof record.message === 'string') return record.message;
+  }
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'unknown';
 }
 
 function getErrorMessage(data: unknown, fallback: string): string {

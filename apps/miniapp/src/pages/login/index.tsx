@@ -1,7 +1,7 @@
 import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useState } from 'react';
-import { api, setToken, setUser } from '../../services/api';
+import { api, applyDevAuthBypass, setToken, setUser } from '../../services/api';
 import './index.scss';
 
 export default function Login() {
@@ -9,6 +9,12 @@ export default function Login() {
 
   const handleWechatLogin = () => {
     if (loading) return;
+
+    if (applyDevAuthBypass()) {
+      Taro.switchTab({ url: '/pages/home/index' });
+      return;
+    }
+
     setLoading(true);
 
     Taro.login({

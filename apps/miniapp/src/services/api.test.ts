@@ -38,6 +38,19 @@ describe('miniapp api client', () => {
     });
   });
 
+  it('stores the dev auth bypass user when requested', async () => {
+    vi.stubGlobal('DEV_AUTH_BYPASS', true);
+    const { applyDevAuthBypass, getToken, getUser } = await import('./api');
+
+    expect(applyDevAuthBypass()).toBe(true);
+    expect(getToken()).toBe('dev-auth-bypass-token');
+    expect(getUser()).toEqual({
+      id: 'dev-user',
+      nickname: '开发调试用户',
+      avatarUrl: null,
+    });
+  });
+
   it('throws a typed auth error and clears auth storage on 401', async () => {
     const { api, ApiError, setToken, setUser, isAuthExpiredError, getToken, getUser } = await import('./api');
     setToken('expired-token');
@@ -53,6 +66,17 @@ describe('miniapp api client', () => {
     await expect(api.get('/api/me')).rejects.toSatisfy(isAuthExpiredError);
     expect(getToken()).toBe('');
     expect(getUser()).toBeNull();
+  });
+
+  it('includes request details when the network request fails', async () => {
+    const { api } = await import('./api');
+    requestMock.mockRejectedValue({ errMsg: 'request:fail timeout' });
+
+    await expect(api.get('/api/me')).rejects.toMatchObject({
+      code: 'API_ERROR',
+      statusCode: 0,
+      message: '网络请求失败: GET http://localhost:3000/api/me (request:fail timeout)',
+    });
   });
 
   it('passes balanceAfter through chat stream done events', async () => {
