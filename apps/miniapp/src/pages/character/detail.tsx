@@ -77,9 +77,10 @@ export default function CharacterDetail() {
 
   if (loading) {
     return (
-      <View className="character-detail-page">
-        <View className="character-detail-page__state">
-          <Text className="character-detail-page__state-text">加载中…</Text>
+      <View className="character-detail-page app-page">
+        <View className="state-block">
+          <Text className="state-block__title">正在读取角色档案</Text>
+          <Text className="state-block__text">人物关系、世界观和羁绊资料加载中。</Text>
         </View>
       </View>
     );
@@ -87,58 +88,67 @@ export default function CharacterDetail() {
 
   if (error || !character) {
     return (
-      <View className="character-detail-page">
-        <View className="character-detail-page__state">
-          <Text className="character-detail-page__state-text character-detail-page__state-text--error">
-            {error || '角色不存在'}
-          </Text>
+      <View className="character-detail-page app-page">
+        <View className="state-block">
+          <Text className="state-block__title">角色暂时不可用</Text>
+          <Text className="state-block__text">{error || '角色不存在'}</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View className="character-detail-page">
-      <View className="character-detail-page__avatar-section">
-        {character.avatarUrl ? (
-          <Image className="character-detail-page__avatar" src={character.avatarUrl} mode="aspectFill" />
-        ) : (
-          <View className="character-detail-page__avatar-placeholder">
-            <Text className="character-detail-page__avatar-text">{character.name[0]}</Text>
+    <View className="character-detail-page app-page">
+      <View className="character-detail-page__hero">
+        <View className="character-detail-page__avatar-section">
+          {character.avatarUrl ? (
+            <Image className="character-detail-page__avatar" src={character.avatarUrl} mode="aspectFill" />
+          ) : (
+            <View className="character-detail-page__avatar-placeholder">
+              <Text className="character-detail-page__avatar-text">{character.name[0]}</Text>
+            </View>
+          )}
+        </View>
+
+        <View className="character-detail-page__info">
+          <Text className="character-detail-page__name">{character.name}</Text>
+          <Text className="character-detail-page__identity">{character.identity}</Text>
+        </View>
+
+        <View className="character-detail-page__quick-row">
+          <View className="chip chip-mood-neutral">
+            <Text className="chip__text">{character.initialRelationship}</Text>
           </View>
-        )}
+          <View className="chip chip-mood-thinking">
+            <Text className="chip__text">{MOOD_LABELS[mood]}</Text>
+          </View>
+        </View>
       </View>
 
-      <View className="character-detail-page__info">
-        <Text className="character-detail-page__name">{character.name}</Text>
-        <Text className="character-detail-page__identity">{character.identity}</Text>
-      </View>
+      {character.script && (
+        <View className="character-detail-page__section character-detail-page__section--script">
+          <Text className="character-detail-page__kicker">{character.script.title}</Text>
+          <Text className="character-detail-page__section-title">世界观</Text>
+          <Text className="character-detail-page__description">{character.script.description}</Text>
+          <Text className="character-detail-page__description character-detail-page__description--muted">
+            {character.script.worldSetting}
+          </Text>
+        </View>
+      )}
 
       <View className="character-detail-page__section">
         <Text className="character-detail-page__section-title">人设简介</Text>
         <Text className="character-detail-page__description">{character.description}</Text>
       </View>
 
-      <View className="character-detail-page__section">
-        <Text className="character-detail-page__section-title">初始关系</Text>
-        <View className="chip chip-mood-neutral">
-          <Text className="chip__text">{character.initialRelationship}</Text>
+      <View className="character-detail-page__section character-detail-page__section--bond">
+        <View className="character-detail-page__bond-title-row">
+          <Text className="character-detail-page__section-title">羁绊等级</Text>
+          <Text className="character-detail-page__bond-level">Lv.{bondLevel}</Text>
         </View>
-      </View>
-
-      {character.script && (
-        <View className="character-detail-page__section">
-          <Text className="character-detail-page__section-title">世界观 · {character.script.title}</Text>
-          <Text className="character-detail-page__description">{character.script.description}</Text>
-          <Text className="character-detail-page__description">{character.script.worldSetting}</Text>
-        </View>
-      )}
-
-      <View className="character-detail-page__section">
-        <Text className="character-detail-page__section-title">羁绊等级</Text>
         <View className="character-detail-page__bond">
           <View className="character-detail-page__bond-header">
-            <Text className="character-detail-page__bond-level">Lv.{bondLevel}</Text>
+            <Text className="character-detail-page__bond-label">当前进度</Text>
             <Text className="character-detail-page__bond-exp">{bondExp}/{bondMaxExp}</Text>
           </View>
           <View className="character-detail-page__bond-progress">
@@ -147,16 +157,9 @@ export default function CharacterDetail() {
         </View>
       </View>
 
-      <View className="character-detail-page__section">
-        <Text className="character-detail-page__section-title">情绪状态</Text>
-        <View className="chip chip-mood-neutral">
-          <Text className="chip__text">{MOOD_LABELS[mood]}</Text>
-        </View>
-      </View>
-
       <View className="character-detail-page__cta">
         <View className="button-primary" onClick={handleEnterChat}>
-          <Text className="character-detail-page__cta-text">进入对话</Text>
+          <Text className="button-primary__text">进入对话</Text>
         </View>
       </View>
     </View>

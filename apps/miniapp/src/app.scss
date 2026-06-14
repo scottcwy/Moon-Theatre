@@ -4,6 +4,134 @@ page {
   background-color: var(--color-background);
   color: var(--color-on-background);
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 28px;
+  font-size: 28rpx;
   line-height: 1.5;
+}
+
+.app-page {
+  min-height: 100vh;
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  box-sizing: border-box;
+}
+
+.button-primary,
+.button-tonal {
+  min-height: 88rpx;
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), background-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.button-primary {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.button-tonal {
+  background-color: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.button-primary:active,
+.button-tonal:active,
+.card:active {
+  transform: scale(0.98);
+}
+
+.button-primary--disabled {
+  opacity: 0.56;
+}
+
+.button-primary__text,
+.button-tonal__text {
+  font-size: var(--font-title-md);
+  font-weight: 600;
+  color: inherit;
+}
+
+.card {
+  background-color: var(--color-surface-container);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), background-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.chip {
+  min-height: 44rpx;
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.chip__text {
+  font-size: var(--font-label-sm);
+  font-weight: 600;
+  color: inherit;
+  line-height: 1.2;
+}
+
+.chip-mood-neutral {
+  background-color: var(--mood-neutral);
+  color: var(--color-on-surface-variant);
+}
+
+.chip-mood-happy {
+  background-color: var(--mood-happy);
+  color: var(--color-on-secondary-container);
+}
+
+.chip-mood-sad {
+  background-color: var(--mood-sad);
+  color: #26323a;
+}
+
+.chip-mood-angry {
+  background-color: var(--mood-angry);
+  color: var(--color-error);
+}
+
+.chip-mood-thinking {
+  background-color: var(--mood-thinking);
+  color: var(--color-on-surface-variant);
+}
+
+.chip-points {
+  background-color: var(--color-tertiary-container);
+  color: var(--color-on-tertiary-container);
+}
+
+.chip-secondary {
+  background-color: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+.state-block {
+  border-radius: var(--radius-lg);
+  padding: var(--space-6) var(--space-5);
+  background-color: var(--color-surface-container-low);
+  box-sizing: border-box;
+}
+
+.state-block__title {
+  display: block;
+  font-size: var(--font-title-md);
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin-bottom: var(--space-2);
+}
+
+.state-block__text {
+  display: block;
+  font-size: var(--font-body-md);
+  line-height: 1.6;
+  color: var(--color-on-surface-variant);
 }

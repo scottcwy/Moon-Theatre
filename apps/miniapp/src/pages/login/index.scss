@@ -2,67 +2,110 @@
 
 .login-page {
   min-height: 100vh;
-  background-color: var(--color-background);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: var(--space-6) var(--space-4);
+  padding-bottom: calc(var(--space-6) + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
 
-  &__content {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  &__hero {
+    padding-top: var(--space-8);
+  }
+
+  &__eyebrow {
+    display: block;
+    font-size: var(--font-label-md);
+    font-weight: 800;
+    color: var(--color-primary);
+    margin-bottom: var(--space-3);
   }
 
   &__title {
-    font-size: var(--font-display-sm);
-    font-weight: 700;
+    display: block;
+    font-size: 64rpx;
+    line-height: 1.12;
+    font-weight: 900;
     color: var(--color-on-background);
-    margin-bottom: var(--space-2);
   }
 
   &__subtitle {
+    display: block;
+    margin-top: var(--space-4);
+    max-width: 640rpx;
     font-size: var(--font-body-lg);
+    line-height: 1.7;
     color: var(--color-on-surface-variant);
-    margin-bottom: var(--space-8);
   }
 
-  &__body {
-    width: 100%;
-    margin-bottom: var(--space-10);
+  &__panel {
+    margin-top: var(--space-8);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-5);
+    background-color: var(--color-surface-container-low);
+    box-shadow: var(--shadow-panel);
   }
 
-  &__description {
+  &__feature {
+    display: flex;
+    padding: var(--space-3) 0;
+  }
+
+  &__feature + &__feature {
+    border-top: 1rpx solid var(--color-outline-variant);
+  }
+
+  &__feature-index {
+    width: 68rpx;
+    flex-shrink: 0;
+    font-size: var(--font-label-md);
+    font-weight: 900;
+    color: var(--color-tertiary);
+  }
+
+  &__feature-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__feature-title {
+    display: block;
+    font-size: var(--font-title-md);
+    line-height: 1.35;
+    font-weight: 800;
+    color: var(--color-on-surface);
+  }
+
+  &__feature-text {
+    display: block;
+    margin-top: var(--space-1);
     font-size: var(--font-body-md);
+    line-height: 1.55;
     color: var(--color-on-surface-variant);
-    line-height: 1.6;
-    text-align: center;
+  }
+
+  &__footer {
+    margin-top: var(--space-8);
   }
 
   &__action {
     width: 100%;
-    margin-bottom: var(--space-8);
   }
 
   &__wechat-btn {
     width: 100%;
   }
 
-  &__wechat-btn-text {
-    font-size: var(--font-title-md);
-    font-weight: 500;
-  }
-
   &__notice {
-    width: 100%;
-    padding: var(--space-3);
+    margin-top: var(--space-4);
+    padding: 0 var(--space-3);
   }
 
   &__notice-text {
+    display: block;
     font-size: var(--font-label-sm);
+    line-height: 1.55;
     color: var(--color-outline);
-    line-height: 1.5;
     text-align: center;
   }
 }

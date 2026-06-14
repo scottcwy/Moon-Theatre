@@ -25,6 +25,13 @@
   --color-error-container: #FFDAD6;
   --color-success: #3E6B47;
   --color-warning: #8A5A16;
+  --mood-neutral: #EADFDB;
+  --mood-happy: #DDE8D4;
+  --mood-sad: #D8E2EA;
+  --mood-angry: #FFDAD6;
+  --mood-thinking: #E5E0EA;
+  --shadow-card: 0 12rpx 32rpx rgba(58, 7, 24, 0.08);
+  --shadow-panel: 0 18rpx 48rpx rgba(58, 7, 24, 0.11);
 
   --radius-xs: 16rpx;
   --radius-sm: 24rpx;
@@ -51,4 +58,5 @@
   --font-body-md: 28rpx;
   --font-label-md: 26rpx;
   --font-label-sm: 24rpx;
+  --safe-bottom: env(safe-area-inset-bottom);
 }
