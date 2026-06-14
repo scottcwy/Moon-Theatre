@@ -3,6 +3,7 @@ import Taro, { useRouter, useUnload } from '@tarojs/taro';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MODEL_TIER_LABELS, MOOD_LABELS } from '../../types';
 import type { ModelTier, MoodType } from '../../types';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, streamChat } from '../../services/api';
 import './index.scss';
 
@@ -56,6 +57,7 @@ export default function Chat() {
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [streamError, setStreamError] = useState('');
+  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
 
   const sessionIdRef = useRef<string | undefined>(routeSessionId);
   const scrollIntoViewRef = useRef('');
@@ -66,6 +68,28 @@ export default function Chat() {
     activeStreamRef.current?.abort();
     activeStreamRef.current = null;
   }, []);
+
+  const loadBalance = useCallback(async () => {
+    if (!requireAuth()) {
+      setPointsBalance(null);
+      return;
+    }
+
+    try {
+      const data = await api.get<{ balancePoints: number }>('/api/quota/balance');
+      if (mountedRef.current) {
+        setPointsBalance(data.balancePoints);
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        if (handleAuthError(err)) {
+          setPointsBalance(null);
+        } else {
+          setPointsBalance(null);
+        }
+      }
+    }
+  }, [handleAuthError, requireAuth]);
 
   useUnload(() => {
     mountedRef.current = false;
@@ -86,26 +110,26 @@ export default function Chat() {
       return;
     }
 
+    if (!requireAuth()) {
+      setCharacterLoading(false);
+      return;
+    }
+
     api
       .get<CharacterHeader>(`/api/characters/${characterId}`)
       .then((data) => {
         setCharacter(data);
         setCharacterLoading(false);
       })
-      .catch(() => {
-        setCharacterError('加载角色信息失败');
+      .catch((err) => {
+        if (!handleAuthError(err)) {
+          setCharacterError('加载角色信息失败');
+        }
         setCharacterLoading(false);
       });
 
-    api
-      .get<{ balancePoints: number }>('/api/quota/balance')
-      .then((data) => {
-        setPointsBalance(data.balancePoints);
-      })
-      .catch(() => {
-        setPointsBalance(null);
-      });
-  }, [characterId]);
+    loadBalance();
+  }, [characterId, handleAuthError, loadBalance, requireAuth]);
 
   useEffect(() => {
     if (!routeSessionId) return;
@@ -127,16 +151,21 @@ export default function Chat() {
         }
         setHistoryLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        handleAuthError(err);
         setHistoryLoading(false);
       });
-  }, [routeSessionId]);
+  }, [handleAuthError, routeSessionId]);
 
   const handleTierChange = (tier: ModelTier) => {
     setModelTier(tier);
   };
 
   const handleBuyPoints = () => {
+    if (!requireAuth()) {
+      goLogin();
+      return;
+    }
     Taro.navigateTo({ url: '/pages/quota/buy' });
   };
 
@@ -159,6 +188,10 @@ export default function Chat() {
 
   const handleSend = () => {
     if (!inputValue.trim() || sending || !characterId) return;
+    if (!requireAuth()) {
+      goLogin();
+      return;
+    }
 
     const userMessage = inputValue.trim();
     setInputValue('');
@@ -209,6 +242,11 @@ export default function Chat() {
           if (typeof result.bondLevel === 'number') {
             setBondLevel(result.bondLevel);
           }
+          if (typeof result.balanceAfter === 'number') {
+            setPointsBalance(result.balanceAfter);
+          } else {
+            void loadBalance();
+          }
           activeStreamRef.current = null;
           setSending(false);
           scrollIntoViewRef.current = `msg-${result.messageId}`;
@@ -222,6 +260,12 @@ export default function Chat() {
           setStreamError(message);
           activeStreamRef.current = null;
           setSending(false);
+          void loadBalance();
+        },
+        onAuthExpired() {
+          if (!mountedRef.current) return;
+          setPointsBalance(null);
+          goLogin();
         },
       }
     );
@@ -236,6 +280,20 @@ export default function Chat() {
         <View className="state-block chat-page__state">
           <Text className="state-block__title">{historyLoading ? '正在恢复对话' : '正在连接角色'}</Text>
           <Text className="state-block__text">{historyLoading ? '历史消息加载中。' : '角色资料加载中。'}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <View className="chat-page app-page">
+        <View className="state-block chat-page__state">
+          <Text className="state-block__title">登录后进入对话</Text>
+          <Text className="state-block__text">登录后可以保存会话、点数和角色关系。</Text>
+          <View className="button-primary" onClick={goLogin}>
+            <Text className="button-primary__text">去登录</Text>
+          </View>
         </View>
       </View>
     );

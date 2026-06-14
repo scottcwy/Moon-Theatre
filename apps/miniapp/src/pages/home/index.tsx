@@ -1,6 +1,7 @@
 import { View, Text, Image } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useCallback, useEffect, useState } from 'react';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
 import './index.scss';
 
@@ -17,6 +18,7 @@ export default function Home() {
   const [characters, setCharacters] = useState<CharacterItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { needsLogin, setNeedsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
   const [modelTier] = useState<'casual' | 'standard' | 'immersive'>('standard');
 
@@ -32,12 +34,12 @@ export default function Home() {
     async function fetchCharacters() {
       setLoading(true);
       setError('');
+      setNeedsLogin(false);
 
-      if (!isLoggedIn()) {
+      if (!requireAuth()) {
         if (!cancelled) {
           setLoading(false);
         }
-        Taro.reLaunch({ url: '/pages/login/index' });
         return;
       }
 
@@ -48,7 +50,12 @@ export default function Home() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载角色失败');
+          if (handleAuthError(err)) {
+            setCharacters([]);
+            setPointsBalance(null);
+          } else {
+            setError(err instanceof Error ? err.message : '加载角色失败');
+          }
         }
       } finally {
         if (!cancelled) {
@@ -75,7 +82,7 @@ export default function Home() {
     }
 
     return () => { cancelled = true; };
-  }, []);
+  }, [handleAuthError, requireAuth, setNeedsLogin]);
 
   useEffect(() => fetchHomeData(), [fetchHomeData]);
 
@@ -84,7 +91,15 @@ export default function Home() {
   };
 
   const handleBuyPoints = () => {
+    if (!requireAuth()) {
+      goLogin();
+      return;
+    }
     Taro.navigateTo({ url: '/pages/quota/buy' });
+  };
+
+  const handleLogin = () => {
+    goLogin();
   };
 
   return (
@@ -132,7 +147,17 @@ export default function Home() {
           </View>
         )}
 
-        {!loading && error && (
+        {!loading && needsLogin && (
+          <View className="state-block home-page__login-state">
+            <Text className="state-block__title">先进入围城</Text>
+            <Text className="state-block__text">登录后可以选择角色、保存关系进度和查看点数余额。</Text>
+            <View className="button-primary home-page__login-action" onClick={handleLogin}>
+              <Text className="button-primary__text">去登录</Text>
+            </View>
+          </View>
+        )}
+
+        {!loading && !needsLogin && error && (
           <View className="state-block">
             <Text className="state-block__title">角色暂时没有出现</Text>
             <Text className="state-block__text">{error}</Text>
@@ -142,14 +167,14 @@ export default function Home() {
           </View>
         )}
 
-        {!loading && !error && characters.length === 0 && (
+        {!loading && !needsLogin && !error && characters.length === 0 && (
           <View className="state-block">
             <Text className="state-block__title">暂无可用角色</Text>
             <Text className="state-block__text">剧本资料还没有准备好，请稍后再回来。</Text>
           </View>
         )}
 
-        {!loading && !error && characters.map((character) => (
+        {!loading && !needsLogin && !error && characters.map((character) => (
           <View
             key={character.id}
             className="home-page__character-card card"

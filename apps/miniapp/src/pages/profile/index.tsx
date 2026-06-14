@@ -1,6 +1,7 @@
 import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
 import './index.scss';
 
@@ -15,13 +16,14 @@ export default function Profile() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
 
   const [balance, setBalance] = useState<number | null>(null);
   const [titles] = useState<string[]>([]);
   const [achievements] = useState<Array<{ id: string; name: string; description: string }>>([]);
 
   useEffect(() => {
-    if (!isLoggedIn()) {
+    if (!requireAuth()) {
       setLoading(false);
       return;
     }
@@ -40,7 +42,9 @@ export default function Profile() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载失败');
+          if (!handleAuthError(err)) {
+            setError(err instanceof Error ? err.message : '加载失败');
+          }
         }
       } finally {
         if (!cancelled) {
@@ -51,10 +55,10 @@ export default function Profile() {
 
     fetchProfile();
     return () => { cancelled = true; };
-  }, []);
+  }, [handleAuthError, requireAuth]);
 
   const handleLogin = () => {
-    Taro.reLaunch({ url: '/pages/login/index' });
+    goLogin();
   };
 
   const handleBuyPoints = () => {
@@ -72,7 +76,7 @@ export default function Profile() {
     );
   }
 
-  if (!isLoggedIn()) {
+  if (needsLogin || !isLoggedIn()) {
     return (
       <View className="profile-page">
         <View className="profile-page__user-section">

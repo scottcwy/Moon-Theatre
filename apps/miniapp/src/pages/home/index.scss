@@ -141,6 +141,15 @@
     margin-top: $space-4;
   }
 
+  &__login-state {
+    align-items: flex-start;
+  }
+
+  &__login-action {
+    margin-top: $space-4;
+    width: 260rpx;
+  }
+
   &__character-card {
     display: flex;
     min-height: 184rpx;

@@ -33,6 +33,11 @@
     color: $color-outline;
   }
 
+  &__empty-action {
+    margin-top: $space-5;
+    width: 260rpx;
+  }
+
   &__list {
     height: calc(100vh - 200rpx);
   }

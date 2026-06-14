@@ -1,6 +1,7 @@
 import { View, Text, ScrollView } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useState, useEffect } from 'react';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import { MODEL_TIER_LABELS } from '../../types';
 import type { ModelTier } from '../../types';
@@ -26,19 +27,38 @@ export default function ChatList() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
 
   useEffect(() => {
+    if (!requireAuth()) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
     api
       .get<SessionsResponse>('/api/chat/sessions?page=1&limit=20')
       .then((data) => {
-        setSessions(data.sessions);
-        setLoading(false);
+        if (!cancelled) {
+          setSessions(data.sessions);
+        }
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : '加载失败');
-        setLoading(false);
+        if (!cancelled) {
+          if (!handleAuthError(err)) {
+            setError(err instanceof Error ? err.message : '加载失败');
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
-  }, []);
+
+    return () => { cancelled = true; };
+  }, [handleAuthError, requireAuth]);
 
   function formatTime(dateStr: string): string {
     try {
@@ -65,6 +85,10 @@ export default function ChatList() {
     });
   };
 
+  const handleLogin = () => {
+    goLogin();
+  };
+
   if (loading) {
     return (
       <View className="chat-list-page">
@@ -82,6 +106,21 @@ export default function ChatList() {
         <Text className="chat-list-page__title">对话</Text>
         <View className="chat-list-page__empty">
           <Text className="chat-list-page__empty-text">{error}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <View className="chat-list-page">
+        <Text className="chat-list-page__title">对话</Text>
+        <View className="chat-list-page__empty">
+          <Text className="chat-list-page__empty-text">登录后查看对话记录</Text>
+          <Text className="chat-list-page__empty-hint">登录后会同步你的角色会话和关系进度</Text>
+          <View className="button-primary chat-list-page__empty-action" onClick={handleLogin}>
+            <Text className="button-primary__text">去登录</Text>
+          </View>
         </View>
       </View>
     );

@@ -2,7 +2,8 @@ import { View, Text } from '@tarojs/components';
 import { useRouter } from '@tarojs/taro';
 import Taro from '@tarojs/taro';
 import { useState, useEffect } from 'react';
-import { api, isLoggedIn } from '../../services/api';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
+import { api } from '../../services/api';
 import './result.scss';
 
 interface OrderDetail {
@@ -69,11 +70,17 @@ export default function QuotaResult() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
 
   useEffect(() => {
-    if (!orderId || !isLoggedIn()) {
+    if (!orderId) {
       setLoading(false);
       setError('缺少订单信息');
+      return;
+    }
+
+    if (!requireAuth()) {
+      setLoading(false);
       return;
     }
 
@@ -88,7 +95,9 @@ export default function QuotaResult() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载失败');
+          if (!handleAuthError(err)) {
+            setError(err instanceof Error ? err.message : '加载失败');
+          }
           setLoading(false);
         }
       }
@@ -96,7 +105,7 @@ export default function QuotaResult() {
 
     fetchOrder();
     return () => { cancelled = true; };
-  }, [orderId]);
+  }, [handleAuthError, orderId, requireAuth]);
 
   const handleGoHome = () => {
     Taro.switchTab({ url: '/pages/home/index' });
@@ -111,6 +120,21 @@ export default function QuotaResult() {
       <View className="quota-result-page">
         <View className="quota-result-page__state">
           <Text className="quota-result-page__state-text">加载中…</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <View className="quota-result-page">
+        <View className="quota-result-page__state">
+          <Text className="quota-result-page__state-text">登录后查看订单结果</Text>
+        </View>
+        <View className="quota-result-page__actions">
+          <View className="button-primary" onClick={goLogin}>
+            <Text className="quota-result-page__btn-text">去登录</Text>
+          </View>
         </View>
       </View>
     );

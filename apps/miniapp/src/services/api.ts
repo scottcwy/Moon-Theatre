@@ -14,6 +14,28 @@ interface RequestOptions {
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
 
+export type ApiErrorCode = 'AUTH_EXPIRED' | 'API_ERROR';
+
+export class ApiError extends Error {
+  constructor(
+    readonly code: ApiErrorCode,
+    readonly statusCode: number,
+    message: string,
+    readonly data?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError;
+}
+
+export function isAuthExpiredError(error: unknown): error is ApiError {
+  return isApiError(error) && error.code === 'AUTH_EXPIRED';
+}
+
 export interface StoredUser {
   id: string;
   nickname: string | null;
@@ -70,19 +92,24 @@ async function request<T>(options: RequestOptions): Promise<T> {
 
   if (response.statusCode === 401) {
     clearAuth();
-    const pages = Taro.getCurrentPages();
-    const currentPage = pages.length > 0 ? pages[pages.length - 1]?.route : '';
-    if (currentPage !== 'pages/login/index') {
-      Taro.reLaunch({ url: '/pages/login/index' });
-    }
-    throw new Error('登录已过期，请重新登录');
+    throw new ApiError('AUTH_EXPIRED', 401, '登录已过期，请重新登录', response.data);
   }
 
   if (response.statusCode >= 400) {
-    throw new Error(`API Error: ${response.statusCode} ${JSON.stringify(response.data)}`);
+    const message = getErrorMessage(response.data, `API Error: ${response.statusCode}`);
+    throw new ApiError('API_ERROR', response.statusCode, message, response.data);
   }
 
   return response.data as T;
+}
+
+function getErrorMessage(data: unknown, fallback: string): string {
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    if (typeof record.error === 'string') return record.error;
+    if (typeof record.message === 'string') return record.message;
+  }
+  return fallback;
 }
 
 export interface StreamCallbacks {
@@ -94,8 +121,10 @@ export interface StreamCallbacks {
     fallback?: boolean;
     bondLevel?: number;
     bondExp?: number;
+    balanceAfter?: number;
   }) => void;
   onError: (message: string) => void;
+  onAuthExpired?: () => void;
 }
 
 function decodeChunk(data: unknown): string {
@@ -136,6 +165,12 @@ export function streamChat(
     enableChunked: true,
     responseType: 'text',
     success(res) {
+      if (res.statusCode === 401) {
+        clearAuth();
+        callbacks.onAuthExpired?.();
+        callbacks.onError('登录已过期，请重新登录');
+        return;
+      }
       if (res.statusCode === 402) {
         const data = res.data as string;
         try {
@@ -181,6 +216,7 @@ export function streamChat(
             fallback: parsed.fallback,
             bondLevel: parsed.bondLevel,
             bondExp: parsed.bondExp,
+            balanceAfter: parsed.balanceAfter,
           });
         } else if (parsed.type === 'error') {
           callbacks.onError(parsed.message || 'Stream error');

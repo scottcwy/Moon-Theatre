@@ -1,6 +1,7 @@
 import { View, Text, Image } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useEffect, useState } from 'react';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import { MOOD_LABELS } from '../../types';
 import type { MoodType } from '../../types';
@@ -33,12 +34,18 @@ export default function CharacterDetail() {
   const [character, setCharacter] = useState<CharacterDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
 
   const [mood] = useState<MoodType>('neutral');
 
   useEffect(() => {
     if (!characterId) {
       setError('缺少角色 ID');
+      setLoading(false);
+      return;
+    }
+
+    if (!requireAuth()) {
       setLoading(false);
       return;
     }
@@ -53,7 +60,9 @@ export default function CharacterDetail() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载角色失败');
+          if (!handleAuthError(err)) {
+            setError(err instanceof Error ? err.message : '加载角色失败');
+          }
         }
       } finally {
         if (!cancelled) {
@@ -64,10 +73,14 @@ export default function CharacterDetail() {
 
     fetchCharacter();
     return () => { cancelled = true; };
-  }, [characterId]);
+  }, [characterId, handleAuthError, requireAuth]);
 
   const handleEnterChat = () => {
     Taro.navigateTo({ url: `/pages/chat/index?characterId=${characterId}` });
+  };
+
+  const handleLogin = () => {
+    goLogin();
   };
 
   const bondLevel = character?.relationship?.bondLevel ?? 1;
@@ -81,6 +94,20 @@ export default function CharacterDetail() {
         <View className="state-block">
           <Text className="state-block__title">正在读取角色档案</Text>
           <Text className="state-block__text">人物关系、世界观和羁绊资料加载中。</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <View className="character-detail-page app-page">
+        <View className="state-block">
+          <Text className="state-block__title">登录后查看角色档案</Text>
+          <Text className="state-block__text">登录后可以读取角色关系和羁绊资料。</Text>
+          <View className="button-primary" onClick={handleLogin}>
+            <Text className="button-primary__text">去登录</Text>
+          </View>
         </View>
       </View>
     );

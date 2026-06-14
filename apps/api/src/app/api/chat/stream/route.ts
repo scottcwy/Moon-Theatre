@@ -111,6 +111,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       profile.pointsPerCall,
       consumeIdempotencyKey,
     );
+    let balanceAfter = consumeResult.balanceAfter;
 
     const script = character.scriptId ? await getScriptById(character.scriptId) : null;
 
@@ -141,12 +142,15 @@ export async function POST(request: NextRequest): Promise<Response> {
               usedFallback = event.fallback;
               break;
             } else if (event.type === 'error') {
-              await refundConsumedPoints(
-                auth.userId,
-                profile.pointsPerCall,
-                `refund_${userMsg.id}`,
-              ).catch(() => undefined);
-              const errorLine = JSON.stringify({ type: 'error', message: event.message }) + '\n';
+            const refundResult = await refundConsumedPoints(
+              auth.userId,
+              profile.pointsPerCall,
+              `refund_${userMsg.id}`,
+            ).catch(() => undefined);
+            if (refundResult) {
+              balanceAfter = refundResult.balanceAfter;
+            }
+            const errorLine = JSON.stringify({ type: 'error', message: event.message }) + '\n';
               controller.enqueue(encoder.encode(errorLine));
               controller.close();
               return;
@@ -182,11 +186,12 @@ export async function POST(request: NextRequest): Promise<Response> {
                 status: 'success',
               });
           } else {
-            await refundConsumedPoints(
+            const refundResult = await refundConsumedPoints(
               auth.userId,
               profile.pointsPerCall,
               `refund_${userMsg.id}`,
             );
+            balanceAfter = refundResult.balanceAfter;
 
             await db
               .insert(modelUsageLogs)
@@ -231,6 +236,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             donePayload.bondLevel = updatedBond.relationship.bondLevel;
             donePayload.bondExp = updatedBond.relationship.bondExp;
           }
+          donePayload.balanceAfter = balanceAfter;
           const doneLine = JSON.stringify(donePayload) + '\n';
           controller.enqueue(encoder.encode(doneLine));
           controller.close();

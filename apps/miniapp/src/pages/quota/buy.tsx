@@ -2,7 +2,8 @@ import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useState, useEffect } from 'react';
 import type { QuotaPackage } from '../../types';
-import { api, isLoggedIn } from '../../services/api';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
+import { api } from '../../services/api';
 import './buy.scss';
 
 function formatPrice(cents: number): string {
@@ -39,11 +40,11 @@ export default function QuotaBuy() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
+  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
 
   useEffect(() => {
-    if (!isLoggedIn()) {
+    if (!requireAuth()) {
       setLoading(false);
-      setError('请先登录');
       return;
     }
 
@@ -62,7 +63,9 @@ export default function QuotaBuy() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载失败');
+          if (!handleAuthError(err)) {
+            setError(err instanceof Error ? err.message : '加载失败');
+          }
           setLoading(false);
         }
       }
@@ -70,7 +73,7 @@ export default function QuotaBuy() {
 
     fetchData();
     return () => { cancelled = true; };
-  }, []);
+  }, [handleAuthError, requireAuth]);
 
   const handleSelect = (pkgId: string) => {
     setSelectedPkgId(pkgId);
@@ -86,6 +89,11 @@ export default function QuotaBuy() {
     setError('');
 
     try {
+      if (!requireAuth()) {
+        goLogin();
+        return;
+      }
+
       const order = await api.post<CreateOrderResponse>('/api/orders', {
         quotaPackageId: selectedPkgId,
       });
@@ -130,9 +138,13 @@ export default function QuotaBuy() {
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : '支付请求失败';
-      setError(message);
-      Taro.showToast({ title: message, icon: 'none' });
+      if (handleAuthError(err)) {
+        goLogin();
+      } else {
+        const message = err instanceof Error ? err.message : '支付请求失败';
+        setError(message);
+        Taro.showToast({ title: message, icon: 'none' });
+      }
     } finally {
       setPaying(false);
     }
@@ -143,6 +155,19 @@ export default function QuotaBuy() {
       <View className="quota-buy-page">
         <View className="quota-buy-page__state">
           <Text className="quota-buy-page__state-text">加载中…</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <View className="quota-buy-page">
+        <View className="quota-buy-page__state">
+          <Text className="quota-buy-page__state-text">登录后购买点数</Text>
+          <View className="button-primary" onClick={goLogin}>
+            <Text className="button-primary__text">去登录</Text>
+          </View>
         </View>
       </View>
     );
