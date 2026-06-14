@@ -22,6 +22,20 @@ describe('miniapp api client', () => {
     requestMock.mockReset();
     storage.clear();
     vi.stubGlobal('API_BASE_URL', 'http://localhost:3000');
+    vi.stubGlobal('DEV_AUTH_BYPASS', false);
+  });
+
+  it('treats the user as logged in when dev auth bypass is enabled', async () => {
+    vi.stubGlobal('DEV_AUTH_BYPASS', true);
+    const { getToken, getUser, isLoggedIn } = await import('./api');
+
+    expect(isLoggedIn()).toBe(true);
+    expect(getToken()).toBe('dev-auth-bypass-token');
+    expect(getUser()).toEqual({
+      id: 'dev-user',
+      nickname: '开发调试用户',
+      avatarUrl: null,
+    });
   });
 
   it('throws a typed auth error and clears auth storage on 401', async () => {

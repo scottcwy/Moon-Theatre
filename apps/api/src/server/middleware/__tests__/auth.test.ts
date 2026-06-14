@@ -54,3 +54,78 @@ describe('admin auth middleware', () => {
     }
   });
 });
+
+describe('dev auth bypass', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('accepts the dev bypass token by default outside production and resolves a real user id', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const creditWallet = vi.fn(async () => ({
+      transactionId: 'wallet-tx',
+      balanceAfter: 1000,
+      alreadyCredited: false,
+    }));
+    vi.doMock('../../modules/auth/index.js', () => ({
+      findOrCreateUser: vi.fn(async () => ({
+        id: '00000000-0000-4000-8000-000000000001',
+        openid: 'dev-auth-bypass',
+        nickname: '开发调试用户',
+        avatarUrl: null,
+      })),
+    }));
+    vi.doMock('../../modules/wallet/index.js', () => ({
+      creditWallet,
+    }));
+
+    const { verifyAuth } = await loadAuth();
+    const request = new Request('https://api.example.com/api/me', {
+      headers: { Authorization: 'Bearer dev-auth-bypass-token' },
+    });
+
+    await expect(verifyAuth(request as unknown as NextRequest)).resolves.toEqual({
+      userId: '00000000-0000-4000-8000-000000000001',
+    });
+    expect(creditWallet).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000000001',
+      1000,
+      'dev-auth-bypass-initial-points',
+    );
+  });
+
+  it('allows the dev bypass token to be disabled outside production', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('DEV_AUTH_BYPASS', 'false');
+
+    const { verifyAuth } = await loadAuth();
+    const request = new Request('https://api.example.com/api/me', {
+      headers: { Authorization: 'Bearer dev-auth-bypass-token' },
+    });
+
+    await expect(verifyAuth(request as unknown as NextRequest)).resolves.toBeNull();
+  });
+
+  it('rejects the dev bypass token in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DEV_AUTH_BYPASS', 'true');
+    vi.stubEnv('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/juben_sha');
+    vi.stubEnv('JWT_SECRET', 'production-secret');
+    vi.stubEnv('PAYMENT_PROVIDER', 'aggregate');
+    vi.stubEnv('PAYMENT_MERCHANT_ID', 'merchant');
+    vi.stubEnv('PAYMENT_APP_ID', 'app');
+    vi.stubEnv('PAYMENT_SECRET', 'secret');
+    vi.stubEnv('PAYMENT_NOTIFY_URL', 'https://api.example.com/notify');
+    vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
+    vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
+    vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'password');
+
+    const { verifyAuth } = await loadAuth();
+    const request = new Request('https://api.example.com/api/me', {
+      headers: { Authorization: 'Bearer dev-auth-bypass-token' },
+    });
+
+    await expect(verifyAuth(request as unknown as NextRequest)).resolves.toBeNull();
+  });
+});

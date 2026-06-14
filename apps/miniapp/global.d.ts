@@ -1,6 +1,7 @@
 /// <reference types="@tarojs/taro" />
 
 declare const API_BASE_URL: string;
+declare const DEV_AUTH_BYPASS: boolean;
 
 interface AppConfig {
   pages: string[];

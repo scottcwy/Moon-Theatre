@@ -7,6 +7,10 @@ export interface AuthenticatedRequest extends NextRequest {
 }
 
 const JWT_SECRET = new TextEncoder().encode(config.jwtSecret);
+const DEV_AUTH_BYPASS_TOKEN = 'dev-auth-bypass-token';
+const DEV_AUTH_BYPASS_OPENID = 'dev-auth-bypass';
+const DEV_AUTH_BYPASS_INITIAL_POINTS = 1000;
+const DEV_AUTH_BYPASS_POINTS_KEY = 'dev-auth-bypass-initial-points';
 
 export async function verifyAuth(request: NextRequest): Promise<{ userId: string } | null> {
   const authHeader = request.headers.get('Authorization');
@@ -15,6 +19,14 @@ export async function verifyAuth(request: NextRequest): Promise<{ userId: string
   }
 
   const token = authHeader.slice(7);
+  if (config.devAuthBypass && token === DEV_AUTH_BYPASS_TOKEN) {
+    const { findOrCreateUser } = await import('../modules/auth/index.js');
+    const user = await findOrCreateUser(DEV_AUTH_BYPASS_OPENID);
+    const { creditWallet } = await import('../modules/wallet/index.js');
+    await creditWallet(user.id, DEV_AUTH_BYPASS_INITIAL_POINTS, DEV_AUTH_BYPASS_POINTS_KEY);
+    return { userId: user.id };
+  }
+
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     if (typeof payload.sub === 'string' && payload.sub) {

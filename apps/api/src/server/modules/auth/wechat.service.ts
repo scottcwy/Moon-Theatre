@@ -1,5 +1,4 @@
 import { SignJWT } from 'jose';
-import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema.js';
 import { config } from '../../config/index.js';
@@ -36,23 +35,14 @@ export async function exchangeWeChatCode(code: string): Promise<{ openid: string
 }
 
 export async function findOrCreateUser(openid: string): Promise<{ id: string; openid: string; nickname: string | null; avatarUrl: string | null }> {
-  const existing = await db.select().from(users).where(eq(users.openid, openid)).limit(1);
-
-  if (existing.length > 0) {
-    const user = existing[0]!;
-    return {
-      id: user.id,
-      openid: user.openid,
-      nickname: user.nickname,
-      avatarUrl: user.avatarUrl,
-    };
-  }
-
-  const created = await db.insert(users).values({
+  const [user] = await db.insert(users).values({
     openid,
     nickname: null,
     avatarUrl: null,
     status: 'active',
+  }).onConflictDoUpdate({
+    target: users.openid,
+    set: { updatedAt: new Date() },
   }).returning({
     id: users.id,
     openid: users.openid,
@@ -60,9 +50,8 @@ export async function findOrCreateUser(openid: string): Promise<{ id: string; op
     avatarUrl: users.avatarUrl,
   });
 
-  const user = created[0];
   if (!user) {
-    throw new Error('Failed to create user');
+    throw new Error('Failed to find or create user');
   }
 
   return user;

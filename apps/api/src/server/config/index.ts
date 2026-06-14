@@ -1,4 +1,5 @@
 const DEFAULT_JWT_SECRET = 'dev-secret-change-in-production';
+const isProduction = process.env.NODE_ENV === 'production';
 
 const rawConfig = {
   port: parseInt(process.env.PORT || '3000', 10),
@@ -19,6 +20,7 @@ const rawConfig = {
   adminUserIds: parseCsv(process.env.ADMIN_USER_IDS || ''),
   adminBasicAuthUser: process.env.ADMIN_BASIC_AUTH_USER || '',
   adminBasicAuthPassword: process.env.ADMIN_BASIC_AUTH_PASSWORD || '',
+  devAuthBypass: !isProduction && process.env.DEV_AUTH_BYPASS !== 'false',
 } as const;
 
 validateProductionConfig(rawConfig);

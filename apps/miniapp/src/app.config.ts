@@ -4,6 +4,7 @@ export default defineAppConfig({
     'pages/chat/index',
     'pages/chat/list',
     'pages/memory/index',
+    'pages/community/index',
     'pages/profile/index',
     'pages/character/detail',
     'pages/quota/buy',
@@ -17,8 +18,8 @@ export default defineAppConfig({
     backgroundColor: '#F1E7E4',
     list: [
       { pagePath: 'pages/home/index', text: '首页', iconPath: 'assets/icons/home.png', selectedIconPath: 'assets/icons/home-active.png' },
-      { pagePath: 'pages/chat/list', text: '对话', iconPath: 'assets/icons/chat.png', selectedIconPath: 'assets/icons/chat-active.png' },
-      { pagePath: 'pages/memory/index', text: '记忆', iconPath: 'assets/icons/memory.png', selectedIconPath: 'assets/icons/memory-active.png' },
+      { pagePath: 'pages/chat/list', text: '聊天', iconPath: 'assets/icons/chat.png', selectedIconPath: 'assets/icons/chat-active.png' },
+      { pagePath: 'pages/community/index', text: '社区', iconPath: 'assets/icons/memory.png', selectedIconPath: 'assets/icons/memory-active.png' },
       { pagePath: 'pages/profile/index', text: '我的', iconPath: 'assets/icons/profile.png', selectedIconPath: 'assets/icons/profile-active.png' },
     ],
   },

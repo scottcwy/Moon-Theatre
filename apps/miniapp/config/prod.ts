@@ -19,6 +19,7 @@ export default {
   },
   defineConstants: {
     API_BASE_URL: JSON.stringify(apiBaseUrl),
+    DEV_AUTH_BYPASS: 'false',
   },
   mini: {},
   h5: {},

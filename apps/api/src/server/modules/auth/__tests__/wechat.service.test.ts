@@ -24,3 +24,39 @@ describe('exchangeWeChatCode', () => {
     });
   });
 });
+
+describe('findOrCreateUser', () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it('uses an upsert so concurrent first requests return the same user instead of racing inserts', async () => {
+    const user = {
+      id: '00000000-0000-4000-8000-000000000001',
+      openid: 'dev-auth-bypass',
+      nickname: null,
+      avatarUrl: null,
+    };
+    const returning = vi.fn(async () => [user]);
+    const onConflictDoUpdate = vi.fn(() => ({ returning }));
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+
+    vi.doMock('../../../db/index.js', () => ({
+      db: { insert },
+    }));
+
+    const { findOrCreateUser } = await import('../wechat.service.js');
+
+    await expect(findOrCreateUser('dev-auth-bypass')).resolves.toEqual(user);
+    expect(values).toHaveBeenCalledWith({
+      openid: 'dev-auth-bypass',
+      nickname: null,
+      avatarUrl: null,
+      status: 'active',
+    });
+    expect(onConflictDoUpdate).toHaveBeenCalledOnce();
+    expect(returning).toHaveBeenCalledOnce();
+  });
+});

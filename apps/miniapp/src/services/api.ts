@@ -1,6 +1,12 @@
 import Taro from '@tarojs/taro';
 
 const BASE_URL = API_BASE_URL;
+const DEV_TOKEN = 'dev-auth-bypass-token';
+const DEV_USER: StoredUser = {
+  id: 'dev-user',
+  nickname: '开发调试用户',
+  avatarUrl: null,
+};
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -43,7 +49,11 @@ export interface StoredUser {
 }
 
 export function getToken(): string {
-  return Taro.getStorageSync(TOKEN_KEY) || '';
+  const token = Taro.getStorageSync(TOKEN_KEY) || '';
+  if (!token && DEV_AUTH_BYPASS) {
+    return DEV_TOKEN;
+  }
+  return token;
 }
 
 export function setToken(token: string): void {
@@ -53,9 +63,10 @@ export function setToken(token: string): void {
 export function getUser(): StoredUser | null {
   try {
     const raw = Taro.getStorageSync(USER_KEY);
-    return raw ? (JSON.parse(raw) as StoredUser) : null;
+    if (raw) return JSON.parse(raw) as StoredUser;
+    return DEV_AUTH_BYPASS ? DEV_USER : null;
   } catch {
-    return null;
+    return DEV_AUTH_BYPASS ? DEV_USER : null;
   }
 }
 

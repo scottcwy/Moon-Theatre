@@ -31,6 +31,7 @@ const config = {
   plugins: ['@tarojs/plugin-framework-react'],
   defineConstants: {
     API_BASE_URL: JSON.stringify(apiBaseUrl),
+    DEV_AUTH_BYPASS: JSON.stringify(process.env.NODE_ENV === 'development' || process.argv.includes('--watch')),
   },
   copy: {
     patterns: [
