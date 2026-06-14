@@ -1,95 +1,29 @@
 @use '../../styles/tokens.scss' as *;
 
 .character-detail-page {
-  padding: $space-4;
-  padding-bottom: calc(140rpx + $safe-bottom);
+  min-height: 100vh;
+  background-color: #fffbf8;
+  padding-bottom: calc(130rpx + $safe-bottom);
   box-sizing: border-box;
 
-  &__hero {
-    border-radius: $radius-2xl;
-    padding: $space-6 $space-5;
-    background-color: $color-surface-container-low;
-    box-shadow: $shadow-panel;
-    margin-bottom: $space-5;
-  }
-
-  &__avatar-section,
-  &__quick-row,
-  &__bond-title-row,
-  &__bond-header {
+  &--state {
+    padding: $space-4;
     display: flex;
     align-items: center;
-  }
-
-  &__avatar-section {
-    justify-content: center;
-    margin-bottom: $space-4;
-  }
-
-  &__avatar,
-  &__avatar-placeholder {
-    width: 184rpx;
-    height: 184rpx;
-    border-radius: $radius-full;
-    box-shadow: $shadow-card;
-  }
-
-  &__avatar-placeholder {
-    background-color: $color-primary-container;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  &__avatar-text {
-    font-size: 60rpx;
-    line-height: 1;
-    font-weight: 900;
-    color: $color-on-primary-container;
-  }
-
-  &__info {
-    text-align: center;
-  }
-
-  &__name {
-    display: block;
-    font-size: $font-headline-md;
-    line-height: 1.25;
-    font-weight: 900;
-    color: $color-on-surface;
-  }
-
-  &__identity {
-    display: block;
-    margin-top: $space-1;
-    font-size: $font-body-md;
-    color: $color-on-surface-variant;
-  }
-
-  &__quick-row {
-    justify-content: center;
-    margin-top: $space-4;
-  }
-
-  &__quick-row .chip {
-    margin: 0 $space-1;
   }
 
   &__section {
+    margin: $space-4;
     border-radius: $radius-lg;
     padding: $space-5;
-    background-color: $color-surface-container;
+    background-color: #f6f0ed;
     box-shadow: $shadow-card;
-    margin-bottom: $space-4;
+    box-sizing: border-box;
   }
 
   &__section--script {
-    background-color: $color-secondary-container;
-  }
-
-  &__section--bond {
-    background-color: $color-surface-container-low;
+    margin-top: -$space-4;
+    background-color: #eef2e8;
   }
 
   &__kicker {
@@ -105,7 +39,7 @@
     font-size: $font-title-lg;
     line-height: 1.35;
     font-weight: 900;
-    color: $color-on-surface;
+    color: #221b1d;
   }
 
   &__description {
@@ -113,61 +47,10 @@
     margin-top: $space-3;
     font-size: $font-body-md;
     line-height: 1.72;
-    color: $color-on-surface-variant;
+    color: #6f6265;
   }
 
   &__description--muted {
-    color: $color-on-secondary-container;
-  }
-
-  &__bond-title-row,
-  &__bond-header {
-    justify-content: space-between;
-  }
-
-  &__bond-level {
-    font-size: $font-title-md;
-    font-weight: 900;
-    color: $color-primary;
-  }
-
-  &__bond {
-    margin-top: $space-4;
-  }
-
-  &__bond-label,
-  &__bond-exp {
-    font-size: $font-label-md;
-    color: $color-on-surface-variant;
-  }
-
-  &__bond-exp {
-    font-weight: 800;
-  }
-
-  &__bond-progress {
-    height: 16rpx;
-    margin-top: $space-3;
-    background-color: $color-surface-container-high;
-    border-radius: $radius-full;
-    overflow: hidden;
-  }
-
-  &__bond-progress-bar {
-    height: 100%;
-    background-color: $color-primary;
-    border-radius: $radius-full;
-    transition: width 260ms cubic-bezier(0.2, 0, 0, 1);
-  }
-
-  &__cta {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: $space-4;
-    padding-bottom: calc($space-4 + $safe-bottom);
-    background-color: $color-background;
-    box-sizing: border-box;
+    color: #4d5d4a;
   }
 }

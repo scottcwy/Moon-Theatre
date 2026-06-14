@@ -7,7 +7,7 @@
   &__header {
     border-radius: $radius-2xl;
     padding: $space-5;
-    background-color: $color-surface-container-low;
+    background-color: #f6f0ed;
     box-shadow: $shadow-panel;
     margin-bottom: $space-6;
   }
@@ -95,17 +95,12 @@
     color: $color-on-surface-variant;
   }
 
-  &__points-value,
   &__story-value {
     display: block;
     margin-top: $space-2;
     font-size: $font-headline-md;
     line-height: 1.1;
     font-weight: 800;
-  }
-
-  &__points-value {
-    color: $color-on-tertiary-container;
   }
 
   &__story-value {
@@ -155,35 +150,11 @@
     min-height: 184rpx;
     padding: $space-4;
     margin-bottom: $space-4;
-    background-color: $color-surface-container;
+    background-color: #f4efec;
   }
 
-  &__character-avatar {
-    width: 112rpx;
-    height: 112rpx;
-    border-radius: $radius-full;
-    overflow: hidden;
-    flex-shrink: 0;
+  &__character-card .character-avatar {
     margin-right: $space-4;
-    background-color: $color-primary-container;
-  }
-
-  &__character-img,
-  &__character-avatar-placeholder {
-    width: 100%;
-    height: 100%;
-  }
-
-  &__character-avatar-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  &__character-avatar-text {
-    font-size: $font-headline-md;
-    font-weight: 800;
-    color: $color-on-primary-container;
   }
 
   &__character-info {
@@ -228,8 +199,11 @@
   }
 
   &__character-action {
+    min-height: 60rpx;
+    padding: 0 $space-4;
+  }
+
+  &__character-action .ui-button__text {
     font-size: $font-label-md;
-    font-weight: 800;
-    color: $color-primary;
   }
 }

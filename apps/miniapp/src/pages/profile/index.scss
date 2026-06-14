@@ -4,7 +4,7 @@
   padding: $space-4;
   padding-bottom: calc($space-8 + 120rpx);
   min-height: 100vh;
-  background-color: $color-background;
+  background-color: #fffbf8;
 
   &__user-section {
     display: flex;
@@ -12,22 +12,8 @@
     margin-bottom: $space-6;
   }
 
-  &__avatar-placeholder {
-    width: 112rpx;
-    height: 112rpx;
-    border-radius: $radius-full;
-    background-color: $color-primary-container;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+  &__user-section .character-avatar {
     margin-right: $space-4;
-  }
-
-  &__avatar-text {
-    font-size: $font-headline-md;
-    font-weight: 600;
-    color: $color-on-primary-container;
   }
 
   &__user-info {
@@ -38,8 +24,8 @@
 
   &__nickname {
     font-size: $font-title-lg;
-    font-weight: 600;
-    color: $color-on-surface;
+    font-weight: 800;
+    color: #221b1d;
   }
 
   &__section {
@@ -48,8 +34,8 @@
 
   &__section-title {
     font-size: $font-title-md;
-    font-weight: 600;
-    color: $color-on-surface;
+    font-weight: 800;
+    color: #221b1d;
     display: block;
     margin-bottom: $space-3;
   }
@@ -62,6 +48,8 @@
 
   &__achievement {
     margin-bottom: $space-2;
+    padding: $space-4;
+    background-color: #f4efec;
   }
 
   &__achievement-name {
@@ -78,7 +66,9 @@
   }
 
   &__notice {
-    padding: $space-4 0;
+    border-radius: $radius-lg;
+    padding: $space-4;
+    background-color: #f4efec;
   }
 
   &__notice-text {

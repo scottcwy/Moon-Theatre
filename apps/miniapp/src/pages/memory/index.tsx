@@ -2,6 +2,8 @@ import { View, Text } from '@tarojs/components';
 import { useState, useEffect } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { Badge } from '../../components/ui/Badge';
+import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
 import './index.scss';
 
 interface MemoryItem {
@@ -71,9 +73,7 @@ export default function Memory() {
     return (
       <View className="memory-page">
         <Text className="memory-page__title">记忆</Text>
-        <View className="memory-page__empty">
-          <Text className="memory-page__empty-text">加载中...</Text>
-        </View>
+        <StatusStateCard title="正在整理记忆" message="系统正在读取角色维度的关系与剧情摘要。" icon="…" />
       </View>
     );
   }
@@ -82,9 +82,7 @@ export default function Memory() {
     return (
       <View className="memory-page">
         <Text className="memory-page__title">记忆</Text>
-        <View className="memory-page__empty">
-          <Text className="memory-page__empty-text">{error}</Text>
-        </View>
+        <StatusStateCard title="记忆暂时不可用" message={error} tone="error" icon="!" />
       </View>
     );
   }
@@ -93,13 +91,12 @@ export default function Memory() {
     return (
       <View className="memory-page">
         <Text className="memory-page__title">记忆</Text>
-        <View className="memory-page__empty">
-          <Text className="memory-page__empty-text">登录后查看角色记忆</Text>
-          <Text className="memory-page__empty-hint">对话中的关系线索会在登录后持续整理</Text>
-          <View className="button-primary memory-page__empty-action" onClick={handleLogin}>
-            <Text className="button-primary__text">去登录</Text>
-          </View>
-        </View>
+        <StatusStateCard
+          title="登录后查看角色记忆"
+          message="对话中的关系线索会在登录后持续整理。"
+          primaryText="去登录"
+          onPrimary={handleLogin}
+        />
       </View>
     );
   }
@@ -111,19 +108,14 @@ export default function Memory() {
 
       <View className="memory-page__list">
         {memoryGroups.length === 0 ? (
-          <View className="memory-page__empty">
-            <Text className="memory-page__empty-text">暂无记忆</Text>
-            <Text className="memory-page__empty-hint">开始对话后，系统会自动提取关键信息</Text>
-          </View>
+          <EmptyState title="暂无进行中的故事" message="开始对话后，系统会自动提取关键信息。" />
         ) : (
           memoryGroups.map((group) => (
             <View key={group.characterId} className="memory-page__group">
               <Text className="memory-page__group-title">{group.characterName}</Text>
               {group.memories.map((memory) => (
                 <View key={memory.id} className="memory-page__card card">
-                  <View className="chip chip-mood-neutral">
-                    <Text className="chip__text">{MEMORY_TYPE_LABELS[memory.type] || memory.type}</Text>
-                  </View>
+                  <Badge>{MEMORY_TYPE_LABELS[memory.type] || memory.type}</Badge>
                   <Text className="memory-page__card-content">{memory.content}</Text>
                 </View>
               ))}

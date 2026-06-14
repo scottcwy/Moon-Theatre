@@ -2,98 +2,32 @@
 
 .share-preview-page {
   min-height: 100vh;
-  background-color: $color-background;
+  background-color: #120d10;
+  padding: $space-4;
+  padding-bottom: calc($space-4 + $safe-bottom);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: $space-6 $space-4;
+}
 
-  &__card {
-    width: 100%;
-    background-color: $color-surface-container-low;
-    border-radius: $radius-2xl;
-    padding: $space-6;
-    box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.08);
-    margin-bottom: $space-6;
-  }
+.share-preview-page__actions {
+  display: flex;
+  margin-top: $space-4;
+}
 
-  &__header {
-    display: flex;
-    align-items: center;
-    margin-bottom: $space-5;
-  }
+.share-preview-page__action-secondary,
+.share-preview-page__action-primary {
+  flex: 1;
+}
 
-  &__avatar-placeholder {
-    width: 96rpx;
-    height: 96rpx;
-    border-radius: $radius-full;
-    background-color: $color-primary-container;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-right: $space-3;
-  }
+.share-preview-page__action-primary {
+  margin-left: $space-3;
+}
 
-  &__avatar-text {
-    font-size: $font-title-lg;
-    font-weight: 600;
-    color: $color-on-primary-container;
-  }
-
-  &__header-info {
-    display: flex;
-    flex-direction: column;
-  }
-
-  &__name {
-    font-size: $font-title-lg;
-    font-weight: 600;
-    color: $color-on-surface;
-  }
-
-  &__source {
-    font-size: $font-label-sm;
-    color: $color-on-surface-variant;
-  }
-
-  &__excerpt {
-    background-color: $color-surface-container;
-    border-radius: $radius-lg;
-    padding: $space-4 $space-5;
-    margin-bottom: $space-5;
-  }
-
-  &__excerpt-text {
-    font-size: $font-body-lg;
-    color: $color-on-surface;
-    line-height: 1.7;
-  }
-
-  &__watermark {
-    text-align: center;
-  }
-
-  &__watermark-text {
-    font-size: $font-label-sm;
-    color: $color-outline-variant;
-  }
-
-  &__actions {
-    width: 100%;
-  }
-
-  &__btn-text {
-    font-size: $font-title-md;
-    font-weight: 500;
-  }
-
-  &__canvas {
-    position: fixed;
-    left: -9999px;
-    top: -9999px;
-    width: 600px;
-    height: 840px;
-  }
+.share-preview-page__canvas {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  width: 600px;
+  height: 840px;
 }

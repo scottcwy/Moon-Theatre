@@ -4,16 +4,34 @@
   padding: $space-4;
   padding-bottom: calc($space-8 + 160rpx);
   min-height: 100vh;
-  background-color: $color-background;
+  background-color: #fffbf8;
+  box-sizing: border-box;
+
+  &__title {
+    display: block;
+    font-size: 52rpx;
+    line-height: 1.18;
+    font-weight: 800;
+    color: #221b1d;
+  }
+
+  &__subtitle {
+    display: block;
+    margin: $space-2 0 $space-5;
+    font-size: $font-body-md;
+    line-height: 1.6;
+    color: #6f6265;
+  }
 
   &__balance {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    background-color: $color-tertiary-container;
+    background-color: #ffe0a8;
     border-radius: $radius-lg;
     padding: $space-4 $space-5;
     margin-bottom: $space-5;
+    box-shadow: $shadow-card;
   }
 
   &__balance-label {
@@ -34,15 +52,15 @@
   &__package {
     position: relative;
     margin-bottom: $space-3;
-    background-color: $color-surface-container;
+    background-color: #f4efec;
     border-radius: $radius-lg;
-    padding: $space-4 $space-5;
-    border: 4rpx solid transparent;
+    padding: $space-5;
+    border: 3rpx solid transparent;
     transition: all 0.15s ease;
 
     &--selected {
-      border-color: $color-primary;
-      background-color: $color-surface-container-low;
+      border-color: #7f294a;
+      background-color: #fff8f7;
     }
 
     &--recommended {
@@ -54,7 +72,7 @@
     position: absolute;
     top: $space-2;
     right: $space-3;
-    background-color: $color-tertiary;
+    background-color: #7f294a;
     border-radius: $radius-full;
     padding: $space-1 $space-3;
   }
@@ -90,7 +108,7 @@
   &__package-price {
     font-size: $font-headline-md;
     font-weight: 700;
-    color: $color-tertiary;
+    color: #7f294a;
     display: block;
   }
 
@@ -101,7 +119,7 @@
     right: 0;
     padding: $space-4;
     padding-bottom: calc($space-4 + $safe-bottom);
-    background-color: $color-background;
+    background-color: #fffbf8;
   }
 
   &__pay-btn {

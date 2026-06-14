@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import type { QuotaPackage } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { PrimaryButton } from '../../components/ui/Button';
+import { StatusStateCard } from '../../components/status/StatusStateCard';
 import './buy.scss';
 
 function formatPrice(cents: number): string {
@@ -153,9 +155,7 @@ export default function QuotaBuy() {
   if (loading) {
     return (
       <View className="quota-buy-page">
-        <View className="quota-buy-page__state">
-          <Text className="quota-buy-page__state-text">加载中…</Text>
-        </View>
+        <StatusStateCard title="正在读取额度包" message="正在加载点数余额和可购买套餐。" icon="…" />
       </View>
     );
   }
@@ -163,12 +163,7 @@ export default function QuotaBuy() {
   if (needsLogin) {
     return (
       <View className="quota-buy-page">
-        <View className="quota-buy-page__state">
-          <Text className="quota-buy-page__state-text">登录后购买点数</Text>
-          <View className="button-primary" onClick={goLogin}>
-            <Text className="button-primary__text">去登录</Text>
-          </View>
-        </View>
+        <StatusStateCard title="登录后购买点数" message="登录后可以创建订单并确认点数到账。" primaryText="去登录" onPrimary={goLogin} />
       </View>
     );
   }
@@ -176,15 +171,15 @@ export default function QuotaBuy() {
   if (error) {
     return (
       <View className="quota-buy-page">
-        <View className="quota-buy-page__state">
-          <Text className="quota-buy-page__state-text">{error}</Text>
-        </View>
+        <StatusStateCard title="额度包暂时不可用" message={error} tone="error" icon="!" />
       </View>
     );
   }
 
   return (
     <View className="quota-buy-page">
+      <Text className="quota-buy-page__title">购买点数</Text>
+      <Text className="quota-buy-page__subtitle">用于继续角色对话，不同模型档位会消耗不同点数。</Text>
       <View className="quota-buy-page__balance">
         <Text className="quota-buy-page__balance-label">当前点数</Text>
         <Text className="quota-buy-page__balance-value">{pointsBalance ?? 0}</Text>
@@ -211,14 +206,13 @@ export default function QuotaBuy() {
       </View>
 
       <View className="quota-buy-page__action">
-        <View
-          className={`button-primary quota-buy-page__pay-btn${paying ? ' quota-buy-page__pay-btn--disabled' : ''}`}
-          onClick={paying ? undefined : handlePay}
+        <PrimaryButton
+          className="quota-buy-page__pay-btn"
+          disabled={paying}
+          onTap={paying ? undefined : handlePay}
         >
-          <Text className="quota-buy-page__pay-btn-text">
-            {paying ? '处理中…' : '确认支付'}
-          </Text>
-        </View>
+          {paying ? '处理中…' : '确认支付'}
+        </PrimaryButton>
       </View>
 
       <Text className="quota-buy-page__notice">

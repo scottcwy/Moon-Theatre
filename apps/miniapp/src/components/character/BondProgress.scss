@@ -1,0 +1,49 @@
+@use '../../styles/tokens.scss' as *;
+
+.bond-progress {
+  border-radius: $radius-lg;
+  padding: $space-5;
+  background-color: #f6f0ed;
+  box-sizing: border-box;
+}
+
+.bond-progress__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bond-progress__label,
+.bond-progress__hint {
+  display: block;
+  font-size: $font-label-md;
+  color: $color-on-surface-variant;
+}
+
+.bond-progress__relationship {
+  display: block;
+  margin-top: $space-1;
+  font-size: 42rpx;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #2d2527;
+}
+
+.bond-progress__track {
+  height: 14rpx;
+  margin-top: $space-5;
+  border-radius: $radius-full;
+  background-color: #e6e0dd;
+  overflow: hidden;
+}
+
+.bond-progress__bar {
+  height: 100%;
+  border-radius: $radius-full;
+  background-color: #7f294a;
+}
+
+.bond-progress__hint {
+  margin-top: $space-3;
+  text-align: right;
+}

@@ -3,6 +3,9 @@ import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
+import { CharacterAvatar } from '../../components/character/CharacterAvatar';
+import { Badge, PointsBadge } from '../../components/ui/Badge';
+import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
 import './index.scss';
 
 interface ProfileData {
@@ -69,9 +72,7 @@ export default function Profile() {
   if (loading) {
     return (
       <View className="profile-page">
-        <View className="profile-page__state">
-          <Text className="profile-page__state-text">加载中…</Text>
-        </View>
+        <StatusStateCard title="正在读取资料" message="正在加载点数、称号和成就。" icon="…" />
       </View>
     );
   }
@@ -80,14 +81,10 @@ export default function Profile() {
     return (
       <View className="profile-page">
         <View className="profile-page__user-section">
-          <View className="profile-page__avatar-placeholder">
-            <Text className="profile-page__avatar-text">?</Text>
-          </View>
+          <CharacterAvatar name="?" size="lg" />
           <View className="profile-page__user-info">
             <Text className="profile-page__nickname">未登录</Text>
-            <View className="chip chip-points" onClick={handleLogin}>
-              <Text className="chip__text">点击登录</Text>
-            </View>
+            <Badge tone="points" onTap={handleLogin}>点击登录</Badge>
           </View>
         </View>
 
@@ -103,33 +100,27 @@ export default function Profile() {
   return (
     <View className="profile-page">
       <View className="profile-page__user-section">
-        <View className="profile-page__avatar-placeholder">
-          <Text className="profile-page__avatar-text">{nickname[0]}</Text>
-        </View>
+        <CharacterAvatar name={nickname} src={profile?.avatarUrl || undefined} size="lg" online />
         <View className="profile-page__user-info">
           <Text className="profile-page__nickname">{nickname}</Text>
-          <View className="chip chip-points" onClick={handleBuyPoints}>
-            <Text className="chip__text">{balance ?? 0} 点数 · 充值</Text>
-          </View>
+          <PointsBadge points={balance} onTap={handleBuyPoints} />
         </View>
       </View>
 
       {error && (
         <View className="profile-page__section">
-          <Text className="profile-page__section-title profile-page__section-title--error">{error}</Text>
+          <StatusStateCard title="资料暂时不可用" message={error} tone="error" icon="!" />
         </View>
       )}
 
       <View className="profile-page__section">
         <Text className="profile-page__section-title">称号</Text>
         {titles.length === 0 ? (
-          <Text className="profile-page__empty-hint">暂无称号</Text>
+          <EmptyState title="暂无称号" message="完成更多对话后，会在这里展示获得的称号。" />
         ) : (
           <View className="profile-page__tags">
             {titles.map((title) => (
-              <View key={title} className="chip chip-mood-neutral">
-                <Text className="chip__text">{title}</Text>
-              </View>
+              <Badge key={title}>{title}</Badge>
             ))}
           </View>
         )}
@@ -138,7 +129,7 @@ export default function Profile() {
       <View className="profile-page__section">
         <Text className="profile-page__section-title">成就</Text>
         {achievements.length === 0 ? (
-          <Text className="profile-page__empty-hint">暂无成就</Text>
+          <EmptyState title="暂无成就" message="完成角色互动后，会在这里展示获得的成就。" />
         ) : (
           achievements.map((achievement) => (
             <View key={achievement.id} className="profile-page__achievement card">

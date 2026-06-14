@@ -1,0 +1,170 @@
+@use '../../styles/tokens.scss' as *;
+
+.character-detail-hero {
+  min-height: 100vh;
+  padding-bottom: calc(130rpx + $safe-bottom);
+  background-color: #fffbf8;
+  box-sizing: border-box;
+}
+
+.character-detail-hero__image-wrap {
+  position: relative;
+  height: 820rpx;
+  overflow: hidden;
+  background: linear-gradient(180deg, #5f463e, #1c1719);
+}
+
+.character-detail-hero__portrait {
+  height: 100%;
+}
+
+.character-detail-hero__shade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 340rpx;
+  background: linear-gradient(180deg, rgba(255, 251, 248, 0), rgba(255, 251, 248, 0.9));
+}
+
+.character-detail-hero__top-actions {
+  position: absolute;
+  left: $space-4;
+  right: $space-4;
+  top: $space-5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.character-detail-hero__top-right {
+  display: flex;
+}
+
+.character-detail-hero__top-right .ui-icon-button {
+  margin-left: $space-3;
+}
+
+.character-detail-hero__watermark {
+  position: absolute;
+  right: $space-4;
+  bottom: 34rpx;
+  font-size: 86rpx;
+  line-height: 0.95;
+  font-weight: 800;
+  color: rgba(255, 242, 212, 0.76);
+  writing-mode: vertical-rl;
+}
+
+.character-detail-hero__sheet {
+  position: relative;
+  margin-top: -92rpx;
+  border-radius: $radius-2xl $radius-2xl 0 0;
+  padding: $space-6 $space-5 $space-8;
+  background-color: #fffdfb;
+  box-sizing: border-box;
+}
+
+.character-detail-hero__title-row,
+.character-detail-hero__quick-row,
+.character-detail-hero__tools {
+  display: flex;
+  align-items: center;
+}
+
+.character-detail-hero__title-row {
+  justify-content: space-between;
+}
+
+.character-detail-hero__name {
+  display: block;
+  font-size: 56rpx;
+  line-height: 1.1;
+  font-weight: 800;
+  color: #221b1d;
+}
+
+.character-detail-hero__identity {
+  display: block;
+  margin-top: $space-2;
+  font-size: $font-body-md;
+  color: #6f6265;
+}
+
+.character-detail-hero__intro {
+  display: flex;
+  margin-top: $space-6;
+  border-radius: 28rpx;
+  padding: $space-5;
+  background-color: #f2e5e3;
+  box-shadow: 0 8rpx 18rpx rgba(58, 7, 24, 0.08);
+}
+
+.character-detail-hero__intro-icon {
+  width: 52rpx;
+  flex-shrink: 0;
+  font-size: 38rpx;
+  color: #7f294a;
+}
+
+.character-detail-hero__intro-text {
+  flex: 1;
+  font-size: $font-body-lg;
+  line-height: 1.75;
+  color: #2c2527;
+}
+
+.character-detail-hero__quick-row {
+  margin-top: $space-4;
+}
+
+.character-detail-hero__quick-row .ui-badge,
+.character-detail-hero__quick-row .ui-mood-chip {
+  margin-right: $space-2;
+}
+
+.character-detail-hero__quick-row + .bond-progress {
+  margin-top: $space-5;
+}
+
+.character-detail-hero__tools {
+  margin-top: $space-6;
+}
+
+.character-detail-hero__tool {
+  flex: 1;
+  min-height: 132rpx;
+  border-radius: 28rpx;
+  background-color: #f4efec;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.character-detail-hero__tool + .character-detail-hero__tool {
+  margin-left: $space-4;
+}
+
+.character-detail-hero__tool-icon {
+  font-size: 38rpx;
+  color: #5a4a4e;
+}
+
+.character-detail-hero__tool-text {
+  margin-top: $space-2;
+  font-size: $font-body-md;
+  font-weight: 700;
+  color: #2c2527;
+}
+
+.character-detail-hero__cta {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: $space-4;
+  padding-bottom: calc($space-4 + $safe-bottom);
+  background-color: #fffdfb;
+  box-sizing: border-box;
+}

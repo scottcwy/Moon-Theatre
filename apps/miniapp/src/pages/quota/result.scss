@@ -2,89 +2,9 @@
 
 .quota-result-page {
   min-height: 100vh;
-  background-color: $color-background;
+  background-color: #fffbf8;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: $space-6 $space-4;
-
-  &__icon {
-    width: 128rpx;
-    height: 128rpx;
-    border-radius: $radius-full;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: $space-5;
-
-    &--success {
-      background-color: $color-success;
-    }
-
-    &--error {
-      background-color: $color-error;
-    }
-
-    &--pending {
-      background-color: $color-warning;
-    }
-  }
-
-  &__icon-text {
-    font-size: $font-display-sm;
-    color: #fff;
-    font-weight: 700;
-  }
-
-  &__title {
-    font-size: $font-headline-md;
-    font-weight: 700;
-    color: $color-on-background;
-    margin-bottom: $space-2;
-  }
-
-  &__message {
-    font-size: $font-body-md;
-    color: $color-on-surface-variant;
-    text-align: center;
-    margin-bottom: $space-6;
-  }
-
-  &__credited {
-    background-color: $color-tertiary-container;
-    border-radius: $radius-lg;
-    padding: $space-4 $space-6;
-    text-align: center;
-    margin-bottom: $space-8;
-  }
-
-  &__credited-label {
-    font-size: $font-label-md;
-    color: $color-on-tertiary-container;
-    display: block;
-    margin-bottom: $space-1;
-  }
-
-  &__credited-value {
-    font-size: $font-display-sm;
-    font-weight: 700;
-    color: $color-on-tertiary-container;
-  }
-
-  &__actions {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: $space-3;
-  }
-
-  &__btn-secondary {
-    width: 100%;
-  }
-
-  &__btn-text {
-    font-size: $font-title-md;
-    font-weight: 500;
-  }
+  padding: $space-5 $space-4;
+  box-sizing: border-box;
 }

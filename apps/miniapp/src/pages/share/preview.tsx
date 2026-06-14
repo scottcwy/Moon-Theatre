@@ -1,6 +1,9 @@
-import { View, Text, Canvas } from '@tarojs/components';
+import { View, Canvas } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useState } from 'react';
+import { SharePreviewCard } from '../../components/share/SharePreviewCard';
+import { PrimaryButton, TonalButton } from '../../components/ui/Button';
+import { getShareIdentityLabel } from '../../design/figma-system';
 import './preview.scss';
 
 const CANVAS_ID = 'shareCanvas';
@@ -23,39 +26,37 @@ export default function SharePreview() {
 
   const drawPoster = () => {
     const ctx = Taro.createCanvasContext(CANVAS_ID);
-    ctx.setFillStyle('#faf8f3');
+    ctx.setFillStyle('#1d1218');
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    ctx.setFillStyle('#e9dfcf');
-    ctx.fillRect(48, 48, CANVAS_WIDTH - 96, CANVAS_HEIGHT - 96);
+    ctx.setFillStyle('#5f423d');
+    ctx.fillRect(0, 0, CANVAS_WIDTH, 430);
 
-    ctx.setFillStyle('#7f5f2a');
-    ctx.beginPath();
-    ctx.arc(112, 128, 40, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.setFillStyle('rgba(0,0,0,0.52)');
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    ctx.setFillStyle('#fffaf0');
+    ctx.setFillStyle('rgba(255,255,255,0.24)');
+    ctx.setFontSize(64);
+    ctx.fillText('“', 44, 402);
+
+    ctx.setFillStyle('#ffffff');
     ctx.setFontSize(38);
-    ctx.fillText(character.name[0] ?? '角', 100, 142);
+    wrapCanvasText(ctx, EXCERPT, 64, 444, CANVAS_WIDTH - 128, 56, 3);
 
-    ctx.setFillStyle('#241c15');
-    ctx.setFontSize(34);
-    ctx.fillText(character.name, 176, 118);
+    ctx.setFontSize(50);
+    ctx.fillText(character.name, 64, 620);
 
-    ctx.setFillStyle('#6f675f');
+    ctx.setFillStyle('#8b3454');
+    ctx.fillRect(250, 580, 190, 56);
+    ctx.setFillStyle('#fff7f8');
     ctx.setFontSize(22);
-    ctx.fillText('来自「夜色围城」', 176, 154);
+    ctx.fillText(getShareIdentityLabel(character.name), 275, 618);
 
-    ctx.setFillStyle('#fffaf0');
-    ctx.fillRect(72, 210, CANVAS_WIDTH - 144, 360);
-
-    ctx.setFillStyle('#312820');
-    ctx.setFontSize(30);
-    wrapCanvasText(ctx, EXCERPT, 104, 280, CANVAS_WIDTH - 208, 48, 5);
-
-    ctx.setFillStyle('#8a8176');
+    ctx.setFillStyle('#f8dfe7');
     ctx.setFontSize(22);
-    ctx.fillText('AI 生成内容 · 剧本杀角色扮演', 142, 708);
+    ctx.fillText('灵犀剧场', 64, 728);
+    ctx.setFillStyle('rgba(255,255,255,0.58)');
+    ctx.fillText('扫码加入故事 · AI 生成内容', 64, 762);
 
     return ctx;
   };
@@ -99,32 +100,15 @@ export default function SharePreview() {
 
   return (
     <View className="share-preview-page">
-      <View className="share-preview-page__card">
-        <View className="share-preview-page__header">
-          <View className="share-preview-page__avatar-placeholder">
-            <Text className="share-preview-page__avatar-text">{character.name[0]}</Text>
-          </View>
-          <View className="share-preview-page__header-info">
-            <Text className="share-preview-page__name">{character.name}</Text>
-            <Text className="share-preview-page__source">来自「夜色围城」</Text>
-          </View>
-        </View>
-
-        <View className="share-preview-page__excerpt">
-          <Text className="share-preview-page__excerpt-text">{EXCERPT}</Text>
-        </View>
-
-        <View className="share-preview-page__watermark">
-          <Text className="share-preview-page__watermark-text">
-            AI 生成内容 · 剧本杀角色扮演
-          </Text>
-        </View>
-      </View>
+      <SharePreviewCard characterName={character.name} excerpt={EXCERPT} />
 
       <View className="share-preview-page__actions">
-        <View className="button-primary" onClick={handleSave}>
-          <Text className="share-preview-page__btn-text">{saving ? '保存中…' : '保存到相册'}</Text>
-        </View>
+        <TonalButton className="share-preview-page__action-secondary" onTap={handleSave}>
+          ↓ {saving ? '保存中…' : '保存图片'}
+        </TonalButton>
+        <PrimaryButton className="share-preview-page__action-primary" onTap={handleSave}>
+          ↗ 立即分享
+        </PrimaryButton>
       </View>
 
       <Canvas

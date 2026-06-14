@@ -1,8 +1,12 @@
-import { View, Text, Image } from '@tarojs/components';
+import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
+import { CharacterAvatar } from '../../components/character/CharacterAvatar';
+import { PointsBadge, Badge } from '../../components/ui/Badge';
+import { TonalButton } from '../../components/ui/Button';
+import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
 import './index.scss';
 
 interface CharacterItem {
@@ -107,11 +111,7 @@ export default function Home() {
       <View className="home-page__header">
         <View className="home-page__eyebrow-row">
           <Text className="home-page__eyebrow">围城入口</Text>
-          <View className="home-page__model-tier">
-            <Text className="home-page__model-tier-label">
-              {modelTierLabels[modelTier]}
-            </Text>
-          </View>
+          <Badge tone="neutral">{modelTierLabels[modelTier]}档</Badge>
         </View>
 
         <Text className="home-page__title">夜色围城</Text>
@@ -120,9 +120,9 @@ export default function Home() {
         </Text>
 
         <View className="home-page__status-row">
-          <View className="home-page__points-card" onClick={handleBuyPoints}>
+          <View className="home-page__points-card" onTap={handleBuyPoints}>
             <Text className="home-page__points-label">当前点数</Text>
-            <Text className="home-page__points-value">{pointsBalance ?? 0}</Text>
+            <PointsBadge points={pointsBalance} />
           </View>
           <View className="home-page__story-card">
             <Text className="home-page__story-label">今日状态</Text>
@@ -141,70 +141,50 @@ export default function Home() {
         </View>
 
         {loading && (
-          <View className="state-block">
-            <Text className="state-block__title">正在靠近围城</Text>
-            <Text className="state-block__text">角色资料和点数状态加载中。</Text>
-          </View>
+          <StatusStateCard title="正在靠近围城" message="角色资料和点数状态加载中。" icon="…" />
         )}
 
         {!loading && needsLogin && (
-          <View className="state-block home-page__login-state">
-            <Text className="state-block__title">先进入围城</Text>
-            <Text className="state-block__text">登录后可以选择角色、保存关系进度和查看点数余额。</Text>
-            <View className="button-primary home-page__login-action" onClick={handleLogin}>
-              <Text className="button-primary__text">去登录</Text>
-            </View>
-          </View>
+          <StatusStateCard
+            title="先进入围城"
+            message="登录后可以选择角色、保存关系进度和查看点数余额。"
+            primaryText="去登录"
+            onPrimary={handleLogin}
+          />
         )}
 
         {!loading && !needsLogin && error && (
-          <View className="state-block">
-            <Text className="state-block__title">角色暂时没有出现</Text>
-            <Text className="state-block__text">{error}</Text>
-            <View className="button-tonal home-page__retry" onClick={fetchHomeData}>
-              <Text className="button-tonal__text">重新加载</Text>
-            </View>
-          </View>
+          <StatusStateCard
+            title="角色暂时没有出现"
+            message={error}
+            tone="error"
+            icon="!"
+            primaryText="重新加载"
+            onPrimary={fetchHomeData}
+          />
         )}
 
         {!loading && !needsLogin && !error && characters.length === 0 && (
-          <View className="state-block">
-            <Text className="state-block__title">暂无可用角色</Text>
-            <Text className="state-block__text">剧本资料还没有准备好，请稍后再回来。</Text>
-          </View>
+          <EmptyState title="暂无可用角色" message="剧本资料还没有准备好，请稍后再回来。" />
         )}
 
         {!loading && !needsLogin && !error && characters.map((character) => (
           <View
             key={character.id}
             className="home-page__character-card card"
-            onClick={() => handleCharacterTap(character.id)}
+            onTap={() => handleCharacterTap(character.id)}
           >
-            <View className="home-page__character-avatar">
-              {character.avatarUrl ? (
-                <Image className="home-page__character-img" src={character.avatarUrl} mode="aspectFill" />
-              ) : (
-                <View className="home-page__character-avatar-placeholder">
-                  <Text className="home-page__character-avatar-text">
-                    {character.name[0]}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <CharacterAvatar name={character.name} src={character.avatarUrl} size="lg" online />
             <View className="home-page__character-info">
               <View className="home-page__character-title-row">
                 <Text className="home-page__character-name">{character.name}</Text>
-                <View className="chip chip-secondary">
-                  <Text className="chip__text">{character.identity}</Text>
-                </View>
+                <Badge tone="secondary">{character.identity}</Badge>
               </View>
               <Text className="home-page__character-desc">{character.description}</Text>
             </View>
             <View className="home-page__character-relationship">
-              <View className="chip chip-mood-neutral">
-                <Text className="chip__text">{character.initialRelationship}</Text>
-              </View>
-              <Text className="home-page__character-action">进入</Text>
+              <Badge>{character.initialRelationship}</Badge>
+              <TonalButton size="md" className="home-page__character-action">进入</TonalButton>
             </View>
           </View>
         ))}

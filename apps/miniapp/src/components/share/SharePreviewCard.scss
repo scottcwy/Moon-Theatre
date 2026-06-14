@@ -1,0 +1,101 @@
+@use '../../styles/tokens.scss' as *;
+
+.share-preview-card {
+  position: relative;
+  width: 100%;
+  min-height: 1000rpx;
+  border-radius: $radius-2xl;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 54% 20%, rgba(255, 218, 165, 0.22), transparent 24%),
+    linear-gradient(180deg, #5e473d 0%, #1d1218 72%, #150d12 100%);
+  box-shadow: 0 18rpx 46rpx rgba(24, 15, 18, 0.24);
+}
+
+.share-preview-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(21, 13, 18, 0.18), rgba(21, 13, 18, 0.88));
+}
+
+.share-preview-card__close {
+  position: absolute;
+  left: $space-5;
+  top: $space-5;
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: $radius-full;
+  background-color: rgba(21, 13, 18, 0.55);
+  text-align: center;
+  font-size: 72rpx;
+  line-height: 76rpx;
+  color: #fff;
+}
+
+.share-preview-card__content {
+  position: absolute;
+  left: $space-5;
+  right: $space-5;
+  bottom: $space-8;
+}
+
+.share-preview-card__quote-mark {
+  display: block;
+  font-size: 72rpx;
+  line-height: 0.7;
+  color: rgba(255, 255, 255, 0.36);
+}
+
+.share-preview-card__quote {
+  display: block;
+  font-size: 44rpx;
+  line-height: 1.48;
+  font-weight: 600;
+  color: #fff;
+}
+
+.share-preview-card__name-row {
+  display: flex;
+  align-items: center;
+  margin-top: $space-6;
+}
+
+.share-preview-card__name {
+  margin-right: $space-3;
+  font-size: 64rpx;
+  line-height: 1;
+  font-weight: 800;
+  color: #fff;
+}
+
+.share-preview-card__badges {
+  display: flex;
+  margin-top: $space-4;
+}
+
+.share-preview-card__badges .ui-badge {
+  margin-right: $space-3;
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #f6e6ea;
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
+}
+
+.share-preview-card__divider {
+  height: 1rpx;
+  margin: $space-8 0 $space-5;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.share-preview-card__brand {
+  display: block;
+  font-size: $font-title-lg;
+  color: #f8dfe7;
+}
+
+.share-preview-card__scan {
+  display: block;
+  margin-top: $space-3;
+  font-size: $font-body-md;
+  letter-spacing: 0;
+  color: rgba(255, 255, 255, 0.58);
+}

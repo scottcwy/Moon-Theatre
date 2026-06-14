@@ -1,10 +1,14 @@
-import { View, Text, ScrollView, Input, Image } from '@tarojs/components';
+import { View, Text, ScrollView } from '@tarojs/components';
 import Taro, { useRouter, useUnload } from '@tarojs/taro';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MODEL_TIER_LABELS, MOOD_LABELS } from '../../types';
 import type { ModelTier, MoodType } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, streamChat } from '../../services/api';
+import { CharacterHeader } from '../../components/character/CharacterHeader';
+import { ModelTierSegmentedControl } from '../../components/chat/ModelTierSegmentedControl';
+import { ChatBubble } from '../../components/chat/ChatBubble';
+import { ChatInputBar } from '../../components/chat/ChatInputBar';
+import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
 import './index.scss';
 
 interface ChatMessage {
@@ -169,6 +173,10 @@ export default function Chat() {
     Taro.navigateTo({ url: '/pages/quota/buy' });
   };
 
+  const handleShare = () => {
+    Taro.navigateTo({ url: `/pages/share/preview?characterId=${characterId}` });
+  };
+
   const addMessage = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg]);
   }, []);
@@ -276,84 +284,71 @@ export default function Chat() {
 
   if (characterLoading || historyLoading) {
     return (
-      <View className="chat-page app-page">
-        <View className="state-block chat-page__state">
-          <Text className="state-block__title">{historyLoading ? '正在恢复对话' : '正在连接角色'}</Text>
-          <Text className="state-block__text">{historyLoading ? '历史消息加载中。' : '角色资料加载中。'}</Text>
-        </View>
+      <View className="chat-page chat-page--state">
+        <StatusStateCard
+          title={historyLoading ? '正在恢复对话' : '正在连接角色'}
+          message={historyLoading ? '历史消息加载中。' : '角色资料加载中。'}
+          icon="…"
+        />
       </View>
     );
   }
 
   if (needsLogin) {
     return (
-      <View className="chat-page app-page">
-        <View className="state-block chat-page__state">
-          <Text className="state-block__title">登录后进入对话</Text>
-          <Text className="state-block__text">登录后可以保存会话、点数和角色关系。</Text>
-          <View className="button-primary" onClick={goLogin}>
-            <Text className="button-primary__text">去登录</Text>
-          </View>
-        </View>
+      <View className="chat-page chat-page--state">
+        <StatusStateCard
+          title="登录后进入对话"
+          message="登录后可以保存会话、点数和角色关系。"
+          primaryText="去登录"
+          onPrimary={goLogin}
+        />
       </View>
     );
   }
 
   if (!character || characterError) {
     return (
-      <View className="chat-page app-page">
-        <View className="state-block chat-page__state">
-          <Text className="state-block__title">无法进入对话</Text>
-          <Text className="state-block__text">{characterError || '角色信息不可用'}</Text>
-        </View>
+      <View className="chat-page chat-page--state">
+        <StatusStateCard
+          title="无法进入对话"
+          message={characterError || '角色信息不可用'}
+          tone="error"
+          icon="!"
+        />
       </View>
     );
   }
 
   return (
-    <View className="chat-page app-page">
-      <View className="chat-page__header">
-        <View className="chat-page__header-left">
-          {character.avatarUrl ? (
-            <Image className="chat-page__avatar" src={character.avatarUrl} mode="aspectFill" />
-          ) : (
-            <View className="chat-page__avatar-placeholder">
-              <Text className="chat-page__avatar-text">{character.name[0]}</Text>
-            </View>
-          )}
-          <View className="chat-page__header-info">
-            <Text className="chat-page__header-name">{character.name}</Text>
-            <Text className="chat-page__header-identity">{character.identity}</Text>
-          </View>
-        </View>
-        <View className="chat-page__header-right">
-          <View className="chip chip-mood-neutral">
-            <Text className="chip__text">Lv.{bondLevel}</Text>
-          </View>
-          <View className="chip chip-points">
-            <Text className="chip__text">{pointsBalance ?? 0} 点</Text>
-          </View>
-        </View>
-      </View>
+    <View className="chat-page">
+      <CharacterHeader
+        name={character.name}
+        identity={character.identity}
+        avatarUrl={character.avatarUrl}
+        bondLevel={bondLevel}
+        points={pointsBalance}
+        onPointsTap={handleBuyPoints}
+      />
 
-      <View className="chat-page__tier-control">
-        {MODEL_TIERS.map((tier) => (
-          <View
-            key={tier}
-            className={`chat-page__tier-item${modelTier === tier ? ' chat-page__tier-item--active' : ''}`}
-            onClick={() => handleTierChange(tier)}
-          >
-            <Text className="chat-page__tier-label">{MODEL_TIER_LABELS[tier]}</Text>
-            <Text className="chat-page__tier-cost">{MODEL_TIER_COSTS[tier]} 点</Text>
-          </View>
-        ))}
-      </View>
+      <ModelTierSegmentedControl
+        tiers={MODEL_TIERS}
+        activeTier={modelTier}
+        costs={MODEL_TIER_COSTS}
+        onChange={handleTierChange}
+      />
 
       {isInsufficientPoints && (
-        <View className="chat-page__notice">
-          <Text className="chat-page__notice-text">当前点数不足以使用该档位。</Text>
-          <Text className="chat-page__notice-action" onClick={handleBuyPoints}>去充值</Text>
-        </View>
+        <StatusStateCard
+          className="chat-page__notice-card"
+          title="点数余额不足"
+          message="您需要更多点数来继续这段亲密的对话。立即充值以解锁更深层次的互动。"
+          tone="points"
+          icon="◐"
+          primaryText="立即充值"
+          secondaryText="稍后再说"
+          onPrimary={handleBuyPoints}
+        />
       )}
 
       <ScrollView
@@ -363,74 +358,55 @@ export default function Chat() {
         scrollWithAnimation
       >
         {messages.length === 0 && !sending && (
-          <View className="chat-page__empty">
-            <Text className="chat-page__empty-title">对话还没有开始</Text>
-            <Text className="chat-page__empty-text">
-              可以先问问 {character.name} 关于围城的线索，或直接告诉对方你是谁。
-            </Text>
-          </View>
+          <EmptyState
+            title="暂无进行中的故事"
+            message={`可以先问问 ${character.name} 关于围城的线索，或直接告诉对方你是谁。`}
+            primaryText="购买点数"
+            onPrimary={handleBuyPoints}
+          />
         )}
 
         {messages.map((msg) => (
           <View
             key={msg.id}
             id={`msg-${msg.id}`}
-            className={`chat-page__message-row${msg.role === 'user' ? ' chat-page__message-row--user' : ' chat-page__message-row--assistant'}`}
           >
-            <View className={`chat-page__bubble${msg.role === 'user' ? ' chat-page__bubble--user' : ' chat-page__bubble--assistant'}`}>
-              {msg.role === 'assistant' && msg.mood && (
-                <View className="chat-page__bubble-mood">
-                  <View className={`chip chip-mood-${msg.mood}`}>
-                    <Text className="chip__text">{MOOD_LABELS[msg.mood]}</Text>
-                  </View>
-                </View>
-              )}
-              {msg.role === 'assistant' && msg.fallback && (
-                <View className="chat-page__bubble-mood">
-                  <View className="chip chip-mood-neutral">
-                    <Text className="chip__text">本地模式</Text>
-                  </View>
-                </View>
-              )}
-              <Text className="chat-page__bubble-text">{msg.content}</Text>
-            </View>
+            <ChatBubble
+              role={msg.role}
+              content={msg.content}
+              mood={msg.mood}
+              fallback={msg.fallback}
+              avatarUrl={character.avatarUrl}
+              characterName={character.name}
+            />
           </View>
         ))}
         {sending && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && !messages[messages.length - 1]?.content && (
-          <View className="chat-page__message-row chat-page__message-row--assistant">
-            <View className="chat-page__bubble chat-page__bubble--assistant">
-              <Text className="chat-page__bubble-text chat-page__bubble-text--loading">正在输入...</Text>
-            </View>
-          </View>
+          <ChatBubble role="assistant" content="正在输入..." avatarUrl={character.avatarUrl} characterName={character.name} />
         )}
       </ScrollView>
 
       {streamError && (
-        <View className="chat-page__stream-error">
-          <Text>{streamError}</Text>
-        </View>
+        <StatusStateCard
+          className="chat-page__stream-error"
+          title="发送失败"
+          message={streamError}
+          tone="error"
+          icon="!"
+        />
       )}
 
-      <View className="chat-page__input-area">
-        <View className="chat-page__input-wrapper">
-          <Input
-            className="chat-page__input"
-            type="text"
-            placeholder={isInsufficientPoints ? '点数不足，请先充值' : '输入消息...'}
-            value={inputValue}
-            onInput={(e) => setInputValue(e.detail.value)}
-            confirmType="send"
-            onConfirm={handleSend}
-            disabled={sending || isInsufficientPoints}
-          />
-        </View>
-        <View
-          className={`chat-page__send-btn${sending || isInsufficientPoints ? ' chat-page__send-btn--disabled' : ''}`}
-          onClick={isInsufficientPoints ? handleBuyPoints : handleSend}
-        >
-          <Text className="chat-page__send-btn-text">{isInsufficientPoints ? '充值' : sending ? '...' : '发送'}</Text>
-        </View>
-      </View>
+      <ChatInputBar
+        value={inputValue}
+        placeholder={isInsufficientPoints ? '点数不足，请先充值' : `回应${character.name}...`}
+        disabled={sending || isInsufficientPoints}
+        sending={sending}
+        insufficientPoints={isInsufficientPoints}
+        onInput={setInputValue}
+        onSend={handleSend}
+        onBuyPoints={handleBuyPoints}
+        onShare={handleShare}
+      />
     </View>
   );
 }

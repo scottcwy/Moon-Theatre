@@ -1,10 +1,11 @@
-import { View, Text, Image } from '@tarojs/components';
+import { View, Text } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useEffect, useState } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
-import { MOOD_LABELS } from '../../types';
 import type { MoodType } from '../../types';
+import { CharacterDetailHero } from '../../components/character/CharacterDetailHero';
+import { StatusStateCard } from '../../components/status/StatusStateCard';
 import './detail.scss';
 
 interface CharacterDetailData {
@@ -86,72 +87,60 @@ export default function CharacterDetail() {
   const bondLevel = character?.relationship?.bondLevel ?? 1;
   const bondExp = character?.relationship?.bondExp ?? 0;
   const bondMaxExp = bondLevel * BOND_EXP_PER_LEVEL;
-  const bondPercent = Math.min(Math.round((bondExp / bondMaxExp) * 100), 100);
 
   if (loading) {
     return (
-      <View className="character-detail-page app-page">
-        <View className="state-block">
-          <Text className="state-block__title">正在读取角色档案</Text>
-          <Text className="state-block__text">人物关系、世界观和羁绊资料加载中。</Text>
-        </View>
+      <View className="character-detail-page character-detail-page--state">
+        <StatusStateCard
+          title="正在读取角色档案"
+          message="人物关系、世界观和羁绊资料加载中。"
+          tone="empty"
+          icon="…"
+        />
       </View>
     );
   }
 
   if (needsLogin) {
     return (
-      <View className="character-detail-page app-page">
-        <View className="state-block">
-          <Text className="state-block__title">登录后查看角色档案</Text>
-          <Text className="state-block__text">登录后可以读取角色关系和羁绊资料。</Text>
-          <View className="button-primary" onClick={handleLogin}>
-            <Text className="button-primary__text">去登录</Text>
-          </View>
-        </View>
+      <View className="character-detail-page character-detail-page--state">
+        <StatusStateCard
+          title="登录后查看角色档案"
+          message="登录后可以读取角色关系和羁绊资料。"
+          primaryText="去登录"
+          onPrimary={handleLogin}
+        />
       </View>
     );
   }
 
   if (error || !character) {
     return (
-      <View className="character-detail-page app-page">
-        <View className="state-block">
-          <Text className="state-block__title">角色暂时不可用</Text>
-          <Text className="state-block__text">{error || '角色不存在'}</Text>
-        </View>
+      <View className="character-detail-page character-detail-page--state">
+        <StatusStateCard
+          title="角色暂时不可用"
+          message={error || '角色不存在'}
+          tone="error"
+          icon="!"
+        />
       </View>
     );
   }
 
   return (
-    <View className="character-detail-page app-page">
-      <View className="character-detail-page__hero">
-        <View className="character-detail-page__avatar-section">
-          {character.avatarUrl ? (
-            <Image className="character-detail-page__avatar" src={character.avatarUrl} mode="aspectFill" />
-          ) : (
-            <View className="character-detail-page__avatar-placeholder">
-              <Text className="character-detail-page__avatar-text">{character.name[0]}</Text>
-            </View>
-          )}
-        </View>
-
-        <View className="character-detail-page__info">
-          <Text className="character-detail-page__name">{character.name}</Text>
-          <Text className="character-detail-page__identity">{character.identity}</Text>
-        </View>
-
-        <View className="character-detail-page__quick-row">
-          <View className="chip chip-mood-neutral">
-            <Text className="chip__text">{character.initialRelationship}</Text>
-          </View>
-          <View className="chip chip-mood-thinking">
-            <Text className="chip__text">{MOOD_LABELS[mood]}</Text>
-          </View>
-        </View>
-      </View>
-
+    <View className="character-detail-page">
+      <CharacterDetailHero
+        name={character.name}
+        identity={character.identity}
+        description={character.description}
+        avatarUrl={character.avatarUrl}
+        relationship={character.initialRelationship}
+        bondLevel={bondLevel}
+        bondExp={bondExp}
+        bondMaxExp={bondMaxExp}
+        mood={mood}
+        onEnterChat={handleEnterChat}
+      />
       {character.script && (
         <View className="character-detail-page__section character-detail-page__section--script">
           <Text className="character-detail-page__kicker">{character.script.title}</Text>
@@ -168,27 +157,6 @@ export default function CharacterDetail() {
         <Text className="character-detail-page__description">{character.description}</Text>
       </View>
 
-      <View className="character-detail-page__section character-detail-page__section--bond">
-        <View className="character-detail-page__bond-title-row">
-          <Text className="character-detail-page__section-title">羁绊等级</Text>
-          <Text className="character-detail-page__bond-level">Lv.{bondLevel}</Text>
-        </View>
-        <View className="character-detail-page__bond">
-          <View className="character-detail-page__bond-header">
-            <Text className="character-detail-page__bond-label">当前进度</Text>
-            <Text className="character-detail-page__bond-exp">{bondExp}/{bondMaxExp}</Text>
-          </View>
-          <View className="character-detail-page__bond-progress">
-            <View className="character-detail-page__bond-progress-bar" style={{ width: `${bondPercent}%` }} />
-          </View>
-        </View>
-      </View>
-
-      <View className="character-detail-page__cta">
-        <View className="button-primary" onClick={handleEnterChat}>
-          <Text className="button-primary__text">进入对话</Text>
-        </View>
-      </View>
     </View>
   );
 }
