@@ -1,24 +1,24 @@
-@use '../../styles/tokens.scss';
+@use '../../styles/tokens.scss' as *;
 
 .memory-page {
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-8) + 120rpx);
+  padding: $space-4;
+  padding-bottom: calc($space-8 + 120rpx);
   min-height: 100vh;
-  background-color: var(--color-background);
+  background-color: $color-background;
 
   &__title {
-    font-size: var(--font-headline-md);
+    font-size: $font-headline-md;
     font-weight: 700;
-    color: var(--color-on-background);
+    color: $color-on-background;
     display: block;
-    margin-bottom: var(--space-1);
+    margin-bottom: $space-1;
   }
 
   &__subtitle {
-    font-size: var(--font-label-sm);
-    color: var(--color-outline);
+    font-size: $font-label-sm;
+    color: $color-outline;
     display: block;
-    margin-bottom: var(--space-5);
+    margin-bottom: $space-5;
   }
 
   &__list {
@@ -26,26 +26,26 @@
   }
 
   &__group {
-    margin-bottom: var(--space-5);
+    margin-bottom: $space-5;
   }
 
   &__group-title {
-    font-size: var(--font-title-lg);
+    font-size: $font-title-lg;
     font-weight: 600;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
     display: block;
-    margin-bottom: var(--space-3);
+    margin-bottom: $space-3;
   }
 
   &__card {
-    margin-bottom: var(--space-2);
+    margin-bottom: $space-2;
   }
 
   &__card-content {
-    font-size: var(--font-body-md);
-    color: var(--color-on-surface);
+    font-size: $font-body-md;
+    color: $color-on-surface;
     line-height: 1.6;
-    margin-top: var(--space-2);
+    margin-top: $space-2;
     display: block;
   }
 }

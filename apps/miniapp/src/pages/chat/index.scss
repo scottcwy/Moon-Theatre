@@ -1,4 +1,4 @@
-@use '../../styles/tokens.scss';
+@use '../../styles/tokens.scss' as *;
 
 .chat-page {
   height: 100vh;
@@ -7,16 +7,16 @@
   overflow: hidden;
 
   &__state {
-    margin: var(--space-4);
+    margin: $space-4;
   }
 
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-3) var(--space-4);
-    background-color: var(--color-surface-container-low);
-    border-bottom: 1rpx solid var(--color-outline-variant);
+    padding: $space-3 $space-4;
+    background-color: $color-surface-container-low;
+    border-bottom: 1rpx solid $color-outline-variant;
     box-sizing: border-box;
   }
 
@@ -35,32 +35,32 @@
   }
 
   &__header-right .chip {
-    margin-left: var(--space-2);
+    margin-left: $space-2;
   }
 
   &__avatar,
   &__avatar-placeholder {
     width: 72rpx;
     height: 72rpx;
-    border-radius: var(--radius-full);
+    border-radius: $radius-full;
     flex-shrink: 0;
   }
 
   &__avatar-placeholder {
-    background-color: var(--color-primary-container);
+    background-color: $color-primary-container;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
   &__avatar-text {
-    font-size: var(--font-title-md);
+    font-size: $font-title-md;
     font-weight: 900;
-    color: var(--color-on-primary-container);
+    color: $color-on-primary-container;
   }
 
   &__header-info {
-    margin-left: var(--space-3);
+    margin-left: $space-3;
     min-width: 0;
   }
 
@@ -73,29 +73,29 @@
   }
 
   &__header-name {
-    font-size: var(--font-title-md);
+    font-size: $font-title-md;
     line-height: 1.35;
     font-weight: 900;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
   }
 
   &__header-identity {
-    font-size: var(--font-label-sm);
-    color: var(--color-on-surface-variant);
+    font-size: $font-label-sm;
+    color: $color-on-surface-variant;
   }
 
   &__tier-control {
     display: flex;
-    margin: var(--space-3) var(--space-4) var(--space-2);
-    padding: var(--space-1);
-    background-color: var(--color-surface-container);
-    border-radius: var(--radius-full);
+    margin: $space-3 $space-4 $space-2;
+    padding: $space-1;
+    background-color: $color-surface-container;
+    border-radius: $radius-full;
   }
 
   &__tier-item {
     flex: 1;
     min-height: 68rpx;
-    border-radius: var(--radius-full);
+    border-radius: $radius-full;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -103,7 +103,7 @@
   }
 
   &__tier-item--active {
-    background-color: var(--color-primary-container);
+    background-color: $color-primary-container;
   }
 
   &__tier-label,
@@ -113,31 +113,31 @@
   }
 
   &__tier-label {
-    font-size: var(--font-label-md);
+    font-size: $font-label-md;
     font-weight: 800;
-    color: var(--color-on-surface-variant);
+    color: $color-on-surface-variant;
   }
 
   &__tier-cost {
     margin-top: 4rpx;
     font-size: 20rpx;
-    color: var(--color-outline);
+    color: $color-outline;
   }
 
   &__tier-item--active &__tier-label {
-    color: var(--color-on-primary-container);
+    color: $color-on-primary-container;
   }
 
   &__tier-item--active &__tier-cost {
-    color: var(--color-primary);
+    color: $color-primary;
   }
 
   &__notice {
-    margin: 0 var(--space-4) var(--space-2);
+    margin: 0 $space-4 $space-2;
     min-height: 56rpx;
-    border-radius: var(--radius-md);
-    padding: 0 var(--space-3);
-    background-color: var(--color-error-container);
+    border-radius: $radius-md;
+    padding: 0 $space-3;
+    background-color: $color-error-container;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -146,49 +146,49 @@
 
   &__notice-text,
   &__notice-action {
-    font-size: var(--font-label-md);
+    font-size: $font-label-md;
   }
 
   &__notice-text {
-    color: var(--color-error);
+    color: $color-error;
   }
 
   &__notice-action {
     font-weight: 900;
-    color: var(--color-primary);
+    color: $color-primary;
   }
 
   &__messages {
     flex: 1;
     min-height: 0;
-    padding: var(--space-4);
+    padding: $space-4;
     box-sizing: border-box;
   }
 
   &__empty {
-    border-radius: var(--radius-lg);
-    padding: var(--space-6) var(--space-5);
-    background-color: var(--color-surface-container-low);
+    border-radius: $radius-lg;
+    padding: $space-6 $space-5;
+    background-color: $color-surface-container-low;
   }
 
   &__empty-title {
     display: block;
-    font-size: var(--font-title-lg);
+    font-size: $font-title-lg;
     font-weight: 900;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
   }
 
   &__empty-text {
     display: block;
-    margin-top: var(--space-2);
-    font-size: var(--font-body-md);
+    margin-top: $space-2;
+    font-size: $font-body-md;
     line-height: 1.65;
-    color: var(--color-on-surface-variant);
+    color: $color-on-surface-variant;
   }
 
   &__message-row {
     display: flex;
-    margin-bottom: var(--space-3);
+    margin-bottom: $space-3;
   }
 
   &__message-row--user {
@@ -201,69 +201,69 @@
 
   &__bubble {
     max-width: 560rpx;
-    border-radius: var(--radius-lg);
-    padding: var(--space-3) var(--space-4);
+    border-radius: $radius-lg;
+    padding: $space-3 $space-4;
     box-sizing: border-box;
   }
 
   &__bubble--assistant {
-    background-color: var(--color-surface-container);
-    border-bottom-left-radius: var(--radius-xs);
+    background-color: $color-surface-container;
+    border-bottom-left-radius: $radius-xs;
   }
 
   &__bubble--user {
-    background-color: var(--color-primary-container);
-    border-bottom-right-radius: var(--radius-xs);
+    background-color: $color-primary-container;
+    border-bottom-right-radius: $radius-xs;
   }
 
   &__bubble-mood {
-    margin-bottom: var(--space-2);
+    margin-bottom: $space-2;
   }
 
   &__bubble-text {
     display: block;
-    font-size: var(--font-body-lg);
+    font-size: $font-body-lg;
     line-height: 1.62;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
     word-break: break-word;
   }
 
   &__bubble--user &__bubble-text {
-    color: var(--color-on-primary-container);
+    color: $color-on-primary-container;
   }
 
   &__bubble-text--loading {
-    color: var(--color-on-surface-variant);
+    color: $color-on-surface-variant;
   }
 
   &__stream-error {
-    margin: 0 var(--space-4) var(--space-2);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-    background-color: var(--color-error-container);
+    margin: 0 $space-4 $space-2;
+    border-radius: $radius-md;
+    padding: $space-2 $space-3;
+    background-color: $color-error-container;
   }
 
   &__stream-error text {
-    font-size: var(--font-label-md);
-    color: var(--color-error);
+    font-size: $font-label-md;
+    color: $color-error;
   }
 
   &__input-area {
     display: flex;
     align-items: center;
-    padding: var(--space-3) var(--space-4);
-    padding-bottom: calc(var(--space-3) + var(--safe-bottom));
-    background-color: var(--color-surface-container-low);
-    border-top: 1rpx solid var(--color-outline-variant);
+    padding: $space-3 $space-4;
+    padding-bottom: calc($space-3 + $safe-bottom);
+    background-color: $color-surface-container-low;
+    border-top: 1rpx solid $color-outline-variant;
     box-sizing: border-box;
   }
 
   &__input-wrapper {
     flex: 1;
     min-height: 78rpx;
-    border-radius: var(--radius-full);
-    padding: 0 var(--space-4);
-    background-color: var(--color-surface);
+    border-radius: $radius-full;
+    padding: 0 $space-4;
+    background-color: $color-surface;
     display: flex;
     align-items: center;
     box-sizing: border-box;
@@ -271,17 +271,17 @@
 
   &__input {
     width: 100%;
-    font-size: var(--font-body-md);
-    color: var(--color-on-surface);
+    font-size: $font-body-md;
+    color: $color-on-surface;
   }
 
   &__send-btn {
     min-width: 100rpx;
     min-height: 78rpx;
-    margin-left: var(--space-2);
-    border-radius: var(--radius-full);
-    padding: 0 var(--space-4);
-    background-color: var(--color-primary);
+    margin-left: $space-2;
+    border-radius: $radius-full;
+    padding: 0 $space-4;
+    background-color: $color-primary;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -289,16 +289,16 @@
   }
 
   &__send-btn--disabled {
-    background-color: var(--color-surface-container-high);
+    background-color: $color-surface-container-high;
   }
 
   &__send-btn-text {
-    font-size: var(--font-body-md);
+    font-size: $font-body-md;
     font-weight: 900;
-    color: var(--color-on-primary);
+    color: $color-on-primary;
   }
 
   &__send-btn--disabled &__send-btn-text {
-    color: var(--color-on-surface-variant);
+    color: $color-on-surface-variant;
   }
 }

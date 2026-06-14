@@ -1,15 +1,15 @@
-@use '../../styles/tokens.scss';
+@use '../../styles/tokens.scss' as *;
 
 .home-page {
-  padding: var(--space-4);
-  padding-bottom: calc(150rpx + var(--safe-bottom));
+  padding: $space-4;
+  padding-bottom: calc(150rpx + $safe-bottom);
 
   &__header {
-    border-radius: var(--radius-2xl);
-    padding: var(--space-5);
-    background-color: var(--color-surface-container-low);
-    box-shadow: var(--shadow-panel);
-    margin-bottom: var(--space-6);
+    border-radius: $radius-2xl;
+    padding: $space-5;
+    background-color: $color-surface-container-low;
+    box-shadow: $shadow-panel;
+    margin-bottom: $space-6;
   }
 
   &__eyebrow-row,
@@ -27,136 +27,136 @@
   }
 
   &__eyebrow {
-    font-size: var(--font-label-md);
+    font-size: $font-label-md;
     font-weight: 700;
-    color: var(--color-primary);
+    color: $color-primary;
   }
 
   &__title {
     display: block;
-    margin-top: var(--space-4);
+    margin-top: $space-4;
     font-size: 52rpx;
     line-height: 1.18;
     font-weight: 800;
-    color: var(--color-on-background);
+    color: $color-on-background;
   }
 
   &__subtitle {
     display: block;
-    margin-top: var(--space-2);
+    margin-top: $space-2;
     max-width: 600rpx;
-    font-size: var(--font-body-md);
+    font-size: $font-body-md;
     line-height: 1.65;
-    color: var(--color-on-surface-variant);
+    color: $color-on-surface-variant;
   }
 
   &__model-tier {
     min-height: 48rpx;
-    border-radius: var(--radius-full);
-    padding: 0 var(--space-3);
-    background-color: var(--color-primary-container);
+    border-radius: $radius-full;
+    padding: 0 $space-3;
+    background-color: $color-primary-container;
     display: flex;
     align-items: center;
   }
 
   &__model-tier-label {
-    font-size: var(--font-label-sm);
+    font-size: $font-label-sm;
     font-weight: 700;
-    color: var(--color-on-primary-container);
+    color: $color-on-primary-container;
   }
 
   &__status-row {
-    margin-top: var(--space-5);
+    margin-top: $space-5;
   }
 
   &__points-card,
   &__story-card {
     flex: 1;
     min-height: 132rpx;
-    border-radius: var(--radius-lg);
-    padding: var(--space-4);
+    border-radius: $radius-lg;
+    padding: $space-4;
     box-sizing: border-box;
   }
 
   &__points-card {
-    background-color: var(--color-tertiary-container);
-    margin-right: var(--space-3);
+    background-color: $color-tertiary-container;
+    margin-right: $space-3;
   }
 
   &__story-card {
-    background-color: var(--color-secondary-container);
+    background-color: $color-secondary-container;
   }
 
   &__points-label,
   &__story-label {
     display: block;
-    font-size: var(--font-label-sm);
+    font-size: $font-label-sm;
     font-weight: 700;
-    color: var(--color-on-surface-variant);
+    color: $color-on-surface-variant;
   }
 
   &__points-value,
   &__story-value {
     display: block;
-    margin-top: var(--space-2);
-    font-size: var(--font-headline-md);
+    margin-top: $space-2;
+    font-size: $font-headline-md;
     line-height: 1.1;
     font-weight: 800;
   }
 
   &__points-value {
-    color: var(--color-on-tertiary-container);
+    color: $color-on-tertiary-container;
   }
 
   &__story-value {
-    color: var(--color-on-secondary-container);
+    color: $color-on-secondary-container;
   }
 
   &__section-head {
-    margin-bottom: var(--space-4);
+    margin-bottom: $space-4;
   }
 
   &__section-title {
     display: block;
-    font-size: var(--font-headline-md);
+    font-size: $font-headline-md;
     line-height: 1.25;
     font-weight: 800;
-    color: var(--color-on-background);
+    color: $color-on-background;
   }
 
   &__section-subtitle {
     display: block;
-    margin-top: var(--space-1);
-    font-size: var(--font-label-md);
-    color: var(--color-on-surface-variant);
+    margin-top: $space-1;
+    font-size: $font-label-md;
+    color: $color-on-surface-variant;
   }
 
   &__section-count {
-    font-size: var(--font-label-md);
+    font-size: $font-label-md;
     font-weight: 700;
-    color: var(--color-primary);
+    color: $color-primary;
   }
 
   &__retry {
-    margin-top: var(--space-4);
+    margin-top: $space-4;
   }
 
   &__character-card {
     display: flex;
     min-height: 184rpx;
-    padding: var(--space-4);
-    margin-bottom: var(--space-4);
-    background-color: var(--color-surface-container);
+    padding: $space-4;
+    margin-bottom: $space-4;
+    background-color: $color-surface-container;
   }
 
   &__character-avatar {
     width: 112rpx;
     height: 112rpx;
-    border-radius: var(--radius-full);
+    border-radius: $radius-full;
     overflow: hidden;
     flex-shrink: 0;
-    margin-right: var(--space-4);
-    background-color: var(--color-primary-container);
+    margin-right: $space-4;
+    background-color: $color-primary-container;
   }
 
   &__character-img,
@@ -172,9 +172,9 @@
   }
 
   &__character-avatar-text {
-    font-size: var(--font-headline-md);
+    font-size: $font-headline-md;
     font-weight: 800;
-    color: var(--color-on-primary-container);
+    color: $color-on-primary-container;
   }
 
   &__character-info {
@@ -184,24 +184,24 @@
 
   &__character-title-row {
     min-width: 0;
-    margin-bottom: var(--space-2);
+    margin-bottom: $space-2;
   }
 
   &__character-name {
     display: block;
-    margin-right: var(--space-2);
-    font-size: var(--font-title-lg);
+    margin-right: $space-2;
+    font-size: $font-title-lg;
     line-height: 1.25;
     font-weight: 800;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
   }
 
   &__character-desc {
     display: block;
     max-width: 360rpx;
-    font-size: var(--font-body-md);
+    font-size: $font-body-md;
     line-height: 1.55;
-    color: var(--color-on-surface-variant);
+    color: $color-on-surface-variant;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
@@ -212,15 +212,15 @@
   &__character-relationship {
     flex-shrink: 0;
     width: 150rpx;
-    margin-left: var(--space-3);
+    margin-left: $space-3;
     flex-direction: column;
     align-items: flex-end;
     justify-content: space-between;
   }
 
   &__character-action {
-    font-size: var(--font-label-md);
+    font-size: $font-label-md;
     font-weight: 800;
-    color: var(--color-primary);
+    color: $color-primary;
   }
 }

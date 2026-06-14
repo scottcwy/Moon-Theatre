@@ -1,9 +1,11 @@
+@use './tokens.scss' as *;
+
 .button-primary {
-  background-color: var(--color-primary);
-  color: var(--color-on-primary);
-  border-radius: var(--radius-full);
-  padding: var(--space-3) var(--space-6);
-  font-size: var(--font-title-md);
+  background-color: $color-primary;
+  color: $color-on-primary;
+  border-radius: $radius-full;
+  padding: $space-3 $space-6;
+  font-size: $font-title-md;
   font-weight: 500;
   min-height: 88rpx;
   display: flex;
@@ -12,11 +14,11 @@
 }
 
 .button-tonal {
-  background-color: var(--color-primary-container);
-  color: var(--color-on-primary-container);
-  border-radius: var(--radius-full);
-  padding: var(--space-3) var(--space-6);
-  font-size: var(--font-title-md);
+  background-color: $color-primary-container;
+  color: $color-on-primary-container;
+  border-radius: $radius-full;
+  padding: $space-3 $space-6;
+  font-size: $font-title-md;
   font-weight: 500;
   min-height: 88rpx;
   display: flex;
@@ -25,25 +27,25 @@
 }
 
 .card {
-  background-color: var(--color-surface-container);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  background-color: $color-surface-container;
+  border-radius: $radius-lg;
+  padding: $space-5;
 }
 
 .chip {
-  border-radius: var(--radius-full);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-label-md);
+  border-radius: $radius-full;
+  padding: $space-1 $space-3;
+  font-size: $font-label-md;
   display: inline-flex;
   align-items: center;
 }
 
 .chip-mood-neutral {
-  background-color: var(--color-surface-container-high);
-  color: var(--color-on-surface-variant);
+  background-color: $color-surface-container-high;
+  color: $color-on-surface-variant;
 }
 
 .chip-points {
-  background-color: var(--color-tertiary-container);
-  color: var(--color-on-tertiary-container);
+  background-color: $color-tertiary-container;
+  color: $color-on-tertiary-container;
 }

@@ -1,16 +1,16 @@
-@use '../../styles/tokens.scss';
+@use '../../styles/tokens.scss' as *;
 
 .character-detail-page {
-  padding: var(--space-4);
-  padding-bottom: calc(140rpx + var(--safe-bottom));
+  padding: $space-4;
+  padding-bottom: calc(140rpx + $safe-bottom);
   box-sizing: border-box;
 
   &__hero {
-    border-radius: var(--radius-2xl);
-    padding: var(--space-6) var(--space-5);
-    background-color: var(--color-surface-container-low);
-    box-shadow: var(--shadow-panel);
-    margin-bottom: var(--space-5);
+    border-radius: $radius-2xl;
+    padding: $space-6 $space-5;
+    background-color: $color-surface-container-low;
+    box-shadow: $shadow-panel;
+    margin-bottom: $space-5;
   }
 
   &__avatar-section,
@@ -23,19 +23,19 @@
 
   &__avatar-section {
     justify-content: center;
-    margin-bottom: var(--space-4);
+    margin-bottom: $space-4;
   }
 
   &__avatar,
   &__avatar-placeholder {
     width: 184rpx;
     height: 184rpx;
-    border-radius: var(--radius-full);
-    box-shadow: var(--shadow-card);
+    border-radius: $radius-full;
+    box-shadow: $shadow-card;
   }
 
   &__avatar-placeholder {
-    background-color: var(--color-primary-container);
+    background-color: $color-primary-container;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -45,7 +45,7 @@
     font-size: 60rpx;
     line-height: 1;
     font-weight: 900;
-    color: var(--color-on-primary-container);
+    color: $color-on-primary-container;
   }
 
   &__info {
@@ -54,70 +54,70 @@
 
   &__name {
     display: block;
-    font-size: var(--font-headline-md);
+    font-size: $font-headline-md;
     line-height: 1.25;
     font-weight: 900;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
   }
 
   &__identity {
     display: block;
-    margin-top: var(--space-1);
-    font-size: var(--font-body-md);
-    color: var(--color-on-surface-variant);
+    margin-top: $space-1;
+    font-size: $font-body-md;
+    color: $color-on-surface-variant;
   }
 
   &__quick-row {
     justify-content: center;
-    margin-top: var(--space-4);
+    margin-top: $space-4;
   }
 
   &__quick-row .chip {
-    margin: 0 var(--space-1);
+    margin: 0 $space-1;
   }
 
   &__section {
-    border-radius: var(--radius-lg);
-    padding: var(--space-5);
-    background-color: var(--color-surface-container);
-    box-shadow: var(--shadow-card);
-    margin-bottom: var(--space-4);
+    border-radius: $radius-lg;
+    padding: $space-5;
+    background-color: $color-surface-container;
+    box-shadow: $shadow-card;
+    margin-bottom: $space-4;
   }
 
   &__section--script {
-    background-color: var(--color-secondary-container);
+    background-color: $color-secondary-container;
   }
 
   &__section--bond {
-    background-color: var(--color-surface-container-low);
+    background-color: $color-surface-container-low;
   }
 
   &__kicker {
     display: block;
-    margin-bottom: var(--space-2);
-    font-size: var(--font-label-md);
+    margin-bottom: $space-2;
+    font-size: $font-label-md;
     font-weight: 800;
-    color: var(--color-secondary);
+    color: $color-secondary;
   }
 
   &__section-title {
     display: block;
-    font-size: var(--font-title-lg);
+    font-size: $font-title-lg;
     line-height: 1.35;
     font-weight: 900;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
   }
 
   &__description {
     display: block;
-    margin-top: var(--space-3);
-    font-size: var(--font-body-md);
+    margin-top: $space-3;
+    font-size: $font-body-md;
     line-height: 1.72;
-    color: var(--color-on-surface-variant);
+    color: $color-on-surface-variant;
   }
 
   &__description--muted {
-    color: var(--color-on-secondary-container);
+    color: $color-on-secondary-container;
   }
 
   &__bond-title-row,
@@ -126,19 +126,19 @@
   }
 
   &__bond-level {
-    font-size: var(--font-title-md);
+    font-size: $font-title-md;
     font-weight: 900;
-    color: var(--color-primary);
+    color: $color-primary;
   }
 
   &__bond {
-    margin-top: var(--space-4);
+    margin-top: $space-4;
   }
 
   &__bond-label,
   &__bond-exp {
-    font-size: var(--font-label-md);
-    color: var(--color-on-surface-variant);
+    font-size: $font-label-md;
+    color: $color-on-surface-variant;
   }
 
   &__bond-exp {
@@ -147,16 +147,16 @@
 
   &__bond-progress {
     height: 16rpx;
-    margin-top: var(--space-3);
-    background-color: var(--color-surface-container-high);
-    border-radius: var(--radius-full);
+    margin-top: $space-3;
+    background-color: $color-surface-container-high;
+    border-radius: $radius-full;
     overflow: hidden;
   }
 
   &__bond-progress-bar {
     height: 100%;
-    background-color: var(--color-primary);
-    border-radius: var(--radius-full);
+    background-color: $color-primary;
+    border-radius: $radius-full;
     transition: width 260ms cubic-bezier(0.2, 0, 0, 1);
   }
 
@@ -165,9 +165,9 @@
     left: 0;
     right: 0;
     bottom: 0;
-    padding: var(--space-4);
-    padding-bottom: calc(var(--space-4) + var(--safe-bottom));
-    background-color: var(--color-background);
+    padding: $space-4;
+    padding-bottom: calc($space-4 + $safe-bottom);
+    background-color: $color-background;
     box-sizing: border-box;
   }
 }

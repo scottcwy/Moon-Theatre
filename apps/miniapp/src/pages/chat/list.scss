@@ -1,17 +1,17 @@
-@use '../../styles/tokens.scss';
+@use '../../styles/tokens.scss' as *;
 
 .chat-list-page {
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-8) + 120rpx);
+  padding: $space-4;
+  padding-bottom: calc($space-8 + 120rpx);
   min-height: 100vh;
-  background-color: var(--color-background);
+  background-color: $color-background;
 
   &__title {
-    font-size: var(--font-headline-md);
+    font-size: $font-headline-md;
     font-weight: 700;
-    color: var(--color-on-background);
+    color: $color-on-background;
     display: block;
-    margin-bottom: var(--space-4);
+    margin-bottom: $space-4;
   }
 
   &__empty {
@@ -19,18 +19,18 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: var(--space-10) 0;
+    padding: $space-10 0;
   }
 
   &__empty-text {
-    font-size: var(--font-body-lg);
-    color: var(--color-on-surface-variant);
-    margin-bottom: var(--space-2);
+    font-size: $font-body-lg;
+    color: $color-on-surface-variant;
+    margin-bottom: $space-2;
   }
 
   &__empty-hint {
-    font-size: var(--font-body-md);
-    color: var(--color-outline);
+    font-size: $font-body-md;
+    color: $color-outline;
   }
 
   &__list {
@@ -40,26 +40,26 @@
   &__item {
     display: flex;
     align-items: center;
-    margin-bottom: var(--space-3);
-    padding: var(--space-3) var(--space-4);
+    margin-bottom: $space-3;
+    padding: $space-3 $space-4;
   }
 
   &__avatar-placeholder {
     width: 88rpx;
     height: 88rpx;
-    border-radius: var(--radius-full);
-    background-color: var(--color-primary-container);
+    border-radius: $radius-full;
+    background-color: $color-primary-container;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    margin-right: var(--space-3);
+    margin-right: $space-3;
   }
 
   &__avatar-text {
-    font-size: var(--font-title-lg);
+    font-size: $font-title-lg;
     font-weight: 600;
-    color: var(--color-on-primary-container);
+    color: $color-on-primary-container;
   }
 
   &__item-content {
@@ -71,13 +71,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-1);
+    margin-bottom: $space-1;
   }
 
   &__item-title {
-    font-size: var(--font-title-md);
+    font-size: $font-title-md;
     font-weight: 600;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -85,15 +85,15 @@
   }
 
   &__item-time {
-    font-size: var(--font-label-sm);
-    color: var(--color-outline);
+    font-size: $font-label-sm;
+    color: $color-outline;
     flex-shrink: 0;
-    margin-left: var(--space-2);
+    margin-left: $space-2;
   }
 
   &__item-preview {
-    font-size: var(--font-body-md);
-    color: var(--color-on-surface-variant);
+    font-size: $font-body-md;
+    color: $color-on-surface-variant;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

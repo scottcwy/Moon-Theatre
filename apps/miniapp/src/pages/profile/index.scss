@@ -1,89 +1,89 @@
-@use '../../styles/tokens.scss';
+@use '../../styles/tokens.scss' as *;
 
 .profile-page {
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-8) + 120rpx);
+  padding: $space-4;
+  padding-bottom: calc($space-8 + 120rpx);
   min-height: 100vh;
-  background-color: var(--color-background);
+  background-color: $color-background;
 
   &__user-section {
     display: flex;
     align-items: center;
-    margin-bottom: var(--space-6);
+    margin-bottom: $space-6;
   }
 
   &__avatar-placeholder {
     width: 112rpx;
     height: 112rpx;
-    border-radius: var(--radius-full);
-    background-color: var(--color-primary-container);
+    border-radius: $radius-full;
+    background-color: $color-primary-container;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    margin-right: var(--space-4);
+    margin-right: $space-4;
   }
 
   &__avatar-text {
-    font-size: var(--font-headline-md);
+    font-size: $font-headline-md;
     font-weight: 600;
-    color: var(--color-on-primary-container);
+    color: $color-on-primary-container;
   }
 
   &__user-info {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: $space-2;
   }
 
   &__nickname {
-    font-size: var(--font-title-lg);
+    font-size: $font-title-lg;
     font-weight: 600;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
   }
 
   &__section {
-    margin-bottom: var(--space-6);
+    margin-bottom: $space-6;
   }
 
   &__section-title {
-    font-size: var(--font-title-md);
+    font-size: $font-title-md;
     font-weight: 600;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
     display: block;
-    margin-bottom: var(--space-3);
+    margin-bottom: $space-3;
   }
 
   &__tags {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    gap: $space-2;
   }
 
   &__achievement {
-    margin-bottom: var(--space-2);
+    margin-bottom: $space-2;
   }
 
   &__achievement-name {
-    font-size: var(--font-body-md);
+    font-size: $font-body-md;
     font-weight: 600;
-    color: var(--color-on-surface);
+    color: $color-on-surface;
     display: block;
-    margin-bottom: var(--space-1);
+    margin-bottom: $space-1;
   }
 
   &__achievement-desc {
-    font-size: var(--font-label-sm);
-    color: var(--color-on-surface-variant);
+    font-size: $font-label-sm;
+    color: $color-on-surface-variant;
   }
 
   &__notice {
-    padding: var(--space-4) 0;
+    padding: $space-4 0;
   }
 
   &__notice-text {
-    font-size: var(--font-label-sm);
-    color: var(--color-outline);
+    font-size: $font-label-sm;
+    color: $color-outline;
     line-height: 1.5;
     text-align: center;
   }
