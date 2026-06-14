@@ -30,6 +30,14 @@ export default function Home() {
     let cancelled = false;
 
     async function fetchCharacters() {
+      if (!isLoggedIn()) {
+        if (!cancelled) {
+          setLoading(false);
+        }
+        Taro.reLaunch({ url: '/pages/login/index' });
+        return;
+      }
+
       try {
         const data = await api.get<{ characters: CharacterItem[] }>('/api/characters');
         if (!cancelled) {
