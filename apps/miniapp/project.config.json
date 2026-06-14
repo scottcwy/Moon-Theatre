@@ -1,25 +1,26 @@
 {
-  "appid": "touristappid",
+  "appid": "wx4ea003e456016b71",
   "projectname": "juben-sha-miniapp",
   "compileType": "miniprogram",
   "miniprogramRoot": "dist/",
   "srcMiniprogramRoot": "src/",
-  "libVersion": "3.6.3",
+  "libVersion": "3.16.1",
   "packOptions": {
     "ignore": [
       {
-        "type": "folder",
-        "value": "node_modules"
+        "value": "node_modules",
+        "type": "folder"
       },
       {
-        "type": "folder",
-        "value": "src"
+        "value": "src",
+        "type": "folder"
       },
       {
-        "type": "folder",
-        "value": "config"
+        "value": "config",
+        "type": "folder"
       }
-    ]
+    ],
+    "include": []
   },
   "setting": {
     "es6": true,
@@ -33,7 +34,26 @@
     "compileHotReLoad": true,
     "useCompilerPlugins": [
       "typescript"
-    ]
+    ],
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
   },
-  "condition": {}
+  "condition": {},
+  "simulatorPluginLibVersion": {},
+  "editorSetting": {}
 }
