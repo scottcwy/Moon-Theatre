@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ValidationError } from '../../../http/errors.js';
 
 vi.mock('../../../db/index.js', () => ({
   db: {},
@@ -22,10 +23,10 @@ describe('memory admin service helpers', () => {
   });
 
   it('rejects empty override content', () => {
-    expect(() => buildAdminMemoryUpdate({ content: '   ' })).toThrow('Memory content cannot be empty');
+    expect(() => buildAdminMemoryUpdate({ content: '   ' })).toThrow(ValidationError);
   });
 
   it('rejects a patch with no editable fields', () => {
-    expect(() => buildAdminMemoryUpdate({})).toThrow('No memory updates provided');
+    expect(() => buildAdminMemoryUpdate({})).toThrow(ValidationError);
   });
 });

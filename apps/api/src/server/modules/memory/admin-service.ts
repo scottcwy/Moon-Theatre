@@ -1,6 +1,7 @@
 import { and, count, desc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { characters, memories, users } from '../../db/schema.js';
+import { NotFoundError, ValidationError } from '../../http/errors.js';
 import type { MemoryType } from './extractor.js';
 
 export interface AdminMemoryListParams {
@@ -31,7 +32,7 @@ export function buildAdminMemoryUpdate(input: AdminMemoryUpdateInput): {
   if (Object.prototype.hasOwnProperty.call(input, 'content')) {
     const content = input.content?.trim() ?? '';
     if (!content) {
-      throw new Error('Memory content cannot be empty');
+      throw new ValidationError('Memory content cannot be empty');
     }
     updates.content = content.slice(0, 500);
   }
@@ -41,7 +42,7 @@ export function buildAdminMemoryUpdate(input: AdminMemoryUpdateInput): {
   }
 
   if (!Object.prototype.hasOwnProperty.call(updates, 'content') && !Object.prototype.hasOwnProperty.call(updates, 'enabled')) {
-    throw new Error('No memory updates provided');
+    throw new ValidationError('No memory updates provided');
   }
 
   return updates;
@@ -95,7 +96,7 @@ export async function updateAdminMemory(id: string, input: AdminMemoryUpdateInpu
     .returning();
 
   if (!row) {
-    throw new Error('Memory not found');
+    throw new NotFoundError('Memory');
   }
   return row;
 }

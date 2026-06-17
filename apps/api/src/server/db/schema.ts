@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const modelTierEnum = pgEnum('model_tier', ['casual', 'standard', 'immersive']);
@@ -131,7 +131,9 @@ export const relationships = pgTable('relationships', {
   bondExp: integer('bond_exp').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  userCharacterUnique: uniqueIndex('relationships_user_character_unique').on(table.userId, table.characterId),
+}));
 
 export const titles = pgTable('titles', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -139,14 +141,18 @@ export const titles = pgTable('titles', {
   description: varchar('description', { length: 256 }),
   iconUrl: varchar('icon_url', { length: 512 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  nameUnique: uniqueIndex('titles_name_unique').on(table.name),
+}));
 
 export const userTitles = pgTable('user_titles', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').references(() => users.id).notNull(),
   titleId: uuid('title_id').references(() => titles.id).notNull(),
   unlockedAt: timestamp('unlocked_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  userTitleUnique: uniqueIndex('user_titles_user_title_unique').on(table.userId, table.titleId),
+}));
 
 export const achievements = pgTable('achievements', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -155,14 +161,18 @@ export const achievements = pgTable('achievements', {
   condition: jsonb('condition').notNull(),
   iconUrl: varchar('icon_url', { length: 512 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  nameUnique: uniqueIndex('achievements_name_unique').on(table.name),
+}));
 
 export const userAchievements = pgTable('user_achievements', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').references(() => users.id).notNull(),
   achievementId: uuid('achievement_id').references(() => achievements.id).notNull(),
   unlockedAt: timestamp('unlocked_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  userAchievementUnique: uniqueIndex('user_achievements_user_achievement_unique').on(table.userId, table.achievementId),
+}));
 
 export const modelProfiles = pgTable('model_profiles', {
   id: uuid('id').defaultRandom().primaryKey(),

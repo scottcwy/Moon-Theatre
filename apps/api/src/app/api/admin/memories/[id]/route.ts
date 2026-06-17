@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { updateAdminMemory } from '@/server/modules/memory/index.js';
+import { formatZodIssues, jsonError, readJsonBody, ValidationError } from '@/server/http/errors.js';
 
 const updateMemorySchema = z.object({
   content: z.string().max(500).optional(),
@@ -22,24 +23,16 @@ export async function PATCH(
     return admin.response;
   }
 
-  let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return errorResponse('Invalid JSON body', 400);
-  }
-
-  const parsed = updateMemorySchema.safeParse(body);
-  if (!parsed.success) {
-    return errorResponse('Invalid request: ' + parsed.error.issues.map((i) => i.message).join(', '), 400);
-  }
-
-  try {
+    const body = await readJsonBody(request);
+    const parsed = updateMemorySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new ValidationError(formatZodIssues(parsed.error.issues));
+    }
     const { id } = await params;
     const result = await updateAdminMemory(id, parsed.data);
     return successResponse(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, message === 'Memory not found' ? 404 : 500);
+    return jsonError(err);
   }
 }

@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { listBlockedKeywords, createBlockedKeyword } from '@/server/modules/admin/index.js';
+import { formatZodIssues, jsonError, readJsonBody, ValidationError } from '@/server/http/errors.js';
 
 const createSchema = z.object({
   keyword: z.string().min(1).max(128),
@@ -22,8 +23,7 @@ export async function GET(request: NextRequest) {
     const result = await listBlockedKeywords();
     return successResponse({ keywords: result });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+    return jsonError(err);
   }
 }
 
@@ -33,19 +33,15 @@ export async function POST(request: NextRequest) {
     return admin.response;
   }
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(
-        'Invalid request: ' + parsed.error.issues.map((i) => i.message).join(', '),
-        400,
-      );
+      throw new ValidationError(formatZodIssues(parsed.error.issues));
     }
 
     const result = await createBlockedKeyword(parsed.data);
     return successResponse(result, 201);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+    return jsonError(err);
   }
 }

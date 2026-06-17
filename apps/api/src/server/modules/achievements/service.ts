@@ -100,17 +100,26 @@ export async function unlockAchievementsForChat(userId: string) {
   );
 
   const achievementIdsByCode = new Map(achievementRows.map((row) => [row.code, row.id]));
-  const achievementsToUnlock = newCodes
+  let achievementsToUnlock = newCodes
     .map((code) => ({ code, achievementId: achievementIdsByCode.get(code) }))
     .filter((item): item is { code: string; achievementId: string } => Boolean(item.achievementId));
 
   if (achievementsToUnlock.length > 0) {
-    await db.insert(userAchievements).values(
-      achievementsToUnlock.map((item) => ({
-        userId,
-        achievementId: item.achievementId,
-      })),
-    );
+    const insertedRows = await db
+      .insert(userAchievements)
+      .values(
+        achievementsToUnlock.map((item) => ({
+          userId,
+          achievementId: item.achievementId,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [userAchievements.userId, userAchievements.achievementId],
+      })
+      .returning({ achievementId: userAchievements.achievementId });
+
+    const insertedAchievementIds = new Set(insertedRows.map((row) => row.achievementId));
+    achievementsToUnlock = achievementsToUnlock.filter((item) => insertedAchievementIds.has(item.achievementId));
   }
 
   const unlockedTitles = await unlockTitlesForRules(userId, candidateRules.filter((rule) => newCodes.includes(rule.code)));
@@ -138,7 +147,8 @@ async function ensureAchievementRulesSeeded(rules: AchievementRule[]) {
           description: rule.description,
           condition: { code: rule.code, ...rule.condition },
         })),
-      );
+      )
+      .onConflictDoNothing();
   }
 
   const titleRules = rules.filter((rule) => rule.titleName);
@@ -158,7 +168,10 @@ async function ensureAchievementRulesSeeded(rules: AchievementRule[]) {
             name: rule.titleName!,
             description: rule.titleDescription ?? null,
           })),
-        );
+        )
+        .onConflictDoNothing({
+          target: titles.name,
+        });
     }
   }
 }
@@ -179,15 +192,24 @@ async function unlockTitlesForRules(userId: string, rules: AchievementRule[]) {
     .from(userTitles)
     .where(eq(userTitles.userId, userId));
   const existingTitleIds = new Set(existingRows.map((row) => row.titleId));
-  const titlesToUnlock = titleRows.filter((row) => !existingTitleIds.has(row.id));
+  let titlesToUnlock = titleRows.filter((row) => !existingTitleIds.has(row.id));
 
   if (titlesToUnlock.length > 0) {
-    await db.insert(userTitles).values(
-      titlesToUnlock.map((title) => ({
-        userId,
-        titleId: title.id,
-      })),
-    );
+    const insertedRows = await db
+      .insert(userTitles)
+      .values(
+        titlesToUnlock.map((title) => ({
+          userId,
+          titleId: title.id,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [userTitles.userId, userTitles.titleId],
+      })
+      .returning({ titleId: userTitles.titleId });
+
+    const insertedTitleIds = new Set(insertedRows.map((row) => row.titleId));
+    titlesToUnlock = titlesToUnlock.filter((title) => insertedTitleIds.has(title.id));
   }
 
   return titlesToUnlock.map((title) => title.name);
@@ -202,7 +224,7 @@ function readNumber(value: unknown): number {
 
 function readConditionCode(condition: unknown): string | null {
   if (condition && typeof condition === 'object' && 'code' in condition) {
-    const code = (condition as { code?: unknown }).code;
+    const code = condition.code;
     return typeof code === 'string' ? code : null;
   }
   return null;

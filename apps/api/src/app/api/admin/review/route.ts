@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { createReview } from '@/server/modules/admin/index.js';
+import { formatZodIssues, jsonError, readJsonBody, ValidationError } from '@/server/http/errors.js';
 
 const reviewSchema = z.object({
   sessionId: z.string().uuid(),
@@ -23,13 +24,10 @@ export async function POST(request: NextRequest) {
   const auth = admin.auth;
 
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
     const parsed = reviewSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(
-        'Invalid request: ' + parsed.error.issues.map((i) => i.message).join(', '),
-        400,
-      );
+      throw new ValidationError(formatZodIssues(parsed.error.issues));
     }
 
     const { sessionId, messageId, status, note } = parsed.data;
@@ -43,7 +41,6 @@ export async function POST(request: NextRequest) {
 
     return successResponse(result, 201);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+    return jsonError(err);
   }
 }

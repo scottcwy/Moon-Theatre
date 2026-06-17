@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { listPayments } from '@/server/modules/admin/index.js';
+import { listPaymentsQuerySchema, parseAdminQuery } from '@/server/modules/admin/query.js';
+import { jsonError } from '@/server/http/errors.js';
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
@@ -14,15 +16,10 @@ export async function GET(request: NextRequest) {
   }
   try {
     const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10);
-    const orderId = url.searchParams.get('orderId') || undefined;
-    const status = url.searchParams.get('status') || undefined;
-
-    const result = await listPayments({ page, pageSize, orderId, status });
+    const query = parseAdminQuery(listPaymentsQuerySchema, url.searchParams);
+    const result = await listPayments(query);
     return successResponse(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+    return jsonError(err);
   }
 }

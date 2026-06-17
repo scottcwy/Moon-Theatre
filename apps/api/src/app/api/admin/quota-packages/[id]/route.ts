@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { updateQuotaPackage } from '@/server/modules/admin/index.js';
+import { formatZodIssues, jsonError, readJsonBody, ValidationError } from '@/server/http/errors.js';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(64).optional(),
@@ -28,19 +29,15 @@ export async function PATCH(
   }
   try {
     const { id } = await params;
-    const body = await request.json();
+    const body = await readJsonBody(request);
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(
-        'Invalid request: ' + parsed.error.issues.map((i) => i.message).join(', '),
-        400,
-      );
+      throw new ValidationError(formatZodIssues(parsed.error.issues));
     }
 
     const result = await updateQuotaPackage(id, parsed.data);
     return successResponse(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+    return jsonError(err);
   }
 }

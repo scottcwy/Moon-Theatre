@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { getPaymentDetail } from '@/server/modules/admin/index.js';
+import { jsonError } from '@/server/http/errors.js';
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
@@ -21,7 +22,6 @@ export async function GET(
     const detail = await getPaymentDetail(id);
     return successResponse(detail);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, message === 'Payment not found' ? 404 : 500);
+    return jsonError(err);
   }
 }

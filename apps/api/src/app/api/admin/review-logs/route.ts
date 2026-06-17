@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { listReviewLogs } from '@/server/modules/admin/index.js';
+import { listReviewLogsQuerySchema, parseAdminQuery } from '@/server/modules/admin/query.js';
+import { jsonError } from '@/server/http/errors.js';
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
@@ -14,15 +16,10 @@ export async function GET(request: NextRequest) {
   }
   try {
     const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10);
-    const sessionId = url.searchParams.get('sessionId') || undefined;
-    const status = url.searchParams.get('status') || undefined;
-
-    const result = await listReviewLogs({ page, pageSize, sessionId, status });
+    const query = parseAdminQuery(listReviewLogsQuerySchema, url.searchParams);
+    const result = await listReviewLogs(query);
     return successResponse(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+    return jsonError(err);
   }
 }

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { relationships } from '../../db/schema';
 
@@ -30,7 +30,7 @@ export async function incrementBondExp(
   characterId: string,
   expIncrement: number = 10
 ): Promise<{ relationship: RelationshipRecord; leveledUp: boolean }> {
-  const [existing] = await db
+  const [before] = await db
     .select()
     .from(relationships)
     .where(
@@ -41,37 +41,28 @@ export async function incrementBondExp(
     )
     .limit(1);
 
-  const oldLevel = existing ? existing.bondLevel : 1;
-  const newExp = (existing ? existing.bondExp : 0) + expIncrement;
-  const newLevel = calculateBondLevel(newExp);
+  const oldLevel = before?.bondLevel ?? 1;
 
-  if (existing) {
-    const [updated] = await db
-      .update(relationships)
-      .set({
-        bondExp: newExp,
-        bondLevel: newLevel,
-        updatedAt: new Date(),
-      })
-      .where(eq(relationships.id, existing.id))
-      .returning();
-
-    if (!updated) throw new Error('Failed to update relationship');
-    return { relationship: updated as RelationshipRecord, leveledUp: newLevel > oldLevel };
-  }
-
-  const [created] = await db
+  const [relationship] = await db
     .insert(relationships)
     .values({
       userId,
       characterId,
-      bondLevel: newLevel,
-      bondExp: newExp,
+      bondLevel: calculateBondLevel(expIncrement),
+      bondExp: expIncrement,
+    })
+    .onConflictDoUpdate({
+      target: [relationships.userId, relationships.characterId],
+      set: {
+        bondExp: sql`${relationships.bondExp} + ${expIncrement}`,
+        bondLevel: sql`least(floor((${relationships.bondExp} + ${expIncrement}) / ${BOND_EXP_PER_LEVEL}) + 1, ${MAX_LEVEL})`,
+        updatedAt: new Date(),
+      },
     })
     .returning();
 
-  if (!created) throw new Error('Failed to create relationship');
-  return { relationship: created as RelationshipRecord, leveledUp: newLevel > oldLevel };
+  if (!relationship) throw new Error('Failed to upsert relationship');
+  return { relationship, leveledUp: relationship.bondLevel > oldLevel };
 }
 
 export async function getRelationship(
@@ -89,5 +80,5 @@ export async function getRelationship(
     )
     .limit(1);
 
-  return (row as RelationshipRecord) ?? null;
+  return row ?? null;
 }

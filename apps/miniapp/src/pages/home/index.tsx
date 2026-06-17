@@ -1,5 +1,8 @@
 import { Image, Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
+import { useEffect, useState } from 'react';
+import { api } from '../../services/api';
+import { getCharacterDetailUrl } from './index.model';
 import './index.scss';
 
 interface FeaturedScript {
@@ -16,6 +19,13 @@ interface ScriptCard {
   title: string;
   genre: string;
   cover: string;
+}
+
+interface CharacterCard {
+  id: string;
+  name: string;
+  identity: string;
+  avatarUrl: string;
 }
 
 const featuredScripts: FeaturedScript[] = [
@@ -53,8 +63,40 @@ const scripts: ScriptCard[] = [
 ];
 
 export default function Home() {
+  const [characters, setCharacters] = useState<CharacterCard[]>([]);
+  const [characterError, setCharacterError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get<{ characters: CharacterCard[] }>('/api/characters')
+      .then((data) => {
+        if (!cancelled) {
+          setCharacters(data.characters);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setCharacterError(err instanceof Error ? err.message : '角色列表加载失败');
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const firstCharacterId = characters[0]?.id ?? '';
+
+  const openCharacter = (characterId: string) => {
+    Taro.navigateTo({ url: getCharacterDetailUrl(characterId) });
+  };
+
   const startScript = () => {
-    Taro.navigateTo({ url: '/pages/character/detail' });
+    if (!firstCharacterId) {
+      Taro.showToast({ title: characterError || '角色加载中，请稍后再试', icon: 'none' });
+      return;
+    }
+    openCharacter(firstCharacterId);
   };
 
   return (
@@ -88,13 +130,27 @@ export default function Home() {
       </View>
 
       <View className="theater-home__grid">
-        {scripts.map((script) => (
-          <View key={script.id} className="theater-home__script-card" onTap={startScript}>
+        {(characters.length > 0 ? characters : scripts).map((item) => (
+          <View
+            key={item.id}
+            className="theater-home__script-card"
+            onTap={() => {
+              if ('identity' in item) {
+                openCharacter(item.id);
+              } else {
+                startScript();
+              }
+            }}
+          >
             <View className="theater-home__poster-wrap">
-              <Image className="theater-home__poster" src={script.cover} mode="aspectFill" />
+              <Image
+                className="theater-home__poster"
+                src={'avatarUrl' in item ? item.avatarUrl : item.cover}
+                mode="aspectFill"
+              />
             </View>
-            <Text className="theater-home__script-title">{script.title}</Text>
-            <Text className="theater-home__script-genre">{script.genre}</Text>
+            <Text className="theater-home__script-title">{'name' in item ? item.name : item.title}</Text>
+            <Text className="theater-home__script-genre">{'identity' in item ? item.identity : item.genre}</Text>
           </View>
         ))}
       </View>
