@@ -298,6 +298,14 @@ ChatService
   -> FastClawAdapter
 ```
 
+FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产品化接入必须满足：
+
+- adapter 只暴露业务后端需要的少量方法，不把 FastClaw 原始协议扩散到 route 或业务 service。
+- 请求体、鉴权头、流式响应格式和错误格式需要有 contract test 或联调脚本固定。
+- 生产环境必须设置明确的调用超时；超时、非 2xx、流解析失败都要进入模型调用日志或服务日志。
+- fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。
+- `/api/health` 只表示 API 进程存活；部署验收还需要 readiness 检查，至少覆盖数据库连接、关键生产配置和 FastClaw 可达性。
+
 ### 7.4 长期记忆
 
 记忆由业务后端结构化管理，不依赖 Agent 内部 Markdown 记忆作为唯一来源。
@@ -572,7 +580,7 @@ V1 数据库必须包含支付和点数闭环需要的 6 张核心表：`quota_p
 | Quota Packages | `GET /api/admin/quota-packages`, `POST /api/admin/quota-packages`, `PATCH /api/admin/quota-packages/:id` |
 | Model Usage | `GET /api/admin/model-usage-logs` |
 
-当前仍需持续验收和补强的后端范围包括：admin stats 和详情 API、memory admin、achievement/title 最小闭环，以及 OpenAPI 或 `docs/api-v1.md` 初版。角色、剧本、关键词等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置和模型调用日志属于 V1 admin 必做范围。
+当前代码已经具备 admin stats、订单/支付/会话详情、memory admin 和 `docs/api-v1.md` 初版。仍需持续验收和补强的后端范围包括：achievement/title 最小闭环的产品验收、模型调用日志可观测字段、FastClaw 真实服务联调、生产部署验收文档，以及后续是否补充机器可读 OpenAPI。角色、剧本、关键词等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置和模型调用日志属于 V1 admin 必做范围。
 
 ### 9.3 内网 FastClaw API
 
@@ -623,6 +631,8 @@ WECHAT_APP_ID=
 WECHAT_APP_SECRET=
 FASTCLAW_BASE_URL=http://fastclaw:18953
 FASTCLAW_API_KEY=
+FASTCLAW_TIMEOUT_MS=30000
+FASTCLAW_FALLBACK_ENABLED=false
 PAYMENT_PROVIDER=
 PAYMENT_MERCHANT_ID=
 PAYMENT_APP_ID=
@@ -661,6 +671,8 @@ OPENROUTER_API_KEY=
 - 防重复到账
 - 模型 Key 服务端保存
 - FastClaw 内网访问
+- FastClaw 生产环境显式超时和错误可观测
+- FastClaw fallback 生产默认关闭或只允许显式受控降级
 
 第一版不实现：
 
@@ -738,6 +750,8 @@ OPENROUTER_API_KEY=
 | --- | --- | --- |
 | HTTP streaming 在目标微信基础库中表现不稳定 | 流式体验受影响 | HTTP streaming 方案已锁定，立项初期先做 POC 验证 |
 | FastClaw 现有 API 无法承载复杂上下文 | Prompt 和记忆注入受限 | 首版用上下文拼接，后续再补内网 runtime endpoint |
+| FastClaw 不可用但业务端静默 fallback | 用户体验、扣点和排障口径失真 | 生产环境默认关闭静默 fallback，错误写入日志并按失败/退款路径处理 |
+| FastClaw 调用慢或流式连接悬挂 | 请求堆积、用户长时间等待 | adapter 设置超时，readiness 检查覆盖 FastClaw 可达性 |
 | 记忆错误污染角色体验 | 用户信任下降 | 记忆状态化，admin 可禁用/覆盖 |
 | 角色 Prompt 难维护 | 内容扩展慢 | Prompt 模板拆分角色、世界观、场景、安全规则、输出格式 |
 | 后续群聊模型调用成本高 | 成本不可控 | 后续群聊仍使用 HTTP Streaming，每轮只选择 1-2 个角色回复 |
@@ -834,3 +848,6 @@ FastClaw 是独立 Go 服务，不参与 TypeScript 包依赖。
 - FastClaw token 只保存在服务端环境变量中。
 - 小程序端不直接访问 FastClaw。
 - FastClaw 相关适配代码集中在 `apps/api/src/server/modules/fastclaw`。
+- route、chat service 和 wallet service 不直接依赖 FastClaw 原始 HTTP 细节。
+- 生产环境 FastClaw 调用必须有超时、错误分类和可检索日志。
+- 生产环境 FastClaw fallback 必须显式配置；默认按失败处理并退款，不允许静默伪装为正常模型成功。
