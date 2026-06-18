@@ -1,7 +1,7 @@
 # 剧本杀角色扮演小程序技术 SPEC v1 实现状态与偏差说明
 
-> 版本日期：2026-06-14
-> 当前基线提交：`6993b7d fix: unify miniapp auth state and chat balance`
+> 版本日期：2026-06-18
+> 当前基线：本地工作区，已按当前代码重新核对 admin stats、详情 API、memory admin、achievements、API 文档和 FastClaw adapter 状态
 > 适用对象：后续新窗口 / opencode / Codex 接手开发前的项目状态对齐
 
 ## 1. 文档用途
@@ -31,7 +31,7 @@ rtk pnpm -r test
 - 工程架构、数据库 schema、API 分层、服务模块已经成型。
 - 用户登录、角色、聊天、记忆、羁绊、点数、订单、支付回调、钱包流水、admin 基础页均已有实现。
 - 之前几个发布阻断风险已经有代码修复：生产配置强校验、小程序生产构建防 localhost、admin 白名单、支付回调行锁和订单级幂等、本地 mock 支付确认闭环。
-- 当前最大问题不是“没写”，而是“正式 SPEC 的口径没有完全同步当前实现”，尤其是聊天流式、扣点时机、admin API 细项、OpenAPI、成就/称号。
+- 当前最大问题不是“没写”，而是“真实服务联调和产品化硬化还没完成”，尤其是 FastClaw 生产接入、可观测性、部署验收、支付服务商实参联调和更完整的端到端测试。
 
 后续开发可以继续推进，但要避免把已经修过的底层闭环推倒重来。
 
@@ -100,25 +100,25 @@ apps/api/src/server/db/
 
 | 模块 | 状态 | 当前实现 | 主要缺口 |
 | --- | --- | --- | --- |
-| 工程基础 | 基本完成 | Monorepo、Next.js API、Taro miniapp、Drizzle、Vitest、Docker Compose 已有 | 需要继续补 OpenAPI 和部署验收文档 |
+| 工程基础 | 基本完成 | Monorepo、Next.js API、Taro miniapp、Drizzle、Vitest、Docker Compose 已有 | 需要继续补部署验收文档和 CI 固化 |
 | 配置安全 | 基本完成 | 生产环境强制校验 `DATABASE_URL`、`JWT_SECRET`、支付 provider、admin 配置 | 部署模板仍需和真实环境变量对齐 |
 | 小程序构建配置 | 基本完成 | 生产构建缺少 `API_BASE_URL` 或指向 localhost 会失败 | 需要 CI 中固定执行构建校验 |
 | 微信登录/JWT | 基本完成 | `POST /api/auth/wechat-login`、`GET /api/me`、JWT middleware 已有 | 没有 refresh token，符合 V1 当前口径 |
 | 角色/剧本 | 基本完成 | 角色列表、详情、Prompt、script 查询已有 | 内容运营、素材和更复杂剧情节点仍待补 |
 | 聊天会话 | 可用但有 SPEC 偏差 | 会话创建、用户消息保存、调用 FastClaw、保存 assistant 消息已有 | 当前不是真正逐 token 展示，见第 5 节 |
-| FastClaw 集成 | 基本完成 | `server/modules/fastclaw` 适配层已有，支持 fallback | 真实 FastClaw 服务联调和稳定性 POC 还需要做 |
+| FastClaw 集成 | 基础完成 | `server/modules/fastclaw` 适配层已有，支持 fallback | 需要真实 FastClaw contract test、超时、生产 fallback 策略、错误日志和 readiness |
 | 输入/输出审核 | 基本完成 | 输入关键词拦截、输出审核替换、review log 基础能力已有 | 审核策略仍偏简单，缺少更细的运营规则 |
 | 点数扣减 | 基本完成 | 发送前余额检查，生成前预扣，失败/过滤退款，返回 `balanceAfter` | 需要更多并发和异常测试 |
-| 记忆 | 基础完成 | 对话后抽取/upsert，下次对话前检索并注入 Prompt | admin 禁用/覆盖错误记忆还没完整实现 |
+| 记忆 | 基本完成 | 对话后抽取/upsert，下次对话前检索并注入 Prompt；admin 列表、筛选、禁用/覆盖已有 | 需要记忆抽取失败观测、审计和运营流程打磨 |
 | 羁绊 | 基础完成 | 对话后增加经验并返回等级/经验 | 规则仍简单，缺少更丰富事件体系 |
-| 称号/成就 | 仅 schema 预留 | 表存在 | 缺规则服务、API、解锁逻辑、前端闭环 |
+| 称号/成就 | 基础完成 | 表、规则服务、查询 API、聊天完成后解锁链路和服务测试已有 | 需要产品规则验收、种子数据和前端反馈继续打磨 |
 | 额度包 | 基本完成 | package 列表、admin 配置、购买页调用真实订单流程 | 真实价格和运营文案待最终确认 |
 | 订单/支付 | 核心闭环完成 | 创建订单、prepay、mock-confirm、aggregate notify、支付记录 | 真实聚合支付平台参数需最终落地 |
 | 支付回调幂等 | 已修关键风险 | 事务内 `select ... for update`，订单级 `credit_order_${order.id}` 幂等 key | 需要保留并补充更多重复回调测试 |
 | 钱包 | 基本完成 | 充值、消费、退款、余额流水均有事务处理 | 需要覆盖更多边界：并发扣点、负余额保护 |
-| admin API | 基础完成 | sessions/messages/orders/payments/wallet/quota/model usage/review/keywords | 缺 `/api/admin/stats`、详情 API、部分编辑能力 |
+| admin API | 基本完成 | stats、sessions/messages/orders/payments/wallet/quota/model usage/review/keywords/memories/detail API 已有 | 后台体验、登录/无权限状态和更细编辑能力仍粗糙 |
 | admin 页面 | 基础完成 | 多个简单页面已存在 | 后台体验和鉴权入口仍粗糙，服务端页面读取也要继续收紧 |
-| OpenAPI | 未完成 | 未看到实际 OpenAPI 文件 | 需要新增首版接口文档或生成流程 |
+| API 文档 | 基础完成 | `docs/api-v1.md` 已覆盖主要小程序、支付回调和 admin API | 如需要对外联调，可再补机器可读 OpenAPI |
 | 测试 | 有基础覆盖 | auth、config、chat、fastclaw、memory、moderation、payments、wallet、miniapp api 有测试 | 缺更完整 route 级和端到端支付/聊天测试 |
 
 ## 5. 与正式 SPEC 的关键偏差
@@ -180,7 +180,7 @@ X-Stream-Mode: moderated-buffered
 
 这个方向更适合控制并发成本，建议更新正式 SPEC，不建议回退到“生成后才扣点”。
 
-### 5.3 admin：权限边界已修，但 SPEC API 范围仍未完全实现
+### 5.3 admin：接口骨架已补齐，产品体验仍偏工程化
 
 正式 SPEC 中 admin API 包含：
 
@@ -207,12 +207,22 @@ X-Stream-Mode: moderated-buffered
 
 所有 admin API 当前已使用 `verifyAdminAuth`，会校验普通 JWT 后再检查 `ADMIN_USER_IDS` 白名单。
 
+当前已看到：
+
+- `GET /api/admin/stats`
+- `GET /api/admin/orders/:id`
+- `GET /api/admin/payments/:id`
+- `GET /api/admin/sessions/:id`
+- `GET /api/admin/memories`
+- `PATCH /api/admin/memories/:id`
+- `docs/api-v1.md`
+
 仍需补：
 
-- admin stats 汇总接口和页面数据源。
-- 订单详情、支付详情、会话详情等详情 API。
-- 后台页面访问入口的完整体验，包括登录/无权限状态。
+- 后台页面访问入口的完整体验，包括登录/无权限/过期状态。
 - 生产部署层面的二次保护，例如 Basic Auth、网关 IP 白名单或独立后台域名。
+- admin 页面与 API 字段的产品验收，避免只有接口可用但运营不可用。
+- 关键操作的审计日志和导出能力，后续按运营需要补。
 
 ### 5.4 支付：业务闭环已成型，但真实服务商仍待最终确认
 
@@ -245,7 +255,7 @@ X-Stream-Mode: moderated-buffered
 - 补支付回调生产环境验签样例和联调文档。
 - 增加更多支付状态机测试：重复成功回调、失败后成功、金额不一致、交易号不一致、并发回调。
 
-### 5.5 记忆：基础链路有了，运营纠错能力不足
+### 5.5 记忆：基础链路和 admin 纠错能力已有，下一步补观测
 
 正式 SPEC 写 admin 需要支持禁用或覆盖错误记忆。
 
@@ -259,12 +269,11 @@ X-Stream-Mode: moderated-buffered
 
 仍需补：
 
-- admin 记忆列表。
-- 禁用记忆。
-- 覆盖或编辑错误记忆。
 - 记忆抽取失败时的观测和审计。
+- 运营纠错流程文档，例如什么情况下禁用、什么时候覆盖。
+- 如果未来记忆量增长，需要检索质量、分页和筛选体验验收。
 
-### 5.6 成就/称号：属于“表已预留，功能未成型”
+### 5.6 成就/称号：后端最小闭环已有，仍需产品规则验收
 
 当前 schema 中已有：
 
@@ -273,21 +282,20 @@ X-Stream-Mode: moderated-buffered
 - `achievements`
 - `user_achievements`
 
-但缺：
+当前已看到服务、规则、查询 API 和测试，聊天完成后也会返回解锁结果。
 
-- 事件规则服务。
-- 解锁判定。
-- API。
+仍需补：
+
+- 正式种子数据和产品文案。
+- 解锁规则是否符合玩法节奏的验收。
 - 前端展示和解锁反馈。
-- admin 配置或种子数据。
+- 后续如运营频繁调整，再考虑 admin 配置能力。
 
-如果新窗口要推进后端，应把它视为未完成模块，不要误判为已实现。
-
-### 5.7 OpenAPI：正式 SPEC 承诺了，但当前没有产物
+### 5.7 API 文档：已有人工版，OpenAPI 可后置
 
 正式 SPEC 选择了 OpenAPI，用于联调和交付文档。
 
-当前仓库未看到明确的 OpenAPI 文件或生成流程。
+当前仓库已有 `docs/api-v1.md`，足以支撑首轮内部联调。
 
 建议后续新增：
 
@@ -296,7 +304,25 @@ apps/api/src/server/openapi/
 docs/openapi-v1.yaml
 ```
 
-或先人工维护 `docs/api-v1.md`，等接口稳定后再转 OpenAPI。
+如果短期只有内部协作，继续人工维护 `docs/api-v1.md` 即可；等接口稳定或需要外部交付时再转 OpenAPI。
+
+### 5.8 FastClaw：当前是适配层可用，不是生产接入完成
+
+当前已有：
+
+- `apps/api/src/server/modules/fastclaw/adapter.ts`
+- OpenAI SSE 兼容形式的 `/v1/chat/completions` 调用假设
+- fallback 文案流
+- fallback 单元测试
+- Docker Compose 中的 `fastclaw` 服务声明
+
+仍需补：
+
+- 与真实 FastClaw 服务的 contract test 或联调脚本。
+- adapter 调用超时和错误分类。
+- 生产环境 fallback 策略：默认关闭静默 fallback，失败走退款和错误响应；如要降级，必须显式配置并在响应/日志中标识。
+- readiness 检查：数据库、关键生产配置、FastClaw 可达性分开检查。
+- 模型调用日志补耗时、fallback、错误原因、token、上游 request id 等字段。
 
 ## 6. 后续开发优先级
 
@@ -306,148 +332,113 @@ docs/openapi-v1.yaml
 
 优先事项：
 
-1. 补充并固定当前实现口径：聊天 `moderated-buffered`、预扣/退款、admin 白名单、mock-confirm。
-2. 给支付、钱包、聊天扣点加更强的并发/重复请求测试。
-3. 给小程序生产构建和 API 生产配置加入 CI 或固定验证命令。
-4. 清理正式 SPEC 中已经过时的“生成后扣点”和“真实逐 token 流式”表述。
+1. 固定当前实现口径：聊天 `moderated-buffered`、预扣/退款、admin 白名单、mock-confirm。
+2. 给 FastClaw adapter 补真实 contract test、超时和生产 fallback 策略。
+3. 给支付、钱包、聊天扣点加更强的并发/重复请求测试。
+4. 给小程序生产构建和 API 生产配置加入 CI 或固定验证命令。
 
 ### P1：补后端缺失模块
 
 建议按下面顺序推进：
 
-1. Admin stats：补 `/api/admin/stats`，让后台首页真实展示核心指标。
-2. Admin 详情 API：订单详情、支付详情、会话详情。
-3. Memory admin：记忆列表、禁用、覆盖。
-4. Achievements/titles：规则服务、种子数据、查询 API、解锁事件。
-5. OpenAPI 或 API 文档：至少覆盖小程序端和 admin 端主接口。
+1. FastClaw 生产化：真实服务联调、错误/超时/降级策略、ready check。
+2. 可观测性：模型调用日志、支付回调日志、关键业务错误分类。
+3. Admin 产品化：登录/无权限/过期状态、操作审计、关键页面验收。
+4. Achievements/titles：正式种子数据、规则节奏和前端反馈。
+5. API 文档：继续维护 `docs/api-v1.md`；需要外部交付时补 OpenAPI。
 
 ### P2：联调和产品体验增强
 
-1. FastClaw 真实服务联调。
-2. 真实支付服务商联调。
+1. 真实支付服务商联调。
+2. FastClaw 模型质量、成本和延迟压测。
 3. 反向代理和微信开发者工具下的 streaming 行为验证。
 4. admin 登录/无权限/过期状态体验。
-5. 模型调用日志补 token、耗时、fallback、错误原因等字段。
+5. 部署验收手册：env、migration、seed、health/ready、回滚。
 
 ## 7. 建议给新窗口的任务边界
 
 如果新窗口专注后端，建议不要同时做大规模前端视觉改造。更合适的任务边界是：
 
 ```text
-目标：补齐 V1 后端 spec 偏差，优先 admin stats / details、memory admin、achievement/title、OpenAPI。
+目标：推进 V1 后端产品化，优先 FastClaw 真实服务接入、可观测性、部署验收和关键链路测试。
 
 约束：
 - 保留当前支付、钱包、聊天预扣退款闭环。
 - 不把聊天改回生成后扣点。
 - 不在未设计安全策略前强行做真实逐 token 输出。
-- 新增接口必须有基本测试。
+- 不推翻已经落地的 admin stats/detail、memory admin、achievements 和 `docs/api-v1.md`。
+- FastClaw 失败不能在生产环境静默伪装成正常成功。
+- 新增接口、配置和关键分支必须有基本测试。
 - 修改生产配置、小程序构建配置、支付回调、钱包事务时必须跑全量测试。
 ```
 
 ## 8. 推荐执行顺序
 
-### 8.1 更新正式 SPEC
+### 8.1 FastClaw 生产化接入
 
-修改 `docs/technical-spec-v1.md`：
+建议先固定真实 FastClaw contract：
 
-- 将聊天描述从“必须真实流式输出”改为“V1 接口采用 NDJSON streaming 形态；当前安全策略为审核后缓冲返回”。
-- 将扣点描述改为“模型调用前预扣，失败/过滤退款，成功写日志和流水”。
-- 标注 admin stats、详情 API、OpenAPI、成就/称号仍待完成。
+- 请求路径、鉴权方式、请求体字段。
+- SSE/NDJSON 流事件格式和 `[DONE]`/结束事件。
+- 错误码、错误体和限流/超时表现。
+- token/耗时/request id 是否可返回。
 
-### 8.2 补 admin stats
-
-建议新增：
-
-```text
-apps/api/src/app/api/admin/stats/route.ts
-apps/api/src/server/modules/admin/stats.ts
-apps/api/src/server/modules/admin/__tests__/stats.test.ts
-```
-
-指标建议：
-
-- 用户总数
-- 今日新增用户
-- 会话总数
-- 今日消息数
-- 订单总数
-- 已入账订单数
-- 支付成功金额
-- 总钱包余额
-- 模型调用次数
-- 输出过滤次数
-
-### 8.3 补 admin 详情 API
-
-建议新增：
+然后修改：
 
 ```text
-apps/api/src/app/api/admin/orders/[id]/route.ts
-apps/api/src/app/api/admin/payments/[id]/route.ts
-apps/api/src/app/api/admin/sessions/[id]/route.ts
+apps/api/src/server/modules/fastclaw/adapter.ts
+apps/api/src/server/modules/fastclaw/__tests__/adapter.test.ts
 ```
 
-每个详情 API 都必须走 `verifyAdminAuth`。
+最小验收：
 
-### 8.4 补 memory admin
+- 配置缺失时开发 fallback 仍可用。
+- 生产环境缺配置应 fail fast 或在 readiness 中失败。
+- FastClaw 5xx、超时、断流、坏 JSON 都能走明确失败路径。
+- 失败时不保留扣点；如果已经预扣，必须退款。
+- 日志能看出是否 fallback、耗时、错误原因。
 
-建议新增：
+### 8.2 补可观测性字段
 
-```text
-apps/api/src/app/api/admin/memories/route.ts
-apps/api/src/app/api/admin/memories/[id]/route.ts
-apps/api/src/server/modules/memory/admin-service.ts
-apps/api/src/server/modules/memory/__tests__/admin-service.test.ts
-```
+建议优先补 `model_usage_logs` 或配套日志中的字段：
 
-最小能力：
+- `latencyMs`
+- `usedFallback`
+- `errorCode`
+- `errorMessage`
+- `upstreamRequestId`
+- `inputTokens`
+- `outputTokens`
+- `costEstimateCents`
 
-- 列表查询。
-- 按用户/角色/类型筛选。
-- 禁用记忆。
-- 覆盖内容。
-- 记录更新时间。
+不要先做复杂监控平台；先让数据库/admin 能回答“哪次调用失败了，为什么，扣没扣点，是否 fallback”。
 
-### 8.5 补 achievement/title 后端闭环
+### 8.3 补 health/readiness
 
-建议新增：
+建议拆分：
 
-```text
-apps/api/src/app/api/achievements/route.ts
-apps/api/src/server/modules/achievements/service.ts
-apps/api/src/server/modules/achievements/rules.ts
-apps/api/src/server/modules/achievements/__tests__/service.test.ts
-```
+- `/api/health`：进程存活。
+- `/api/ready`：数据库、必要生产配置、FastClaw 可达性。
 
-最小规则：
+readiness 失败应返回可读的组件状态，但不能泄露密钥。
 
-- 首次对话解锁。
-- 与任意角色羁绊达到 2 级解锁。
-- 累计发送消息数达到阈值解锁。
+### 8.4 固化 CI/验收命令
 
-这部分要接入聊天完成后的事件，但先保持规则简单，不要引入复杂事件总线。
+至少固定：
 
-### 8.6 补 API 文档
+- API 测试。
+- API TypeScript 编译。
+- 小程序生产构建和 `verify:weapp`。
+- Docker Compose 构建或部署前 dry-run。
 
-如果短期不做自动 OpenAPI，先新增：
+### 8.5 支付真实服务商联调
 
-```text
-docs/api-v1.md
-```
+FastClaw 接入链路稳定后，再推进真实聚合支付参数：
 
-至少覆盖：
-
-- Auth
-- Me
-- Characters
-- Chat
-- Sessions
-- Memory
-- Models
-- Quota
-- Orders
-- Payments notify
-- Admin
+- `PaymentProvider` adapter 实参。
+- 真实 prepay 参数和 `wx.requestPayment`。
+- 回调验签样例。
+- 重复回调、金额不一致、失败后成功等状态机测试。
 
 ## 9. 接手前必须知道的验证命令
 
@@ -496,21 +487,23 @@ rtk pnpm --filter @juben-sha/api seed
 - docs/technical-spec-v1-implementation-status.md
 - DESIGN.md
 
-当前目标：专注后端，根据 technical-spec-v1-implementation-status.md 补齐 V1 后端 spec 偏差。
+当前目标：专注后端产品化，根据 technical-spec-v1-implementation-status.md 推进 FastClaw 真实服务接入、可观测性、readiness、CI/部署验收和关键链路测试。
 
 优先顺序：
-1. 更新 docs/technical-spec-v1.md 中已经过时的实现口径：聊天 moderated-buffered、预扣/退款、admin/API 待完成项。
-2. 补 /api/admin/stats，并给 admin 首页接真实统计数据。
-3. 补 admin 订单/支付/会话详情 API。
-4. 补 memory admin：列表、筛选、禁用、覆盖。
-5. 补 achievement/title 后端最小闭环。
-6. 补 docs/api-v1.md 或 OpenAPI 初版。
+1. 固定真实 FastClaw contract：请求、鉴权、流格式、错误格式、健康检查。
+2. 硬化 apps/api/src/server/modules/fastclaw/adapter.ts：超时、错误分类、生产 fallback 策略、contract test。
+3. 补模型调用日志/可观测字段：耗时、fallback、错误原因、token、上游 request id。
+4. 补 /api/ready 或等价 readiness：数据库、生产配置、FastClaw 可达性。
+5. 固化 CI/部署验收：API test/typecheck、小程序生产构建、Docker/Compose 验证。
+6. 再推进真实支付服务商联调和支付状态机测试。
 
 开发约束：
 - 所有 shell 命令使用 rtk 前缀。
 - 不要推翻当前支付、钱包、聊天预扣退款闭环。
 - 不要把聊天改回生成后扣点。
 - 不要在没有安全策略前强行做真实逐 token 输出。
+- 不要重复实现已经存在的 admin stats/detail、memory admin、achievements 和 docs/api-v1.md。
+- FastClaw 生产环境不要静默 fallback 后伪装为正常成功。
 - admin API 必须使用 verifyAdminAuth。
 - 支付和钱包相关改动必须保留事务、行锁和幂等 key。
 - 新增接口必须补测试。

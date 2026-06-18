@@ -17,78 +17,122 @@ export interface StreamError {
 
 export type StreamEvent = StreamDelta | StreamDone | StreamError;
 
+export interface StreamChatOptions {
+  sessionId?: string;
+  agentId?: string;
+  model?: string;
+}
+
 export function isFastClawConfigured(): boolean {
   return !!(config.fastclawBaseUrl && config.fastclawApiKey);
 }
 
 export async function* streamChat(
   systemPrompt: string,
-  userMessage: string
+  userMessage: string,
+  options: StreamChatOptions = {},
 ): AsyncGenerator<StreamEvent> {
   if (isFastClawConfigured()) {
     try {
       const controller = new AbortController();
-      const response = await fetch(`${config.fastclawBaseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.fastclawApiKey}`,
-        },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage },
-          ],
-          stream: true,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error(`FastClaw responded with status ${response.status}`);
+      const timeout = setTimeout(() => controller.abort(), config.fastclawTimeoutMs);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.fastclawApiKey}`,
+      };
+      const agentId = options.agentId || config.fastclawAgentId;
+      if (agentId) {
+        headers['x-fastclaw-agent-id'] = agentId;
+      }
+      if (options.sessionId) {
+        headers['x-fastclaw-session-key'] = options.sessionId;
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      try {
+        const response = await fetch(`${config.fastclawBaseUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            ...(options.model ? { model: options.model } : {}),
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: buildFastClawUserMessage(systemPrompt, userMessage) },
+            ],
+            stream: true,
+          }),
+          signal: controller.signal,
+        });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        if (!response.ok || !response.body) {
+          throw new Error(`FastClaw responded with status ${response.status}`);
+        }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') {
-            yield { type: 'done', fallback: false };
-            return;
-          }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              yield { type: 'delta', content };
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+            const data = trimmed.slice(6);
+            if (data === '[DONE]') {
+              yield { type: 'done', fallback: false };
+              return;
             }
-          } catch {
-            continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                yield { type: 'delta', content };
+              }
+            } catch {
+              continue;
+            }
           }
         }
-      }
 
-      yield { type: 'done', fallback: false };
-    } catch {
-      yield* fallbackStream(userMessage);
+        yield { type: 'done', fallback: false };
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (err) {
+      if (config.fastclawFallbackEnabled) {
+        yield* fallbackStream(userMessage);
+        return;
+      }
+      const message = err instanceof Error ? err.message : 'FastClaw request failed';
+      yield { type: 'error', message };
     }
   } else {
     yield* fallbackStream(userMessage);
   }
+}
+
+function buildFastClawUserMessage(systemPrompt: string, userMessage: string): string {
+  const prompt = systemPrompt.trim();
+  if (!prompt) {
+    return userMessage;
+  }
+
+  return [
+    '请严格依据以下剧本杀角色扮演上下文回复用户。',
+    '',
+    '【上下文】',
+    prompt,
+    '',
+    '【用户消息】',
+    userMessage,
+  ].join('\n');
 }
 
 async function* fallbackStream(userMessage: string): AsyncGenerator<StreamEvent> {

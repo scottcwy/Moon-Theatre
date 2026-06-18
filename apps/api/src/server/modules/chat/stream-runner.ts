@@ -141,7 +141,10 @@ function createGenerationResponse(input: {
       try {
         controller.enqueue(encoder.encode(JSON.stringify({ type: 'status', mode: 'moderated_buffered', stage: 'generating' }) + '\n'));
 
-        for await (const event of streamChat(input.systemPrompt, input.userMessage)) {
+        for await (const event of streamChat(input.systemPrompt, input.userMessage, {
+          sessionId: input.sessionId,
+          model: input.modelName,
+        })) {
           if (event.type === 'delta') {
             fullContent += event.content;
           } else if (event.type === 'done') {
