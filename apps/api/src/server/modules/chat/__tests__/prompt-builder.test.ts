@@ -112,7 +112,7 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt(character, script, {
       memories: [
         { type: 'user_info', content: '用户自称张三。' },
-        { type: 'story', content: '围城中的事件被讨论。' },
+        { type: 'story', content: '月见庭院中的事件被讨论。' },
       ],
     });
 

@@ -4,17 +4,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { TopBar } from '../../components/layout/TopBar';
 import { PageShell } from '../../components/layout/PageContainer';
-import { getCharacterDetailUrl } from './index.model';
+import { featuredScripts, getCharacterDetailUrl } from './index.model';
 import './index.scss';
-
-interface FeaturedScript {
-  id: string;
-  title: string;
-  genre: string;
-  tag: string;
-  description: string;
-  cover: string;
-}
 
 interface ScriptCard {
   id: string;
@@ -29,25 +20,6 @@ interface CharacterCard {
   identity: string;
   avatarUrl: string;
 }
-
-const featuredScripts: FeaturedScript[] = [
-  {
-    id: 'liumang',
-    title: '流氓叙事',
-    genre: '沉浸式体验',
-    tag: '沉浸式体验',
-    description: '在这个迷离的赛博世界中，你将扮演一个边缘人物，在帮派纷争与霓虹暗影中寻找自...',
-    cover: '/assets/home/liumang-cover.png',
-  },
-  {
-    id: 'archive',
-    title: '档案迷城',
-    genre: '悬疑 / 推理',
-    tag: '限时开放',
-    description: '翻开尘封卷宗，在失真的证词与断裂记忆中，寻找那枚被藏起来的真相碎片。',
-    cover: '/assets/home/theater-cover.png',
-  },
-];
 
 const scripts: ScriptCard[] = [
   {
@@ -104,6 +76,8 @@ export default function Home() {
   return (
     <PageShell variant="scroll" noPadding>
       <TopBar
+        className="theater-home__topbar"
+        titleClassName="theater-home__topbar-title"
         left={
           <View className="theater-home__profile">
             <Text className="theater-home__profile-icon">☻</Text>
@@ -119,6 +93,9 @@ export default function Home() {
             <View key={script.id} className="theater-home__hero-card">
               <Image className="theater-home__hero-image" src={script.cover} mode="aspectFill" />
               <View className="theater-home__hero-shade" />
+              <View className="theater-home__hero-logo">
+                <Text className="theater-home__hero-logo-text">{script.title}</Text>
+              </View>
               <View className="theater-home__hero-content">
                 <View className="theater-home__tag">
                   <Text className="theater-home__tag-text">{script.tag}</Text>

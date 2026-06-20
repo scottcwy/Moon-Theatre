@@ -189,6 +189,40 @@ export function streamChat(
   callbacks: StreamCallbacks
 ): { abort: () => void } {
   const token = getToken() || '';
+  let buffer = '';
+
+  const processStreamText = (text: string) => {
+    buffer += text;
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.type === 'delta' && parsed.content) {
+          callbacks.onDelta(parsed.content);
+        } else if (parsed.type === 'done') {
+          callbacks.onDone({
+            messageId: parsed.messageId,
+            sessionId: parsed.sessionId,
+            mood: parsed.mood,
+            fallback: parsed.fallback,
+            bondLevel: parsed.bondLevel,
+            bondExp: parsed.bondExp,
+            balanceAfter: parsed.balanceAfter,
+          });
+        } else if (parsed.type === 'error') {
+          callbacks.onError(parsed.message || 'Stream error');
+        }
+      } catch {
+        continue;
+      }
+    }
+  };
 
   const requestTask = Taro.request({
     url: `${BASE_URL}/api/chat/stream`,
@@ -219,6 +253,12 @@ export function streamChat(
       }
       if (res.statusCode >= 400) {
         callbacks.onError(`请求失败 (${res.statusCode})`);
+        return;
+      }
+
+      const data = decodeChunk(res.data);
+      if (data) {
+        processStreamText(data.endsWith('\n') ? data : `${data}\n`);
       }
     },
     fail(err) {
@@ -227,40 +267,9 @@ export function streamChat(
     },
   });
 
-  let buffer = '';
-
   requestTask.onChunkReceived((res) => {
     const chunk = decodeChunk(res.data);
-    buffer += chunk;
-
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (parsed.type === 'delta' && parsed.content) {
-          callbacks.onDelta(parsed.content);
-        } else if (parsed.type === 'done') {
-          callbacks.onDone({
-            messageId: parsed.messageId,
-            sessionId: parsed.sessionId,
-            mood: parsed.mood,
-            fallback: parsed.fallback,
-            bondLevel: parsed.bondLevel,
-            bondExp: parsed.bondExp,
-            balanceAfter: parsed.balanceAfter,
-          });
-        } else if (parsed.type === 'error') {
-          callbacks.onError(parsed.message || 'Stream error');
-        }
-      } catch {
-        continue;
-      }
-    }
+    processStreamText(chunk);
   });
 
   return {

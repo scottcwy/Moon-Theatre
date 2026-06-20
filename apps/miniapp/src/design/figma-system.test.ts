@@ -17,7 +17,7 @@ describe('figma visual system copy helpers', () => {
   });
 
   it('replaces Figma share-card English leftovers with Chinese labels', () => {
-    expect(getShareIdentityLabel('蒋伯驾')).toBe('军火大亨');
+    expect(getShareIdentityLabel('白藏')).toBe('庭院狐神');
     expect(getShareIdentityLabel('unknown')).toBe('剧中角色');
   });
 

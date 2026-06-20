@@ -151,19 +151,19 @@ function buildFallbackResponse(userMessage: string): string {
   const input = userMessage.trim().toLowerCase();
 
   if (input.includes('你好') || input.includes('hello') || input.includes('hi')) {
-    return '你好。夜色已深，围城的灯光在远处闪烁。今夜是什么风把你引到这里的？[情绪: Neutral]';
+    return '你好。月色正落在庭院的石阶上，红线铃铛也轻轻响了一声。今夜是什么风把你引到这里的？[情绪: Neutral]';
   }
   if (input.includes('再见') || input.includes('拜拜') || input.includes('bye')) {
-    return '路上小心。围城虽暗，但总有一盏灯为你亮着。期待下次相见。[情绪: Sad]';
+    return '路上小心。若月见庭院再次开门，我会在鸟居下等你。期待下次相见。[情绪: Sad]';
   }
   if (input.includes('名字') || input.includes('谁') || input.includes('你是谁')) {
-    return '名字不过是一个符号。重要的是，在这个围城里，每个人都有自己的角色。你呢，你准备好扮演你的角色了吗？[情绪: Thinking]';
+    return '名字不过是一个符号。重要的是，在这座月见庭院里，每个人都被一段未完的契约牵引。你呢，你准备好听见铃声背后的真相了吗？[情绪: Thinking]';
   }
   if (input.includes('谢谢') || input.includes('感谢')) {
     return '不必言谢。在这座城里，相互帮衬是再自然不过的事。[情绪: Happy]';
   }
 
-  return `你说得很有意思。围城中的每个人都有自己的故事，而你的故事才刚刚开始。\n\n还有什么想和我说的吗？[情绪: Thinking]`;
+  return `你说得很有意思。月见庭院中的每个人都有自己的旧约，而你的故事才刚刚开始。\n\n还有什么想和我说的吗？[情绪: Thinking]`;
 }
 
 function splitIntoChunks(text: string): string[] {

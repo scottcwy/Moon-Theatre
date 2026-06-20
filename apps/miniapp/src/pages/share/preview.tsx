@@ -10,20 +10,21 @@ import './preview.scss';
 const CANVAS_ID = 'shareCanvas';
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 840;
-const EXCERPT = '夜巡的灯火，你若不怕，便随我来。城墙上只有我们两个人，风吹过来的时候，连铁骑都会觉得冷。';
+const EXCERPT = '铃声响起时，北门的月光会替你照路。若你仍想知道前世真相，我会陪你走到门前。';
 
 export default function SharePreview() {
   const router = useRouter();
-  const characterId = router.params.characterId || 'char-jiang';
+  const characterId = router.params.characterId || 'char-hakuzo';
   const [saving, setSaving] = useState(false);
 
   const CHARACTER_MAP: Record<string, { name: string }> = {
-    'char-jiang': { name: '蒋伯驾' },
-    'char-cheng': { name: '程聿怀' },
-    'char-yisa': { name: '以撒' },
+    'char-hakuzo': { name: '白藏' },
+    'char-kiyoharu': { name: '贺茂清玄' },
+    'char-mio': { name: '月岛澪' },
+    'char-kuon': { name: '久远' },
   };
 
-  const character = CHARACTER_MAP[characterId] || { name: '蒋伯驾' };
+  const character = CHARACTER_MAP[characterId] || { name: '白藏' };
 
   const drawPoster = () => {
     const ctx = Taro.createCanvasContext(CANVAS_ID);

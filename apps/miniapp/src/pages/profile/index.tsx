@@ -2,10 +2,11 @@ import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
-import { api, isLoggedIn } from '../../services/api';
+import { api, clearAuth, isLoggedIn } from '../../services/api';
 import { PageShell } from '../../components/layout/PageContainer';
 import { CharacterAvatar } from '../../components/character/CharacterAvatar';
 import { Badge, PointsBadge } from '../../components/ui/Badge';
+import { TonalButton } from '../../components/ui/Button';
 import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
 import './index.scss';
 
@@ -67,6 +68,14 @@ export default function Profile() {
 
   const handleBuyPoints = () => {
     Taro.navigateTo({ url: '/pages/quota/buy' });
+  };
+
+  const handleLogout = () => {
+    clearAuth();
+    setProfile(null);
+    setBalance(null);
+    Taro.showToast({ title: '已退出登录', icon: 'success' });
+    Taro.navigateTo({ url: '/pages/login/index' });
   };
 
   const nickname = profile?.nickname || '旅人';
@@ -145,6 +154,13 @@ export default function Profile() {
         <Text className="notice-block__text">
           本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
         </Text>
+      </View>
+
+      <View className="page-section profile__account-actions">
+        <Text className="page-section__title">账户</Text>
+        <TonalButton className="profile__logout-button" onTap={handleLogout}>
+          退出登录
+        </TonalButton>
       </View>
     </PageShell>
   );

@@ -44,3 +44,12 @@
   font-size: $font-label-sm;
   color: $color-on-surface-variant;
 }
+
+.profile__account-actions {
+  padding-bottom: $space-6;
+}
+
+.profile__logout-button {
+  margin-top: $space-3;
+  color: $color-error;
+}

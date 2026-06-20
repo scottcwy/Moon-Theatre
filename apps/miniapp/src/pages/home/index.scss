@@ -24,6 +24,18 @@
   line-height: 1.1;
 }
 
+.theater-home__topbar {
+  background: rgba($color-background, 0.98);
+  box-shadow: 0 8rpx 28rpx rgba(58, 7, 24, 0.08);
+}
+
+.theater-home__topbar-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .theater-home__settings {
   color: $color-primary;
   font-size: 38rpx;
@@ -32,7 +44,7 @@
 
 /* Content area starts below TopBar */
 .theater-home__content {
-  padding: $topbar-height $page-padding-h $page-padding-bottom;
+  padding: calc($topbar-height + $space-3) $page-padding-h $page-padding-bottom;
 }
 
 .theater-home__feature-strip {
@@ -70,6 +82,25 @@
   background:
     linear-gradient(180deg, rgba(12, 15, 22, 0.02) 0%, rgba(25, 12, 18, 0.24) 42%, rgba(15, 5, 8, 0.9) 100%),
     linear-gradient(90deg, rgba(69, 6, 22, 0.46) 0%, rgba(69, 6, 22, 0.06) 54%, rgba(69, 6, 22, 0.36) 100%);
+}
+
+.theater-home__hero-logo {
+  position: absolute;
+  top: $space-5;
+  left: $space-5;
+  right: $space-5;
+  min-height: 64rpx;
+  display: flex;
+  align-items: center;
+}
+
+.theater-home__hero-logo-text {
+  max-width: 100%;
+  color: #fff7f8;
+  font-size: $font-title-lg;
+  font-weight: 800;
+  line-height: 1.15;
+  text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
 }
 
 .theater-home__hero-content {

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { eq, desc, inArray } from 'drizzle-orm';
+import { and, eq, desc, inArray } from 'drizzle-orm';
 import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { db } from '@/server/db/index.js';
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       })
       .from(chatSessions)
       .innerJoin(characters, eq(chatSessions.characterId, characters.id))
-      .where(eq(chatSessions.userId, auth.userId))
+      .where(and(eq(chatSessions.userId, auth.userId), eq(characters.status, 'active')))
       .orderBy(desc(chatSessions.updatedAt))
       .limit(limit)
       .offset(offset);

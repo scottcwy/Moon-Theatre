@@ -51,10 +51,10 @@ export default function Login() {
   return (
     <View className="login-page app-page">
       <View className="login-page__hero">
-        <Text className="login-page__eyebrow">AI 角色故事小程序</Text>
-        <Text className="login-page__title">夜色围城</Text>
+        <Text className="login-page__eyebrow">剧本杀角色聊天小程序</Text>
+        <Text className="login-page__title">月满楼</Text>
         <Text className="login-page__subtitle">
-          进入一座被浓雾笼罩的城市，与角色建立关系，留下记忆，推进只属于你的对话线。
+          和各个热门剧本里的角色在线聊天，在对话中沉浸交流，延续你喜欢的剧本杀故事。
         </Text>
       </View>
 
@@ -62,22 +62,22 @@ export default function Login() {
         <View className="login-page__feature">
           <Text className="login-page__feature-index">01</Text>
           <View className="login-page__feature-copy">
-            <Text className="login-page__feature-title">选择角色</Text>
-            <Text className="login-page__feature-text">从学者、记者、医者中进入不同关系线。</Text>
+            <Text className="login-page__feature-title">热门剧本角色</Text>
+            <Text className="login-page__feature-text">选择你熟悉或心动的剧本角色，随时进入专属对话。</Text>
           </View>
         </View>
         <View className="login-page__feature">
           <Text className="login-page__feature-index">02</Text>
           <View className="login-page__feature-copy">
-            <Text className="login-page__feature-title">持续对话</Text>
-            <Text className="login-page__feature-text">角色会依据你的消息、记忆和羁绊回应。</Text>
+            <Text className="login-page__feature-title">沉浸式交流</Text>
+            <Text className="login-page__feature-text">角色会依据人设、剧情关系和你的消息自然回应。</Text>
           </View>
         </View>
         <View className="login-page__feature">
           <Text className="login-page__feature-index">03</Text>
           <View className="login-page__feature-copy">
-            <Text className="login-page__feature-title">保留进度</Text>
-            <Text className="login-page__feature-text">登录后保存会话、点数和角色关系状态。</Text>
+            <Text className="login-page__feature-title">保存你的故事</Text>
+            <Text className="login-page__feature-text">登录后保留会话、点数、记忆和角色关系进度。</Text>
           </View>
         </View>
       </View>

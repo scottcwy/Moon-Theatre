@@ -361,7 +361,7 @@ export default function Chat() {
         {messages.length === 0 && !sending && (
           <EmptyState
             title="暂无进行中的故事"
-            message={`可以先问问 ${character.name} 关于围城的线索，或直接告诉对方你是谁。`}
+            message={`可以先问问 ${character.name} 关于月见庭院的线索，或直接告诉对方你是谁。`}
             primaryText="购买点数"
             onPrimary={handleBuyPoints}
           />

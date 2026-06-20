@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { characters, characterPrompts, scripts } from '../../db/schema';
 
@@ -21,7 +21,11 @@ export async function listCharacters() {
 }
 
 export async function getCharacterById(id: string) {
-  const [character] = await db.select().from(characters).where(eq(characters.id, id)).limit(1);
+  const [character] = await db
+    .select()
+    .from(characters)
+    .where(and(eq(characters.id, id), eq(characters.status, 'active')))
+    .limit(1);
 
   if (!character) {
     return null;

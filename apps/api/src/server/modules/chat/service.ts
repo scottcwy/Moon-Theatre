@@ -29,7 +29,11 @@ export interface CharacterWithPrompts {
 }
 
 export async function getCharacterWithPrompts(characterId: string): Promise<CharacterWithPrompts | null> {
-  const [character] = await db.select().from(characters).where(eq(characters.id, characterId)).limit(1);
+  const [character] = await db
+    .select()
+    .from(characters)
+    .where(and(eq(characters.id, characterId), eq(characters.status, 'active')))
+    .limit(1);
   if (!character) return null;
 
   const prompts = await db

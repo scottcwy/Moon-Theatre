@@ -16,14 +16,14 @@ describe('extractCandidateMemories', () => {
     });
 
     it('extracts origin from user text', () => {
-      const result = extractCandidateMemories('我来自北方的小镇', '北方来的旅人啊，围城欢迎你。');
+      const result = extractCandidateMemories('我来自北方的小镇', '北方来的旅人啊，月见庭院欢迎你。');
       const userInfo = extractFirstOfType(result, 'user_info');
       expect(userInfo).toBeDefined();
       expect(userInfo!.content).toContain('北方');
     });
 
     it('extracts profession/identity from user text', () => {
-      const result = extractCandidateMemories('我是做药材生意的', '药材生意？在这围城里可不容易。');
+      const result = extractCandidateMemories('我是做药材生意的', '药材生意？在这座庭院里可不容易。');
       const userInfo = extractFirstOfType(result, 'user_info');
       expect(userInfo).toBeDefined();
       expect(userInfo!.content).toContain('药材');
@@ -59,14 +59,15 @@ describe('extractCandidateMemories', () => {
   });
 
   describe('story patterns', () => {
-    it('detects city-related event mentions', () => {
-      const result = extractCandidateMemories('围城的灯光为什么一直亮着', '那是信号灯，守夜人的职责。');
+    it('detects garden-related event mentions', () => {
+      const result = extractCandidateMemories('月见庭院的红线为什么一直响', '那是狐嫁契约留下的铃铛。');
       const story = extractFirstOfType(result, 'story');
       expect(story).toBeDefined();
+      expect(story!.content).toContain('月见庭院');
     });
 
     it('detects key plot keywords', () => {
-      const result = extractCandidateMemories('有什么线索吗', '我在城墙上发现了一些血迹。');
+      const result = extractCandidateMemories('有什么线索吗', '我在北门发现了一页新娘名册。');
       const story = extractFirstOfType(result, 'story');
       expect(story).toBeDefined();
     });
@@ -90,7 +91,7 @@ describe('extractCandidateMemories', () => {
 
   describe('max candidates limit', () => {
     it('returns at most 3 candidates per turn', () => {
-      const longText = '我叫张三，我来自北方，我是做药材生意的。围城的灯光很亮，我需要你的帮助，我信任你。';
+      const longText = '我叫张三，我来自北方，我是做药材生意的。月见庭院的铃铛很响，我需要你的帮助，我信任你。';
       const result = extractCandidateMemories(longText, '好的，我帮你调查。');
       expect(result.length).toBeLessThanOrEqual(3);
     });

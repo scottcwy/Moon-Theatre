@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { listCharacters } from '@/server/modules/characters/index.js';
-import { verifyAuth, errorResponse, successResponse, unauthorizedResponse } from '@/server/middleware/auth.js';
+import { errorResponse, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 
 export async function OPTIONS(request: NextRequest) {
@@ -8,11 +8,6 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  if (!auth) {
-    return unauthorizedResponse();
-  }
-
   try {
     const characters = await listCharacters();
     return successResponse({ characters });

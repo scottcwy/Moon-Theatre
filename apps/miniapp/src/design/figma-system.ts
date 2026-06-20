@@ -9,9 +9,10 @@ export const FIGMA_MOOD_LABELS: Record<MoodType, string> = {
 };
 
 export const FIGMA_SHARE_IDENTITY_LABELS: Record<string, string> = {
-  蒋伯驾: '军火大亨',
-  程聿怀: '守城枪手',
-  以撒: '异乡旅人',
+  白藏: '庭院狐神',
+  贺茂清玄: '冷面阴阳师',
+  月岛澪: '绘梦画师',
+  久远: '守门武士',
 };
 
 export function getFigmaMoodLabel(mood: MoodType): string {

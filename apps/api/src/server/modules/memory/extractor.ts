@@ -45,15 +45,15 @@ const RELATIONSHIP_PATTERNS: Array<{ regex: RegExp; extract: (match: RegExpMatch
 
 const STORY_PATTERNS: Array<{ regex: RegExp; extract: (match: RegExpMatchArray) => string }> = [
   {
-    regex: /(?:围城|城墙|守夜|灯光|信号|封锁|宵禁)/,
-    extract: () => `围城中的事件被讨论。`,
+    regex: /(?:月见庭院|庭院|鸟居|红线|铃铛|狐嫁|满月|北门|契约|屏风)/,
+    extract: () => `月见庭院中的事件被讨论。`,
   },
   {
-    regex: /(?:去了|来到|在)(?:城墙|医馆|坊间|衙门|集市|城门口|灯塔)(.{0,10})/,
+    regex: /(?:去了|来到|在)(?:神社|鸟居|庭院|北门|东厢|藏书阁|镜池|屏风)(.{0,10})/,
     extract: (m) => `地点「${m[1] ? m[0]!.trim() : m[1] || m[0]}」被提及。`,
   },
   {
-    regex: /(?:线索|秘密|真相|阴谋|叛徒|失踪|死亡|血迹|伤口|药物)/,
+    regex: /(?:线索|秘密|真相|前世|契约|失踪|旧约|红线|新娘名册|无面侍女)/,
     extract: () => `关键剧情元素被提及。`,
   },
   {

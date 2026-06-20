@@ -68,6 +68,17 @@ describe('miniapp api client', () => {
     expect(getUser()).toBeNull();
   });
 
+  it('clears the stored user session on logout', async () => {
+    const { clearAuth, getToken, getUser, setToken, setUser } = await import('./api');
+    setToken('auth-token');
+    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+
+    clearAuth();
+
+    expect(getToken()).toBe('');
+    expect(getUser()).toBeNull();
+  });
+
   it('includes request details when the network request fails', async () => {
     const { api } = await import('./api');
     requestMock.mockRejectedValue({ errMsg: 'request:fail timeout' });
@@ -115,5 +126,51 @@ describe('miniapp api client', () => {
     });
 
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ balanceAfter: 7 }));
+  });
+
+  it('parses completed chat stream responses when chunk events are not delivered', async () => {
+    const { setToken, streamChat } = await import('./api');
+    setToken('auth-token');
+
+    let requestOptions: {
+      success?: (res: { statusCode: number; data: string }) => void;
+    } = {};
+    requestMock.mockImplementation((options) => {
+      requestOptions = options;
+      return {
+        onChunkReceived: vi.fn(),
+        abort: vi.fn(),
+      };
+    });
+
+    const onDelta = vi.fn();
+    const onDone = vi.fn();
+    streamChat(
+      {
+        characterId: 'character-id',
+        message: '你好',
+        modelTier: 'standard',
+      },
+      {
+        onDelta,
+        onDone,
+        onError: vi.fn(),
+      },
+    );
+
+    requestOptions.success?.({
+      statusCode: 200,
+      data:
+        JSON.stringify({ type: 'delta', content: '你好，铃音。' }) +
+        '\n' +
+        JSON.stringify({ type: 'done', messageId: 'message-id', sessionId: 'session-id' }) +
+        '\n',
+    });
+
+    expect(onDelta).toHaveBeenCalledWith('你好，铃音。');
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({
+      messageId: 'message-id',
+      sessionId: 'session-id',
+    }));
   });
 });
