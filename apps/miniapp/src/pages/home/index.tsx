@@ -2,6 +2,8 @@ import { Image, Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
 import { api } from '../../services/api';
+import { TopBar } from '../../components/layout/TopBar';
+import { PageShell } from '../../components/layout/PageContainer';
 import { getCharacterDetailUrl } from './index.model';
 import './index.scss';
 
@@ -100,61 +102,65 @@ export default function Home() {
   };
 
   return (
-    <View className="theater-home">
-      <View className="theater-home__topbar">
-        <View className="theater-home__profile">
-          <Text className="theater-home__profile-icon">☻</Text>
+    <PageShell variant="scroll" noPadding>
+      <TopBar
+        left={
+          <View className="theater-home__profile">
+            <Text className="theater-home__profile-icon">☻</Text>
+          </View>
+        }
+        title={<Text className="theater-home__brand">灵犀剧场</Text>}
+        right={<Text className="theater-home__settings">⚙</Text>}
+      />
+
+      <View className="theater-home__content">
+        <View className="theater-home__feature-strip">
+          {featuredScripts.map((script) => (
+            <View key={script.id} className="theater-home__hero-card">
+              <Image className="theater-home__hero-image" src={script.cover} mode="aspectFill" />
+              <View className="theater-home__hero-shade" />
+              <View className="theater-home__hero-content">
+                <View className="theater-home__tag">
+                  <Text className="theater-home__tag-text">{script.tag}</Text>
+                </View>
+                <Text className="theater-home__hero-title">{script.title}</Text>
+                <Text className="theater-home__hero-desc">{script.description}</Text>
+                <View className="theater-home__start-button" onTap={startScript}>
+                  <Text className="theater-home__play">▶</Text>
+                  <Text className="theater-home__start-text">开始剧本</Text>
+                </View>
+              </View>
+            </View>
+          ))}
         </View>
-        <Text className="theater-home__brand">灵犀剧场</Text>
-        <Text className="theater-home__settings">⚙</Text>
-      </View>
 
-      <View className="theater-home__feature-strip">
-        {featuredScripts.map((script) => (
-          <View key={script.id} className="theater-home__hero-card">
-            <Image className="theater-home__hero-image" src={script.cover} mode="aspectFill" />
-            <View className="theater-home__hero-shade" />
-            <View className="theater-home__hero-content">
-              <View className="theater-home__tag">
-                <Text className="theater-home__tag-text">{script.tag}</Text>
+        <View className="theater-home__grid">
+          {(characters.length > 0 ? characters : scripts).map((item) => (
+            <View
+              key={item.id}
+              className="theater-home__script-card"
+              onTap={() => {
+                if ('identity' in item) {
+                  openCharacter(item.id);
+                } else {
+                  startScript();
+                }
+              }}
+            >
+              <View className="theater-home__poster-wrap">
+                <Image
+                  className="theater-home__poster"
+                  src={'avatarUrl' in item ? item.avatarUrl : item.cover}
+                  mode="aspectFill"
+                />
               </View>
-              <Text className="theater-home__hero-title">{script.title}</Text>
-              <Text className="theater-home__hero-desc">{script.description}</Text>
-              <View className="theater-home__start-button" onTap={startScript}>
-                <Text className="theater-home__play">▶</Text>
-                <Text className="theater-home__start-text">开始剧本</Text>
-              </View>
+              <Text className="theater-home__script-title">{'name' in item ? item.name : item.title}</Text>
+              <Text className="theater-home__script-genre">{'identity' in item ? item.identity : item.genre}</Text>
             </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </View>
-
-      <View className="theater-home__grid">
-        {(characters.length > 0 ? characters : scripts).map((item) => (
-          <View
-            key={item.id}
-            className="theater-home__script-card"
-            onTap={() => {
-              if ('identity' in item) {
-                openCharacter(item.id);
-              } else {
-                startScript();
-              }
-            }}
-          >
-            <View className="theater-home__poster-wrap">
-              <Image
-                className="theater-home__poster"
-                src={'avatarUrl' in item ? item.avatarUrl : item.cover}
-                mode="aspectFill"
-              />
-            </View>
-            <Text className="theater-home__script-title">{'name' in item ? item.name : item.title}</Text>
-            <Text className="theater-home__script-genre">{'identity' in item ? item.identity : item.genre}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
+    </PageShell>
   );
 }
 

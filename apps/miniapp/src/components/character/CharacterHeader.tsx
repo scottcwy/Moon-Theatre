@@ -1,8 +1,8 @@
 import { Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { CharacterAvatar } from './CharacterAvatar';
-import { Badge, PointsBadge } from '../ui/Badge';
 import { IconButton } from '../ui/Button';
+import { Badge, PointsBadge } from '../ui/Badge';
 import './CharacterHeader.scss';
 
 interface CharacterHeaderProps {

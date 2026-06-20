@@ -3,6 +3,7 @@ import Taro, { useRouter } from '@tarojs/taro';
 import { useState } from 'react';
 import { SharePreviewCard } from '../../components/share/SharePreviewCard';
 import { PrimaryButton, TonalButton } from '../../components/ui/Button';
+import { BottomAction } from '../../components/layout/BottomAction';
 import { getShareIdentityLabel } from '../../design/figma-system';
 import './preview.scss';
 
@@ -102,14 +103,16 @@ export default function SharePreview() {
     <View className="share-preview-page">
       <SharePreviewCard characterName={character.name} excerpt={EXCERPT} />
 
-      <View className="share-preview-page__actions">
-        <TonalButton className="share-preview-page__action-secondary" onTap={handleSave}>
-          ↓ {saving ? '保存中…' : '保存图片'}
-        </TonalButton>
-        <PrimaryButton className="share-preview-page__action-primary" onTap={handleSave}>
-          ↗ 立即分享
-        </PrimaryButton>
-      </View>
+      <BottomAction variant="dark">
+        <View className="share-preview-page__actions">
+          <TonalButton className="share-preview-page__action-secondary" onTap={handleSave}>
+            ↓ {saving ? '保存中…' : '保存图片'}
+          </TonalButton>
+          <PrimaryButton className="share-preview-page__action-primary" onTap={handleSave}>
+            ↗ 立即分享
+          </PrimaryButton>
+        </View>
+      </BottomAction>
 
       <Canvas
         canvasId={CANVAS_ID}

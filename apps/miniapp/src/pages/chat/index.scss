@@ -5,28 +5,27 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: #fffbf8;
+  background-color: $color-background;
 
   &--state {
     min-height: 100vh;
     padding: $space-4;
     display: flex;
     align-items: center;
-    background-color: #fffbf8;
+    background-color: $color-background;
     box-sizing: border-box;
   }
 
   &__notice-card {
     margin: 0 $space-4 $space-4;
-    padding-top: $space-6;
-    padding-bottom: $space-6;
+    padding: $space-4 $space-5;
   }
 
   &__messages {
     flex: 1;
     min-height: 0;
-    padding: $space-5 $space-4;
-    background-color: #fffbf8;
+    padding: $space-4;
+    background-color: $color-background;
     box-sizing: border-box;
   }
 

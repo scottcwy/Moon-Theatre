@@ -1,141 +1,99 @@
 @use '../../styles/tokens.scss' as *;
 
-.quota-buy-page {
-  padding: $space-4;
-  padding-bottom: calc($space-8 + 160rpx);
-  min-height: 100vh;
-  background-color: #fffbf8;
-  box-sizing: border-box;
+.buy__balance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  background-color: $color-tertiary-container;
+  border-radius: $radius-lg;
+  padding: $space-4 $space-5;
+  margin: $space-5 0;
+  box-shadow: $shadow-card;
+}
 
-  &__title {
-    display: block;
-    font-size: 52rpx;
-    line-height: 1.18;
-    font-weight: 800;
-    color: #221b1d;
+.buy__balance-label {
+  font-size: $font-body-md;
+  color: $color-on-tertiary-container;
+}
+
+.buy__balance-value {
+  font-size: $font-display-sm;
+  font-weight: 700;
+  color: $color-on-tertiary-container;
+}
+
+.buy__packages {
+  margin-bottom: $space-5;
+}
+
+.buy__package {
+  position: relative;
+  margin-bottom: $space-3;
+  transition: all 0.15s ease;
+
+  &--selected {
+    border: 3rpx solid $color-primary;
+    background-color: $color-surface;
   }
 
-  &__subtitle {
-    display: block;
-    margin: $space-2 0 $space-5;
-    font-size: $font-body-md;
-    line-height: 1.6;
-    color: #6f6265;
+  &--recommended {
+    box-shadow: $shadow-panel;
   }
+}
 
-  &__balance {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    background-color: #ffe0a8;
-    border-radius: $radius-lg;
-    padding: $space-4 $space-5;
-    margin-bottom: $space-5;
-    box-shadow: $shadow-card;
-  }
+.buy__package-badge {
+  position: absolute;
+  top: $space-2;
+  right: $space-3;
+  background-color: $color-primary;
+  border-radius: $radius-full;
+  padding: $space-1 $space-3;
+}
 
-  &__balance-label {
-    font-size: $font-body-md;
-    color: $color-on-tertiary-container;
-  }
+.buy__package-badge-text {
+  font-size: $font-label-sm;
+  font-weight: 600;
+  color: $color-on-primary;
+}
 
-  &__balance-value {
-    font-size: $font-display-sm;
-    font-weight: 700;
-    color: $color-on-tertiary-container;
-  }
+.buy__package-name {
+  font-size: $font-title-lg;
+  font-weight: 600;
+  color: $color-on-surface;
+  display: block;
+  margin-bottom: $space-1;
+}
 
-  &__packages {
-    margin-bottom: $space-5;
-  }
+.buy__package-points {
+  font-size: $font-body-md;
+  color: $color-on-surface-variant;
+  display: block;
+  margin-bottom: $space-2;
+}
 
-  &__package {
-    position: relative;
-    margin-bottom: $space-3;
-    background-color: #f4efec;
-    border-radius: $radius-lg;
-    padding: $space-5;
-    border: 3rpx solid transparent;
-    transition: all 0.15s ease;
+.buy__package-desc {
+  font-size: $font-label-sm;
+  color: $color-outline;
+  display: block;
+  margin-bottom: $space-3;
+}
 
-    &--selected {
-      border-color: #7f294a;
-      background-color: #fff8f7;
-    }
+.buy__package-price {
+  font-size: $font-headline-md;
+  font-weight: 700;
+  color: $color-primary;
+  display: block;
+}
 
-    &--recommended {
-      box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.06);
-    }
-  }
+.buy__notice {
+  font-size: $font-label-sm;
+  color: $color-outline;
+  text-align: center;
+  margin-top: $space-4;
+  display: block;
+}
 
-  &__package-badge {
-    position: absolute;
-    top: $space-2;
-    right: $space-3;
-    background-color: #7f294a;
-    border-radius: $radius-full;
-    padding: $space-1 $space-3;
-  }
-
-  &__package-badge-text {
-    font-size: $font-label-sm;
-    font-weight: 600;
-    color: $color-on-tertiary;
-  }
-
-  &__package-name {
-    font-size: $font-title-lg;
-    font-weight: 600;
-    color: $color-on-surface;
-    display: block;
-    margin-bottom: $space-1;
-  }
-
-  &__package-points {
-    font-size: $font-body-md;
-    color: $color-on-surface-variant;
-    display: block;
-    margin-bottom: $space-2;
-  }
-
-  &__package-desc {
-    font-size: $font-label-sm;
-    color: $color-outline;
-    display: block;
-    margin-bottom: $space-3;
-  }
-
-  &__package-price {
-    font-size: $font-headline-md;
-    font-weight: 700;
-    color: #7f294a;
-    display: block;
-  }
-
-  &__action {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: $space-4;
-    padding-bottom: calc($space-4 + $safe-bottom);
-    background-color: #fffbf8;
-  }
-
-  &__pay-btn {
-    width: 100%;
-  }
-
-  &__pay-btn-text {
-    font-size: $font-title-md;
-    font-weight: 500;
-  }
-
-  &__notice {
-    font-size: $font-label-sm;
-    color: $color-outline;
-    text-align: center;
-    margin-top: $space-4;
-    display: block;
-  }
+/* PrimaryButton inside BottomAction spans full width */
+.buy__pay-btn {
+  width: 100%;
 }

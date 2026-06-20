@@ -2,7 +2,6 @@ import { Text, View } from '@tarojs/components';
 import type { ReactNode } from 'react';
 import type { MoodType } from '../../types';
 import { getFigmaMoodLabel } from '../../design/figma-system';
-import './Badge.scss';
 
 interface BadgeProps {
   children: ReactNode;

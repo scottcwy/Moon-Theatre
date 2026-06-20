@@ -3,9 +3,9 @@
 .character-header {
   display: flex;
   align-items: center;
-  padding: $space-4;
-  padding-top: $space-5;
-  background-color: #fffbf8;
+  padding: $space-3 $space-4;
+  padding-top: calc($status-bar-height + $space-3);
+  background-color: $color-background;
   box-sizing: border-box;
 }
 
@@ -34,7 +34,7 @@
   font-size: 40rpx;
   line-height: 1.12;
   font-weight: 800;
-  color: #7f294a;
+  color: $color-primary;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -44,7 +44,7 @@
   display: block;
   margin-top: 4rpx;
   font-size: $font-body-md;
-  color: #6f6265;
+  color: $color-on-surface-variant;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

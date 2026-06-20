@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import type { MoodType } from '../../types';
+import { PageShell } from '../../components/layout/PageContainer';
+import { BottomAction } from '../../components/layout/BottomAction';
 import { CharacterDetailHero } from '../../components/character/CharacterDetailHero';
+import { PrimaryButton } from '../../components/ui/Button';
 import { StatusStateCard } from '../../components/status/StatusStateCard';
 import './detail.scss';
 
@@ -90,45 +93,45 @@ export default function CharacterDetail() {
 
   if (loading) {
     return (
-      <View className="character-detail-page character-detail-page--state">
+      <PageShell variant="scroll">
         <StatusStateCard
           title="正在读取角色档案"
           message="人物关系、世界观和羁绊资料加载中。"
           tone="empty"
           icon="…"
         />
-      </View>
+      </PageShell>
     );
   }
 
   if (needsLogin) {
     return (
-      <View className="character-detail-page character-detail-page--state">
+      <PageShell variant="scroll">
         <StatusStateCard
           title="登录后查看角色档案"
           message="登录后可以读取角色关系和羁绊资料。"
           primaryText="去登录"
           onPrimary={handleLogin}
         />
-      </View>
+      </PageShell>
     );
   }
 
   if (error || !character) {
     return (
-      <View className="character-detail-page character-detail-page--state">
+      <PageShell variant="scroll">
         <StatusStateCard
           title="角色暂时不可用"
           message={error || '角色不存在'}
           tone="error"
           icon="!"
         />
-      </View>
+      </PageShell>
     );
   }
 
   return (
-    <View className="character-detail-page">
+    <PageShell variant="scroll" noPadding bottomReserve>
       <CharacterDetailHero
         name={character.name}
         identity={character.identity}
@@ -139,25 +142,27 @@ export default function CharacterDetail() {
         bondExp={bondExp}
         bondMaxExp={bondMaxExp}
         mood={mood}
-        onEnterChat={handleEnterChat}
       />
       {character.script && (
-        <View className="character-detail-page__section character-detail-page__section--script">
-          <Text className="character-detail-page__kicker">{character.script.title}</Text>
-          <Text className="character-detail-page__section-title">世界观</Text>
-          <Text className="character-detail-page__description">{character.script.description}</Text>
-          <Text className="character-detail-page__description character-detail-page__description--muted">
+        <View className="detail__section surface-card detail__section--script">
+          <Text className="detail__kicker">{character.script.title}</Text>
+          <Text className="detail__section-title">世界观</Text>
+          <Text className="detail__description">{character.script.description}</Text>
+          <Text className="detail__description detail__description--muted">
             {character.script.worldSetting}
           </Text>
         </View>
       )}
 
-      <View className="character-detail-page__section">
-        <Text className="character-detail-page__section-title">人设简介</Text>
-        <Text className="character-detail-page__description">{character.description}</Text>
+      <View className="detail__section surface-card">
+        <Text className="detail__section-title">人设简介</Text>
+        <Text className="detail__description">{character.description}</Text>
       </View>
 
-    </View>
+      <BottomAction>
+        <PrimaryButton onTap={handleEnterChat}>▰ 开启对话</PrimaryButton>
+      </BottomAction>
+    </PageShell>
   );
 }
 

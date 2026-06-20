@@ -1,6 +1,5 @@
 import { Text, View } from '@tarojs/components';
 import type { ReactNode } from 'react';
-import './Button.scss';
 
 interface ButtonProps {
   children: ReactNode;

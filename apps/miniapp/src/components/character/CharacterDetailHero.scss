@@ -1,10 +1,7 @@
 @use '../../styles/tokens.scss' as *;
 
 .character-detail-hero {
-  min-height: 100vh;
-  padding-bottom: calc(130rpx + $safe-bottom);
-  background-color: #fffbf8;
-  box-sizing: border-box;
+  background-color: $color-background;
 }
 
 .character-detail-hero__image-wrap {
@@ -31,7 +28,7 @@
   position: absolute;
   left: $space-4;
   right: $space-4;
-  top: $space-5;
+  top: calc($status-bar-height + 8px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -60,8 +57,8 @@
   position: relative;
   margin-top: -92rpx;
   border-radius: $radius-2xl $radius-2xl 0 0;
-  padding: $space-6 $space-5 $space-8;
-  background-color: #fffdfb;
+  padding: $space-6 $space-5 $space-5;
+  background-color: $color-surface;
   box-sizing: border-box;
 }
 
@@ -81,14 +78,14 @@
   font-size: 56rpx;
   line-height: 1.1;
   font-weight: 800;
-  color: #221b1d;
+  color: $color-on-surface;
 }
 
 .character-detail-hero__identity {
   display: block;
   margin-top: $space-2;
   font-size: $font-body-md;
-  color: #6f6265;
+  color: $color-on-surface-variant;
 }
 
 .character-detail-hero__intro {
@@ -96,7 +93,7 @@
   margin-top: $space-6;
   border-radius: 28rpx;
   padding: $space-5;
-  background-color: #f2e5e3;
+  background-color: $color-surface-container-low;
   box-shadow: 0 8rpx 18rpx rgba(58, 7, 24, 0.08);
 }
 
@@ -104,14 +101,14 @@
   width: 52rpx;
   flex-shrink: 0;
   font-size: 38rpx;
-  color: #7f294a;
+  color: $color-primary;
 }
 
 .character-detail-hero__intro-text {
   flex: 1;
   font-size: $font-body-lg;
   line-height: 1.75;
-  color: #2c2527;
+  color: $color-on-surface;
 }
 
 .character-detail-hero__quick-row {
@@ -135,7 +132,7 @@
   flex: 1;
   min-height: 132rpx;
   border-radius: 28rpx;
-  background-color: #f4efec;
+  background-color: $color-surface-container;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -148,23 +145,12 @@
 
 .character-detail-hero__tool-icon {
   font-size: 38rpx;
-  color: #5a4a4e;
+  color: $color-on-surface-variant;
 }
 
 .character-detail-hero__tool-text {
   margin-top: $space-2;
   font-size: $font-body-md;
   font-weight: 700;
-  color: #2c2527;
-}
-
-.character-detail-hero__cta {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: $space-4;
-  padding-bottom: calc($space-4 + $safe-bottom);
-  background-color: #fffdfb;
-  box-sizing: border-box;
+  color: $color-on-surface;
 }

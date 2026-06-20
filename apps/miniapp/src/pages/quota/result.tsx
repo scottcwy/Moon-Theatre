@@ -1,9 +1,9 @@
-import { View } from '@tarojs/components';
 import { useRouter } from '@tarojs/taro';
 import Taro from '@tarojs/taro';
 import { useState, useEffect } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { PageShell } from '../../components/layout/PageContainer';
 import { PaymentResultCard } from '../../components/status/PaymentResultCard';
 import { StatusStateCard } from '../../components/status/StatusStateCard';
 import './result.scss';
@@ -74,23 +74,23 @@ export default function QuotaResult() {
 
   if (loading) {
     return (
-      <View className="quota-result-page">
+      <PageShell variant="scroll">
         <StatusStateCard title="正在确认支付结果" message="正在向支付平台查询订单状态。" icon="…" />
-      </View>
+      </PageShell>
     );
   }
 
   if (needsLogin) {
     return (
-      <View className="quota-result-page">
+      <PageShell variant="scroll">
         <StatusStateCard title="登录后查看订单结果" message="登录后可以确认点数到账状态。" primaryText="去登录" onPrimary={goLogin} />
-      </View>
+      </PageShell>
     );
   }
 
   if (error || !order) {
     return (
-      <View className="quota-result-page">
+      <PageShell variant="scroll">
         <StatusStateCard
           title="订单信息不可用"
           message={error || '订单信息不可用'}
@@ -99,12 +99,12 @@ export default function QuotaResult() {
           primaryText="返回首页"
           onPrimary={handleGoHome}
         />
-      </View>
+      </PageShell>
     );
   }
 
   return (
-    <View className="quota-result-page">
+    <PageShell variant="scroll">
       <PaymentResultCard
         status={order.status}
         points={order.pointsAmount}
@@ -112,7 +112,7 @@ export default function QuotaResult() {
         onPrimary={handleGoHome}
         onSecondary={handleGoBack}
       />
-    </View>
+    </PageShell>
   );
 }
 

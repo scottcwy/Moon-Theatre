@@ -3,6 +3,7 @@ import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
+import { PageShell } from '../../components/layout/PageContainer';
 import { CharacterAvatar } from '../../components/character/CharacterAvatar';
 import { Badge, PointsBadge } from '../../components/ui/Badge';
 import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
@@ -71,54 +72,54 @@ export default function Profile() {
   const nickname = profile?.nickname || '旅人';
   if (loading) {
     return (
-      <View className="profile-page">
+      <PageShell variant="scroll" tabBarReserve>
         <StatusStateCard title="正在读取资料" message="正在加载点数、称号和成就。" icon="…" />
-      </View>
+      </PageShell>
     );
   }
 
   if (needsLogin || !isLoggedIn()) {
     return (
-      <View className="profile-page">
-        <View className="profile-page__user-section">
+      <PageShell variant="scroll" tabBarReserve>
+        <View className="profile__user-section">
           <CharacterAvatar name="?" size="lg" />
-          <View className="profile-page__user-info">
-            <Text className="profile-page__nickname">未登录</Text>
+          <View className="profile__user-info">
+            <Text className="profile__nickname">未登录</Text>
             <Badge tone="points" onTap={handleLogin}>点击登录</Badge>
           </View>
         </View>
 
-        <View className="profile-page__notice">
-          <Text className="profile-page__notice-text">
+        <View className="notice-block">
+          <Text className="notice-block__text">
             本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
           </Text>
         </View>
-      </View>
+      </PageShell>
     );
   }
 
   return (
-    <View className="profile-page">
-      <View className="profile-page__user-section">
+    <PageShell variant="scroll" tabBarReserve>
+      <View className="profile__user-section">
         <CharacterAvatar name={nickname} src={profile?.avatarUrl || undefined} size="lg" online />
-        <View className="profile-page__user-info">
-          <Text className="profile-page__nickname">{nickname}</Text>
+        <View className="profile__user-info">
+          <Text className="profile__nickname">{nickname}</Text>
           <PointsBadge points={balance} onTap={handleBuyPoints} />
         </View>
       </View>
 
       {error && (
-        <View className="profile-page__section">
+        <View className="page-section">
           <StatusStateCard title="资料暂时不可用" message={error} tone="error" icon="!" />
         </View>
       )}
 
-      <View className="profile-page__section">
-        <Text className="profile-page__section-title">称号</Text>
+      <View className="page-section">
+        <Text className="page-section__title">称号</Text>
         {titles.length === 0 ? (
           <EmptyState title="暂无称号" message="完成更多对话后，会在这里展示获得的称号。" />
         ) : (
-          <View className="profile-page__tags">
+          <View className="profile__tags">
             {titles.map((title) => (
               <Badge key={title}>{title}</Badge>
             ))}
@@ -126,26 +127,26 @@ export default function Profile() {
         )}
       </View>
 
-      <View className="profile-page__section">
-        <Text className="profile-page__section-title">成就</Text>
+      <View className="page-section">
+        <Text className="page-section__title">成就</Text>
         {achievements.length === 0 ? (
           <EmptyState title="暂无成就" message="完成角色互动后，会在这里展示获得的成就。" />
         ) : (
           achievements.map((achievement) => (
-            <View key={achievement.id} className="profile-page__achievement card">
-              <Text className="profile-page__achievement-name">{achievement.name}</Text>
-              <Text className="profile-page__achievement-desc">{achievement.description}</Text>
+            <View key={achievement.id} className="profile__achievement surface-card">
+              <Text className="profile__achievement-name">{achievement.name}</Text>
+              <Text className="profile__achievement-desc">{achievement.description}</Text>
             </View>
           ))
         )}
       </View>
 
-      <View className="profile-page__notice">
-        <Text className="profile-page__notice-text">
+      <View className="notice-block">
+        <Text className="notice-block__text">
           本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
         </Text>
       </View>
-    </View>
+    </PageShell>
   );
 }
 

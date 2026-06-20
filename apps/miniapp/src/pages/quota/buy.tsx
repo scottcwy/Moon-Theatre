@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import type { QuotaPackage } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { PageShell } from '../../components/layout/PageContainer';
+import { BottomAction } from '../../components/layout/BottomAction';
 import { PrimaryButton } from '../../components/ui/Button';
 import { StatusStateCard } from '../../components/status/StatusStateCard';
 import './buy.scss';
@@ -154,71 +156,71 @@ export default function QuotaBuy() {
 
   if (loading) {
     return (
-      <View className="quota-buy-page">
+      <PageShell variant="scroll" bottomReserve>
         <StatusStateCard title="正在读取额度包" message="正在加载点数余额和可购买套餐。" icon="…" />
-      </View>
+      </PageShell>
     );
   }
 
   if (needsLogin) {
     return (
-      <View className="quota-buy-page">
+      <PageShell variant="scroll" bottomReserve>
         <StatusStateCard title="登录后购买点数" message="登录后可以创建订单并确认点数到账。" primaryText="去登录" onPrimary={goLogin} />
-      </View>
+      </PageShell>
     );
   }
 
   if (error) {
     return (
-      <View className="quota-buy-page">
+      <PageShell variant="scroll" bottomReserve>
         <StatusStateCard title="额度包暂时不可用" message={error} tone="error" icon="!" />
-      </View>
+      </PageShell>
     );
   }
 
   return (
-    <View className="quota-buy-page">
-      <Text className="quota-buy-page__title">购买点数</Text>
-      <Text className="quota-buy-page__subtitle">用于继续角色对话，不同模型档位会消耗不同点数。</Text>
-      <View className="quota-buy-page__balance">
-        <Text className="quota-buy-page__balance-label">当前点数</Text>
-        <Text className="quota-buy-page__balance-value">{pointsBalance ?? 0}</Text>
+    <PageShell variant="scroll" bottomReserve>
+      <Text className="page-title">购买点数</Text>
+      <Text className="page-subtitle">用于继续角色对话，不同模型档位会消耗不同点数。</Text>
+      <View className="buy__balance">
+        <Text className="buy__balance-label">当前点数</Text>
+        <Text className="buy__balance-value">{pointsBalance ?? 0}</Text>
       </View>
 
-      <View className="quota-buy-page__packages">
+      <View className="buy__packages">
         {packages.map((pkg) => (
           <View
             key={pkg.id}
-            className={`quota-buy-page__package card${selectedPkgId === pkg.id ? ' quota-buy-page__package--selected' : ''}${pkg.recommended ? ' quota-buy-page__package--recommended' : ''}`}
+            className={`buy__package surface-card${selectedPkgId === pkg.id ? ' buy__package--selected' : ''}${pkg.recommended ? ' buy__package--recommended' : ''}`}
             onClick={() => handleSelect(pkg.id)}
           >
             {pkg.recommended && (
-              <View className="quota-buy-page__package-badge">
-                <Text className="quota-buy-page__package-badge-text">推荐</Text>
+              <View className="buy__package-badge">
+                <Text className="buy__package-badge-text">推荐</Text>
               </View>
             )}
-            <Text className="quota-buy-page__package-name">{pkg.name}</Text>
-            <Text className="quota-buy-page__package-points">{pkg.points} 点数</Text>
-            <Text className="quota-buy-page__package-desc">{pkg.description}</Text>
-            <Text className="quota-buy-page__package-price">{formatPrice(pkg.priceCents)}</Text>
+            <Text className="buy__package-name">{pkg.name}</Text>
+            <Text className="buy__package-points">{pkg.points} 点数</Text>
+            <Text className="buy__package-desc">{pkg.description}</Text>
+            <Text className="buy__package-price">{formatPrice(pkg.priceCents)}</Text>
           </View>
         ))}
       </View>
 
-      <View className="quota-buy-page__action">
+      <Text className="buy__notice">
+        支付成功后点数将立即到账，如有问题请联系客服
+      </Text>
+
+      <BottomAction>
         <PrimaryButton
-          className="quota-buy-page__pay-btn"
+          className="buy__pay-btn"
           disabled={paying}
           onTap={paying ? undefined : handlePay}
         >
           {paying ? '处理中…' : '确认支付'}
         </PrimaryButton>
-      </View>
-
-      <Text className="quota-buy-page__notice">
-        支付成功后点数将立即到账，如有问题请联系客服
-      </Text>
-    </View>
+      </BottomAction>
+    </PageShell>
   );
 }
 

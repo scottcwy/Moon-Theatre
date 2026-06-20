@@ -1,4 +1,4 @@
-import { View, Text, ScrollView } from '@tarojs/components';
+import { View, ScrollView } from '@tarojs/components';
 import Taro, { useRouter, useUnload } from '@tarojs/taro';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ModelTier, MoodType } from '../../types';

@@ -1,0 +1,24 @@
+@use '../../styles/tokens.scss' as *;
+
+.bottom-action {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: $z-bottom-action;
+  padding: $space-4;
+  padding-bottom: calc($space-4 + env(safe-area-inset-bottom, $safe-bottom));
+  box-sizing: border-box;
+}
+
+.bottom-action--default {
+  background-color: $color-background;
+}
+
+.bottom-action--dark {
+  background-color: $color-bottom-action-dark;
+}
+
+.bottom-action > .ui-button {
+  width: 100%;
+}

@@ -2,9 +2,9 @@
 
 .share-preview-page {
   min-height: 100vh;
-  background-color: #120d10;
+  background-color: $color-bottom-action-dark;
   padding: $space-4;
-  padding-bottom: calc($space-4 + $safe-bottom);
+  padding-bottom: calc(130rpx + env(safe-area-inset-bottom, $safe-bottom));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -12,7 +12,6 @@
 
 .share-preview-page__actions {
   display: flex;
-  margin-top: $space-4;
 }
 
 .share-preview-page__action-secondary,

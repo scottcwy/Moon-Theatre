@@ -1,15 +1,19 @@
 @use '../../styles/tokens.scss' as *;
 
+/* ================================================================
+   PageContainer (legacy, kept for backward compatibility)
+   ================================================================ */
+
 .page-container {
   min-height: 100vh;
-  background-color: #fffbf8;
+  background-color: $color-background;
   color: $color-on-background;
   box-sizing: border-box;
 }
 
 .page-container--default {
   padding: $space-4;
-  padding-bottom: calc(150rpx + $safe-bottom);
+  padding-bottom: calc(150rpx + env(safe-area-inset-bottom, $safe-bottom));
 }
 
 .page-container--full {
@@ -21,5 +25,116 @@
 
 .page-container--sheet {
   padding: $space-4;
-  background-color: #fdf8f5;
+  background-color: $color-surface;
+}
+
+/* ================================================================
+   PageShell — unified page skeleton
+   ================================================================ */
+
+.page-shell {
+  min-height: 100vh;
+  background-color: $color-background;
+  color: $color-on-background;
+  box-sizing: border-box;
+
+  &--scroll {
+    padding: $page-padding-h;
+    padding-bottom: $page-padding-bottom;
+  }
+
+  &--full {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  &--no-padding {
+    padding: 0;
+  }
+
+  &--tabbar {
+    padding-bottom: calc($page-padding-bottom + $tabbar-height);
+  }
+
+  &--bottom-reserve {
+    padding-bottom: calc(130rpx + env(safe-area-inset-bottom, $safe-bottom));
+  }
+
+  &--full.page-shell--tabbar {
+    padding-bottom: $tabbar-height;
+  }
+}
+
+/* ================================================================
+   Shared structural classes
+   ================================================================ */
+
+/* Page title and subtitle */
+
+.page-title {
+  display: block;
+  font-size: 52rpx;
+  line-height: 1.18;
+  font-weight: 800;
+  color: $color-on-surface;
+}
+
+.page-subtitle {
+  display: block;
+  margin-top: $space-2;
+  font-size: $font-body-md;
+  line-height: 1.6;
+  color: $color-on-surface-variant;
+}
+
+/* Page section */
+
+.page-section {
+  margin-bottom: $space-6;
+
+  &__title {
+    display: block;
+    font-size: $font-title-md;
+    font-weight: 800;
+    color: $color-on-surface;
+    margin-bottom: $space-3;
+  }
+}
+
+/* Surface card variant */
+
+.surface-card {
+  background-color: $color-surface-container;
+  border-radius: $radius-lg;
+  padding: $space-5;
+  box-shadow: $shadow-card;
+  box-sizing: border-box;
+}
+
+/* List row */
+
+.list-row {
+  display: flex;
+  align-items: flex-start;
+  min-height: 112rpx;
+  margin-bottom: $space-3;
+}
+
+/* Notice block */
+
+.notice-block {
+  border-radius: $radius-lg;
+  padding: $space-4;
+  background-color: $color-surface-container;
+  box-sizing: border-box;
+
+  &__text {
+    font-size: $font-label-sm;
+    color: $color-outline;
+    line-height: 1.5;
+    text-align: center;
+  }
 }

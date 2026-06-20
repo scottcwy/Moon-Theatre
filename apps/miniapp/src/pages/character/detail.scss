@@ -1,56 +1,38 @@
 @use '../../styles/tokens.scss' as *;
 
-.character-detail-page {
-  min-height: 100vh;
-  background-color: #fffbf8;
-  padding-bottom: calc(130rpx + $safe-bottom);
-  box-sizing: border-box;
+.detail__section {
+  margin: 0 $space-4 $space-4;
 
-  &--state {
-    padding: $space-4;
-    display: flex;
-    align-items: center;
-  }
-
-  &__section {
-    margin: $space-4;
-    border-radius: $radius-lg;
-    padding: $space-5;
-    background-color: #f6f0ed;
-    box-shadow: $shadow-card;
-    box-sizing: border-box;
-  }
-
-  &__section--script {
+  &--script {
     margin-top: -$space-4;
-    background-color: #eef2e8;
+    background-color: $color-secondary-container;
   }
+}
 
-  &__kicker {
-    display: block;
-    margin-bottom: $space-2;
-    font-size: $font-label-md;
-    font-weight: 800;
+.detail__kicker {
+  display: block;
+  margin-bottom: $space-2;
+  font-size: $font-label-md;
+  font-weight: 800;
+  color: $color-secondary;
+}
+
+.detail__section-title {
+  display: block;
+  font-size: $font-title-lg;
+  line-height: 1.35;
+  font-weight: 900;
+  color: $color-on-surface;
+}
+
+.detail__description {
+  display: block;
+  margin-top: $space-3;
+  font-size: $font-body-md;
+  line-height: 1.72;
+  color: $color-on-surface-variant;
+
+  &--muted {
     color: $color-secondary;
-  }
-
-  &__section-title {
-    display: block;
-    font-size: $font-title-lg;
-    line-height: 1.35;
-    font-weight: 900;
-    color: #221b1d;
-  }
-
-  &__description {
-    display: block;
-    margin-top: $space-3;
-    font-size: $font-body-md;
-    line-height: 1.72;
-    color: #6f6265;
-  }
-
-  &__description--muted {
-    color: #4d5d4a;
   }
 }

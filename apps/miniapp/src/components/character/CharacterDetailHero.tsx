@@ -1,7 +1,7 @@
 import { Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { CharacterAvatar } from './CharacterAvatar';
-import { IconButton, PrimaryButton } from '../ui/Button';
+import { IconButton } from '../ui/Button';
 import { Badge, MoodChip } from '../ui/Badge';
 import { BondProgress } from './BondProgress';
 import type { MoodType } from '../../types';
@@ -17,7 +17,6 @@ interface CharacterDetailHeroProps {
   bondExp: number;
   bondMaxExp: number;
   mood: MoodType;
-  onEnterChat: () => void;
 }
 
 export function CharacterDetailHero({
@@ -30,7 +29,6 @@ export function CharacterDetailHero({
   bondExp,
   bondMaxExp,
   mood,
-  onEnterChat,
 }: CharacterDetailHeroProps) {
   return (
     <View className="character-detail-hero">
@@ -78,10 +76,6 @@ export function CharacterDetailHero({
             <Text className="character-detail-hero__tool-text">回忆记录</Text>
           </View>
         </View>
-      </View>
-
-      <View className="character-detail-hero__cta">
-        <PrimaryButton onTap={onEnterChat}>▰ 开启对话</PrimaryButton>
       </View>
     </View>
   );

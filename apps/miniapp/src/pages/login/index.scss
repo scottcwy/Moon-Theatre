@@ -3,7 +3,7 @@
 .login-page {
   min-height: 100vh;
   padding: $space-6 $space-4;
-  padding-bottom: calc($space-6 + $safe-bottom);
+  padding-bottom: calc($space-6 + env(safe-area-inset-bottom, $safe-bottom));
   display: flex;
   flex-direction: column;
   justify-content: space-between;

@@ -57,4 +57,20 @@ $font-body-lg: 32rpx;
 $font-body-md: 28rpx;
 $font-label-md: 26rpx;
 $font-label-sm: 24rpx;
-$safe-bottom: 0rpx;
+$safe-bottom: 34rpx;
+
+/* Layout tokens */
+$status-bar-height: 44px;
+$capsule-height: 32px;
+$topbar-height: 92px;
+$tabbar-height: 100rpx;
+$page-padding-h: 32rpx;
+$page-padding-bottom: 220rpx;
+
+/* Z-index tokens */
+$z-topbar: 100;
+$z-bottom-action: 100;
+$z-input-bar: 100;
+
+/* Dark surfaces */
+$color-bottom-action-dark: #120D10;
