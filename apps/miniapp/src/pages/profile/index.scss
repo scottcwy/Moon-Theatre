@@ -29,7 +29,15 @@
 }
 
 .profile__achievement {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
   margin-bottom: $space-2;
+}
+
+.profile__achievement-copy {
+  flex: 1;
+  min-width: 0;
 }
 
 .profile__achievement-name {
@@ -43,6 +51,14 @@
 .profile__achievement-desc {
   font-size: $font-label-sm;
   color: $color-on-surface-variant;
+}
+
+.profile__icon-credit {
+  display: block;
+  margin: $space-2 0 $space-4;
+  font-size: $font-label-sm;
+  color: $color-on-surface-variant;
+  opacity: 0.72;
 }
 
 .profile__account-actions {

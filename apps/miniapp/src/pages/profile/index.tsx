@@ -5,6 +5,8 @@ import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, clearAuth, isLoggedIn } from '../../services/api';
 import { PageShell } from '../../components/layout/PageContainer';
 import { CharacterAvatar } from '../../components/character/CharacterAvatar';
+import { AchievementIcon } from '../../components/achievement/AchievementIcon';
+import { LORDICON_ATTRIBUTION } from '../../components/achievement/AchievementIcon.model';
 import { Badge, PointsBadge } from '../../components/ui/Badge';
 import { TonalButton } from '../../components/ui/Button';
 import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
@@ -25,7 +27,7 @@ export default function Profile() {
 
   const [balance, setBalance] = useState<number | null>(null);
   const [titles] = useState<string[]>([]);
-  const [achievements] = useState<Array<{ id: string; name: string; description: string }>>([]);
+  const [achievements] = useState<Array<{ id: string; name: string; description: string; code?: string | null; iconUrl?: string | null }>>([]);
   const loadIdRef = useRef(0);
 
   const loadProfile = useCallback(async () => {
@@ -147,12 +149,23 @@ export default function Profile() {
         ) : (
           achievements.map((achievement) => (
             <View key={achievement.id} className="profile__achievement surface-card">
-              <Text className="profile__achievement-name">{achievement.name}</Text>
-              <Text className="profile__achievement-desc">{achievement.description}</Text>
+              <AchievementIcon
+                className="profile__achievement-icon"
+                code={achievement.code}
+                name={achievement.name}
+              />
+              <View className="profile__achievement-copy">
+                <Text className="profile__achievement-name">{achievement.name}</Text>
+                <Text className="profile__achievement-desc">{achievement.description}</Text>
+              </View>
             </View>
           ))
         )}
       </View>
+
+      {achievements.length > 0 && (
+        <Text className="profile__icon-credit">{LORDICON_ATTRIBUTION}</Text>
+      )}
 
       <View className="notice-block">
         <Text className="notice-block__text">
