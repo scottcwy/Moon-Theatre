@@ -1,8 +1,8 @@
 import { Text, View } from '@tarojs/components';
-import Taro from '@tarojs/taro';
 import { CharacterAvatar } from './CharacterAvatar';
 import { IconButton } from '../ui/Button';
 import { Badge, PointsBadge } from '../ui/Badge';
+import { navigateBackOrHome } from '../../utils/navigation';
 import './CharacterHeader.scss';
 
 interface CharacterHeaderProps {
@@ -24,7 +24,7 @@ export function CharacterHeader({
 }: CharacterHeaderProps) {
   return (
     <View className="character-header">
-      <IconButton label="返回" icon="‹" tone="light" className="character-header__back" onTap={() => Taro.navigateBack()} />
+      <IconButton label="返回" icon="‹" tone="light" className="character-header__back" onTap={navigateBackOrHome} />
       <CharacterAvatar name={name} src={avatarUrl} online size="md" />
       <View className="character-header__info">
         <View className="character-header__title-row">

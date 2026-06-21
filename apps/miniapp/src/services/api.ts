@@ -2,6 +2,7 @@ import Taro from '@tarojs/taro';
 
 const BASE_URL = API_BASE_URL;
 const DEV_TOKEN = 'dev-auth-bypass-token';
+const API_REQUEST_TIMEOUT_MS = 30000;
 const DEV_USER: StoredUser = {
   id: 'dev-user',
   nickname: '开发调试用户',
@@ -109,6 +110,9 @@ export async function verifyStoredAuth(): Promise<boolean> {
     if (isAuthExpiredError(error)) {
       return false;
     }
+    if (isApiError(error) && error.statusCode === 0) {
+      return true;
+    }
     clearAuth();
     return false;
   }
@@ -133,6 +137,7 @@ async function request<T>(options: RequestOptions): Promise<T> {
         'Content-Type': 'application/json',
         ...header,
       },
+      timeout: API_REQUEST_TIMEOUT_MS,
     });
   } catch (err) {
     const reason = getNetworkErrorMessage(err);

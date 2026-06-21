@@ -96,6 +96,18 @@ describe('miniapp api client', () => {
     expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null });
   });
 
+  it('keeps the stored user session when verification hits a transient network failure', async () => {
+    const { getToken, getUser, setToken, setUser, verifyStoredAuth } = await import('./api');
+    setToken('auth-token');
+    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+    requestMock.mockRejectedValue({ errMsg: 'request:fail timeout' });
+
+    await expect(verifyStoredAuth()).resolves.toBe(true);
+
+    expect(getToken()).toBe('auth-token');
+    expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+  });
+
   it('clears a stored user session when verification fails', async () => {
     const { getToken, getUser, setToken, setUser, verifyStoredAuth } = await import('./api');
     setToken('expired-token');
@@ -117,6 +129,17 @@ describe('miniapp api client', () => {
       statusCode: 0,
       message: '网络请求失败: GET http://localhost:3000/api/me (request:fail timeout)',
     });
+  });
+
+  it('sets an explicit timeout for regular API requests', async () => {
+    const { api } = await import('./api');
+    requestMock.mockResolvedValue({ statusCode: 200, data: { ok: true } });
+
+    await api.get('/api/me');
+
+    expect(requestMock).toHaveBeenCalledWith(expect.objectContaining({
+      timeout: 30000,
+    }));
   });
 
   it('passes balanceAfter through chat stream done events', async () => {

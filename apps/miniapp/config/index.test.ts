@@ -37,4 +37,12 @@ describe('miniapp config auth constants', () => {
 
     expect(config.default.defineConstants?.DEV_AUTH_BYPASS).toBe('false');
   });
+
+  it('lets the development override use an explicit API base URL', async () => {
+    process.env.API_BASE_URL = 'http://127.0.0.1:3000';
+
+    const config = await import('./dev');
+
+    expect(config.default.defineConstants?.API_BASE_URL).toBe('"http://127.0.0.1:3000"');
+  });
 });

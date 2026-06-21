@@ -1,10 +1,10 @@
 import { Text, View } from '@tarojs/components';
-import Taro from '@tarojs/taro';
 import { CharacterAvatar } from './CharacterAvatar';
 import { IconButton } from '../ui/Button';
 import { Badge, MoodChip } from '../ui/Badge';
 import { BondProgress } from './BondProgress';
 import type { MoodType } from '../../types';
+import { navigateBackOrHome } from '../../utils/navigation';
 import './CharacterDetailHero.scss';
 
 interface CharacterDetailHeroProps {
@@ -36,7 +36,7 @@ export function CharacterDetailHero({
         <CharacterAvatar name={name} src={avatarUrl} size="hero" className="character-detail-hero__portrait" />
         <View className="character-detail-hero__shade" />
         <View className="character-detail-hero__top-actions">
-          <IconButton label="返回" icon="‹" onTap={() => Taro.navigateBack()} />
+          <IconButton label="返回" icon="‹" onTap={navigateBackOrHome} />
           <View className="character-detail-hero__top-right">
             <IconButton label="收藏" icon="♡" />
             <IconButton label="更多" icon="…" />
