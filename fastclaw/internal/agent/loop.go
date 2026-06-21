@@ -969,57 +969,8 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 		}
 
 		if !resp.HasToolCalls() {
-			// Final response - use streaming
-			sr, err := a.provider.ChatStream(ctx, messages, toolDefs, a.model, a.maxTokens, a.temperature)
-			if err != nil {
-				slog.Error("LLM stream failed, falling back", "agent", a.name, "error", err)
-				sess.Append(provider.Message{Role: "assistant", Content: resp.Content})
-				return a.stringStream(resp.Content)
-			}
-
-			// Collect content in background for session storage
-			outCh := make(chan provider.StreamChunk, 64)
-			outReader := provider.NewStreamReader(outCh)
-			go func() {
-				defer close(outCh)
-				var full strings.Builder
-				var thinking, thinkingSig string
-				for {
-					chunk, ok := sr.Next()
-					if !ok {
-						break
-					}
-					if chunk.Content != "" {
-						full.WriteString(chunk.Content)
-					}
-					if chunk.Thinking != "" {
-						thinking = chunk.Thinking
-					}
-					if chunk.ThinkingSignature != "" {
-						thinkingSig = chunk.ThinkingSignature
-					}
-					select {
-					case outCh <- chunk:
-					case <-ctx.Done():
-						return
-					}
-				}
-				msg := provider.Message{Role: "assistant", Content: full.String(), Thinking: thinking}
-				if thinking != "" {
-					// Pack {thinking, signature} into RawAssistant so the next
-					// turn can echo content[].thinking back to extended-
-					// thinking providers that require it.
-					if raw, err := json.Marshal(map[string]string{
-						"type":      "thinking",
-						"thinking":  thinking,
-						"signature": thinkingSig,
-					}); err == nil {
-						msg.RawAssistant = raw
-					}
-				}
-				sess.Append(msg)
-			}()
-			return outReader
+			sess.Append(provider.Message{Role: "assistant", Content: resp.Content, Thinking: resp.Thinking, Timestamp: time.Now().UnixMilli(), RawAssistant: resp.RawAssistant})
+			return a.stringStream(resp.Content)
 		}
 
 		// Tool calls - process concurrently via SDK engine
