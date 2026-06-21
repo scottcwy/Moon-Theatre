@@ -3,6 +3,9 @@ import Taro from '@tarojs/taro';
 const BASE_URL = API_BASE_URL;
 const DEV_TOKEN = 'dev-auth-bypass-token';
 const API_REQUEST_TIMEOUT_MS = 30000;
+const IDEMPOTENT_REQUEST_MAX_ATTEMPTS = 2;
+const IDEMPOTENT_REQUEST_RETRY_DELAY_MS = 300;
+const API_DEBUG_LOG_PREFIX = '[api]';
 const DEV_USER: StoredUser = {
   id: 'dev-user',
   nickname: '开发调试用户',
@@ -127,21 +130,40 @@ async function request<T>(options: RequestOptions): Promise<T> {
     header['Authorization'] = `Bearer ${token}`;
   }
 
-  let response: Taro.request.SuccessCallbackResult;
-  try {
-    response = await Taro.request({
-      url: requestUrl,
-      method,
-      data,
-      header: {
-        'Content-Type': 'application/json',
-        ...header,
-      },
-      timeout: API_REQUEST_TIMEOUT_MS,
-    });
-  } catch (err) {
-    const reason = getNetworkErrorMessage(err);
-    throw new ApiError('API_ERROR', 0, `网络请求失败: ${method} ${requestUrl} (${reason})`, err);
+  const maxAttempts = method === 'GET' ? IDEMPOTENT_REQUEST_MAX_ATTEMPTS : 1;
+  let response: Taro.request.SuccessCallbackResult | undefined;
+  let lastNetworkError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const startedAt = Date.now();
+    logApiRequestStart(method, requestUrl, attempt, maxAttempts);
+    try {
+      response = await Taro.request({
+        url: requestUrl,
+        method,
+        data,
+        header: {
+          'Content-Type': 'application/json',
+          ...header,
+        },
+        timeout: API_REQUEST_TIMEOUT_MS,
+      });
+      logApiRequestSuccess(method, requestUrl, attempt, startedAt, response.statusCode);
+      lastNetworkError = undefined;
+      break;
+    } catch (err) {
+      lastNetworkError = err;
+      logApiRequestFailure(method, requestUrl, attempt, startedAt, err);
+      if (attempt >= maxAttempts || !isTransientNetworkError(err)) {
+        break;
+      }
+      await delay(IDEMPOTENT_REQUEST_RETRY_DELAY_MS);
+    }
+  }
+
+  if (!response) {
+    const reason = getNetworkErrorMessage(lastNetworkError);
+    throw new ApiError('API_ERROR', 0, `网络请求失败: ${method} ${requestUrl} (${reason})`, lastNetworkError);
   }
 
   if (response.statusCode === 401) {
@@ -157,6 +179,37 @@ async function request<T>(options: RequestOptions): Promise<T> {
   return response.data as T;
 }
 
+function logApiRequestStart(method: RequestMethod, requestUrl: string, attempt: number, maxAttempts: number): void {
+  if (!API_DEBUG_LOGS) return;
+  console.info(`${API_DEBUG_LOG_PREFIX} ${method} ${requestUrl} attempt ${attempt}/${maxAttempts} start`);
+}
+
+function logApiRequestSuccess(
+  method: RequestMethod,
+  requestUrl: string,
+  attempt: number,
+  startedAt: number,
+  statusCode: number,
+): void {
+  if (!API_DEBUG_LOGS) return;
+  console.info(
+    `${API_DEBUG_LOG_PREFIX} ${method} ${requestUrl} attempt ${attempt} success ${statusCode} in ${Date.now() - startedAt}ms`,
+  );
+}
+
+function logApiRequestFailure(
+  method: RequestMethod,
+  requestUrl: string,
+  attempt: number,
+  startedAt: number,
+  error: unknown,
+): void {
+  if (!API_DEBUG_LOGS) return;
+  console.warn(
+    `${API_DEBUG_LOG_PREFIX} ${method} ${requestUrl} attempt ${attempt} failed in ${Date.now() - startedAt}ms: ${getNetworkErrorMessage(error)}`,
+  );
+}
+
 function getNetworkErrorMessage(error: unknown): string {
   if (error && typeof error === 'object') {
     const record = error as Record<string, unknown>;
@@ -166,6 +219,17 @@ function getNetworkErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   return 'unknown';
+}
+
+function isTransientNetworkError(error: unknown): boolean {
+  const message = getNetworkErrorMessage(error).toLowerCase();
+  return message.includes('timeout') || message.includes('abort') || message.includes('socket hang up');
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function getErrorMessage(data: unknown, fallback: string): string {

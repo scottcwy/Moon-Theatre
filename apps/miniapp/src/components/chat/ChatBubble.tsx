@@ -31,7 +31,7 @@ export function ChatBubble({ role, content, mood, fallback, avatarUrl, character
       )}
       <View>
         <View className={`chat-bubble${isUser ? ' chat-bubble--user' : ''}${isSystem ? ' chat-bubble--system' : ''}`}>
-          <Text className="chat-bubble__text">{displayText}</Text>
+          <Text className="chat-bubble__text" userSelect>{displayText}</Text>
         </View>
         {!isUser && !isSystem && (mood || fallback) && (
           <View className="chat-bubble__meta">

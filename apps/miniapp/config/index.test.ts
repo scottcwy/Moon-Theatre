@@ -38,6 +38,23 @@ describe('miniapp config auth constants', () => {
     expect(config.default.defineConstants?.DEV_AUTH_BYPASS).toBe('false');
   });
 
+  it('enables API debug logs only when explicitly requested in development', async () => {
+    process.env.API_DEBUG_LOGS = 'true';
+
+    const config = await import('./dev');
+
+    expect(config.default.defineConstants?.API_DEBUG_LOGS).toBe('true');
+  });
+
+  it('keeps API debug logs disabled for production builds', async () => {
+    process.env.API_BASE_URL = 'https://api.real.example';
+    process.env.API_DEBUG_LOGS = 'true';
+
+    const config = await import('./prod');
+
+    expect(config.default.defineConstants?.API_DEBUG_LOGS).toBe('false');
+  });
+
   it('lets the development override use an explicit API base URL', async () => {
     process.env.API_BASE_URL = 'http://127.0.0.1:3000';
 
@@ -51,7 +68,7 @@ describe('miniapp config auth constants', () => {
 
     const config = await import('./dev');
 
-    expect(config.default.defineConstants?.API_BASE_URL).toBe('"http://localhost:3000"');
+    expect(config.default.defineConstants?.API_BASE_URL).toBe('"http://127.0.0.1:3000"');
   });
 
   it('uses the local API when a development watch build receives the placeholder API URL', async () => {
@@ -61,7 +78,7 @@ describe('miniapp config auth constants', () => {
 
     const config = await import('./index');
 
-    expect(config.default.defineConstants.API_BASE_URL).toBe('"http://localhost:3000"');
+    expect(config.default.defineConstants.API_BASE_URL).toBe('"http://127.0.0.1:3000"');
   });
 
   it('uses the local API when a development watch build receives any URL containing the placeholder API host', async () => {
@@ -71,7 +88,7 @@ describe('miniapp config auth constants', () => {
 
     const config = await import('./index');
 
-    expect(config.default.defineConstants.API_BASE_URL).toBe('"http://localhost:3000"');
+    expect(config.default.defineConstants.API_BASE_URL).toBe('"http://127.0.0.1:3000"');
   });
 
   it('rejects the placeholder API URL for non-development builds', async () => {

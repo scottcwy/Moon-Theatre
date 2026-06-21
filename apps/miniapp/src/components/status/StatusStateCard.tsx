@@ -31,7 +31,7 @@ export function StatusStateCard({
         <Text className="status-state-card__icon-text">{icon}</Text>
       </View>
       <Text className="status-state-card__title">{title}</Text>
-      <Text className="status-state-card__message">{message}</Text>
+      <Text className="status-state-card__message" userSelect>{message}</Text>
       {primaryText && (
         <PrimaryButton className="status-state-card__primary" onTap={onPrimary}>
           {primaryText}

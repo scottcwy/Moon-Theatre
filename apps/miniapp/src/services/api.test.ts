@@ -21,8 +21,9 @@ describe('miniapp api client', () => {
     vi.resetModules();
     requestMock.mockReset();
     storage.clear();
-    vi.stubGlobal('API_BASE_URL', 'http://localhost:3000');
+    vi.stubGlobal('API_BASE_URL', 'http://127.0.0.1:3000');
     vi.stubGlobal('DEV_AUTH_BYPASS', false);
+    vi.stubGlobal('API_DEBUG_LOGS', false);
   });
 
   it('treats the user as logged in when dev auth bypass is enabled', async () => {
@@ -90,7 +91,7 @@ describe('miniapp api client', () => {
     await expect(verifyStoredAuth()).resolves.toBe(true);
 
     expect(requestMock).toHaveBeenCalledWith(expect.objectContaining({
-      url: 'http://localhost:3000/api/me',
+      url: 'http://127.0.0.1:3000/api/me',
       method: 'GET',
     }));
     expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null });
@@ -127,7 +128,7 @@ describe('miniapp api client', () => {
     await expect(api.get('/api/me')).rejects.toMatchObject({
       code: 'API_ERROR',
       statusCode: 0,
-      message: '网络请求失败: GET http://localhost:3000/api/me (request:fail timeout)',
+      message: '网络请求失败: GET http://127.0.0.1:3000/api/me (request:fail timeout)',
     });
   });
 
@@ -140,6 +141,17 @@ describe('miniapp api client', () => {
     expect(requestMock).toHaveBeenCalledWith(expect.objectContaining({
       timeout: 30000,
     }));
+  });
+
+  it('retries idempotent GET requests once after a transient timeout', async () => {
+    const { api } = await import('./api');
+    requestMock
+      .mockRejectedValueOnce({ errMsg: 'request:fail timeout' })
+      .mockResolvedValueOnce({ statusCode: 200, data: { ok: true } });
+
+    await expect(api.get('/api/characters')).resolves.toEqual({ ok: true });
+
+    expect(requestMock).toHaveBeenCalledTimes(2);
   });
 
   it('passes balanceAfter through chat stream done events', async () => {

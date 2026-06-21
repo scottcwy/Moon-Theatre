@@ -4,7 +4,7 @@
   "compileType": "miniprogram",
   "miniprogramRoot": "dist/",
   "srcMiniprogramRoot": "src/",
-  "libVersion": "3.16.1",
+  "libVersion": "3.15.2",
   "packOptions": {
     "ignore": [
       {
@@ -31,7 +31,7 @@
     "coverView": true,
     "autoAudits": false,
     "showShadowRootInWxmlPanel": true,
-    "compileHotReLoad": true,
+    "compileHotReLoad": false,
     "useCompilerPlugins": [
       "typescript"
     ],

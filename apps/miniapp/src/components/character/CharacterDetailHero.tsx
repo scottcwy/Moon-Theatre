@@ -56,7 +56,7 @@ export function CharacterDetailHero({
 
         <View className="character-detail-hero__intro">
           <Text className="character-detail-hero__intro-icon">✚</Text>
-          <Text className="character-detail-hero__intro-text">{description}</Text>
+          <Text className="character-detail-hero__intro-text" userSelect>{description}</Text>
         </View>
 
         <View className="character-detail-hero__quick-row">

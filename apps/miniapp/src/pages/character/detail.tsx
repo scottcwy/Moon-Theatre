@@ -148,8 +148,8 @@ export default function CharacterDetail() {
         <View className="detail__section surface-card detail__section--script">
           <Text className="detail__kicker">{character.script.title}</Text>
           <Text className="detail__section-title">世界观</Text>
-          <Text className="detail__description">{character.script.description}</Text>
-          <Text className="detail__description detail__description--muted">
+          <Text className="detail__description" userSelect>{character.script.description}</Text>
+          <Text className="detail__description detail__description--muted" userSelect>
             {character.script.worldSetting}
           </Text>
         </View>
@@ -157,7 +157,7 @@ export default function CharacterDetail() {
 
       <View className="detail__section surface-card">
         <Text className="detail__section-title">人设简介</Text>
-        <Text className="detail__description">{character.description}</Text>
+        <Text className="detail__description" userSelect>{character.description}</Text>
       </View>
 
       <BottomAction>

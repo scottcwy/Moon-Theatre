@@ -10,6 +10,7 @@ export default {
   defineConstants: {
     API_BASE_URL: JSON.stringify(apiBaseUrl),
     DEV_AUTH_BYPASS: JSON.stringify(process.env.DEV_AUTH_BYPASS === 'true'),
+    API_DEBUG_LOGS: JSON.stringify(process.env.API_DEBUG_LOGS === 'true'),
   },
   mini: {},
   h5: {},

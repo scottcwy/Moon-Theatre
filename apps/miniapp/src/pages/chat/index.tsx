@@ -367,34 +367,36 @@ export default function Chat() {
         scrollIntoView={scrollIntoViewRef.current}
         scrollWithAnimation
       >
-        {messages.length === 0 && !sending && (
-          <EmptyState
-            title="暂无进行中的故事"
-            message={`可以先问问 ${character.name} 关于月见庭院的线索，或直接告诉对方你是谁。`}
-            primaryText="购买点数"
-            onPrimary={handleBuyPoints}
-          />
-        )}
-
-        {messages.map((msg, index) => (
-          <View
-            key={msg.id}
-            id={`msg-${msg.id}`}
-          >
-            <ChatBubble
-              role={msg.role}
-              content={msg.content}
-              mood={msg.mood}
-              fallback={msg.fallback}
-              avatarUrl={characterAvatarUrl}
-              characterName={character.name}
-              typing={sending && index === messages.length - 1 && msg.role === 'assistant' && !msg.content}
+        <View className="chat-page__messages-content">
+          {messages.length === 0 && !sending && (
+            <EmptyState
+              title="暂无进行中的故事"
+              message={`可以先问问 ${character.name} 关于月见庭院的线索，或直接告诉对方你是谁。`}
+              primaryText="购买点数"
+              onPrimary={handleBuyPoints}
             />
-          </View>
-        ))}
-        {shouldRenderStandaloneTypingIndicator(sending, messages) && (
-          <ChatBubble role="assistant" content="正在输入..." avatarUrl={characterAvatarUrl} characterName={character.name} />
-        )}
+          )}
+
+          {messages.map((msg, index) => (
+            <View
+              key={msg.id}
+              id={`msg-${msg.id}`}
+            >
+              <ChatBubble
+                role={msg.role}
+                content={msg.content}
+                mood={msg.mood}
+                fallback={msg.fallback}
+                avatarUrl={characterAvatarUrl}
+                characterName={character.name}
+                typing={sending && index === messages.length - 1 && msg.role === 'assistant' && !msg.content}
+              />
+            </View>
+          ))}
+          {shouldRenderStandaloneTypingIndicator(sending, messages) && (
+            <ChatBubble role="assistant" content="正在输入..." avatarUrl={characterAvatarUrl} characterName={character.name} />
+          )}
+        </View>
       </ScrollView>
 
       {streamError && (
