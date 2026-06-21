@@ -9,7 +9,7 @@ import { ModelTierSegmentedControl } from '../../components/chat/ModelTierSegmen
 import { ChatBubble } from '../../components/chat/ChatBubble';
 import { ChatInputBar } from '../../components/chat/ChatInputBar';
 import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
-import { shouldRenderStandaloneTypingIndicator } from './index.model';
+import { getFriendlyStreamErrorMessage, getInitialModelTier, shouldRenderStandaloneTypingIndicator } from './index.model';
 import './index.scss';
 
 interface ChatMessage {
@@ -55,14 +55,14 @@ export default function Chat() {
   const [characterLoading, setCharacterLoading] = useState(true);
   const [characterError, setCharacterError] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [modelTier, setModelTier] = useState<ModelTier>('standard');
+  const [modelTier, setModelTier] = useState<ModelTier>(getInitialModelTier());
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
   const [bondLevel, setBondLevel] = useState(1);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [streamError, setStreamError] = useState('');
-  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
+  const { needsLogin, requireAuth, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
   const sessionIdRef = useRef<string | undefined>(routeSessionId);
   const scrollIntoViewRef = useRef('');
@@ -115,26 +115,32 @@ export default function Chat() {
       return;
     }
 
-    if (!requireAuth()) {
-      setCharacterLoading(false);
-      return;
-    }
+    let cancelled = false;
 
-    api
-      .get<CharacterHeader>(`/api/characters/${characterId}`)
-      .then((data) => {
+    async function fetchCharacter() {
+      try {
+        const authenticated = await verifyAuth();
+        if (!authenticated) {
+          if (!cancelled) setCharacterLoading(false);
+          return;
+        }
+        const data = await api.get<CharacterHeader>(`/api/characters/${characterId}`);
+        if (cancelled) return;
         setCharacter(data);
         setCharacterLoading(false);
-      })
-      .catch((err) => {
+        void loadBalance();
+      } catch (err) {
+        if (cancelled) return;
         if (!handleAuthError(err)) {
           setCharacterError('加载角色信息失败');
         }
         setCharacterLoading(false);
-      });
+      }
+    }
 
-    loadBalance();
-  }, [characterId, handleAuthError, loadBalance, requireAuth]);
+    fetchCharacter();
+    return () => { cancelled = true; };
+  }, [characterId, handleAuthError, loadBalance, verifyAuth]);
 
   useEffect(() => {
     if (!routeSessionId) return;
@@ -262,11 +268,12 @@ export default function Chat() {
         },
         onError(message) {
           if (!mountedRef.current) return;
+          const friendlyMessage = getFriendlyStreamErrorMessage(message);
           updateLastAssistant((current) => ({
             ...current,
-            content: current.content || `[发送失败] ${message}`,
+            content: current.content || `[发送失败] ${friendlyMessage}`,
           }));
-          setStreamError(message);
+          setStreamError(friendlyMessage);
           activeStreamRef.current = null;
           setSending(false);
           void loadBalance();

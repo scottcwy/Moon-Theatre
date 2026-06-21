@@ -44,18 +44,18 @@ export default function QuotaBuy() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
-  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
+  const { needsLogin, requireAuth, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
   useEffect(() => {
-    if (!requireAuth()) {
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
 
     async function fetchData() {
       try {
+        const authenticated = await verifyAuth();
+        if (!authenticated) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
         const [pkgData, balData] = await Promise.all([
           api.get<PackagesResponse>('/api/quota/packages'),
           api.get<BalanceResponse>('/api/quota/balance'),
@@ -77,7 +77,7 @@ export default function QuotaBuy() {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [handleAuthError, requireAuth]);
+  }, [handleAuthError, verifyAuth]);
 
   const handleSelect = (pkgId: string) => {
     setSelectedPkgId(pkgId);

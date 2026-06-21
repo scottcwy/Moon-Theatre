@@ -160,6 +160,26 @@ describe('streamChat FastClaw integration', () => {
     expect(request.messages[1].content).toContain('继续调查');
   });
 
+  it('lets the configured FastClaw agent choose the model instead of overriding it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockSseResponse(['data: [DONE]\n\n']));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { streamChat: configuredStreamChat } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+      FASTCLAW_AGENT_ID: 'deepseek-agent',
+    });
+
+    await collectEvents(configuredStreamChat('剧本杀系统上下文', '继续调查', {
+      sessionId: 'chat-session-123',
+      model: 'gpt-4o',
+    }));
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    const request = JSON.parse(String(init?.body));
+    expect(request).not.toHaveProperty('model');
+  });
+
   it('returns an error event instead of fallback when configured FastClaw fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('oops', { status: 500 })));
 

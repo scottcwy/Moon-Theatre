@@ -15,6 +15,8 @@ describe('server config production validation', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/juben_sha');
     vi.stubEnv('JWT_SECRET', 'dev-secret-change-in-production');
+    vi.stubEnv('WECHAT_APP_ID', 'wx-app');
+    vi.stubEnv('WECHAT_APP_SECRET', 'wx-secret');
     vi.stubEnv('PAYMENT_PROVIDER', 'aggregate');
     vi.stubEnv('PAYMENT_MERCHANT_ID', 'merchant');
     vi.stubEnv('PAYMENT_APP_ID', 'app');
@@ -31,12 +33,30 @@ describe('server config production validation', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/juben_sha');
     vi.stubEnv('JWT_SECRET', 'production-secret');
+    vi.stubEnv('WECHAT_APP_ID', 'wx-app');
+    vi.stubEnv('WECHAT_APP_SECRET', 'wx-secret');
     vi.stubEnv('PAYMENT_PROVIDER', 'mock');
     vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
     vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
     vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'password');
 
     await expect(loadConfig()).rejects.toThrow('PAYMENT_PROVIDER must not be mock in production');
+  });
+
+  it('requires WeChat credentials in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/juben_sha');
+    vi.stubEnv('JWT_SECRET', 'production-secret');
+    vi.stubEnv('PAYMENT_PROVIDER', 'aggregate');
+    vi.stubEnv('PAYMENT_MERCHANT_ID', 'merchant');
+    vi.stubEnv('PAYMENT_APP_ID', 'app');
+    vi.stubEnv('PAYMENT_SECRET', 'secret');
+    vi.stubEnv('PAYMENT_NOTIFY_URL', 'https://api.example.com/notify');
+    vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
+    vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
+    vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'password');
+
+    await expect(loadConfig()).rejects.toThrow('WECHAT_APP_ID and WECHAT_APP_SECRET must be set in production');
   });
 
   it('allows development defaults', async () => {

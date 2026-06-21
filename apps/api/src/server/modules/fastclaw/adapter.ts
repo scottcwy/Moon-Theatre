@@ -53,7 +53,6 @@ export async function* streamChat(
           method: 'POST',
           headers,
           body: JSON.stringify({
-            ...(options.model ? { model: options.model } : {}),
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: buildFastClawUserMessage(systemPrompt, userMessage) },

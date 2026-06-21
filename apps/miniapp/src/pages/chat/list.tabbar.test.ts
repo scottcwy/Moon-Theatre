@@ -12,4 +12,9 @@ describe('chat list tab bar integration', () => {
     expect(source).not.toContain('TheaterTabBar');
     expect(source).not.toContain('chat-list-tabbar');
   });
+
+  it('refreshes auth and sessions whenever the cached tab page is shown', () => {
+    expect(source).toContain('useDidShow');
+    expect(source).toContain('loadSessions');
+  });
 });

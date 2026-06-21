@@ -90,6 +90,30 @@ export function isLoggedIn(): boolean {
   return !!getToken();
 }
 
+export async function verifyStoredAuth(): Promise<boolean> {
+  if (!getToken()) return false;
+
+  try {
+    const user = await api.get<StoredUser & { status?: string }>('/api/me');
+    if (user.status && user.status !== 'active') {
+      clearAuth();
+      return false;
+    }
+    setUser({
+      id: user.id,
+      nickname: user.nickname,
+      avatarUrl: user.avatarUrl,
+    });
+    return true;
+  } catch (error) {
+    if (isAuthExpiredError(error)) {
+      return false;
+    }
+    clearAuth();
+    return false;
+  }
+}
+
 async function request<T>(options: RequestOptions): Promise<T> {
   const { url, method = 'GET', data, header = {} } = options;
   const requestUrl = `${BASE_URL}${url}`;
@@ -234,6 +258,7 @@ export function streamChat(
     },
     enableChunked: true,
     responseType: 'text',
+    timeout: 120000,
     success(res) {
       if (res.statusCode === 401) {
         clearAuth();

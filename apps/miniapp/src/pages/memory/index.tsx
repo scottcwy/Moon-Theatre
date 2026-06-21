@@ -33,38 +33,38 @@ export default function Memory() {
   const [memoryGroups, setMemoryGroups] = useState<MemoryGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
+  const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
   useEffect(() => {
-    if (!requireAuth()) {
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
 
-    api
-      .get<MemoryResponse>('/api/memory')
-      .then((data) => {
+    async function fetchMemory() {
+      try {
+        const authenticated = await verifyAuth();
+        if (!authenticated) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+        const data = await api.get<MemoryResponse>('/api/memory');
         if (!cancelled) {
           setMemoryGroups(data.groups);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!cancelled) {
           if (!handleAuthError(err)) {
             setError(err instanceof Error ? err.message : '加载失败');
           }
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setLoading(false);
         }
-      });
+      }
+    }
 
+    fetchMemory();
     return () => { cancelled = true; };
-  }, [handleAuthError, requireAuth]);
+  }, [handleAuthError, verifyAuth]);
 
   const handleLogin = () => {
     goLogin();

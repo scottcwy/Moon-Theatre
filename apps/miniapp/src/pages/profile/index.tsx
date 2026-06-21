@@ -1,6 +1,6 @@
 import { View, Text } from '@tarojs/components';
-import Taro from '@tarojs/taro';
-import { useEffect, useState } from 'react';
+import Taro, { useDidShow } from '@tarojs/taro';
+import { useCallback, useRef, useState } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, clearAuth, isLoggedIn } from '../../services/api';
 import { PageShell } from '../../components/layout/PageContainer';
@@ -21,46 +21,50 @@ export default function Profile() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
+  const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
   const [balance, setBalance] = useState<number | null>(null);
   const [titles] = useState<string[]>([]);
   const [achievements] = useState<Array<{ id: string; name: string; description: string }>>([]);
+  const loadIdRef = useRef(0);
 
-  useEffect(() => {
-    if (!requireAuth()) {
-      setLoading(false);
-      return;
-    }
+  const loadProfile = useCallback(async () => {
+    const loadId = loadIdRef.current + 1;
+    loadIdRef.current = loadId;
+    setLoading(true);
+    setError('');
 
-    let cancelled = false;
-
-    async function fetchProfile() {
-      try {
-        const [profileData, balData] = await Promise.all([
-          api.get<ProfileData>('/api/me'),
-          api.get<{ balancePoints: number }>('/api/quota/balance'),
-        ]);
-        if (!cancelled) {
-          setProfile(profileData);
-          setBalance(balData.balancePoints);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          if (!handleAuthError(err)) {
-            setError(err instanceof Error ? err.message : '加载失败');
-          }
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+    try {
+      const authenticated = await verifyAuth();
+      if (loadIdRef.current !== loadId) return;
+      if (!authenticated) {
+        setProfile(null);
+        setBalance(null);
+        setLoading(false);
+        return;
+      }
+      const [profileData, balData] = await Promise.all([
+        api.get<ProfileData>('/api/me'),
+        api.get<{ balancePoints: number }>('/api/quota/balance'),
+      ]);
+      if (loadIdRef.current !== loadId) return;
+      setProfile(profileData);
+      setBalance(balData.balancePoints);
+    } catch (err) {
+      if (loadIdRef.current !== loadId) return;
+      if (!handleAuthError(err)) {
+        setError(err instanceof Error ? err.message : '加载失败');
+      }
+    } finally {
+      if (loadIdRef.current === loadId) {
+        setLoading(false);
       }
     }
+  }, [handleAuthError, verifyAuth]);
 
-    fetchProfile();
-    return () => { cancelled = true; };
-  }, [handleAuthError, requireAuth]);
+  useDidShow(() => {
+    void loadProfile();
+  });
 
   const handleLogin = () => {
     goLogin();

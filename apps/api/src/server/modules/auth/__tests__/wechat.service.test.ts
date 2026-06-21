@@ -9,7 +9,7 @@ describe('exchangeWeChatCode', () => {
     vi.resetModules();
   });
 
-  it('uses a deterministic dev session when WeChat credentials are not configured', async () => {
+  it('rejects login when WeChat credentials are not configured', async () => {
     delete process.env.WECHAT_APP_ID;
     delete process.env.WECHAT_APP_SECRET;
     vi.stubGlobal('fetch', vi.fn(() => {
@@ -18,10 +18,9 @@ describe('exchangeWeChatCode', () => {
 
     const { exchangeWeChatCode } = await import('../wechat.service.js');
 
-    await expect(exchangeWeChatCode('dev-code-123')).resolves.toEqual({
-      openid: 'dev-openid-dev-code-123',
-      sessionKey: 'dev-session-key',
-    });
+    await expect(exchangeWeChatCode('dev-code-123')).rejects.toThrow(
+      'WeChat login is not configured',
+    );
   });
 });
 

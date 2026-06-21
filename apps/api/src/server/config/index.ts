@@ -23,7 +23,7 @@ const rawConfig = {
   adminUserIds: parseCsv(process.env.ADMIN_USER_IDS || ''),
   adminBasicAuthUser: process.env.ADMIN_BASIC_AUTH_USER || '',
   adminBasicAuthPassword: process.env.ADMIN_BASIC_AUTH_PASSWORD || '',
-  devAuthBypass: !isProduction && process.env.DEV_AUTH_BYPASS !== 'false',
+  devAuthBypass: !isProduction && process.env.DEV_AUTH_BYPASS === 'true',
 } as const;
 
 validateProductionConfig(rawConfig);
@@ -44,6 +44,10 @@ function validateProductionConfig(cfg: typeof rawConfig): void {
 
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL must be set in production');
+  }
+
+  if (!cfg.wechatAppId || !cfg.wechatAppSecret) {
+    throw new Error('WECHAT_APP_ID and WECHAT_APP_SECRET must be set in production');
   }
 
   if (!process.env.JWT_SECRET || cfg.jwtSecret === DEFAULT_JWT_SECRET) {

@@ -14,6 +14,20 @@ async function makeToken(userId: string, secret = 'test-secret') {
     .sign(new TextEncoder().encode(secret));
 }
 
+function mockActiveAuthUser(userId: string) {
+  vi.doMock('../../db/index.js', () => ({
+    db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => [{ id: userId, status: 'active' }]),
+          })),
+        })),
+      })),
+    },
+  }));
+}
+
 describe('admin auth middleware', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -23,6 +37,7 @@ describe('admin auth middleware', () => {
   it('forbids authenticated users outside the admin whitelist', async () => {
     vi.stubEnv('JWT_SECRET', 'test-secret');
     vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
+    mockActiveAuthUser('regular-user');
     const { verifyAdminAuth } = await loadAuth();
     const token = await makeToken('regular-user');
     const request = new Request('https://api.example.com/api/admin/orders', {
@@ -40,6 +55,7 @@ describe('admin auth middleware', () => {
   it('allows authenticated users in the admin whitelist', async () => {
     vi.stubEnv('JWT_SECRET', 'test-secret');
     vi.stubEnv('ADMIN_USER_IDS', 'admin-user, other-admin');
+    mockActiveAuthUser('admin-user');
     const { verifyAdminAuth } = await loadAuth();
     const token = await makeToken('admin-user');
     const request = new Request('https://api.example.com/api/admin/orders', {
@@ -55,14 +71,79 @@ describe('admin auth middleware', () => {
   });
 });
 
+describe('user auth middleware', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it('rejects a valid JWT when the user no longer exists', async () => {
+    vi.stubEnv('JWT_SECRET', 'test-secret');
+    vi.doMock('../../db/index.js', () => ({
+      db: {
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn(async () => []),
+            })),
+          })),
+        })),
+      },
+    }));
+
+    const { verifyAuth } = await loadAuth();
+    const token = await makeToken('missing-user');
+    const request = new Request('https://api.example.com/api/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await expect(verifyAuth(request as unknown as NextRequest)).resolves.toBeNull();
+  });
+
+  it('rejects a valid JWT when the user is banned', async () => {
+    vi.stubEnv('JWT_SECRET', 'test-secret');
+    vi.doMock('../../db/index.js', () => ({
+      db: {
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn(async () => [{ id: 'banned-user', status: 'banned' }]),
+            })),
+          })),
+        })),
+      },
+    }));
+
+    const { verifyAuth } = await loadAuth();
+    const token = await makeToken('banned-user');
+    const request = new Request('https://api.example.com/api/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await expect(verifyAuth(request as unknown as NextRequest)).resolves.toBeNull();
+  });
+});
+
 describe('dev auth bypass', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();
   });
 
-  it('accepts the dev bypass token by default outside production and resolves a real user id', async () => {
+  it('rejects the dev bypass token by default outside production', async () => {
     vi.stubEnv('NODE_ENV', 'development');
+    const { verifyAuth } = await loadAuth();
+    const request = new Request('https://api.example.com/api/me', {
+      headers: { Authorization: 'Bearer dev-auth-bypass-token' },
+    });
+
+    await expect(verifyAuth(request as unknown as NextRequest)).resolves.toBeNull();
+  });
+
+  it('accepts the dev bypass token when explicitly enabled outside production', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('DEV_AUTH_BYPASS', 'true');
     const creditWallet = vi.fn(async () => ({
       transactionId: 'wallet-tx',
       balanceAfter: 1000,
@@ -117,6 +198,8 @@ describe('dev auth bypass', () => {
     vi.stubEnv('PAYMENT_APP_ID', 'app');
     vi.stubEnv('PAYMENT_SECRET', 'secret');
     vi.stubEnv('PAYMENT_NOTIFY_URL', 'https://api.example.com/notify');
+    vi.stubEnv('WECHAT_APP_ID', 'wx-app');
+    vi.stubEnv('WECHAT_APP_SECRET', 'wx-secret');
     vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
     vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
     vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'password');

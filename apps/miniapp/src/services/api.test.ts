@@ -79,6 +79,35 @@ describe('miniapp api client', () => {
     expect(getUser()).toBeNull();
   });
 
+  it('verifies and refreshes a stored user session with /api/me', async () => {
+    const { getUser, setToken, verifyStoredAuth } = await import('./api');
+    setToken('auth-token');
+    requestMock.mockResolvedValue({
+      statusCode: 200,
+      data: { id: 'user-id', nickname: '旅人', avatarUrl: null, status: 'active' },
+    });
+
+    await expect(verifyStoredAuth()).resolves.toBe(true);
+
+    expect(requestMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'http://localhost:3000/api/me',
+      method: 'GET',
+    }));
+    expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+  });
+
+  it('clears a stored user session when verification fails', async () => {
+    const { getToken, getUser, setToken, setUser, verifyStoredAuth } = await import('./api');
+    setToken('expired-token');
+    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+    requestMock.mockResolvedValue({ statusCode: 401, data: { error: 'Unauthorized' } });
+
+    await expect(verifyStoredAuth()).resolves.toBe(false);
+
+    expect(getToken()).toBe('');
+    expect(getUser()).toBeNull();
+  });
+
   it('includes request details when the network request fails', async () => {
     const { api } = await import('./api');
     requestMock.mockRejectedValue({ errMsg: 'request:fail timeout' });
@@ -172,5 +201,36 @@ describe('miniapp api client', () => {
       messageId: 'message-id',
       sessionId: 'session-id',
     }));
+  });
+
+  it('allows slow chat streams enough time to return', async () => {
+    const { setToken, streamChat } = await import('./api');
+    setToken('auth-token');
+
+    let requestOptions: {
+      timeout?: number;
+    } = {};
+    requestMock.mockImplementation((options) => {
+      requestOptions = options;
+      return {
+        onChunkReceived: vi.fn(),
+        abort: vi.fn(),
+      };
+    });
+
+    streamChat(
+      {
+        characterId: 'character-id',
+        message: '你好',
+        modelTier: 'casual',
+      },
+      {
+        onDelta: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn(),
+      },
+    );
+
+    expect(requestOptions.timeout).toBe(120000);
   });
 });

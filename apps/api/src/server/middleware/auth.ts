@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import { eq } from 'drizzle-orm';
 import { config } from '../config/index.js';
+import { db } from '../db/index.js';
+import { users } from '../db/schema.js';
 
 export interface AuthenticatedRequest extends NextRequest {
   userId: string;
@@ -30,7 +33,15 @@ export async function verifyAuth(request: NextRequest): Promise<{ userId: string
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     if (typeof payload.sub === 'string' && payload.sub) {
-      return { userId: payload.sub };
+      const [user] = await db
+        .select({ id: users.id, status: users.status })
+        .from(users)
+        .where(eq(users.id, payload.sub))
+        .limit(1);
+      if (!user || user.status !== 'active') {
+        return null;
+      }
+      return { userId: user.id };
     }
     return null;
   } catch {

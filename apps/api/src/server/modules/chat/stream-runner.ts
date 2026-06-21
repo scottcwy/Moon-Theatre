@@ -143,7 +143,6 @@ function createGenerationResponse(input: {
 
         for await (const event of streamChat(input.systemPrompt, input.userMessage, {
           sessionId: input.sessionId,
-          model: input.modelName,
         })) {
           if (event.type === 'delta') {
             fullContent += event.content;

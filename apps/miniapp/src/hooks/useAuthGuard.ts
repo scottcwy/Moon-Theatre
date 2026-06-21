@@ -1,12 +1,18 @@
 import Taro from '@tarojs/taro';
 import { useCallback, useState } from 'react';
-import { isAuthExpiredError, isLoggedIn } from '../services/api';
+import { isAuthExpiredError, isLoggedIn, verifyStoredAuth } from '../services/api';
 
 export function useAuthGuard() {
   const [needsLogin, setNeedsLogin] = useState(false);
 
   const requireAuth = useCallback(() => {
     const authenticated = isLoggedIn();
+    setNeedsLogin(!authenticated);
+    return authenticated;
+  }, []);
+
+  const verifyAuth = useCallback(async () => {
+    const authenticated = await verifyStoredAuth();
     setNeedsLogin(!authenticated);
     return authenticated;
   }, []);
@@ -27,6 +33,7 @@ export function useAuthGuard() {
     needsLogin,
     setNeedsLogin,
     requireAuth,
+    verifyAuth,
     handleAuthError,
     goLogin,
   };

@@ -34,7 +34,21 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+    if (isWeChatLoginNotConfiguredError(err)) {
+      return errorResponse('微信登录暂不可用，请稍后再试', 503);
+    }
+    if (isInvalidWeChatCodeError(err)) {
+      return errorResponse('微信登录凭证无效，请重试', 400);
+    }
+    return errorResponse('登录失败，请稍后再试', 500);
   }
+}
+
+function isWeChatLoginNotConfiguredError(error: unknown): boolean {
+  return error instanceof Error && error.message === 'WeChat login is not configured';
+}
+
+function isInvalidWeChatCodeError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes('WeChat code2session failed');
 }

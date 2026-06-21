@@ -38,7 +38,7 @@ export default function CharacterDetail() {
   const [character, setCharacter] = useState<CharacterDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
+  const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
   const [mood] = useState<MoodType>('neutral');
 
@@ -49,15 +49,15 @@ export default function CharacterDetail() {
       return;
     }
 
-    if (!requireAuth()) {
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
 
     async function fetchCharacter() {
       try {
+        const authenticated = await verifyAuth();
+        if (!authenticated) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
         const data = await api.get<CharacterDetailData>(`/api/characters/${characterId}`);
         if (!cancelled) {
           setCharacter(data);
@@ -77,7 +77,7 @@ export default function CharacterDetail() {
 
     fetchCharacter();
     return () => { cancelled = true; };
-  }, [characterId, handleAuthError, requireAuth]);
+  }, [characterId, handleAuthError, verifyAuth]);
 
   const handleEnterChat = () => {
     Taro.navigateTo({ url: `/pages/chat/index?characterId=${characterId}` });

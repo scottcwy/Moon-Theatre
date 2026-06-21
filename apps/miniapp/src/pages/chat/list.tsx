@@ -1,6 +1,6 @@
 import { Image, Input, Text, View } from '@tarojs/components';
-import Taro from '@tarojs/taro';
-import { useState, useEffect } from 'react';
+import Taro, { useDidShow } from '@tarojs/taro';
+import { useCallback, useRef, useState } from 'react';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
 import type { ModelTier } from '../../types';
@@ -133,38 +133,41 @@ export default function ChatList() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
+  const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
+  const loadIdRef = useRef(0);
 
-  useEffect(() => {
-    if (!requireAuth()) {
-      setLoading(false);
-      return;
+  const loadSessions = useCallback(async () => {
+    const loadId = loadIdRef.current + 1;
+    loadIdRef.current = loadId;
+    setLoading(true);
+    setError('');
+
+    try {
+      const authenticated = await verifyAuth();
+      if (loadIdRef.current !== loadId) return;
+      if (!authenticated) {
+        setSessions([]);
+        setLoading(false);
+        return;
+      }
+      const data = await api.get<SessionsResponse>('/api/chat/sessions?page=1&limit=20');
+      if (loadIdRef.current !== loadId) return;
+      setSessions(data.sessions);
+    } catch (err) {
+      if (loadIdRef.current !== loadId) return;
+      if (!handleAuthError(err)) {
+        setError(err instanceof Error ? err.message : '加载失败');
+      }
+    } finally {
+      if (loadIdRef.current === loadId) {
+        setLoading(false);
+      }
     }
+  }, [handleAuthError, verifyAuth]);
 
-    let cancelled = false;
-
-    api
-      .get<SessionsResponse>('/api/chat/sessions?page=1&limit=20')
-      .then((data) => {
-        if (!cancelled) {
-          setSessions(data.sessions);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          if (!handleAuthError(err)) {
-            setError(err instanceof Error ? err.message : '加载失败');
-          }
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-
-    return () => { cancelled = true; };
-  }, [handleAuthError, requireAuth]);
+  useDidShow(() => {
+    void loadSessions();
+  });
 
   const handleSessionTap = (session: SessionItem) => {
     if (session.id.startsWith('demo-')) {

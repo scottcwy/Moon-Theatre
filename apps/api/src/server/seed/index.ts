@@ -54,7 +54,7 @@ async function seed() {
   await db.insert(modelProfiles).values([
     {
       tier: 'casual',
-      modelName: 'gpt-4o-mini',
+      modelName: 'Qwen/Qwen3.5-9B',
       provider: 'openrouter',
       enabled: true,
       pointsPerCall: 1,
@@ -64,7 +64,7 @@ async function seed() {
     },
     {
       tier: 'standard',
-      modelName: 'gpt-4o',
+      modelName: 'Qwen/Qwen3.5-9B',
       provider: 'openrouter',
       enabled: true,
       pointsPerCall: 3,
@@ -74,7 +74,7 @@ async function seed() {
     },
     {
       tier: 'immersive',
-      modelName: 'claude-3.5-sonnet',
+      modelName: 'Qwen/Qwen3.5-9B',
       provider: 'openrouter',
       enabled: true,
       pointsPerCall: 6,

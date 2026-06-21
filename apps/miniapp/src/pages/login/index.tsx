@@ -1,21 +1,32 @@
 import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
-import { useState } from 'react';
-import { api, applyDevAuthBypass, setToken, setUser } from '../../services/api';
+import { useRef, useState } from 'react';
+import { api, applyDevAuthBypass, setToken, setUser, verifyStoredAuth } from '../../services/api';
+import { getLoginErrorMessage } from './model';
 import './index.scss';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const loginInFlightRef = useRef(false);
 
-  const handleWechatLogin = () => {
-    if (loading) return;
+  const handleWechatLogin = async () => {
+    if (loginInFlightRef.current) return;
+    loginInFlightRef.current = true;
 
     if (applyDevAuthBypass()) {
       Taro.switchTab({ url: '/pages/home/index' });
+      loginInFlightRef.current = false;
       return;
     }
 
     setLoading(true);
+    const authenticated = await verifyStoredAuth();
+    if (authenticated) {
+      Taro.switchTab({ url: '/pages/home/index' });
+      setLoading(false);
+      loginInFlightRef.current = false;
+      return;
+    }
 
     Taro.login({
       success: async (res) => {
@@ -35,14 +46,15 @@ export default function Login() {
 
           Taro.switchTab({ url: '/pages/home/index' });
         } catch (err) {
-          const message = err instanceof Error ? err.message : '登录失败，请重试';
-          Taro.showToast({ title: message, icon: 'none', duration: 3000 });
+          Taro.showToast({ title: getLoginErrorMessage(err), icon: 'none', duration: 3000 });
         } finally {
+          loginInFlightRef.current = false;
           setLoading(false);
         }
       },
       fail: () => {
         Taro.showToast({ title: '登录失败，请重试', icon: 'none' });
+        loginInFlightRef.current = false;
         setLoading(false);
       },
     });

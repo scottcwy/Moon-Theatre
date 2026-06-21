@@ -27,7 +27,7 @@ export default function QuotaResult() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { needsLogin, requireAuth, handleAuthError, goLogin } = useAuthGuard();
+  const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
   useEffect(() => {
     if (!orderId) {
@@ -36,15 +36,15 @@ export default function QuotaResult() {
       return;
     }
 
-    if (!requireAuth()) {
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
 
     async function fetchOrder() {
       try {
+        const authenticated = await verifyAuth();
+        if (!authenticated) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
         const data = await api.get<OrderDetail>(`/api/orders/${orderId}`);
         if (!cancelled) {
           setOrder(data);
@@ -62,7 +62,7 @@ export default function QuotaResult() {
 
     fetchOrder();
     return () => { cancelled = true; };
-  }, [handleAuthError, orderId, requireAuth]);
+  }, [handleAuthError, orderId, verifyAuth]);
 
   const handleGoHome = () => {
     Taro.switchTab({ url: '/pages/home/index' });

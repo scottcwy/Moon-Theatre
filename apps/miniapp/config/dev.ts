@@ -6,7 +6,7 @@ export default {
   },
   defineConstants: {
     API_BASE_URL: '"http://localhost:3000"',
-    DEV_AUTH_BYPASS: 'true',
+    DEV_AUTH_BYPASS: JSON.stringify(process.env.DEV_AUTH_BYPASS === 'true'),
   },
   mini: {},
   h5: {},
