@@ -12,5 +12,4 @@ coverage/
 .turbo/
 drizzle/
 apps/api/drizzle/
-/fastclaw/
 .worktrees/

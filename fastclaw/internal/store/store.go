@@ -1,0 +1,269 @@
+// Package store is the single persistence layer for FastClaw. The database
+// is mandatory (sqlite by default; postgres for production); there is no
+// file-only fallback. Every per-user table requires a real users.id row;
+// callers that haven't resolved a user must 401, not invent a placeholder.
+package store
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
+)
+
+// ErrNotFound is returned by Get* methods when the row does not exist. Use
+// errors.Is(err, store.ErrNotFound) at call sites.
+var ErrNotFound = errors.New("store: not found")
+
+// Store is the unified interface for all persistent data.
+//
+// Tables fall into three buckets:
+//   - account-scoped (users, web_sessions, apikeys): keyed by users.id
+//   - agent-scoped (agents, agent_files, cron_jobs): keyed by agents.id;
+//     ownership is on agents.user_id
+//   - per-(user, agent) (sessions): chat history is private to one user
+//   - scope-tagged (configs): rows carry (scope, scope_id, kind, name)
+type Store interface {
+	// --- Users ---
+	CreateUser(ctx context.Context, u *UserRecord) error
+	GetUser(ctx context.Context, id string) (*UserRecord, error)
+	GetUserByLogin(ctx context.Context, usernameOrEmail string) (*UserRecord, error)
+	ListUsers(ctx context.Context) ([]UserRecord, error)
+	UpdateUser(ctx context.Context, u *UserRecord) error
+	DeleteUser(ctx context.Context, id string) error
+	CountUsers(ctx context.Context) (int, error)
+
+	// --- Web sessions (login cookies) ---
+	CreateWebSession(ctx context.Context, sess *WebSessionRecord) error
+	GetWebSession(ctx context.Context, sid string) (*WebSessionRecord, error)
+	DeleteWebSession(ctx context.Context, sid string) error
+	DeleteExpiredWebSessions(ctx context.Context, before time.Time) error
+
+	// --- API keys (per user) ---
+	ListAPIKeys(ctx context.Context, userID string) ([]APIKeyRecord, error)
+	GetAPIKey(ctx context.Context, id string) (*APIKeyRecord, error)
+	CreateAPIKey(ctx context.Context, ak *APIKeyRecord) error
+	DeleteAPIKey(ctx context.Context, id string) error
+	RotateAPIKey(ctx context.Context, id, keyHash, keyPrefix string) error
+	LookupAPIKeyByHash(ctx context.Context, keyHash string) (*APIKeyRecord, error)
+
+	// --- API key ↔ agent permissions (M:N) ---
+	SetAPIKeyAgents(ctx context.Context, apikeyID string, agentIDs []string) error
+	ListAPIKeyAgents(ctx context.Context, apikeyID string) ([]string, error)
+	APIKeyCanAccessAgent(ctx context.Context, apikeyID, agentID string) (bool, error)
+
+	// --- Agents (atomic; agents.id is globally unique) ---
+	ListAgents(ctx context.Context, ownerUserID string) ([]AgentRecord, error)
+	GetAgent(ctx context.Context, agentID string) (*AgentRecord, error)
+	SaveAgent(ctx context.Context, agent *AgentRecord) error
+	DeleteAgent(ctx context.Context, agentID string) error
+	ListAllAgents(ctx context.Context) ([]AgentRecord, error)
+
+	// --- Sessions (per user, per agent — chat history is private) ---
+	GetSession(ctx context.Context, userID, agentID, sessionKey string) (*SessionRecord, error)
+	SaveSession(ctx context.Context, userID, agentID, sessionKey string, session *SessionRecord) error
+	ListSessions(ctx context.Context, userID, agentID string) ([]SessionMeta, error)
+	DeleteSession(ctx context.Context, userID, agentID, sessionKey string) error
+	RenameSession(ctx context.Context, userID, agentID, sessionKey, title string) error
+
+	// --- Agent files ---
+	//
+	// SOUL.md, IDENTITY.md, MEMORY.md, AGENTS.md, BOOTSTRAP.md, etc.
+	// Layered: user_id="" is the shared template (edited via the admin
+	// Customize page), user_id=u_xxx is that user's personal override.
+	// Read picks user-specific over template via fallback; write hits
+	// the (agentID, userID, filename) row exactly.
+	GetAgentFile(ctx context.Context, agentID, userID, filename string) ([]byte, error)
+	SaveAgentFile(ctx context.Context, agentID, userID, filename string, data []byte) error
+	DeleteAgentFile(ctx context.Context, agentID, userID, filename string) error
+	ListAgentFiles(ctx context.Context, agentID, userID string) ([]string, error)
+
+	// --- Scoped configs (providers / channels / settings live here) ---
+	//
+	// One table backs all three concept families. Each row is keyed by
+	// (scope, scope_id, kind, name) and carries a JSON `data` payload.
+	//
+	//   kind="provider": LLM provider (name = provider key, e.g. "openai")
+	//   kind="channel":  channel adapter (name = channel type, e.g. "telegram")
+	//   kind="setting":  config namespace (name = "agents.defaults", "sandbox", …)
+	//
+	// `credential_key` is only populated for kind="channel" — it's the
+	// stable lookup key the inbound dispatcher uses to find the row when a
+	// message arrives. `enabled` lets a row hide an outer-scope row in the
+	// merge (used by channels: an inner-scope disabled row erases the
+	// outer entry).
+	ListConfigs(ctx context.Context, kind, scope, scopeID string) ([]ConfigRecord, error)
+	GetConfig(ctx context.Context, id string) (*ConfigRecord, error)
+	GetConfigByName(ctx context.Context, kind, scope, scopeID, name string) (*ConfigRecord, error)
+	SaveConfig(ctx context.Context, c *ConfigRecord) error
+	DeleteConfig(ctx context.Context, id string) error
+	LookupChannelByCredential(ctx context.Context, channelType, credKey string) (*ConfigRecord, error)
+
+	// --- Cron jobs (per agent) ---
+	//
+	// Cron rows are owned by an agent; the executing identity is the
+	// agent's user_id. List by ownerUserID joins against agents.
+	ListCronJobsByOwner(ctx context.Context, ownerUserID string) ([]CronJobRecord, error)
+	ListCronJobsByAgent(ctx context.Context, agentID string) ([]CronJobRecord, error)
+	GetCronJob(ctx context.Context, jobID string) (*CronJobRecord, error)
+	SaveCronJob(ctx context.Context, job *CronJobRecord) error
+	DeleteCronJob(ctx context.Context, jobID string) error
+	GetDueCronJobs(ctx context.Context, now time.Time) ([]CronJobRecord, error)
+	LockCronJob(ctx context.Context, jobID, instanceID string) (bool, error)
+	UpdateCronJobRun(ctx context.Context, jobID string, lastRun, nextRun time.Time) error
+
+	Close() error
+}
+
+// UserRecord is one row of the users table.
+type UserRecord struct {
+	ID           string    `json:"id"`
+	Username     string    `json:"username"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"`
+	DisplayName  string    `json:"displayName,omitempty"`
+	Role         string    `json:"role"`   // "super_admin" | "user"
+	Status       string    `json:"status"` // "active" | "disabled"
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+// WebSessionRecord backs cookie-based login state.
+type WebSessionRecord struct {
+	SID       string    `json:"sid"`
+	UserID    string    `json:"userId"`
+	CreatedAt time.Time `json:"createdAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// APIKeyRecord is one row of the apikeys table. KeyHash is SHA256(token);
+// the plaintext is shown to the caller exactly once at create/rotate.
+type APIKeyRecord struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"userId"`
+	Name      string    `json:"name,omitempty"`
+	KeyHash   string    `json:"-"`
+	KeyPrefix string    `json:"keyPrefix,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// AgentRecord is the persisted state for one agent. agents.id is globally
+// unique; UserID is who owns the agent. The agent itself is the atomic
+// unit — sessions, cron jobs, and apikey ACLs all reference agents.id
+// directly, never (user_id, agent_id).
+// Per-agent model overrides used to live in agents.model; they now live
+// in configs as kind=setting, scope=agent, scope_id=<aid>, name=
+// "agents.defaults", which is the same path system + user defaults take.
+// Resolution happens in loadUserSpace via scope.SettingInto.
+type AgentRecord struct {
+	ID        string                 `json:"id"`
+	UserID    string                 `json:"userId"`
+	Name      string                 `json:"name"`
+	Config    map[string]interface{} `json:"config,omitempty"`
+	CreatedAt time.Time              `json:"createdAt"`
+	UpdatedAt time.Time              `json:"updatedAt"`
+}
+
+// SessionRecord holds a conversation session.
+type SessionRecord struct {
+	Messages  []SessionMessage `json:"messages"`
+	UpdatedAt time.Time        `json:"updatedAt"`
+}
+
+// SessionMessage is a single message in a session.
+type SessionMessage struct {
+	Role         string                 `json:"role"`
+	Content      string                 `json:"content"`
+	ContentParts interface{}            `json:"contentParts,omitempty"`
+	ToolCalls    interface{}            `json:"toolCalls,omitempty"`
+	ToolCallID   string                 `json:"toolCallId,omitempty"`
+	Name         string                 `json:"name,omitempty"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Thinking     string                 `json:"thinking,omitempty"`
+	RawAssistant json.RawMessage        `json:"rawAssistant,omitempty"`
+}
+
+// SessionMeta is summary info for a session (for listing).
+type SessionMeta struct {
+	Key          string    `json:"key"`
+	Title        string    `json:"title,omitempty"`
+	MessageCount int       `json:"messageCount"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+// Kinds for ConfigRecord.
+const (
+	KindProvider = "provider"
+	KindChannel  = "channel"
+	KindSetting  = "setting"
+)
+
+// Scopes for ConfigRecord.
+const (
+	ScopeSystem = "system"
+	ScopeUser   = "user"
+	ScopeAgent  = "agent"
+	ScopeSkill  = "skill"
+)
+
+// ConfigRecord is one row of the configs table — the unified
+// home for providers, channels, and namespaced settings.
+//
+//   - kind says which family this row belongs to
+//   - (scope, scope_id) says who owns it
+//   - name is the lookup handle inside that family (provider key,
+//     channel type, or setting namespace)
+//   - data is the family-specific JSON payload
+//
+// CredentialKey is only meaningful for kind="channel" — see
+// LookupChannelByCredential.
+type ConfigRecord struct {
+	ID            string                 `json:"id"`
+	Kind          string                 `json:"kind"`
+	Scope         string                 `json:"scope"`
+	ScopeID       string                 `json:"scopeId"`
+	Name          string                 `json:"name"`
+	Enabled       bool                   `json:"enabled"`
+	CredentialKey string                 `json:"credentialKey,omitempty"`
+	Data          map[string]interface{} `json:"data,omitempty"`
+	CreatedAt     time.Time              `json:"createdAt"`
+	UpdatedAt     time.Time              `json:"updatedAt"`
+}
+
+
+// CronJobRecord holds a scheduled job. agent_id is mandatory — the
+// executing identity is whoever currently owns the agent (looked up via
+// agents.user_id at fire time).
+type CronJobRecord struct {
+	ID        string     `json:"id"`
+	AgentID   string     `json:"agentId"`
+	Name      string     `json:"name"`
+	Type      string     `json:"type"`
+	Schedule  string     `json:"schedule"`
+	Message   string     `json:"message"`
+	Channel   string     `json:"channel"`
+	ChatID    string     `json:"chatId"`
+	AccountID string     `json:"accountId"`
+	Timezone  string     `json:"timezone"`
+	Enabled   bool       `json:"enabled"`
+	LastRun   *time.Time `json:"lastRun,omitempty"`
+	NextRun   *time.Time `json:"nextRun,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+
+
+// StorageType identifies the storage backend.
+type StorageType string
+
+const (
+	StoragePostgres StorageType = "postgres"
+	StorageSQLite   StorageType = "sqlite"
+)
+
+// StorageConfig holds DB credentials. Populated from FASTCLAW_STORAGE_* env vars at boot.
+type StorageConfig struct {
+	Type        StorageType `json:"type"`
+	DSN         string      `json:"dsn,omitempty"`
+	AutoMigrate bool        `json:"autoMigrate,omitempty"`
+}
