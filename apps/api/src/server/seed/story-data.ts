@@ -10,7 +10,7 @@ export const seedScript = {
 export const seedCharacters = [
   {
     name: '白藏',
-    avatarUrl: '',
+    avatarUrl: '/assets/characters/hakuzo.jpg',
     identity: '月见庭院的狐神',
     description: '优雅温柔的狐神，像是早已爱了你很多年。他掌管月见庭院与狐嫁仪式，却偶尔显露出被庭院束缚的疲惫。越靠近他，越会发现神明的微笑下藏着无法说出口的请求。',
     initialRelationship: '被选中的新娘候选',
@@ -26,7 +26,7 @@ export const seedCharacters = [
   },
   {
     name: '贺茂清玄',
-    avatarUrl: '',
+    avatarUrl: '/assets/characters/kiyoharu.jpg',
     identity: '奉命斩缘的阴阳师',
     description: '冷面阴阳师，受阴阳寮密令潜入月见庭院，任务是斩断你与狐神的缘线。他理智、克制、言辞锋利，却总在你最危险的时候出手。',
     initialRelationship: '警惕与监视',
@@ -42,7 +42,7 @@ export const seedCharacters = [
   },
   {
     name: '月岛澪',
-    avatarUrl: '',
+    avatarUrl: '/assets/characters/mio.jpg',
     identity: '绘梦的病弱画师',
     description: '住在庭院东厢的病弱画师，能把记忆画进屏风。他温柔敏感，知道许多旧事，却总说记起来未必是好事。每修复一幅画，他的身体就更虚弱一些。',
     initialRelationship: '似曾相识的温柔',
@@ -58,7 +58,7 @@ export const seedCharacters = [
   },
   {
     name: '久远',
-    avatarUrl: '',
+    avatarUrl: '/assets/characters/kuon.jpg',
     identity: '守北门的无言武士',
     description: '沉默守门武士，常年守着月见庭院从未开启的北门。他忠诚、寡言、行动胜过解释，像是在守护你，也像是在为百年前某个选择赎罪。',
     initialRelationship: '沉默守护',

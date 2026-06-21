@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { TopBar } from '../../components/layout/TopBar';
 import { PageShell } from '../../components/layout/PageContainer';
-import { featuredScripts, getCharacterDetailUrl } from './index.model';
+import { featuredScripts, getCharacterAvatarUrl, getCharacterDetailUrl } from './index.model';
 import './index.scss';
 
 interface ScriptCard {
@@ -23,16 +23,16 @@ interface CharacterCard {
 
 const scripts: ScriptCard[] = [
   {
-    id: 'forest',
-    title: '迷雾森林',
-    genre: '奇幻 / 探险',
-    cover: '/assets/home/forest-cover.png',
+    id: 'moon-garden',
+    title: '月见庭院：狐神的新娘',
+    genre: '和风幻想 / 前世今生',
+    cover: '/assets/home/moon-garden-cover.jpg',
   },
   {
-    id: 'theater',
-    title: '幕后黑手',
-    genre: '悬疑 / 推理',
-    cover: '/assets/home/theater-cover.png',
+    id: 'liumang',
+    title: '流氓叙事',
+    genre: '赛博悬疑 / 街巷群像',
+    cover: '/assets/home/liumang-cover.jpg',
   },
 ];
 
@@ -127,7 +127,7 @@ export default function Home() {
               <View className="theater-home__poster-wrap">
                 <Image
                   className="theater-home__poster"
-                  src={'avatarUrl' in item ? item.avatarUrl : item.cover}
+                  src={'avatarUrl' in item ? getCharacterAvatarUrl(item.name, item.avatarUrl) : item.cover}
                   mode="aspectFill"
                 />
               </View>

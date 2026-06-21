@@ -1,17 +1,7 @@
 import type { UserConfigExport } from '@tarojs/cli';
+import { getApiBaseUrlForMode } from './api-base-url';
 
-function getRequiredApiBaseUrl(): string {
-  const apiBaseUrl = process.env.API_BASE_URL?.trim();
-  if (!apiBaseUrl) {
-    throw new Error('API_BASE_URL is required for miniapp production builds');
-  }
-  if (apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1')) {
-    throw new Error('API_BASE_URL must not point to localhost for miniapp production builds');
-  }
-  return apiBaseUrl;
-}
-
-const apiBaseUrl = getRequiredApiBaseUrl();
+const apiBaseUrl = getApiBaseUrlForMode('production');
 
 export default {
   env: {

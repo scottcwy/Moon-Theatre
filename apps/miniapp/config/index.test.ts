@@ -45,4 +45,52 @@ describe('miniapp config auth constants', () => {
 
     expect(config.default.defineConstants?.API_BASE_URL).toBe('"http://127.0.0.1:3000"');
   });
+
+  it('lets the development override replace the placeholder API URL with the local API', async () => {
+    process.env.API_BASE_URL = 'https://api.example.com';
+
+    const config = await import('./dev');
+
+    expect(config.default.defineConstants?.API_BASE_URL).toBe('"http://localhost:3000"');
+  });
+
+  it('uses the local API when a development watch build receives the placeholder API URL', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.API_BASE_URL = 'https://api.example.com';
+    process.argv = ['node', 'taro', '--watch'];
+
+    const config = await import('./index');
+
+    expect(config.default.defineConstants.API_BASE_URL).toBe('"http://localhost:3000"');
+  });
+
+  it('uses the local API when a development watch build receives any URL containing the placeholder API host', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.API_BASE_URL = 'https://debug.local/proxy?target=https://api.example.com';
+    process.argv = ['node', 'taro', '--watch'];
+
+    const config = await import('./index');
+
+    expect(config.default.defineConstants.API_BASE_URL).toBe('"http://localhost:3000"');
+  });
+
+  it('rejects the placeholder API URL for non-development builds', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.API_BASE_URL = 'https://api.example.com';
+    process.argv = ['node', 'taro', 'build'];
+
+    await expect(import('./index')).rejects.toThrow('API_BASE_URL must not use the placeholder api.example.com');
+  });
+
+  it('rejects the placeholder API URL in the production override', async () => {
+    process.env.API_BASE_URL = 'https://api.example.com';
+
+    await expect(import('./prod')).rejects.toThrow('API_BASE_URL must not use the placeholder api.example.com');
+  });
+
+  it('rejects production API URLs that contain the placeholder API host anywhere', async () => {
+    process.env.API_BASE_URL = 'https://real.example/proxy?target=https://api.example.com';
+
+    await expect(import('./prod')).rejects.toThrow('API_BASE_URL must not use the placeholder api.example.com');
+  });
 });

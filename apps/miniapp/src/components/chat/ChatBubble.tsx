@@ -11,11 +11,13 @@ interface ChatBubbleProps {
   fallback?: boolean;
   avatarUrl?: string;
   characterName?: string;
+  typing?: boolean;
 }
 
-export function ChatBubble({ role, content, mood, fallback, avatarUrl, characterName = '角色' }: ChatBubbleProps) {
+export function ChatBubble({ role, content, mood, fallback, avatarUrl, characterName = '角色', typing = false }: ChatBubbleProps) {
   const isUser = role === 'user';
   const isSystem = role === 'system';
+  const displayText = content || (typing ? '正在输入...' : '未返回内容，请重试');
   const rowClass = [
     'chat-bubble-row',
     isUser ? 'chat-bubble-row--user' : '',
@@ -29,7 +31,7 @@ export function ChatBubble({ role, content, mood, fallback, avatarUrl, character
       )}
       <View>
         <View className={`chat-bubble${isUser ? ' chat-bubble--user' : ''}${isSystem ? ' chat-bubble--system' : ''}`}>
-          <Text className="chat-bubble__text">{content || '正在输入...'}</Text>
+          <Text className="chat-bubble__text">{displayText}</Text>
         </View>
         {!isUser && !isSystem && (mood || fallback) && (
           <View className="chat-bubble__meta">

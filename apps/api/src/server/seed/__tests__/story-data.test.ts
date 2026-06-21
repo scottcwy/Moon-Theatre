@@ -23,7 +23,12 @@ describe('moon garden seed story data', () => {
     expect(serialized).not.toContain('以撒');
   });
 
-  it('does not point character avatars at missing local resources', () => {
-    expect(seedCharacters.map((character) => character.avatarUrl)).toEqual(['', '', '', '']);
+  it('points character avatars at processed miniapp assets', () => {
+    expect(seedCharacters.map((character) => character.avatarUrl)).toEqual([
+      '/assets/characters/hakuzo.jpg',
+      '/assets/characters/kiyoharu.jpg',
+      '/assets/characters/mio.jpg',
+      '/assets/characters/kuon.jpg',
+    ]);
   });
 });

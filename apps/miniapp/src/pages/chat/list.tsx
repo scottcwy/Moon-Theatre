@@ -6,6 +6,7 @@ import { api, isLoggedIn } from '../../services/api';
 import type { ModelTier } from '../../types';
 import { TopBar } from '../../components/layout/TopBar';
 import { PageShell } from '../../components/layout/PageContainer';
+import { getCharacterAvatarUrl } from '../home/index.model';
 import { getChatPreviewText, getSessionLevelLabel, getSessionTimeLabel } from './list.model';
 import './list.scss';
 
@@ -32,7 +33,7 @@ const DEMO_SESSIONS: SessionItem[] = [
     id: 'demo-hakuzo',
     characterId: 'hakuzo',
     characterName: '白藏',
-    characterAvatarUrl: '/assets/home/theater-cover.png',
+    characterAvatarUrl: '/assets/characters/hakuzo.jpg',
     modelTier: 'standard',
     lastMessage: '铃音，今夜的月很满。若你愿意，我会亲自带你穿过第一重鸟居。',
     updatedAt: '2026-06-14T00:42:00+08:00',
@@ -43,7 +44,7 @@ const DEMO_SESSIONS: SessionItem[] = [
     id: 'demo-kiyoharu',
     characterId: 'kiyoharu',
     characterName: '贺茂清玄',
-    characterAvatarUrl: '/assets/home/forest-cover.png',
+    characterAvatarUrl: '/assets/characters/kiyoharu.jpg',
     modelTier: 'casual',
     lastMessage: '别碰那根红线。它不是装饰，是契约留下的咒痕。',
     updatedAt: '2026-06-13T17:10:00+08:00',
@@ -53,7 +54,7 @@ const DEMO_SESSIONS: SessionItem[] = [
     id: 'demo-mio',
     characterId: 'mio',
     characterName: '月岛澪',
-    characterAvatarUrl: '/assets/home/liumang-cover.png',
+    characterAvatarUrl: '/assets/characters/mio.jpg',
     modelTier: 'immersive',
     lastMessage: '[图片] 屏风上的桥又出现了，只是这一次，桥那边的人在看你。',
     updatedAt: '2026-06-09T12:00:00+08:00',
@@ -65,7 +66,7 @@ function ChatListTopBar() {
   return (
     <TopBar
       left={
-        <Image className="chat-list__brand-avatar" src="/assets/home/theater-cover.png" mode="aspectFill" />
+        <Image className="chat-list__brand-avatar" src="/assets/home/moon-garden-cover.jpg" mode="aspectFill" />
       }
       title={<Text className="chat-list__brand">灵犀剧场</Text>}
       right={<Text className="chat-list__settings" aria-label="设置">⚙</Text>}
@@ -83,10 +84,12 @@ function SearchBar() {
 }
 
 function SessionAvatar({ session }: { session: SessionItem }) {
+  const avatarUrl = getCharacterAvatarUrl(session.characterName, session.characterAvatarUrl);
+
   return (
     <View className="chat-list__avatar-wrap">
-      {session.characterAvatarUrl ? (
-        <Image className="chat-list__avatar-image" src={session.characterAvatarUrl} mode="aspectFill" />
+      {avatarUrl ? (
+        <Image className="chat-list__avatar-image" src={avatarUrl} mode="aspectFill" />
       ) : (
         <View className="chat-list__avatar-placeholder">
           <Text className="chat-list__avatar-text">{session.characterName[0] || '角'}</Text>

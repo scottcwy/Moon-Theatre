@@ -1,18 +1,9 @@
 import path from 'path';
+import { getApiBaseUrlForMode } from './api-base-url';
 
 function getApiBaseUrl(): string {
-  const apiBaseUrl = process.env.API_BASE_URL?.trim();
   const isDevBuild = process.env.NODE_ENV === 'development' || process.argv.includes('--watch');
-  if (isDevBuild) {
-    return apiBaseUrl || 'http://localhost:3000';
-  }
-  if (!apiBaseUrl) {
-    throw new Error('API_BASE_URL is required for miniapp production builds');
-  }
-  if (apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1')) {
-    throw new Error('API_BASE_URL must not point to localhost for miniapp production builds');
-  }
-  return apiBaseUrl;
+  return getApiBaseUrlForMode(isDevBuild ? 'development' : 'production');
 }
 
 const apiBaseUrl = getApiBaseUrl();

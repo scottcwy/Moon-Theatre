@@ -1,6 +1,7 @@
 import type { UserConfigExport } from '@tarojs/cli';
+import { getApiBaseUrlForMode } from './api-base-url';
 
-const apiBaseUrl = process.env.API_BASE_URL?.trim() || 'http://localhost:3000';
+const apiBaseUrl = getApiBaseUrlForMode('development');
 
 export default {
   env: {

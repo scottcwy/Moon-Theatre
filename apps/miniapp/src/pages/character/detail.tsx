@@ -9,6 +9,7 @@ import { BottomAction } from '../../components/layout/BottomAction';
 import { CharacterDetailHero } from '../../components/character/CharacterDetailHero';
 import { PrimaryButton } from '../../components/ui/Button';
 import { StatusStateCard } from '../../components/status/StatusStateCard';
+import { getCharacterAvatarUrl } from '../home/index.model';
 import './detail.scss';
 
 interface CharacterDetailData {
@@ -136,7 +137,7 @@ export default function CharacterDetail() {
         name={character.name}
         identity={character.identity}
         description={character.description}
-        avatarUrl={character.avatarUrl}
+        avatarUrl={getCharacterAvatarUrl(character.name, character.avatarUrl)}
         relationship={character.initialRelationship}
         bondLevel={bondLevel}
         bondExp={bondExp}

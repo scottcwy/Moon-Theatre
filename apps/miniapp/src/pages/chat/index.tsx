@@ -9,6 +9,7 @@ import { ModelTierSegmentedControl } from '../../components/chat/ModelTierSegmen
 import { ChatBubble } from '../../components/chat/ChatBubble';
 import { ChatInputBar } from '../../components/chat/ChatInputBar';
 import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
+import { getCharacterAvatarUrl } from '../home/index.model';
 import { getFriendlyStreamErrorMessage, getInitialModelTier, shouldRenderStandaloneTypingIndicator } from './index.model';
 import './index.scss';
 
@@ -289,6 +290,7 @@ export default function Chat() {
 
   const selectedTierCost = MODEL_TIER_COSTS[modelTier];
   const isInsufficientPoints = typeof pointsBalance === 'number' && pointsBalance < selectedTierCost;
+  const characterAvatarUrl = character ? getCharacterAvatarUrl(character.name, character.avatarUrl) : '';
 
   if (characterLoading || historyLoading) {
     return (
@@ -333,7 +335,7 @@ export default function Chat() {
       <CharacterHeader
         name={character.name}
         identity={character.identity}
-        avatarUrl={character.avatarUrl}
+        avatarUrl={characterAvatarUrl}
         bondLevel={bondLevel}
         points={pointsBalance}
         onPointsTap={handleBuyPoints}
@@ -374,7 +376,7 @@ export default function Chat() {
           />
         )}
 
-        {messages.map((msg) => (
+        {messages.map((msg, index) => (
           <View
             key={msg.id}
             id={`msg-${msg.id}`}
@@ -384,13 +386,14 @@ export default function Chat() {
               content={msg.content}
               mood={msg.mood}
               fallback={msg.fallback}
-              avatarUrl={character.avatarUrl}
+              avatarUrl={characterAvatarUrl}
               characterName={character.name}
+              typing={sending && index === messages.length - 1 && msg.role === 'assistant' && !msg.content}
             />
           </View>
         ))}
         {shouldRenderStandaloneTypingIndicator(sending, messages) && (
-          <ChatBubble role="assistant" content="正在输入..." avatarUrl={character.avatarUrl} characterName={character.name} />
+          <ChatBubble role="assistant" content="正在输入..." avatarUrl={characterAvatarUrl} characterName={character.name} />
         )}
       </ScrollView>
 
