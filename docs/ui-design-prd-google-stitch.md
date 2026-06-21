@@ -664,7 +664,7 @@ Create the home screen for a WeChat mini program soft Material AI role-playing a
 Show one script-world intro at the top and three warm character cards below.
 Each character card includes avatar, name, identity, short description, and relationship hint.
 Include points balance and current model tier.
-Bottom tabs: 首页, 对话, 记忆, 我的.
+Bottom tabs: 首页, 对话, 社区, 我的.
 Style: soft Material Design, readable, warm, rounded, calm, not too dark.
 ```
 

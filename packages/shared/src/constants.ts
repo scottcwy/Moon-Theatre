@@ -64,6 +64,6 @@ export type WalletTxType = (typeof WALLET_TX_TYPES)[keyof typeof WALLET_TX_TYPES
 export const BOTTOM_TABS = [
   { key: 'home', label: '首页', icon: 'home' },
   { key: 'chat', label: '对话', icon: 'chat' },
-  { key: 'memory', label: '记忆', icon: 'memory' },
+  { key: 'community', label: '社区', icon: 'community' },
   { key: 'profile', label: '我的', icon: 'profile' },
 ] as const;

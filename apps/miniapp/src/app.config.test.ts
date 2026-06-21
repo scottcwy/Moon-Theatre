@@ -8,7 +8,7 @@ describe('V1 tab bar configuration', () => {
     vi.stubGlobal('defineAppConfig', (config: AppConfig) => config);
   });
 
-  it('exposes memory, not community, as the third V1 tab', async () => {
+  it('exposes community as the third tab', async () => {
     const { default: appConfig } = await import('./app.config');
     const tabPaths = appConfig.tabBar?.list.map((item) => item.pagePath);
     const tabTexts = appConfig.tabBar?.list.map((item) => item.text);
@@ -16,9 +16,9 @@ describe('V1 tab bar configuration', () => {
     expect(tabPaths).toEqual([
       'pages/home/index',
       'pages/chat/list',
-      'pages/memory/index',
+      'pages/community/index',
       'pages/profile/index',
     ]);
-    expect(tabTexts).toEqual(['首页', '聊天', '记忆', '我的']);
+    expect(tabTexts).toEqual(['首页', '聊天', '社区', '我的']);
   });
 });
