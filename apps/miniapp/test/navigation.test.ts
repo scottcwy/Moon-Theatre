@@ -23,7 +23,7 @@ describe('navigation helpers', () => {
 
   it('navigates back when there is a previous page', async () => {
     vi.stubGlobal('getCurrentPages', () => [{ route: 'pages/home/index' }, { route: 'pages/character/detail' }]);
-    const { navigateBackOrHome } = await import('./navigation');
+    const { navigateBackOrHome } = await import('../src/utils/navigation');
 
     navigateBackOrHome();
 
@@ -33,7 +33,7 @@ describe('navigation helpers', () => {
 
   it('falls back to the home tab when no previous page exists', async () => {
     vi.stubGlobal('getCurrentPages', () => [{ route: 'pages/character/detail' }]);
-    const { navigateBackOrHome } = await import('./navigation');
+    const { navigateBackOrHome } = await import('../src/utils/navigation');
 
     navigateBackOrHome();
 
