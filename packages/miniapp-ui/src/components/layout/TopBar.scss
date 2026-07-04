@@ -10,12 +10,13 @@
 }
 
 .top-bar__status-area {
-  height: $status-bar-height;
+  height: var(--topbar-status-height, #{$status-bar-height});
 }
 
 .top-bar__content {
-  height: $capsule-height + 16px;
+  height: var(--topbar-content-height, calc(#{$capsule-height} + 16px));
   padding: 0 $page-padding-h;
+  padding-right: var(--topbar-menu-reserve, #{$page-padding-h});
   display: flex;
   align-items: center;
   justify-content: space-between;

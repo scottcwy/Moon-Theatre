@@ -15,7 +15,7 @@ export default defineAppConfig({
   tabBar: {
     color: '#5A4A4E',
     selectedColor: '#8B4258',
-    backgroundColor: '#F1E7E4',
+    backgroundColor: '#FFFBF8',
     list: [
       { pagePath: 'pages/home/index', text: '首页', iconPath: 'assets/icons/home.png', selectedIconPath: 'assets/icons/home-active.png' },
       { pagePath: 'pages/chat/list', text: '聊天', iconPath: 'assets/icons/chat.png', selectedIconPath: 'assets/icons/chat-active.png' },
