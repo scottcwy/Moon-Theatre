@@ -40,11 +40,17 @@ describe('production pages use shared miniapp ui', () => {
     expect(loginPage).not.toContain('login-page__notice');
 
     const profilePage = fs.readFileSync(path.join(pagesDir, 'profile/index.tsx'), 'utf8');
-    expect(profilePage).toContain('PageSection');
-    expect(profilePage).toContain('NoticeBlock');
+    expect(profilePage).toContain('profile__hero');
+    expect(profilePage).toContain('profile__growth-card');
+    expect(profilePage).toContain('profile__stat-grid');
+    expect(profilePage).toContain('profile__empty-row');
     expect(profilePage).toContain('CharacterAvatar');
     expect(profilePage).toContain('PointsBadge');
     expect(profilePage).toContain('AchievementIcon');
+    expect(profilePage).not.toContain('暂无称号');
+    expect(profilePage).not.toContain('暂无成就');
+    expect(profilePage).not.toContain('PageSection title="称号"');
+    expect(profilePage).not.toContain('PageSection title="成就"');
     expect(profilePage).not.toContain('className="page-section');
     expect(profilePage).not.toContain('className="notice-block');
     expect(profilePage).not.toContain('surface-card');

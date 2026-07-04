@@ -5,11 +5,8 @@ import {
   AchievementIcon,
   Badge,
   CharacterAvatar,
-  EmptyState,
   LORDICON_ATTRIBUTION,
-  NoticeBlock,
   PageShell,
-  PageSection,
   PointsBadge,
   StatusStateCard,
   TonalButton,
@@ -91,6 +88,18 @@ export default function Profile() {
   };
 
   const nickname = profile?.nickname || '旅人';
+  const displayStatus = profile?.status === 'active' ? '已登录' : profile?.status || '已登录';
+  const hasTitles = titles.length > 0;
+  const hasAchievements = achievements.length > 0;
+  const hasGrowthRecords = hasTitles || hasAchievements;
+  const aiNotice = (
+    <View className="profile__notice">
+      <Text className="profile__notice-text">
+        AI 生成角色对话内容，角色及对话均为虚构。
+      </Text>
+    </View>
+  );
+
   if (loading) {
     return (
       <PageShell variant="scroll" tabBarReserve className="profile">
@@ -102,93 +111,116 @@ export default function Profile() {
   if (needsLogin || !isLoggedIn()) {
     return (
       <PageShell variant="scroll" tabBarReserve className="profile">
-        <PageSection title="用户信息" kicker="我的" surface className="profile__user-card">
-          <View className="profile__user-section">
+        <View className="profile__hero profile__hero--signed-out">
+          <View className="profile__hero-main">
             <CharacterAvatar name="?" size="lg" />
-            <View className="profile__user-info">
+            <View className="profile__identity">
               <Text className="profile__nickname">未登录</Text>
-              <Badge tone="points" onTap={handleLogin}>点击登录</Badge>
+              <Text className="profile__subtitle">登录后同步点数和角色履历</Text>
             </View>
           </View>
-        </PageSection>
+          <View className="profile__hero-actions">
+            <Badge tone="points" onTap={handleLogin}>点击登录</Badge>
+          </View>
+        </View>
 
-        <PageSection title="AI 内容声明" kicker="内容安全">
-          <NoticeBlock>
-            本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
-          </NoticeBlock>
-        </PageSection>
+        {aiNotice}
       </PageShell>
     );
   }
 
   return (
     <PageShell variant="scroll" tabBarReserve className="profile">
-      <PageSection title="用户信息" kicker="我的" surface className="profile__user-card">
-        <View className="profile__user-section">
+      <View className="profile__hero">
+        <View className="profile__hero-main">
           <CharacterAvatar name={nickname} src={profile?.avatarUrl || undefined} size="lg" online />
-          <View className="profile__user-info">
+          <View className="profile__identity">
             <Text className="profile__nickname">{nickname}</Text>
-            <View className="profile__user-badges">
-              <PointsBadge points={balance} onTap={handleBuyPoints} />
-              <Badge tone="success">{profile?.status || '已登录'}</Badge>
-            </View>
+            <Text className="profile__subtitle">你的角色互动档案</Text>
           </View>
         </View>
-      </PageSection>
+        <View className="profile__hero-actions">
+          <PointsBadge points={balance} onTap={handleBuyPoints} />
+          <Badge tone="success">{displayStatus}</Badge>
+        </View>
+      </View>
 
       {error && (
-        <PageSection>
+        <View className="profile__error">
           <StatusStateCard title="资料暂时不可用" message={error} tone="error" icon="!" />
-        </PageSection>
+        </View>
       )}
 
-      <PageSection title="称号" kicker="角色身份" surface>
-        {titles.length === 0 ? (
-          <EmptyState title="暂无称号" message="完成更多对话后，会在这里展示获得的称号。" />
+      <View className="profile__growth-card">
+        <View className="profile__section-head">
+          <Text className="profile__section-title">成长记录</Text>
+          <Text className="profile__section-note">对话后自动解锁</Text>
+        </View>
+
+        <View className="profile__stat-grid">
+          <View className="profile__stat-item">
+            <Text className="profile__stat-value">{titles.length}</Text>
+            <Text className="profile__stat-label">称号</Text>
+          </View>
+          <View className="profile__stat-item">
+            <Text className="profile__stat-value">{achievements.length}</Text>
+            <Text className="profile__stat-label">成就</Text>
+          </View>
+        </View>
+
+        {hasGrowthRecords ? (
+          <View className="profile__growth-content">
+            {hasTitles && (
+              <View className="profile__title-group">
+                <Text className="profile__group-label">称号</Text>
+                <View className="profile__title-list">
+                  {titles.map((title) => (
+                    <Badge key={title}>{title}</Badge>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {hasAchievements && (
+              <View className="profile__achievement-list">
+                <Text className="profile__group-label">成就</Text>
+                {achievements.map((achievement) => (
+                  <View key={achievement.id} className="profile__achievement">
+                    <AchievementIcon
+                      className="profile__achievement-icon"
+                      code={achievement.code}
+                      name={achievement.name}
+                    />
+                    <View className="profile__achievement-copy">
+                      <Text className="profile__achievement-name">{achievement.name}</Text>
+                      <Text className="profile__achievement-desc">{achievement.description}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         ) : (
-          <View className="profile__tags">
-            {titles.map((title) => (
-              <Badge key={title}>{title}</Badge>
-            ))}
+          <View className="profile__empty-row">
+            <Text className="profile__empty-title">还没有角色履历</Text>
+            <Text className="profile__empty-text">
+              完成几次对话后，称号和成就会出现在这里。
+            </Text>
           </View>
         )}
-      </PageSection>
-
-      <PageSection title="成就" kicker="互动记录" surface>
-        {achievements.length === 0 ? (
-          <EmptyState title="暂无成就" message="完成角色互动后，会在这里展示获得的成就。" />
-        ) : (
-          achievements.map((achievement) => (
-            <View key={achievement.id} className="profile__achievement">
-              <AchievementIcon
-                className="profile__achievement-icon"
-                code={achievement.code}
-                name={achievement.name}
-              />
-              <View className="profile__achievement-copy">
-                <Text className="profile__achievement-name">{achievement.name}</Text>
-                <Text className="profile__achievement-desc">{achievement.description}</Text>
-              </View>
-            </View>
-          ))
-        )}
-      </PageSection>
+      </View>
 
       {achievements.length > 0 && (
         <Text className="profile__icon-credit">{LORDICON_ATTRIBUTION}</Text>
       )}
 
-      <PageSection title="AI 内容声明" kicker="内容安全">
-        <NoticeBlock>
-          本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
-        </NoticeBlock>
-      </PageSection>
+      {aiNotice}
 
-      <PageSection title="账户操作" kicker="登录状态" surface className="profile__account-actions">
+      <View className="profile__account">
         <TonalButton className="profile__logout-button" onTap={handleLogout}>
           退出登录
         </TonalButton>
-      </PageSection>
+      </View>
     </PageShell>
   );
 }
