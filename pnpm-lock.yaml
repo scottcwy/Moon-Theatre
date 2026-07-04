@@ -78,6 +78,9 @@ importers:
 
   apps/miniapp:
     dependencies:
+      '@juben-sha/miniapp-ui':
+        specifier: workspace:*
+        version: link:../../packages/miniapp-ui
       '@juben-sha/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -212,6 +215,9 @@ importers:
 
   packages/miniapp-ui:
     dependencies:
+      '@juben-sha/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@tarojs/components':
         specifier: ^4.0.0
         version: 4.2.0(@tarojs/helper@4.2.0(@swc/helpers@0.5.15))(@types/react@18.3.31)(html-webpack-plugin@5.6.7(webpack@5.91.0(lightningcss@1.32.0)(postcss@8.5.15)))(postcss@8.5.15)(rollup@3.30.0)(webpack-chain@6.5.1)(webpack-dev-server@4.15.2(webpack@5.91.0(lightningcss@1.32.0)(postcss@8.5.15)))(webpack@5.91.0(lightningcss@1.32.0)(postcss@8.5.15))

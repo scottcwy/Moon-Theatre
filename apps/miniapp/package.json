@@ -18,6 +18,8 @@
   },
   "browserslist": ["last 3 versions", "Android >= 4.1", "ios >= 8"],
   "dependencies": {
+    "@juben-sha/miniapp-ui": "workspace:*",
+    "@juben-sha/shared": "workspace:*",
     "@tarojs/components": "^4.0.0",
     "@tarojs/helper": "^4.0.0",
     "@tarojs/plugin-framework-react": "^4.0.0",
@@ -27,8 +29,7 @@
     "@tarojs/shared": "^4.0.0",
     "@tarojs/taro": "^4.0.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "@juben-sha/shared": "workspace:*"
+    "react-dom": "^18.3.0"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

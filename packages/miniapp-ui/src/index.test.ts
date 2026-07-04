@@ -20,6 +20,9 @@ describe('@juben-sha/miniapp-ui exports', () => {
       QuotaPackageCard: expect.any(Function),
       SearchBar: expect.any(Function),
       TonalButton: expect.any(Function),
+      getPaymentResultCopy: expect.any(Function),
+      getShareIdentityLabel: expect.any(Function),
+      getTierMeta: expect.any(Function),
     }));
   });
 });

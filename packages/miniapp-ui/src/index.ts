@@ -1,5 +1,10 @@
-export type { MoodType } from './types';
-export { getFigmaMoodLabel } from './design/figma-system';
+export type { ModelTier, MoodType, PaymentStatus } from './types';
+export {
+  getFigmaMoodLabel,
+  getPaymentResultCopy,
+  getShareIdentityLabel,
+  getTierMeta,
+} from './design/figma-system';
 export { Badge, MoodChip, PointsBadge } from './components/ui/Badge';
 export { BaseButton, IconButton, PrimaryButton, TonalButton } from './components/ui/Button';
 export { BalancePanel } from './components/commerce/BalancePanel';
