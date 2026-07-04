@@ -1,7 +1,4 @@
 @use './styles/tokens.scss' as *;
-@use './components/ui/Button.scss';
-@use './components/ui/Badge.scss';
-@use './components/layout/BottomAction.scss';
 
 page {
   background-color: $color-background;

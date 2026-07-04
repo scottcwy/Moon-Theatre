@@ -3,20 +3,25 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const srcRoot = resolve(__dirname, '..');
+const miniappUiSrcRoot = resolve(process.cwd(), '../../packages/miniapp-ui/src');
 
 function readSrc(path: string): string {
   return readFileSync(resolve(srcRoot, path), 'utf8');
 }
 
+function readMiniappUiSrc(path: string): string {
+  return readFileSync(resolve(miniappUiSrcRoot, path), 'utf8');
+}
+
 describe('WeChat DevTools warning regressions', () => {
   it('marks long visible text as selectable', () => {
-    expect(readSrc('components/chat/ChatBubble.tsx')).toContain(
+    expect(readMiniappUiSrc('components/chat/ChatBubble.tsx')).toContain(
       '<Text className="chat-bubble__text" userSelect>{displayText}</Text>',
     );
-    expect(readSrc('components/character/CharacterDetailHero.tsx')).toContain(
+    expect(readMiniappUiSrc('components/character/CharacterDetailHero.tsx')).toContain(
       '<Text className="character-detail-hero__intro-text" userSelect>{description}</Text>',
     );
-    expect(readSrc('components/status/StatusStateCard.tsx')).toContain(
+    expect(readMiniappUiSrc('components/status/StatusStateCard.tsx')).toContain(
       '<Text className="status-state-card__message" userSelect>{message}</Text>',
     );
 
