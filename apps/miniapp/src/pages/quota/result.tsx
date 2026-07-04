@@ -1,11 +1,9 @@
 import { useRouter } from '@tarojs/taro';
 import Taro from '@tarojs/taro';
 import { useState, useEffect } from 'react';
+import { PageShell, PaymentResultCard, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
-import { PageShell } from '../../components/layout/PageContainer';
-import { PaymentResultCard } from '../../components/status/PaymentResultCard';
-import { StatusStateCard } from '../../components/status/StatusStateCard';
 import './result.scss';
 
 interface OrderDetail {

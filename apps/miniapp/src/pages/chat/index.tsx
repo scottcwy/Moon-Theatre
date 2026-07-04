@@ -1,14 +1,18 @@
 import { View, ScrollView } from '@tarojs/components';
 import Taro, { useRouter, useUnload } from '@tarojs/taro';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  CharacterHeader,
+  ChatBubble,
+  ChatInputBar,
+  EmptyState,
+  ModelTierSegmentedControl,
+  StatusStateCard,
+} from '@juben-sha/miniapp-ui';
 import type { ModelTier, MoodType } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, streamChat } from '../../services/api';
-import { CharacterHeader } from '../../components/character/CharacterHeader';
-import { ModelTierSegmentedControl } from '../../components/chat/ModelTierSegmentedControl';
-import { ChatBubble } from '../../components/chat/ChatBubble';
-import { ChatInputBar } from '../../components/chat/ChatInputBar';
-import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
+import { navigateBackOrHome } from '../../utils/navigation';
 import { getCharacterAvatarUrl } from '../home/index.model';
 import { getFriendlyStreamErrorMessage, getInitialModelTier, shouldRenderStandaloneTypingIndicator } from './index.model';
 import './index.scss';
@@ -339,6 +343,7 @@ export default function Chat() {
         bondLevel={bondLevel}
         points={pointsBalance}
         onPointsTap={handleBuyPoints}
+        onBack={navigateBackOrHome}
       />
 
       <ModelTierSegmentedControl

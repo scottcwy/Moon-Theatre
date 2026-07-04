@@ -1,10 +1,8 @@
 import { View, Text } from '@tarojs/components';
 import { useState, useEffect } from 'react';
+import { EmptyState, MemoryCard, PageShell, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
-import { PageShell } from '../../components/layout/PageContainer';
-import { Badge } from '../../components/ui/Badge';
-import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
 import './index.scss';
 
 interface MemoryItem {
@@ -115,10 +113,13 @@ export default function Memory() {
             <View key={group.characterId} className="memory__group">
               <Text className="memory__group-title">{group.characterName}</Text>
               {group.memories.map((memory) => (
-                <View key={memory.id} className="memory__card surface-card">
-                  <Badge>{MEMORY_TYPE_LABELS[memory.type] || memory.type}</Badge>
-                  <Text className="memory__card-content">{memory.content}</Text>
-                </View>
+                <MemoryCard
+                  key={memory.id}
+                  className="memory__card"
+                  typeLabel={MEMORY_TYPE_LABELS[memory.type] || memory.type}
+                  content={memory.content}
+                  tone={memory.type === 'relationship' ? 'relationship' : memory.type === 'story' ? 'story' : 'neutral'}
+                />
               ))}
             </View>
           ))

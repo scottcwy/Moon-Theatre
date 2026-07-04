@@ -1,10 +1,7 @@
 import { View, Canvas } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useState } from 'react';
-import { SharePreviewCard } from '../../components/share/SharePreviewCard';
-import { PrimaryButton, TonalButton } from '../../components/ui/Button';
-import { BottomAction } from '../../components/layout/BottomAction';
-import { getShareIdentityLabel } from '../../design/figma-system';
+import { BottomAction, PrimaryButton, SharePreviewCard, TonalButton, getShareIdentityLabel } from '@juben-sha/miniapp-ui';
 import './preview.scss';
 
 const CANVAS_ID = 'shareCanvas';

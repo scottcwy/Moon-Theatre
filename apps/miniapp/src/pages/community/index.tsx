@@ -1,6 +1,5 @@
 import { Text, View } from '@tarojs/components';
-import { TopBar } from '../../components/layout/TopBar';
-import { PageShell } from '../../components/layout/PageContainer';
+import { PageShell, TopBar } from '@juben-sha/miniapp-ui';
 import './index.scss';
 
 export default function Community() {

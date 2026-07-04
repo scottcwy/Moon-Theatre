@@ -1,9 +1,8 @@
 import { Image, Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
+import { PageShell, TopBar } from '@juben-sha/miniapp-ui';
 import { api } from '../../services/api';
-import { TopBar } from '../../components/layout/TopBar';
-import { PageShell } from '../../components/layout/PageContainer';
 import { featuredScripts, getCharacterAvatarUrl, getCharacterDetailUrl } from './index.model';
 import './index.scss';
 

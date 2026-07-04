@@ -1,15 +1,19 @@
 import { View, Text } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import { useCallback, useRef, useState } from 'react';
+import {
+  AchievementIcon,
+  Badge,
+  CharacterAvatar,
+  EmptyState,
+  LORDICON_ATTRIBUTION,
+  PageShell,
+  PointsBadge,
+  StatusStateCard,
+  TonalButton,
+} from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, clearAuth, isLoggedIn } from '../../services/api';
-import { PageShell } from '../../components/layout/PageContainer';
-import { CharacterAvatar } from '../../components/character/CharacterAvatar';
-import { AchievementIcon } from '../../components/achievement/AchievementIcon';
-import { LORDICON_ATTRIBUTION } from '../../components/achievement/AchievementIcon.model';
-import { Badge, PointsBadge } from '../../components/ui/Badge';
-import { TonalButton } from '../../components/ui/Button';
-import { StatusStateCard, EmptyState } from '../../components/status/StatusStateCard';
 import './index.scss';
 
 interface ProfileData {

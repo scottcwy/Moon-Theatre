@@ -1,11 +1,10 @@
-import { Image, Input, Text, View } from '@tarojs/components';
+import { Image, Text, View } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import { useCallback, useRef, useState } from 'react';
+import { ChatSessionRow, PageShell, SearchBar, TopBar } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
 import type { ModelTier } from '../../types';
-import { TopBar } from '../../components/layout/TopBar';
-import { PageShell } from '../../components/layout/PageContainer';
 import { getCharacterAvatarUrl } from '../home/index.model';
 import { getChatPreviewText, getSessionLevelLabel, getSessionTimeLabel } from './list.model';
 import './list.scss';
@@ -71,50 +70,6 @@ function ChatListTopBar() {
       title={<Text className="chat-list__brand">灵犀剧场</Text>}
       right={<Text className="chat-list__settings" aria-label="设置">⚙</Text>}
     />
-  );
-}
-
-function SearchBar() {
-  return (
-    <View className="chat-list__search">
-      <Text className="chat-list__search-icon">⌕</Text>
-      <Input className="chat-list__search-input" disabled placeholder="搜索聊天..." placeholderClass="chat-list__search-placeholder" />
-    </View>
-  );
-}
-
-function SessionAvatar({ session }: { session: SessionItem }) {
-  const avatarUrl = getCharacterAvatarUrl(session.characterName, session.characterAvatarUrl);
-
-  return (
-    <View className="chat-list__avatar-wrap">
-      {avatarUrl ? (
-        <Image className="chat-list__avatar-image" src={avatarUrl} mode="aspectFill" />
-      ) : (
-        <View className="chat-list__avatar-placeholder">
-          <Text className="chat-list__avatar-text">{session.characterName[0] || '角'}</Text>
-        </View>
-      )}
-      {session.unreadCount ? <View className="chat-list__unread-dot" /> : null}
-    </View>
-  );
-}
-
-function SessionRow({ session, onTap }: { session: SessionItem; onTap: (session: SessionItem) => void }) {
-  return (
-    <View className="list-row chat-list__item" onClick={() => onTap(session)}>
-      <SessionAvatar session={session} />
-      <View className="chat-list__item-content">
-        <View className="chat-list__item-header">
-          <View className="chat-list__name-line">
-            <Text className="chat-list__item-title">{session.characterName}</Text>
-            <Text className="chat-list__level-chip">{getSessionLevelLabel(session.level ?? session.modelTier)}</Text>
-          </View>
-          <Text className="chat-list__item-time">{getSessionTimeLabel(session.updatedAt)}</Text>
-        </View>
-        <Text className="chat-list__item-preview">{getChatPreviewText(session.lastMessage)}</Text>
-      </View>
-    </View>
   );
 }
 
@@ -195,7 +150,7 @@ export default function ChatList() {
       <PageShell variant="scroll" noPadding>
         <ChatListTopBar />
         <View className="chat-list__body">
-          <SearchBar />
+          <SearchBar disabled placeholder="搜索聊天..." className="chat-list__search-control" />
           {loading ? (
             <EmptyPanel title="正在拉取聊天..." />
           ) : error ? (
@@ -212,11 +167,21 @@ export default function ChatList() {
     <PageShell variant="scroll" noPadding>
       <ChatListTopBar />
       <View className="chat-list__body">
-        <SearchBar />
+        <SearchBar disabled placeholder="搜索聊天..." className="chat-list__search-control" />
         {visibleSessions.length > 0 ? (
           <View className="chat-list__list">
             {visibleSessions.map((session) => (
-              <SessionRow key={session.id} session={session} onTap={handleSessionTap} />
+              <ChatSessionRow
+                key={session.id}
+                className="chat-list__item"
+                characterName={session.characterName}
+                avatarUrl={getCharacterAvatarUrl(session.characterName, session.characterAvatarUrl)}
+                levelLabel={getSessionLevelLabel(session.level ?? session.modelTier)}
+                timeLabel={getSessionTimeLabel(session.updatedAt)}
+                preview={getChatPreviewText(session.lastMessage)}
+                unread={Boolean(session.unreadCount)}
+                onTap={() => handleSessionTap(session)}
+              />
             ))}
           </View>
         ) : (

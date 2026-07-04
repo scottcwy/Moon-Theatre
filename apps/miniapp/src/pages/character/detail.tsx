@@ -1,14 +1,11 @@
 import { View, Text } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useEffect, useState } from 'react';
+import { BottomAction, CharacterDetailHero, PageShell, PrimaryButton, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import type { MoodType } from '../../types';
-import { PageShell } from '../../components/layout/PageContainer';
-import { BottomAction } from '../../components/layout/BottomAction';
-import { CharacterDetailHero } from '../../components/character/CharacterDetailHero';
-import { PrimaryButton } from '../../components/ui/Button';
-import { StatusStateCard } from '../../components/status/StatusStateCard';
+import { navigateBackOrHome } from '../../utils/navigation';
 import { getCharacterAvatarUrl } from '../home/index.model';
 import './detail.scss';
 
@@ -143,6 +140,7 @@ export default function CharacterDetail() {
         bondExp={bondExp}
         bondMaxExp={bondMaxExp}
         mood={mood}
+        onBack={navigateBackOrHome}
       />
       {character.script && (
         <View className="detail__section surface-card detail__section--script">

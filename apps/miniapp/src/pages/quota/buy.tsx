@@ -1,13 +1,17 @@
 import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useState, useEffect } from 'react';
+import {
+  BalancePanel,
+  BottomAction,
+  PageShell,
+  PrimaryButton,
+  QuotaPackageCard,
+  StatusStateCard,
+} from '@juben-sha/miniapp-ui';
 import type { QuotaPackage } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
-import { PageShell } from '../../components/layout/PageContainer';
-import { BottomAction } from '../../components/layout/BottomAction';
-import { PrimaryButton } from '../../components/ui/Button';
-import { StatusStateCard } from '../../components/status/StatusStateCard';
 import './buy.scss';
 
 function formatPrice(cents: number): string {
@@ -182,28 +186,21 @@ export default function QuotaBuy() {
     <PageShell variant="scroll" bottomReserve>
       <Text className="page-title">购买点数</Text>
       <Text className="page-subtitle">用于继续角色对话，不同模型档位会消耗不同点数。</Text>
-      <View className="buy__balance">
-        <Text className="buy__balance-label">当前点数</Text>
-        <Text className="buy__balance-value">{pointsBalance ?? 0}</Text>
-      </View>
+      <BalancePanel className="buy__balance" label="当前点数" value={pointsBalance ?? 0} unit="点" />
 
       <View className="buy__packages">
         {packages.map((pkg) => (
-          <View
+          <QuotaPackageCard
             key={pkg.id}
-            className={`buy__package surface-card${selectedPkgId === pkg.id ? ' buy__package--selected' : ''}${pkg.recommended ? ' buy__package--recommended' : ''}`}
-            onClick={() => handleSelect(pkg.id)}
-          >
-            {pkg.recommended && (
-              <View className="buy__package-badge">
-                <Text className="buy__package-badge-text">推荐</Text>
-              </View>
-            )}
-            <Text className="buy__package-name">{pkg.name}</Text>
-            <Text className="buy__package-points">{pkg.points} 点数</Text>
-            <Text className="buy__package-desc">{pkg.description}</Text>
-            <Text className="buy__package-price">{formatPrice(pkg.priceCents)}</Text>
-          </View>
+            className="buy__package"
+            name={pkg.name}
+            points={pkg.points}
+            price={formatPrice(pkg.priceCents)}
+            description={pkg.description}
+            selected={selectedPkgId === pkg.id}
+            recommended={pkg.recommended}
+            onTap={() => handleSelect(pkg.id)}
+          />
         ))}
       </View>
 
