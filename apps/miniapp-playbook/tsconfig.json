@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@juben-sha/miniapp-ui": ["../../packages/miniapp-ui/src"]
+    },
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*", "config/**/*", "global.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

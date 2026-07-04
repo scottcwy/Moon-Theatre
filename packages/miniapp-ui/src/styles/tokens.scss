@@ -1,0 +1,73 @@
+$color-background: #FFFBF8;
+$color-on-background: #211A1C;
+$color-surface: #FFFBF8;
+$color-surface-container-low: #F8F0EE;
+$color-surface-container: #F1E7E4;
+$color-surface-container-high: #EADFDB;
+$color-on-surface: #211A1C;
+$color-on-surface-variant: #5A4A4E;
+$color-outline: #897A7E;
+$color-outline-variant: #D8C2C7;
+$color-primary: #8B4258;
+$color-on-primary: #FFF7F8;
+$color-primary-container: #FFD9E1;
+$color-on-primary-container: #3A0718;
+$color-secondary: #5D6F5A;
+$color-on-secondary: #F7FFF3;
+$color-secondary-container: #DDE8D4;
+$color-on-secondary-container: #192517;
+$color-tertiary: #8A5A16;
+$color-on-tertiary: #FFF8EF;
+$color-tertiary-container: #FFDFA7;
+$color-on-tertiary-container: #2C1700;
+$color-error: #BA1A1A;
+$color-error-container: #FFDAD6;
+$color-success: #3E6B47;
+$color-warning: #8A5A16;
+$mood-neutral: #EADFDB;
+$mood-happy: #DDE8D4;
+$mood-sad: #D8E2EA;
+$mood-angry: #FFDAD6;
+$mood-thinking: #E5E0EA;
+$shadow-card: 0 12rpx 32rpx rgba(58, 7, 24, 0.08);
+$shadow-panel: 0 18rpx 48rpx rgba(58, 7, 24, 0.11);
+
+$radius-xs: 16rpx;
+$radius-sm: 24rpx;
+$radius-md: 32rpx;
+$radius-lg: 48rpx;
+$radius-xl: 56rpx;
+$radius-2xl: 64rpx;
+$radius-full: 999rpx;
+
+$space-1: 8rpx;
+$space-2: 16rpx;
+$space-3: 24rpx;
+$space-4: 32rpx;
+$space-5: 40rpx;
+$space-6: 48rpx;
+$space-8: 64rpx;
+$space-10: 80rpx;
+
+$font-display-sm: 56rpx;
+$font-headline-md: 44rpx;
+$font-title-lg: 36rpx;
+$font-title-md: 32rpx;
+$font-body-lg: 32rpx;
+$font-body-md: 28rpx;
+$font-label-md: 26rpx;
+$font-label-sm: 24rpx;
+$safe-bottom: 34rpx;
+
+$status-bar-height: 44px;
+$capsule-height: 32px;
+$topbar-height: 92px;
+$tabbar-height: 100rpx;
+$page-padding-h: 32rpx;
+$page-padding-bottom: 220rpx;
+
+$z-topbar: 100;
+$z-bottom-action: 100;
+$z-input-bar: 100;
+
+$color-bottom-action-dark: #120D10;

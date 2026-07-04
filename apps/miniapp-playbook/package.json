@@ -1,0 +1,45 @@
+{
+  "name": "@juben-sha/miniapp-playbook",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone WeChat mini program component playbook",
+  "templateInfo": {
+    "name": "default",
+    "typescript": true,
+    "css": "scss"
+  },
+  "scripts": {
+    "build:weapp": "taro build --type weapp",
+    "dev:weapp": "taro build --type weapp --watch",
+    "lint": "eslint src/ config/",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify:weapp": "node scripts/verify-weapp-build.mjs"
+  },
+  "browserslist": ["last 3 versions", "Android >= 4.1", "ios >= 8"],
+  "dependencies": {
+    "@juben-sha/miniapp-ui": "workspace:*",
+    "@tarojs/components": "^4.0.0",
+    "@tarojs/helper": "^4.0.0",
+    "@tarojs/plugin-framework-react": "^4.0.0",
+    "@tarojs/plugin-platform-weapp": "^4.0.0",
+    "@tarojs/react": "^4.0.0",
+    "@tarojs/runtime": "^4.0.0",
+    "@tarojs/shared": "^4.0.0",
+    "@tarojs/taro": "^4.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@babel/preset-react": "^7.24.1",
+    "@tarojs/cli": "^4.0.0",
+    "@tarojs/webpack5-runner": "^4.0.0",
+    "@types/react": "^18.3.0",
+    "babel-preset-taro": "^4.0.0",
+    "eslint": "^9.0.0",
+    "sass": "^1.77.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

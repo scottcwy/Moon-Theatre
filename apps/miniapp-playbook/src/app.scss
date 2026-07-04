@@ -1,0 +1,9 @@
+@use '@juben-sha/miniapp-ui/styles/tokens.scss' as *;
+
+page {
+  background-color: $color-background;
+  color: $color-on-background;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 28rpx;
+  line-height: 1.5;
+}

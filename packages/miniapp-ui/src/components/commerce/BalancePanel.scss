@@ -1,0 +1,77 @@
+@use '../../styles/tokens.scss' as *;
+
+.balance-panel {
+  min-height: 152rpx;
+  border-radius: $radius-lg;
+  padding: $space-4 $space-5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  box-shadow: $shadow-card;
+}
+
+.balance-panel--points {
+  background-color: $color-tertiary-container;
+  color: $color-on-tertiary-container;
+}
+
+.balance-panel--neutral {
+  background-color: $color-surface-container;
+  color: $color-on-surface;
+}
+
+.balance-panel--success {
+  background-color: $color-secondary-container;
+  color: $color-on-secondary-container;
+}
+
+.balance-panel__copy {
+  min-width: 0;
+}
+
+.balance-panel__label {
+  display: block;
+  font-size: $font-body-md;
+  line-height: 1.4;
+  font-weight: 700;
+  color: inherit;
+}
+
+.balance-panel__hint {
+  display: block;
+  margin-top: $space-1;
+  max-width: 360rpx;
+  font-size: $font-label-sm;
+  line-height: 1.45;
+  color: rgba(44, 23, 0, 0.72);
+}
+
+.balance-panel--neutral .balance-panel__hint {
+  color: $color-on-surface-variant;
+}
+
+.balance-panel--success .balance-panel__hint {
+  color: rgba(25, 37, 23, 0.72);
+}
+
+.balance-panel__value-wrap {
+  display: flex;
+  align-items: baseline;
+  margin-left: $space-4;
+}
+
+.balance-panel__value {
+  font-size: $font-display-sm;
+  line-height: 1;
+  font-weight: 900;
+  color: inherit;
+}
+
+.balance-panel__unit {
+  margin-left: $space-1;
+  font-size: $font-label-md;
+  line-height: 1.2;
+  font-weight: 800;
+  color: inherit;
+}

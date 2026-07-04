@@ -1,0 +1,56 @@
+@use '../../styles/tokens.scss' as *;
+
+.ui-search-bar {
+  min-height: 72rpx;
+  padding: 0 $space-3;
+  border: 1rpx solid $color-outline-variant;
+  border-radius: $radius-full;
+  display: flex;
+  align-items: center;
+  background-color: $color-surface-container-low;
+  box-sizing: border-box;
+  transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1), border-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.ui-search-bar--disabled {
+  opacity: 0.72;
+}
+
+.ui-search-bar__icon {
+  width: 32rpx;
+  color: $color-outline;
+  font-size: $font-label-md;
+  line-height: 1;
+}
+
+.ui-search-bar__input {
+  flex: 1;
+  min-width: 0;
+  height: 64rpx;
+  margin-left: $space-2;
+  color: $color-on-surface;
+  font-size: $font-body-md;
+  line-height: 64rpx;
+}
+
+.ui-search-bar__placeholder {
+  color: $color-outline;
+  font-size: $font-body-md;
+}
+
+.ui-search-bar__clear {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: $radius-full;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: $color-surface-container;
+  color: $color-on-surface-variant;
+}
+
+.ui-search-bar__clear-text {
+  font-size: $font-title-md;
+  line-height: 1;
+  color: inherit;
+}

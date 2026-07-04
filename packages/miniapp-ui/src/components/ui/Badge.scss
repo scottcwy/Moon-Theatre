@@ -1,0 +1,86 @@
+@use '../../styles/tokens.scss' as *;
+
+.ui-badge,
+.ui-mood-chip {
+  min-height: 48rpx;
+  border-radius: $radius-full;
+  padding: 0 $space-3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.ui-badge__text,
+.ui-mood-chip__text,
+.ui-mood-chip__dot {
+  font-size: $font-label-sm;
+  line-height: 1.2;
+  font-weight: 700;
+  color: inherit;
+}
+
+.ui-badge--neutral {
+  background-color: #eee7e4;
+  color: #6a5c60;
+}
+
+.ui-badge--primary {
+  background-color: #f6d3de;
+  color: #7f294a;
+}
+
+.ui-badge--secondary {
+  background-color: $color-secondary-container;
+  color: $color-on-secondary-container;
+}
+
+.ui-badge--points {
+  background-color: #ffe0a8;
+  color: #7b4f05;
+}
+
+.ui-badge--success {
+  background-color: #d8ead1;
+  color: #49634a;
+}
+
+.ui-badge--error {
+  background-color: $color-error-container;
+  color: $color-error;
+}
+
+.ui-mood-chip {
+  background-color: #eee9e6;
+  color: #6a5c60;
+  box-shadow: 0 4rpx 10rpx rgba(58, 7, 24, 0.08);
+}
+
+.ui-mood-chip__dot {
+  margin-right: $space-1;
+}
+
+.ui-mood-chip--happy {
+  background-color: #eef1e7;
+  color: #6b5b60;
+}
+
+.ui-mood-chip--happy .ui-mood-chip__dot {
+  color: #7f294a;
+}
+
+.ui-mood-chip--neutral .ui-mood-chip__dot {
+  color: #9a8f91;
+}
+
+.ui-mood-chip--thinking .ui-mood-chip__dot {
+  color: #d49b4f;
+}
+
+.ui-mood-chip--sad .ui-mood-chip__dot {
+  color: #7890a0;
+}
+
+.ui-mood-chip--angry .ui-mood-chip__dot {
+  color: $color-error;
+}

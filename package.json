@@ -6,8 +6,11 @@
   "scripts": {
     "dev:api": "pnpm --filter @juben-sha/api dev",
     "dev:miniapp": "pnpm --filter @juben-sha/miniapp dev:weapp",
+    "dev:playbook": "pnpm --filter @juben-sha/miniapp-playbook dev:weapp",
     "build:api": "pnpm --filter @juben-sha/api build",
     "build:miniapp": "pnpm --filter @juben-sha/miniapp build:weapp",
+    "build:playbook": "pnpm --filter @juben-sha/miniapp-playbook build:weapp",
+    "verify:playbook": "pnpm --filter @juben-sha/miniapp-playbook verify:weapp",
     "db:generate": "pnpm --filter @juben-sha/api db:generate",
     "db:migrate": "pnpm --filter @juben-sha/api db:migrate",
     "lint": "pnpm -r lint",
