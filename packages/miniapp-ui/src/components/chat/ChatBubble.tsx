@@ -1,5 +1,5 @@
 import { Text, View } from '@tarojs/components';
-import type { MoodType } from '../../types';
+import type { MoodType } from '@juben-sha/shared';
 import { CharacterAvatar } from '../character/CharacterAvatar';
 import { MoodChip } from '../ui/Badge';
 import './ChatBubble.scss';

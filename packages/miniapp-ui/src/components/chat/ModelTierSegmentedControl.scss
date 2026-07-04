@@ -1,0 +1,42 @@
+@use '../../styles/tokens.scss' as *;
+
+.model-tier-control {
+  display: flex;
+  margin: 0 $space-4 $space-4;
+  padding: $space-1;
+  border-radius: $radius-full;
+  background-color: $color-surface-container;
+  box-sizing: border-box;
+}
+
+.model-tier-control__item {
+  flex: 1;
+  min-height: 72rpx;
+  border-radius: $radius-full;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: $color-on-surface-variant;
+}
+
+.model-tier-control__item--active {
+  background-color: $color-surface;
+  color: $color-on-surface;
+  box-shadow: 0 4rpx 12rpx rgba(58, 7, 24, 0.08);
+}
+
+.model-tier-control__label {
+  font-size: $font-title-md;
+  line-height: 1.1;
+  font-weight: 700;
+  color: inherit;
+}
+
+.model-tier-control__cost {
+  display: block;
+  margin-top: 2rpx;
+  font-size: $font-label-sm;
+  line-height: 1.1;
+  color: $color-outline;
+}

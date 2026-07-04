@@ -1,15 +1,24 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  AchievementIcon,
   BaseButton,
+  BondProgress,
   BottomAction,
+  CharacterDetailHero,
+  CharacterHeader,
   CharacterPosterCard,
   ChatBubble,
+  ChatInputBar,
   ChatSessionRow,
   IconButton,
+  ModelTierSegmentedControl,
   PageShell,
+  PaymentResultCard,
   QuotaPackageCard,
   SearchBar,
+  SharePreviewCard,
+  TopBar,
 } from '../index';
 
 interface RenderedNode {
@@ -19,6 +28,29 @@ interface RenderedNode {
 }
 
 type RenderedChild = RenderedNode | string | number | boolean | null;
+
+const reactInternals = React as unknown as {
+  __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?: {
+    ReactCurrentDispatcher: { current: unknown };
+  };
+};
+
+function renderFunctionComponent(Component: (props: unknown) => React.ReactNode, props: unknown): React.ReactNode {
+  const dispatcher = reactInternals.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.ReactCurrentDispatcher;
+  if (!dispatcher) {
+    return Component(props);
+  }
+
+  const previous = dispatcher.current;
+  dispatcher.current = {
+    useState: (initial: unknown) => [typeof initial === 'function' ? (initial as () => unknown)() : initial, vi.fn()],
+  };
+  try {
+    return Component(props);
+  } finally {
+    dispatcher.current = previous;
+  }
+}
 
 function renderNode(node: React.ReactNode): RenderedChild {
   if (node === null || node === undefined || typeof node === 'boolean') {
@@ -43,7 +75,7 @@ function renderNode(node: React.ReactNode): RenderedChild {
 
   if (typeof node.type === 'function') {
     const Component = node.type as unknown as (props: unknown) => React.ReactNode;
-    return renderNode(Component(node.props));
+    return renderNode(renderFunctionComponent(Component, node.props));
   }
 
   return {
@@ -209,5 +241,81 @@ describe('playbook component functional behavior', () => {
     expect(renderElement(<BottomAction variant="default">操作</BottomAction>).props.className).toContain('bottom-action--default');
     expect(renderElement(<BottomAction variant="dark">操作</BottomAction>).props.className).toContain('bottom-action--dark');
     expect(renderElement(<BottomAction variant="transparent">操作</BottomAction>).props.className).toContain('bottom-action--transparent');
+  });
+
+  it('renders migrated production components and keeps their callbacks explicit', () => {
+    const onBack = vi.fn();
+    const onInput = vi.fn();
+    const onSend = vi.fn();
+    const onBuyPoints = vi.fn();
+    const onTierChange = vi.fn();
+    const onPrimary = vi.fn();
+    const onSecondary = vi.fn();
+
+    const topBar = renderElement(<TopBar title="标题" left="左" right="右" />);
+    expect(topBar.props.className).toContain('top-bar');
+    expect(textContent(topBar)).toContain('标题');
+
+    const bond = renderElement(<BondProgress relationship="信赖" level={2} exp={20} maxExp={100} />);
+    expect(bond.props.className).toContain('bond-progress');
+    expect(textContent(bond)).toContain('信赖');
+
+    const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bondLevel={2} points={12} onBack={onBack} />);
+    expect(header.props.className).toContain('character-header');
+    (findByClass(header, 'character-header__back').props.onTap as () => void)();
+    expect(onBack).toHaveBeenCalledTimes(1);
+
+    const hero = renderElement(
+      <CharacterDetailHero
+        name="白藏"
+        avatarUrl="/a.jpg"
+        identity="狐神"
+        description="守着庭院边界的狐神。"
+        mood="happy"
+        relationship="信赖"
+        bondLevel={2}
+        bondExp={20}
+        bondMaxExp={100}
+        onBack={onBack}
+      />,
+    );
+    expect(hero.props.className).toContain('character-detail-hero');
+    (findByClass(hero, 'ui-icon-button').props.onTap as () => void)();
+    expect(onBack).toHaveBeenCalledTimes(2);
+
+    const inputBar = renderElement(
+      <ChatInputBar value="你好" placeholder="说点什么" disabled={false} onInput={onInput} onSend={onSend} onBuyPoints={onBuyPoints} />,
+    );
+    expect(inputBar.props.className).toContain('chat-input-bar');
+    (findByType(inputBar, 'input').props.onInput as (event: { detail: { value: string } }) => void)({ detail: { value: '月下见' } });
+    (findByClass(inputBar, 'chat-input-bar__send').props.onTap as () => void)();
+    expect(onInput).toHaveBeenCalledWith('月下见');
+    expect(onSend).toHaveBeenCalledTimes(1);
+
+    const tierControl = renderElement(
+      <ModelTierSegmentedControl
+        tiers={['casual', 'standard', 'immersive']}
+        activeTier="standard"
+        costs={{ casual: 1, standard: 2, immersive: 3 }}
+        onChange={onTierChange}
+      />,
+    );
+    expect(tierControl.props.className).toContain('model-tier-control');
+    (findAll(tierControl, (node) => String(node.props.className ?? '').includes('model-tier-control__item'))[0]!.props.onTap as () => void)();
+    expect(onTierChange).toHaveBeenCalledWith('casual');
+
+    const payment = renderElement(<PaymentResultCard status="paid" onPrimary={onPrimary} onSecondary={onSecondary} />);
+    expect(payment.props.className).toContain('payment-result-card--pending');
+    (findByClass(payment, 'payment-result-card__primary').props.onTap as () => void)();
+    (findByClass(payment, 'payment-result-card__secondary').props.onTap as () => void)();
+    expect(onPrimary).toHaveBeenCalledTimes(1);
+    expect(onSecondary).toHaveBeenCalledTimes(1);
+
+    const share = renderElement(<SharePreviewCard characterName="白藏" excerpt="分享内容" />);
+    expect(share.props.className).toContain('share-preview-card');
+    expect(textContent(share)).toContain('庭院狐神');
+
+    const achievement = renderElement(<AchievementIcon code="first_chat" />);
+    expect(achievement.props.className).toContain('achievement-icon--moon');
   });
 });

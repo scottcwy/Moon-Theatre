@@ -1,0 +1,45 @@
+@use '../../styles/tokens.scss' as *;
+
+.top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: $z-topbar;
+  background-color: $color-background;
+}
+
+.top-bar__status-area {
+  height: $status-bar-height;
+}
+
+.top-bar__content {
+  height: $capsule-height + 16px;
+  padding: 0 $page-padding-h;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.top-bar__left,
+.top-bar__right {
+  width: 120rpx;
+  display: flex;
+  align-items: center;
+}
+
+.top-bar__right {
+  justify-content: flex-end;
+}
+
+.top-bar__title {
+  flex: 1;
+  text-align: center;
+  font-size: $font-title-md;
+  font-weight: 700;
+  color: $color-on-background;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
