@@ -7,22 +7,12 @@
     margin-top: -$space-4;
     background-color: $color-secondary-container;
   }
-}
 
-.detail__kicker {
-  display: block;
-  margin-bottom: $space-2;
-  font-size: $font-label-md;
-  font-weight: 800;
-  color: $color-secondary;
-}
-
-.detail__section-title {
-  display: block;
-  font-size: $font-title-lg;
-  line-height: 1.35;
-  font-weight: 900;
-  color: $color-on-surface;
+  .page-section__title {
+    font-size: $font-title-lg;
+    line-height: 1.35;
+    font-weight: 900;
+  }
 }
 
 .detail__description {

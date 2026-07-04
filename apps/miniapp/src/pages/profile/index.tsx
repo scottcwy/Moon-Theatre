@@ -7,7 +7,9 @@ import {
   CharacterAvatar,
   EmptyState,
   LORDICON_ATTRIBUTION,
+  NoticeBlock,
   PageShell,
+  PageSection,
   PointsBadge,
   StatusStateCard,
   TonalButton,
@@ -91,7 +93,7 @@ export default function Profile() {
   const nickname = profile?.nickname || '旅人';
   if (loading) {
     return (
-      <PageShell variant="scroll" tabBarReserve>
+      <PageShell variant="scroll" tabBarReserve className="profile">
         <StatusStateCard title="正在读取资料" message="正在加载点数、称号和成就。" icon="…" />
       </PageShell>
     );
@@ -99,42 +101,48 @@ export default function Profile() {
 
   if (needsLogin || !isLoggedIn()) {
     return (
-      <PageShell variant="scroll" tabBarReserve>
-        <View className="profile__user-section">
-          <CharacterAvatar name="?" size="lg" />
-          <View className="profile__user-info">
-            <Text className="profile__nickname">未登录</Text>
-            <Badge tone="points" onTap={handleLogin}>点击登录</Badge>
+      <PageShell variant="scroll" tabBarReserve className="profile">
+        <PageSection title="用户信息" kicker="我的" surface className="profile__user-card">
+          <View className="profile__user-section">
+            <CharacterAvatar name="?" size="lg" />
+            <View className="profile__user-info">
+              <Text className="profile__nickname">未登录</Text>
+              <Badge tone="points" onTap={handleLogin}>点击登录</Badge>
+            </View>
           </View>
-        </View>
+        </PageSection>
 
-        <View className="notice-block">
-          <Text className="notice-block__text">
+        <PageSection title="AI 内容声明" kicker="内容安全">
+          <NoticeBlock>
             本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
-          </Text>
-        </View>
+          </NoticeBlock>
+        </PageSection>
       </PageShell>
     );
   }
 
   return (
-    <PageShell variant="scroll" tabBarReserve>
-      <View className="profile__user-section">
-        <CharacterAvatar name={nickname} src={profile?.avatarUrl || undefined} size="lg" online />
-        <View className="profile__user-info">
-          <Text className="profile__nickname">{nickname}</Text>
-          <PointsBadge points={balance} onTap={handleBuyPoints} />
+    <PageShell variant="scroll" tabBarReserve className="profile">
+      <PageSection title="用户信息" kicker="我的" surface className="profile__user-card">
+        <View className="profile__user-section">
+          <CharacterAvatar name={nickname} src={profile?.avatarUrl || undefined} size="lg" online />
+          <View className="profile__user-info">
+            <Text className="profile__nickname">{nickname}</Text>
+            <View className="profile__user-badges">
+              <PointsBadge points={balance} onTap={handleBuyPoints} />
+              <Badge tone="success">{profile?.status || '已登录'}</Badge>
+            </View>
+          </View>
         </View>
-      </View>
+      </PageSection>
 
       {error && (
-        <View className="page-section">
+        <PageSection>
           <StatusStateCard title="资料暂时不可用" message={error} tone="error" icon="!" />
-        </View>
+        </PageSection>
       )}
 
-      <View className="page-section">
-        <Text className="page-section__title">称号</Text>
+      <PageSection title="称号" kicker="角色身份" surface>
         {titles.length === 0 ? (
           <EmptyState title="暂无称号" message="完成更多对话后，会在这里展示获得的称号。" />
         ) : (
@@ -144,15 +152,14 @@ export default function Profile() {
             ))}
           </View>
         )}
-      </View>
+      </PageSection>
 
-      <View className="page-section">
-        <Text className="page-section__title">成就</Text>
+      <PageSection title="成就" kicker="互动记录" surface>
         {achievements.length === 0 ? (
           <EmptyState title="暂无成就" message="完成角色互动后，会在这里展示获得的成就。" />
         ) : (
           achievements.map((achievement) => (
-            <View key={achievement.id} className="profile__achievement surface-card">
+            <View key={achievement.id} className="profile__achievement">
               <AchievementIcon
                 className="profile__achievement-icon"
                 code={achievement.code}
@@ -165,24 +172,23 @@ export default function Profile() {
             </View>
           ))
         )}
-      </View>
+      </PageSection>
 
       {achievements.length > 0 && (
         <Text className="profile__icon-credit">{LORDICON_ATTRIBUTION}</Text>
       )}
 
-      <View className="notice-block">
-        <Text className="notice-block__text">
+      <PageSection title="AI 内容声明" kicker="内容安全">
+        <NoticeBlock>
           本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
-        </Text>
-      </View>
+        </NoticeBlock>
+      </PageSection>
 
-      <View className="page-section profile__account-actions">
-        <Text className="page-section__title">账户</Text>
+      <PageSection title="账户操作" kicker="登录状态" surface className="profile__account-actions">
         <TonalButton className="profile__logout-button" onTap={handleLogout}>
           退出登录
         </TonalButton>
-      </View>
+      </PageSection>
     </PageShell>
   );
 }

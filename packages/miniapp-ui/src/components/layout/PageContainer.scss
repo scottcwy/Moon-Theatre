@@ -79,6 +79,14 @@
 .page-section {
   margin-bottom: $space-6;
 
+  &__kicker {
+    display: block;
+    margin-bottom: $space-2;
+    font-size: $font-label-md;
+    font-weight: 800;
+    color: $color-secondary;
+  }
+
   &__title {
     display: block;
     font-size: $font-title-md;

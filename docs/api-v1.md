@@ -1,6 +1,6 @@
 # API v1 初版
 
-本文档记录 V1 联调所需的主要 HTTP API。除支付回调外，用户端 API 使用 `Authorization: Bearer <jwt>`；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。
+本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面另有 Basic Auth middleware 保护，生产环境必须配置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
 
 聊天接口当前是 `moderated-buffered`：响应为 NDJSON streaming 形态，但服务端会先完成模型回复缓冲和输出审核，再发送最终内容。
 
@@ -46,7 +46,14 @@
 {"type":"done","messageId":"uuid","sessionId":"uuid","mood":"neutral","bondLevel":1,"bondExp":10,"balanceAfter":97}
 ```
 
-点数不足返回 `402`。输入安全拦截不会预扣点数。模型失败或输出过滤会退款。
+`done` 事件还可能包含 `fallback`、`blocked`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `402`。输入安全拦截不会预扣点数。模型失败或输出过滤会退款。
+
+## 运维 API
+
+| 模块 | 方法 | 路径 | 说明 |
+| --- | --- | --- | --- |
+| Health | GET | `/api/health` | 进程存活检查，返回 `status: "ok"` |
+| Readiness | GET | `/api/ready` | 当前检查 FastClaw 配置和 `${FASTCLAW_BASE_URL}/readyz`；未 ready 返回 `503` |
 
 ## 支付回调 API
 

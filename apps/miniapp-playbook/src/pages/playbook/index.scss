@@ -61,6 +61,13 @@
   color: $color-on-surface;
 }
 
+.playbook-section__body-text {
+  display: block;
+  font-size: $font-body-md;
+  line-height: 1.6;
+  color: $color-on-surface-variant;
+}
+
 .playbook-stack {
   display: flex;
   flex-direction: column;

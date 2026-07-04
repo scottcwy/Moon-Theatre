@@ -184,34 +184,7 @@
   -webkit-line-clamp: 2;
 }
 
-/* Empty / Loading / Error states */
-.chat-list__empty {
-  min-height: 460rpx;
-  padding-top: 170rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  box-sizing: border-box;
-}
-
-.chat-list__empty-text {
-  color: $color-on-surface-variant;
-  font-size: $font-body-md;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.chat-list__empty-hint {
-  max-width: 440rpx;
-  margin-top: $space-2;
-  color: $color-outline;
-  font-size: $font-label-sm;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.chat-list__empty-action {
-  min-width: 180rpx;
+.chat-list__state {
   margin-top: $space-6;
 }
 

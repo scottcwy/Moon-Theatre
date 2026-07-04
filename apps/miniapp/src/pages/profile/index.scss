@@ -1,9 +1,16 @@
 @use '../../styles/tokens.scss' as *;
 
+.profile {
+  background-color: $color-background;
+}
+
+.profile__user-card {
+  margin-top: $space-2;
+}
+
 .profile__user-section {
   display: flex;
   align-items: center;
-  margin-bottom: $space-6;
 
   .character-avatar {
     margin-right: $space-4;
@@ -16,10 +23,18 @@
   gap: $space-2;
 }
 
+.profile__user-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: $space-2;
+}
+
 .profile__nickname {
   font-size: $font-title-lg;
   font-weight: 800;
   color: $color-on-surface;
+  line-height: 1.25;
 }
 
 .profile__tags {
@@ -32,7 +47,17 @@
   display: flex;
   align-items: center;
   gap: $space-3;
-  margin-bottom: $space-2;
+  padding: $space-3 0;
+  border-bottom: 1rpx solid $color-outline-variant;
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
 }
 
 .profile__achievement-copy {
@@ -49,7 +74,9 @@
 }
 
 .profile__achievement-desc {
+  display: block;
   font-size: $font-label-sm;
+  line-height: 1.5;
   color: $color-on-surface-variant;
 }
 
@@ -66,6 +93,7 @@
 }
 
 .profile__logout-button {
-  margin-top: $space-3;
   color: $color-error;
+  background-color: $color-error-container;
+  width: 100%;
 }

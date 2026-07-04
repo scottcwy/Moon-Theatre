@@ -1,7 +1,7 @@
 import { Image, Text, View } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import { useCallback, useRef, useState } from 'react';
-import { ChatSessionRow, PageShell, SearchBar, TopBar } from '@juben-sha/miniapp-ui';
+import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard, TopBar } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
 import type { ModelTier } from '../../types';
@@ -73,20 +73,6 @@ function ChatListTopBar() {
   );
 }
 
-function EmptyPanel({ title, hint, actionText, onAction }: { title: string; hint?: string; actionText?: string; onAction?: () => void }) {
-  return (
-    <View className="chat-list__empty">
-      <Text className="chat-list__empty-text">{title}</Text>
-      {hint ? <Text className="chat-list__empty-hint">{hint}</Text> : null}
-      {actionText && onAction ? (
-        <View className="chat-list__empty-action button-primary" onClick={onAction}>
-          <Text className="button-primary__text">{actionText}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 export default function ChatList() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,11 +138,17 @@ export default function ChatList() {
         <View className="chat-list__body">
           <SearchBar disabled placeholder="搜索聊天..." className="chat-list__search-control" />
           {loading ? (
-            <EmptyPanel title="正在拉取聊天..." />
+            <StatusStateCard className="chat-list__state" title="正在拉取聊天..." message="正在同步你的角色会话。" icon="…" />
           ) : error ? (
-            <EmptyPanel title={error} hint="稍后再试，或回到首页重新进入剧场。" />
+            <StatusStateCard className="chat-list__state" title={error} message="稍后再试，或回到首页重新进入剧场。" tone="error" icon="!" />
           ) : (
-            <EmptyPanel title="登录后查看聊天" hint="登录后会同步你的角色会话和关系进度。" actionText="去登录" onAction={handleLogin} />
+            <EmptyState
+              className="chat-list__state"
+              title="登录后查看聊天"
+              message="登录后会同步你的角色会话和关系进度。"
+              primaryText="去登录"
+              onPrimary={handleLogin}
+            />
           )}
         </View>
       </PageShell>
@@ -185,7 +177,7 @@ export default function ChatList() {
             ))}
           </View>
         ) : (
-          <EmptyPanel title="还没有聊天记录" hint="去首页选择一个角色开始对话吧。" />
+          <EmptyState className="chat-list__state" title="还没有聊天记录" message="去首页选择一个角色开始对话吧。" />
         )}
       </View>
     </PageShell>

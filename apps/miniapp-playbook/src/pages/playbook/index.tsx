@@ -12,7 +12,9 @@ import {
   IconButton,
   MemoryCard,
   MoodChip,
+  NoticeBlock,
   PageShell,
+  PageSection,
   PointsBadge,
   PrimaryButton,
   QuotaPackageCard,
@@ -119,7 +121,7 @@ export default function PlaybookPage() {
             <Badge tone="secondary">cards</Badge>
           </View>
           <View className="playbook-poster-grid">
-            <CharacterPosterCard title="白藏" subtitle="庭院狐神" badge="在线" selected />
+            <CharacterPosterCard title="白藏" subtitle="庭院狐神" imageUrl="/assets/characters/hakuzo.jpg" badge="在线" selected />
             <CharacterPosterCard title="贺茂清玄" subtitle="冷面阴阳师" badge="Lv.1" />
             <CharacterPosterCard title="月岛澪" subtitle="绘梦画师" />
             <CharacterPosterCard title="久远" subtitle="守门武士" badge="推荐" />
@@ -191,6 +193,21 @@ export default function PlaybookPage() {
               primaryText="购买点数"
               secondaryText="查看规则"
             />
+          </View>
+        </View>
+
+        <View className="playbook-section">
+          <View className="playbook-section__header">
+            <Text className="playbook-section__title">Page Primitives</Text>
+            <Badge tone="secondary">layout</Badge>
+          </View>
+          <View className="playbook-stack">
+            <PageSection title="世界观" kicker="月见庭院" surface>
+              <Text className="playbook-section__body-text">薄包装现有 page-section 和 surface-card 语义，不新建页面样式体系。</Text>
+            </PageSection>
+            <NoticeBlock>
+              本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
+            </NoticeBlock>
           </View>
         </View>
 

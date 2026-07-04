@@ -114,6 +114,7 @@ describe('PlaybookPage', () => {
       'Commerce',
       'Memory',
       'Status',
+      'Page Primitives',
       'Bottom Action',
       'Chat Bubble',
     ]);

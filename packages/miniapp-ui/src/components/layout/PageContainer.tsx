@@ -1,4 +1,4 @@
-import { View } from '@tarojs/components';
+import { Text, View } from '@tarojs/components';
 import type { ReactNode } from 'react';
 import './PageContainer.scss';
 
@@ -17,9 +17,44 @@ interface PageShellProps {
   className?: string;
 }
 
+interface PageSectionProps {
+  children: ReactNode;
+  title?: ReactNode;
+  kicker?: ReactNode;
+  surface?: boolean;
+  className?: string;
+}
+
+interface NoticeBlockProps {
+  children: ReactNode;
+  className?: string;
+}
+
 export function PageContainer({ children, variant = 'default', className = '' }: PageContainerProps) {
   const classes = ['page-container', `page-container--${variant}`, className].filter(Boolean).join(' ');
   return <View className={classes}>{children}</View>;
+}
+
+export function PageSection({ children, title, kicker, surface = false, className = '' }: PageSectionProps) {
+  const classes = ['page-section', surface && 'surface-card', className].filter(Boolean).join(' ');
+
+  return (
+    <View className={classes}>
+      {kicker ? <Text className="page-section__kicker">{kicker}</Text> : null}
+      {title ? <Text className="page-section__title">{title}</Text> : null}
+      {children}
+    </View>
+  );
+}
+
+export function NoticeBlock({ children, className = '' }: NoticeBlockProps) {
+  const classes = ['notice-block', className].filter(Boolean).join(' ');
+
+  return (
+    <View className={classes}>
+      <Text className="notice-block__text">{children}</Text>
+    </View>
+  );
 }
 
 export function PageShell({

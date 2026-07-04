@@ -10,7 +10,7 @@ export { BaseButton, IconButton, PrimaryButton, TonalButton } from './components
 export { BalancePanel } from './components/commerce/BalancePanel';
 export { BottomAction } from './components/layout/BottomAction';
 export { TopBar } from './components/layout/TopBar';
-export { PageContainer, PageShell } from './components/layout/PageContainer';
+export { NoticeBlock, PageContainer, PageSection, PageShell } from './components/layout/PageContainer';
 export { CharacterAvatar } from './components/character/CharacterAvatar';
 export { BondProgress } from './components/character/BondProgress';
 export { CharacterHeader } from './components/character/CharacterHeader';

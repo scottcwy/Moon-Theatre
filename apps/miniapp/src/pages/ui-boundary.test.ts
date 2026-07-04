@@ -31,4 +31,40 @@ describe('production pages use shared miniapp ui', () => {
 
     expect(offenders.map((filePath) => path.relative(path.resolve(__dirname, '..'), filePath))).toEqual([]);
   });
+
+  it('keeps migrated page primitives on shared miniapp ui components', () => {
+    const loginPage = fs.readFileSync(path.join(pagesDir, 'login/index.tsx'), 'utf8');
+    expect(loginPage).toContain('PrimaryButton');
+    expect(loginPage).toContain('NoticeBlock');
+    expect(loginPage).not.toContain('button-primary');
+    expect(loginPage).not.toContain('login-page__notice');
+
+    const profilePage = fs.readFileSync(path.join(pagesDir, 'profile/index.tsx'), 'utf8');
+    expect(profilePage).toContain('PageSection');
+    expect(profilePage).toContain('NoticeBlock');
+    expect(profilePage).toContain('CharacterAvatar');
+    expect(profilePage).toContain('PointsBadge');
+    expect(profilePage).toContain('AchievementIcon');
+    expect(profilePage).not.toContain('className="page-section');
+    expect(profilePage).not.toContain('className="notice-block');
+    expect(profilePage).not.toContain('surface-card');
+
+    const detailPage = fs.readFileSync(path.join(pagesDir, 'character/detail.tsx'), 'utf8');
+    expect(detailPage).toContain('PageSection');
+    expect(detailPage).not.toContain('detail__section surface-card');
+
+    const chatListPage = fs.readFileSync(path.join(pagesDir, 'chat/list.tsx'), 'utf8');
+    expect(chatListPage).toContain('EmptyState');
+    expect(chatListPage).not.toContain('function EmptyPanel');
+    expect(chatListPage).not.toContain('button-primary');
+
+    const homePage = fs.readFileSync(path.join(pagesDir, 'home/index.tsx'), 'utf8');
+    expect(homePage).toContain('PageSection');
+    expect(homePage).toContain('Badge');
+    expect(homePage).toContain('PrimaryButton');
+    expect(homePage).toContain('CharacterPosterCard');
+    expect(homePage).not.toContain('theater-home__script-card');
+    expect(homePage).not.toContain('theater-home__poster-wrap');
+    expect(homePage).not.toContain('theater-home__start-button');
+  });
 });

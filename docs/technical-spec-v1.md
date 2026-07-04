@@ -254,32 +254,42 @@ V1 聊天接口采用 HTTP NDJSON streaming 形态，当前安全策略是 `mode
 
 本项目不规划 WebSocket；后续如要恢复真正逐 token 实时展示，必须先补充分段审核、风险中断和已展示内容处理策略。
 
+当前代码入口为 `apps/api/src/app/api/chat/stream/route.ts`，核心流程在 `apps/api/src/server/modules/chat/stream-runner.ts`。
+
 ```text
 Taro
   -> POST /api/chat/stream
   -> Next.js 校验用户
   -> 读取角色配置
   -> 读取模型档位和点数消耗规则
+  -> 创建或复用 active 会话
+  -> 保存 user message
+  -> 输入关键词过滤
+  -> 如输入被拦截，保存安全提示 assistant message，不扣点，不调用 FastClaw
+  -> 创建或读取钱包账户
   -> 校验点数余额是否足够
+  -> 生成前按模型档位预扣点数，写入 wallet_transactions
   -> 读取剧本/场景状态
   -> 检索相关记忆
   -> 读取羁绊等级
-  -> 输入关键词过滤
   -> 拼接上下文
   -> 调用 FastClaw 现有 API
   -> 接收并缓冲 FastClaw 输出
+  -> 解析 mood
   -> 完整回复输出关键词过滤
-  -> 以 NDJSON streaming 形态返回最终内容给 Taro
-  -> 保存 messages
-  -> 保留生成前预扣点数结果
-  -> 写入 wallet_transactions
-  -> 写入 model_usage_logs
-  -> 异步触发记忆、羁绊、成就
+  -> 保存 assistant message
+  -> 成功时写入 model_usage_logs(status=success)
+  -> 输出过滤时退款，写入 model_usage_logs(status=filtered)
+  -> FastClaw 错误或流处理异常时退款并返回 error 事件
+  -> 未被过滤时触发记忆、羁绊、成就/称号
+  -> 以 NDJSON streaming 形态返回最终 delta/done 给 Taro
 ```
 
 首版产品聊天只定义流式发送接口，不把完整回复接口作为对外产品能力。
 
 点数不足时不得调用 FastClaw。接口返回可恢复的业务错误，由小程序展示点数不足状态并引导进入额度包购买页。
+
+当前实现已返回 `X-Stream-Mode: moderated-buffered`。`done` 事件可能包含 `mood`、`fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles`、`balanceAfter` 等字段。当前代码尚未在 FastClaw 错误路径写入 `model_usage_logs(status=failed)`，这是后续可观测性补强项。
 
 ### 7.3 FastClaw 集成
 
@@ -290,7 +300,7 @@ Taro
 当前调用链：
 
 ```text
-ChatService
+ChatStreamRunner
   -> CharacterService
   -> MemoryService
   -> RelationshipService
@@ -304,7 +314,10 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - 请求体、鉴权头、流式响应格式和错误格式需要有 contract test 或联调脚本固定。
 - 生产环境必须设置明确的调用超时；超时、非 2xx、流解析失败都要进入模型调用日志或服务日志。
 - fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。
-- `/api/health` 只表示 API 进程存活；部署验收还需要 readiness 检查，至少覆盖数据库连接、关键生产配置和 FastClaw 可达性。
+- 当前 adapter 调用 `${FASTCLAW_BASE_URL}/v1/chat/completions`，使用 `Authorization: Bearer ${FASTCLAW_API_KEY}`，解析 OpenAI SSE 兼容的 `data: ...` 和 `[DONE]`。
+- 当前 adapter 支持 `x-fastclaw-agent-id` 与 `x-fastclaw-session-key` 请求头。
+- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY` 和 `${FASTCLAW_BASE_URL}/readyz`；`/api/health` 只表示 API 进程存活。
+- 当前 readiness 尚未检查数据库连接和生产关键配置完整性，生产部署验收仍需补强。
 
 ### 7.4 长期记忆
 
@@ -551,14 +564,13 @@ V1 数据库必须包含支付和点数闭环需要的 6 张核心表：`quota_p
 | Characters | `GET /api/characters`, `GET /api/characters/:id` |
 | Chat | `POST /api/chat/stream` |
 | Sessions | `GET /api/chat/sessions`, `GET /api/chat/sessions/:id/messages` |
-| Memory | `GET /api/memory/relevant` |
-| Relationship | `GET /api/relationships/:characterId` |
+| Memory | `GET /api/memory` |
 | Achievement | `GET /api/achievements` |
-| Profile | `GET /api/profile` |
 | Models | `GET /api/models` |
 | Quota | `GET /api/quota/packages`, `GET /api/quota/balance` |
 | Orders | `POST /api/orders`, `GET /api/orders/:id` |
-| Payments | `POST /api/orders/:id/prepay`, `GET /api/payments/:id` |
+| Payments | `POST /api/orders/:id/prepay`, `POST /api/orders/:id/mock-confirm` |
+| Ops | `GET /api/health`, `GET /api/ready` |
 
 第三方回调 API：
 
@@ -579,16 +591,17 @@ V1 数据库必须包含支付和点数闭环需要的 6 张核心表：`quota_p
 | Wallet | `GET /api/admin/wallet-accounts`, `GET /api/admin/wallet-transactions` |
 | Quota Packages | `GET /api/admin/quota-packages`, `POST /api/admin/quota-packages`, `PATCH /api/admin/quota-packages/:id` |
 | Model Usage | `GET /api/admin/model-usage-logs` |
+| Blocked Keywords | `GET /api/admin/blocked-keywords`, `POST /api/admin/blocked-keywords` |
 
-当前代码已经具备 admin stats、订单/支付/会话详情、memory admin 和 `docs/api-v1.md` 初版。仍需持续验收和补强的后端范围包括：achievement/title 最小闭环的产品验收、模型调用日志可观测字段、FastClaw 真实服务联调、生产部署验收文档，以及后续是否补充机器可读 OpenAPI。角色、剧本、关键词等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置和模型调用日志属于 V1 admin 必做范围。
+当前代码已经具备 admin stats、订单/支付/会话详情、memory admin、blocked keywords 和 `docs/api-v1.md` 初版。所有 admin API 当前要求用户 JWT 通过 `verifyAdminAuth`，并要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面额外由 Next.js middleware 做 Basic Auth；生产环境要求设置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。仍需持续验收和补强的后端范围包括：achievement/title 最小闭环的产品验收、模型调用日志可观测字段、FastClaw 真实服务联调、生产部署验收文档，以及后续是否补充机器可读 OpenAPI。角色、剧本等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置、关键词配置和模型调用日志属于 V1 admin 必做范围。
 
 ### 9.3 内网 FastClaw API
 
 | 模块 | API |
 | --- | --- |
-| Agent Chat | 复用 FastClaw 现有 chat API |
+| Agent Chat | `/v1/chat/completions`，OpenAI SSE 兼容流 |
 | Agent List | 内部调试使用 |
-| Health | `/health` 或等价健康检查 |
+| Readiness | `/readyz` |
 
 ## 10. 部署架构
 
@@ -613,14 +626,16 @@ docker-compose
 域名建议：
 
 ```text
-api.example.com        -> Next.js API
-api.example.com/admin  -> 简单 admin
+<正式 API 域名>        -> Next.js API
+<正式 API 域名>/admin  -> 简单 admin
 ```
 
 微信小程序后台需要配置：
 
-- request 合法域名：`https://api.example.com`
+- request 合法域名：正式 HTTPS API 域名
 - socket 合法域名：本项目不规划 WebSocket，不需要配置
+
+注意：`api.example.com` 是项目禁止进入小程序构建产物的占位域名，不能用于小程序生产构建、验证构建或提交产物。`apps/miniapp/scripts/verify-weapp-build.mjs` 会扫描构建产物并阻断 `api.example.com`、`https://api.example.com`、`http://api.example.com` 和 `http://localhost:3000`。
 
 业务 API 环境变量：
 
@@ -631,6 +646,7 @@ WECHAT_APP_ID=
 WECHAT_APP_SECRET=
 FASTCLAW_BASE_URL=http://fastclaw:18953
 FASTCLAW_API_KEY=
+FASTCLAW_AGENT_ID=
 FASTCLAW_TIMEOUT_MS=30000
 FASTCLAW_FALLBACK_ENABLED=false
 PAYMENT_PROVIDER=
@@ -641,6 +657,10 @@ PAYMENT_PUBLIC_KEY=
 PAYMENT_PRIVATE_KEY=
 PAYMENT_NOTIFY_URL=
 PAYMENT_RETURN_URL=
+ADMIN_USER_IDS=
+ADMIN_BASIC_AUTH_USER=
+ADMIN_BASIC_AUTH_PASSWORD=
+DEV_AUTH_BYPASS=false
 ```
 
 FastClaw 环境变量：
@@ -673,6 +693,9 @@ OPENROUTER_API_KEY=
 - FastClaw 内网访问
 - FastClaw 生产环境显式超时和错误可观测
 - FastClaw fallback 生产默认关闭或只允许显式受控降级
+- admin API JWT + `ADMIN_USER_IDS` 白名单
+- admin 页面 Basic Auth 二次保护
+- 小程序构建产物禁止包含 `api.example.com`
 
 第一版不实现：
 

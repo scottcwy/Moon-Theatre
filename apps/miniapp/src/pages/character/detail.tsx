@@ -1,7 +1,7 @@
-import { View, Text } from '@tarojs/components';
+import { Text } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useEffect, useState } from 'react';
-import { BottomAction, CharacterDetailHero, PageShell, PrimaryButton, StatusStateCard } from '@juben-sha/miniapp-ui';
+import { BottomAction, CharacterDetailHero, PageSection, PageShell, PrimaryButton, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import type { MoodType } from '../../types';
@@ -143,20 +143,17 @@ export default function CharacterDetail() {
         onBack={navigateBackOrHome}
       />
       {character.script && (
-        <View className="detail__section surface-card detail__section--script">
-          <Text className="detail__kicker">{character.script.title}</Text>
-          <Text className="detail__section-title">世界观</Text>
+        <PageSection title="世界观" kicker={character.script.title} surface className="detail__section detail__section--script">
           <Text className="detail__description" userSelect>{character.script.description}</Text>
           <Text className="detail__description detail__description--muted" userSelect>
             {character.script.worldSetting}
           </Text>
-        </View>
+        </PageSection>
       )}
 
-      <View className="detail__section surface-card">
-        <Text className="detail__section-title">人设简介</Text>
+      <PageSection title="人设简介" surface className="detail__section">
         <Text className="detail__description" userSelect>{character.description}</Text>
-      </View>
+      </PageSection>
 
       <BottomAction>
         <PrimaryButton onTap={handleEnterChat}>▰ 开启对话</PrimaryButton>

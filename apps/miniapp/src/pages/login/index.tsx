@@ -1,6 +1,7 @@
 import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useRef, useState } from 'react';
+import { NoticeBlock, PrimaryButton } from '@juben-sha/miniapp-ui';
 import { api, applyDevAuthBypass, setToken, setUser, verifyStoredAuth } from '../../services/api';
 import { getLoginErrorMessage } from './model';
 import './index.scss';
@@ -96,18 +97,14 @@ export default function Login() {
 
       <View className="login-page__footer">
         <View className="login-page__action">
-          <View className={`button-primary login-page__wechat-btn${loading ? ' button-primary--disabled' : ''}`} onClick={handleWechatLogin}>
-            <Text className="button-primary__text">
-              {loading ? '登录中…' : '微信登录'}
-            </Text>
-          </View>
+          <PrimaryButton className="login-page__wechat-btn" disabled={loading} onTap={handleWechatLogin}>
+            {loading ? '登录中…' : '微信登录'}
+          </PrimaryButton>
         </View>
 
-        <View className="login-page__notice">
-          <Text className="login-page__notice-text">
-            本产品包含 AI 生成的角色对话内容。角色与剧情均为虚构，请理性体验。
-          </Text>
-        </View>
+        <NoticeBlock>
+          本产品包含 AI 生成的角色对话内容。角色与剧情均为虚构，请理性体验。
+        </NoticeBlock>
       </View>
     </View>
   );

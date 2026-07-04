@@ -13,7 +13,9 @@ import {
   ChatSessionRow,
   IconButton,
   ModelTierSegmentedControl,
+  NoticeBlock,
   PageShell,
+  PageSection,
   PaymentResultCard,
   QuotaPackageCard,
   SearchBar,
@@ -192,6 +194,10 @@ describe('playbook component functional behavior', () => {
     expect(textContent(poster)).toContain('贺茂');
     expect(textContent(poster)).toContain('Lv.1');
 
+    const imagePoster = renderElement(<CharacterPosterCard title="白藏" subtitle="庭院狐神" imageUrl="/assets/characters/hakuzo.jpg" />);
+    expect(findByType(imagePoster, 'image').props.src).toBe('/assets/characters/hakuzo.jpg');
+    expect(findAll(imagePoster, (node) => String(node.props.className ?? '').includes('character-poster-card__placeholder'))).toHaveLength(0);
+
     const onPackageTap = vi.fn();
     const quota = renderElement(
       <QuotaPackageCard name="沉浸一幕" points={128} price="¥18.00" selected recommended onTap={onPackageTap} />,
@@ -237,6 +243,22 @@ describe('playbook component functional behavior', () => {
       expect(shell.props.className).toContain('page-shell--bottom-reserve');
       expect(shell.props.className).toContain(surfaceClass);
     }
+
+    const section = renderElement(
+      <PageSection title="世界观" kicker="月见庭院" surface className="detail__section--script">
+        正文
+      </PageSection>,
+    );
+    expect(section.props.className).toContain('page-section');
+    expect(section.props.className).toContain('surface-card');
+    expect(section.props.className).toContain('detail__section--script');
+    expect(textContent(section)).toContain('月见庭院');
+    expect(textContent(section)).toContain('世界观');
+    expect(textContent(section)).toContain('正文');
+
+    const notice = renderElement(<NoticeBlock>AI 生成内容提示</NoticeBlock>);
+    expect(notice.props.className).toBe('notice-block');
+    expect(textContent(notice)).toContain('AI 生成内容提示');
 
     expect(renderElement(<BottomAction variant="default">操作</BottomAction>).props.className).toContain('bottom-action--default');
     expect(renderElement(<BottomAction variant="dark">操作</BottomAction>).props.className).toContain('bottom-action--dark');
