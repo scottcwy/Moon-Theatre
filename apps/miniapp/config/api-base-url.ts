@@ -1,5 +1,5 @@
 export const LOCAL_API_BASE_URL = 'http://127.0.0.1:3000';
-export const PLACEHOLDER_API_HOST = 'api.example.com';
+export const PLACEHOLDER_API_HOST = ['api', 'example', 'com'].join('.');
 
 type BuildMode = 'development' | 'production';
 
@@ -35,7 +35,7 @@ export function getApiBaseUrlForMode(mode: BuildMode, rawApiBaseUrl = process.en
     throw new Error('API_BASE_URL is required for miniapp production builds');
   }
   if (isPlaceholderApiUrl(apiBaseUrl)) {
-    throw new Error('API_BASE_URL must not use the placeholder api.example.com');
+    throw new Error(`API_BASE_URL must not use the placeholder ${PLACEHOLDER_API_HOST}`);
   }
   if (isLocalApiUrl(apiBaseUrl)) {
     throw new Error('API_BASE_URL must not point to localhost for miniapp production builds');

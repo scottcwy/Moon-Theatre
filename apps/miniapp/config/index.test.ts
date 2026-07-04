@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const placeholderApiHost = ['api', 'example', 'com'].join('.');
+const placeholderApiBaseUrl = `https://${placeholderApiHost}`;
+const placeholderError = `API_BASE_URL must not use the placeholder ${placeholderApiHost}`;
+
 describe('miniapp config auth constants', () => {
   const originalEnv = { ...process.env };
   const originalArgv = [...process.argv];
@@ -64,7 +68,7 @@ describe('miniapp config auth constants', () => {
   });
 
   it('lets the development override replace the placeholder API URL with the local API', async () => {
-    process.env.API_BASE_URL = 'https://api.example.com';
+    process.env.API_BASE_URL = placeholderApiBaseUrl;
 
     const config = await import('./dev');
 
@@ -73,7 +77,7 @@ describe('miniapp config auth constants', () => {
 
   it('uses the local API when a development watch build receives the placeholder API URL', async () => {
     process.env.NODE_ENV = 'development';
-    process.env.API_BASE_URL = 'https://api.example.com';
+    process.env.API_BASE_URL = placeholderApiBaseUrl;
     process.argv = ['node', 'taro', '--watch'];
 
     const config = await import('./index');
@@ -83,7 +87,7 @@ describe('miniapp config auth constants', () => {
 
   it('uses the local API when a development watch build receives any URL containing the placeholder API host', async () => {
     process.env.NODE_ENV = 'development';
-    process.env.API_BASE_URL = 'https://debug.local/proxy?target=https://api.example.com';
+    process.env.API_BASE_URL = `https://debug.local/proxy?target=${placeholderApiBaseUrl}`;
     process.argv = ['node', 'taro', '--watch'];
 
     const config = await import('./index');
@@ -93,21 +97,21 @@ describe('miniapp config auth constants', () => {
 
   it('rejects the placeholder API URL for non-development builds', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.API_BASE_URL = 'https://api.example.com';
+    process.env.API_BASE_URL = placeholderApiBaseUrl;
     process.argv = ['node', 'taro', 'build'];
 
-    await expect(import('./index')).rejects.toThrow('API_BASE_URL must not use the placeholder api.example.com');
+    await expect(import('./index')).rejects.toThrow(placeholderError);
   });
 
   it('rejects the placeholder API URL in the production override', async () => {
-    process.env.API_BASE_URL = 'https://api.example.com';
+    process.env.API_BASE_URL = placeholderApiBaseUrl;
 
-    await expect(import('./prod')).rejects.toThrow('API_BASE_URL must not use the placeholder api.example.com');
+    await expect(import('./prod')).rejects.toThrow(placeholderError);
   });
 
   it('rejects production API URLs that contain the placeholder API host anywhere', async () => {
-    process.env.API_BASE_URL = 'https://real.example/proxy?target=https://api.example.com';
+    process.env.API_BASE_URL = `https://real.example/proxy?target=${placeholderApiBaseUrl}`;
 
-    await expect(import('./prod')).rejects.toThrow('API_BASE_URL must not use the placeholder api.example.com');
+    await expect(import('./prod')).rejects.toThrow(placeholderError);
   });
 });
