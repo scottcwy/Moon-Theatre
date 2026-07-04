@@ -36,7 +36,9 @@ This work does not:
 
 ## Package Boundary
 
-`packages/miniapp-ui` owns reusable, presentational Taro/React components, their SCSS, UI-only types, and pure display helpers needed by those components.
+`packages/miniapp-ui` owns reusable, presentational Taro/React components, their SCSS, UI-only local view types, and pure display helpers needed by those components.
+
+Cross-app contract types must come from `@juben-sha/shared`. The UI package should import types such as `MoodType` and `ModelTier` from `@juben-sha/shared` instead of redefining them locally. If `packages/miniapp-ui` imports those shared contract types, it must declare `@juben-sha/shared` as a workspace dependency and add matching TypeScript path resolution for local tests and typecheck.
 
 `apps/miniapp` owns production pages and business integration:
 
@@ -61,16 +63,20 @@ Reusable components to consolidate into `packages/miniapp-ui`:
 - Achievement and sharing presentation: `AchievementIcon`, `SharePreviewCard`.
 - Existing playbook components: `SearchBar`, `CharacterPosterCard`, `BalancePanel`, `QuotaPackageCard`, `ChatSessionRow`, `MemoryCard`.
 
-Components that include app navigation behavior should expose event props instead of importing app navigation utilities. For example, a header can accept `onBack` from the app rather than importing `navigateBackOrHome` from `apps/miniapp`.
+Components that include app navigation behavior should expose event props instead of importing app navigation utilities. `CharacterDetailHero` and `CharacterHeader` currently import `navigateBackOrHome` from `apps/miniapp`; during migration they must change to an `onBack` prop supplied by the page. The app page remains responsible for passing `navigateBackOrHome`.
 
 ## App Integration
 
 `apps/miniapp/package.json` should add `@juben-sha/miniapp-ui` as a workspace dependency.
 
+`packages/miniapp-ui/package.json` should add `@juben-sha/shared` as a workspace dependency if consolidated components import shared contract types.
+
 `apps/miniapp/config/index.ts` should include both shared source packages in Taro mini compile configuration:
 
 - `packages/shared/src`
 - `packages/miniapp-ui/src`
+
+`apps/miniapp/tsconfig.json` should resolve `@juben-sha/miniapp-ui` consistently with the playbook setup, so `tsc`, Vitest, editor tooling, and Taro do not disagree about workspace package resolution. `packages/miniapp-ui/tsconfig.json` should likewise resolve `@juben-sha/shared` when shared contract types are imported.
 
 Production pages should import reusable UI from the package entrypoint:
 
@@ -83,6 +89,8 @@ Avoid deep imports from `@juben-sha/miniapp-ui/src/...` unless the package estab
 ## Styling
 
 Component SCSS should live beside the component in `packages/miniapp-ui` and be imported by the component file.
+
+Migrated SCSS must import tokens from `packages/miniapp-ui/src/styles/tokens.scss` using package-local relative paths or the existing `@juben-sha/miniapp-ui/styles/tokens.scss` public style path. Migrated package components must not import app-private token files from `apps/miniapp/src/styles`.
 
 `apps/miniapp/src/app.scss` should keep app-level global styling and tokens only. It should not import duplicated local component SCSS for migrated components.
 
@@ -110,13 +118,15 @@ Use one focused consolidation pass:
 
 1. Add the production miniapp dependency and Taro compile include for `packages/miniapp-ui`.
 2. Move missing reusable components from `apps/miniapp/src/components` to `packages/miniapp-ui/src/components`, preserving existing public props where possible.
-3. Move only required UI-neutral types and pure display helpers.
-4. Export consolidated components from `packages/miniapp-ui/src/index.ts`.
-5. Update production page imports to `@juben-sha/miniapp-ui`.
-6. Update component-internal imports inside the UI package.
-7. Remove duplicate migrated component files from `apps/miniapp/src/components`.
-8. Keep app-only pages, models, services, hooks, utilities, and assets in `apps/miniapp`.
-9. Extend focused tests where public props, helper placement, or import boundaries change.
+3. Move only required UI-neutral local view types and pure display helpers.
+4. Import shared contract types such as `MoodType` and `ModelTier` from `@juben-sha/shared`; do not create duplicate UI-package copies.
+5. Convert `CharacterDetailHero` and `CharacterHeader` from direct `navigateBackOrHome` imports to an `onBack` prop supplied by production pages.
+6. Export consolidated components from `packages/miniapp-ui/src/index.ts`.
+7. Update production page imports to `@juben-sha/miniapp-ui`.
+8. Update component-internal imports inside the UI package.
+9. Remove duplicate migrated component files from `apps/miniapp/src/components`.
+10. Keep app-only pages, models, services, hooks, utilities, and assets in `apps/miniapp`.
+11. Extend focused tests where public props, helper placement, or import boundaries change.
 
 ## Error Handling And Behavior
 
@@ -143,6 +153,12 @@ Run focused package and app verification:
 - `rtk pnpm --filter @juben-sha/miniapp-playbook build:weapp`
 - `rtk pnpm --filter @juben-sha/miniapp-playbook verify:weapp`
 
+Run static boundary checks:
+
+- Verify `packages/miniapp-ui` has no imports from `apps/miniapp` or app-relative paths.
+- Verify production pages no longer import migrated reusable components from `apps/miniapp/src/components`.
+- Verify migrated SCSS does not import app-private token files.
+
 If full build verification is blocked by local environment setup, document the exact blocker and run the strongest available subset.
 
 ## Acceptance Criteria
@@ -153,5 +169,6 @@ The work is complete when:
 - Playbook and production use the same implementation for consolidated components.
 - `apps/miniapp/src/components` no longer contains duplicate reusable components that have moved to the UI package.
 - The UI package does not import from `apps/miniapp`.
+- Cross-app contract types such as `MoodType` and `ModelTier` come from `@juben-sha/shared`, not duplicated UI-package definitions.
 - Production behavior and page routes are unchanged.
 - Existing tests, typecheck, production miniapp build verification, and playbook verification pass or have a documented environment blocker.
