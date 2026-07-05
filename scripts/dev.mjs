@@ -5,6 +5,8 @@ import readline from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 
+const LOCAL_API_BASE_URL = 'http://127.0.0.1:3000';
+
 export function parseDotEnv(content) {
   const env = {};
 
@@ -38,7 +40,11 @@ function loadRootEnv(cwd) {
 }
 
 export function createDevPlan(cwd = process.cwd(), rootEnv = loadRootEnv(cwd)) {
-  const serviceEnv = { ...process.env, ...rootEnv };
+  const serviceEnv = {
+    ...process.env,
+    API_BASE_URL: LOCAL_API_BASE_URL,
+    ...rootEnv,
+  };
 
   return {
     setup: {

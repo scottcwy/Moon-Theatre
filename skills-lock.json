@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "anet-intent-grill": {
+      "source": "ChatChatTech/anet-skills",
+      "sourceType": "github",
+      "skillPath": "skills/anet-intent-grill/SKILL.md",
+      "computedHash": "7b8a1b9d1ee0c0bfe71c4fe030233d9c4b247caefbab23a6468e3d2a640e624b"
+    },
+    "anet-lexicon-sync": {
+      "source": "ChatChatTech/anet-skills",
+      "sourceType": "github",
+      "skillPath": "skills/anet-lexicon-sync/SKILL.md",
+      "computedHash": "25193d3fcc11227543b7a33acc12cd6b2c986dad9aa0d9456cb5abeed192b424"
+    }
+  }
+}

@@ -13,9 +13,9 @@ export interface SessionDisplayItem {
 }
 
 const TIER_LEVELS: Record<ModelTier, string> = {
-  casual: 'Lv.1',
-  standard: 'Lv.3',
-  immersive: 'Lv.5',
+  casual: '羁绊 1',
+  standard: '羁绊 3',
+  immersive: '羁绊 5',
 };
 
 const WEEKDAY_LABELS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
@@ -40,7 +40,7 @@ export function getSessionTimeLabel(value: string, now = new Date()): string {
 
 export function getSessionLevelLabel(levelOrTier: number | string | ModelTier | null | undefined): string {
   if (typeof levelOrTier === 'number' && Number.isFinite(levelOrTier)) {
-    return `Lv.${Math.max(1, Math.trunc(levelOrTier))}`;
+    return `羁绊 ${Math.max(1, Math.trunc(levelOrTier))}`;
   }
 
   if (levelOrTier && typeof levelOrTier === 'string') {
@@ -48,7 +48,8 @@ export function getSessionLevelLabel(levelOrTier: number | string | ModelTier | 
       return TIER_LEVELS[levelOrTier as ModelTier];
     }
     if (/^lv\.?\s*\d+$/i.test(levelOrTier)) {
-      return levelOrTier.replace(/^lv\.?\s*/i, 'Lv.');
+      const level = levelOrTier.replace(/^lv\.?\s*/i, '');
+      return `羁绊 ${level}`;
     }
   }
 
@@ -58,4 +59,18 @@ export function getSessionLevelLabel(levelOrTier: number | string | ModelTier | 
 export function getChatPreviewText(message: string | null | undefined): string {
   const text = message?.trim();
   return text || '还没有新的剧场消息';
+}
+
+export function filterChatSessions<T extends SessionDisplayItem>(sessions: T[], query: string): T[] {
+  const keyword = query.trim().toLowerCase();
+  if (!keyword) return sessions;
+
+  return sessions.filter((session) => {
+    const searchable = [
+      session.characterName,
+      session.characterId,
+      getChatPreviewText(session.lastMessage),
+    ].join(' ').toLowerCase();
+    return searchable.includes(keyword);
+  });
 }

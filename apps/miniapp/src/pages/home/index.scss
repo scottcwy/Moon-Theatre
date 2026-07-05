@@ -36,11 +36,19 @@
   box-shadow: 0 8rpx 24rpx rgba(58, 7, 24, 0.06);
 }
 
+.theater-home__topbar .top-bar__content {
+  position: relative;
+}
+
 .theater-home__topbar-title {
+  position: absolute;
+  left: 50%;
+  width: 280rpx;
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: translateX(-50%);
 }
 
 .theater-home__content {
@@ -53,6 +61,10 @@
 .theater-home__hero-section,
 .theater-home__character-section {
   margin-bottom: $space-6;
+}
+
+.theater-home__hero-section {
+  margin-top: $space-2;
 }
 
 .theater-home__feature-strip {

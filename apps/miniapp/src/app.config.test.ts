@@ -21,4 +21,12 @@ describe('V1 tab bar configuration', () => {
     ]);
     expect(tabTexts).toEqual(['首页', '聊天', '社区', '我的']);
   });
+
+  it('keeps the placeholder community tab on the original icon until the tab is built', async () => {
+    const { default: appConfig } = await import('./app.config');
+    const communityTab = appConfig.tabBar?.list.find((item) => item.pagePath === 'pages/community/index');
+
+    expect(communityTab?.iconPath).toBe('assets/icons/memory.png');
+    expect(communityTab?.selectedIconPath).toBe('assets/icons/memory-active.png');
+  });
 });

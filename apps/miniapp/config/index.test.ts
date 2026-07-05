@@ -85,6 +85,16 @@ describe('miniapp config auth constants', () => {
     expect(config.default.defineConstants.API_BASE_URL).toBe('"http://127.0.0.1:3000"');
   });
 
+  it('uses the local API when a development watch build receives an invalid test domain', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.API_BASE_URL = 'https://api.juben-sha.invalid';
+    process.argv = ['node', 'taro', '--watch'];
+
+    const config = await import('./index');
+
+    expect(config.default.defineConstants.API_BASE_URL).toBe('"http://127.0.0.1:3000"');
+  });
+
   it('uses the local API when a development watch build receives any URL containing the placeholder API host', async () => {
     process.env.NODE_ENV = 'development';
     process.env.API_BASE_URL = `https://debug.local/proxy?target=${placeholderApiBaseUrl}`;
@@ -107,6 +117,12 @@ describe('miniapp config auth constants', () => {
     process.env.API_BASE_URL = placeholderApiBaseUrl;
 
     await expect(import('./prod')).rejects.toThrow(placeholderError);
+  });
+
+  it('rejects invalid test domains in the production override', async () => {
+    process.env.API_BASE_URL = 'https://api.juben-sha.invalid';
+
+    await expect(import('./prod')).rejects.toThrow('API_BASE_URL must not use a .invalid test domain');
   });
 
   it('rejects production API URLs that contain the placeholder API host anywhere', async () => {

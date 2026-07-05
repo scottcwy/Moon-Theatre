@@ -185,6 +185,7 @@ describe('playbook component functional behavior', () => {
     const session = renderElement(<ChatSessionRow characterName="月岛澪" preview="" unread onTap={onSessionTap} />);
     (session.props.onTap as () => void)();
     expect(onSessionTap).toHaveBeenCalledTimes(1);
+    expect(session.props.className).toContain('chat-session-row--unread');
     expect(textContent(session)).toContain('还没有聊天内容');
     expect(textContent(session)).toContain('月');
     expect(findAll(session, (node) => String(node.props.className ?? '').includes('chat-session-row__unread-dot'))).toHaveLength(1);

@@ -1,7 +1,7 @@
 import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useRef, useState } from 'react';
-import { NoticeBlock, PrimaryButton } from '@juben-sha/miniapp-ui';
+import { PrimaryButton } from '@juben-sha/miniapp-ui';
 import { api, applyDevAuthBypass, setToken, setUser, verifyStoredAuth } from '../../services/api';
 import { getLoginErrorMessage } from './model';
 import './index.scss';
@@ -63,25 +63,29 @@ export default function Login() {
 
   return (
     <View className="login-page app-page">
-      <View className="login-page__stage">
-        <Text className="login-page__brand">灵犀剧场</Text>
-        <Text className="login-page__title">有些角色，只等你开口</Text>
-        <Text className="login-page__subtitle">
-          回来继续上次那场戏，见你聊到一半的人，也接上没走完的线索。
-        </Text>
-      </View>
+      <View className="login-page__backdrop" />
+      <View className="login-page__shade" />
 
-      <View className="login-page__footer">
-        <View className="login-page__action">
-          <PrimaryButton className="login-page__wechat-btn" disabled={loading} onTap={handleWechatLogin}>
-            {loading ? '入场中…' : '进入剧场'}
-          </PrimaryButton>
-          <Text className="login-page__login-hint">使用微信登录，替你找回进度。</Text>
+      <View className="login-page__content">
+        <View className="login-page__stage">
+          <Text className="login-page__brand">灵犀剧场</Text>
+          <View className="login-page__title">
+            <View className="login-page__title-line">有些角色</View>
+            <View className="login-page__title-line">在等你开口</View>
+          </View>
+          <Text className="login-page__subtitle">
+            回来继续上次那场戏，见你没聊完的人。
+          </Text>
         </View>
 
-        <NoticeBlock>
-          对话由 AI 生成，角色与剧情都是虚构，请把它当作一场戏。
-        </NoticeBlock>
+        <View className="login-page__footer">
+          <View className="login-page__action">
+            <PrimaryButton className="login-page__wechat-btn" disabled={loading} onTap={handleWechatLogin}>
+              {loading ? '登录中…' : '使用微信登录'}
+            </PrimaryButton>
+          </View>
+
+        </View>
       </View>
     </View>
   );

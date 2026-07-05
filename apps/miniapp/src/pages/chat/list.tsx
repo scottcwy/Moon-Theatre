@@ -1,12 +1,14 @@
 import { Image, Text, View } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
-import { useCallback, useRef, useState } from 'react';
-import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard, TopBar } from '@juben-sha/miniapp-ui';
+import type { CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn } from '../../services/api';
 import type { ModelTier } from '../../types';
+import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import { getCharacterAvatarUrl } from '../home/index.model';
-import { getChatPreviewText, getSessionLevelLabel, getSessionTimeLabel } from './list.model';
+import { filterChatSessions, getChatPreviewText, getSessionLevelLabel, getSessionTimeLabel } from './list.model';
 import './list.scss';
 
 interface SessionItem {
@@ -61,22 +63,30 @@ const DEMO_SESSIONS: SessionItem[] = [
   },
 ];
 
-function ChatListTopBar() {
+function ChatListTopBackdrop() {
+  return <View className="chat-list__topbar-backdrop" />;
+}
+
+function ChatListHeader() {
   return (
-    <TopBar
-      left={
-        <Image className="chat-list__brand-avatar" src="/assets/home/moon-garden-cover.jpg" mode="aspectFill" />
-      }
-      title={<Text className="chat-list__brand">灵犀剧场</Text>}
-      right={<Text className="chat-list__settings" aria-label="设置">⚙</Text>}
-    />
+    <View className="chat-list__header">
+      <Image className="chat-list__brand-avatar" src="/assets/home/moon-garden-cover.jpg" mode="aspectFill" />
+      <View className="chat-list__header-copy">
+        <Text className="chat-list__title">聊天</Text>
+        <Text className="chat-list__subtitle">灵犀剧场</Text>
+      </View>
+    </View>
   );
 }
 
 export default function ChatList() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [topBarStyle, setTopBarStyle] = useState<Record<string, string>>(
+    getTopBarStyle(calculateTopBarMetrics()),
+  );
   const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
   const loadIdRef = useRef(0);
 
@@ -113,6 +123,23 @@ export default function ChatList() {
     void loadSessions();
   });
 
+  useEffect(() => {
+    try {
+      const windowInfo = Taro.getWindowInfo();
+      const capsuleInfo = Taro.getMenuButtonBoundingClientRect();
+
+      setTopBarStyle(getTopBarStyle(calculateTopBarMetrics(
+        {
+          windowWidth: windowInfo.windowWidth,
+          statusBarHeight: windowInfo.statusBarHeight,
+        },
+        capsuleInfo,
+      )));
+    } catch {
+      setTopBarStyle(getTopBarStyle(calculateTopBarMetrics()));
+    }
+  }, []);
+
   const handleSessionTap = (session: SessionItem) => {
     if (session.id.startsWith('demo-')) {
       Taro.navigateTo({ url: `/pages/chat/index?characterId=${session.characterId}` });
@@ -130,26 +157,30 @@ export default function ChatList() {
 
   const showDemoSessions = DEV_AUTH_BYPASS && sessions.length === 0 && isLoggedIn();
   const visibleSessions = sessions.length > 0 ? sessions : (showDemoSessions ? DEMO_SESSIONS : []);
+  const filteredSessions = filterChatSessions(visibleSessions, searchQuery);
+  const hasSearchQuery = searchQuery.trim().length > 0;
 
   if (loading || error || needsLogin) {
     return (
       <PageShell variant="scroll" noPadding>
-        <ChatListTopBar />
-        <View className="chat-list__body">
-          <SearchBar disabled placeholder="搜索聊天..." className="chat-list__search-control" />
-          {loading ? (
-            <StatusStateCard className="chat-list__state" title="正在拉取聊天..." message="正在同步你的角色会话。" icon="…" />
-          ) : error ? (
-            <StatusStateCard className="chat-list__state" title={error} message="稍后再试，或回到首页重新进入剧场。" tone="error" icon="!" />
-          ) : (
-            <EmptyState
-              className="chat-list__state"
-              title="登录后查看聊天"
-              message="登录后会同步你的角色会话和关系进度。"
-              primaryText="去登录"
-              onPrimary={handleLogin}
-            />
-          )}
+        <View className="chat-list" style={topBarStyle as CSSProperties}>
+          <ChatListTopBackdrop />
+          <View className="chat-list__body">
+            <ChatListHeader />
+            {loading ? (
+              <StatusStateCard className="chat-list__state" title="正在拉取聊天..." message="正在同步你的角色会话。" icon="…" />
+            ) : error ? (
+              <StatusStateCard className="chat-list__state" title={error} message="稍后再试，或回到首页重新进入剧场。" tone="error" icon="!" />
+            ) : (
+              <EmptyState
+                className="chat-list__state"
+                title="登录后查看聊天"
+                message="登录后会同步你的角色会话和关系进度。"
+                primaryText="去登录"
+                onPrimary={handleLogin}
+              />
+            )}
+          </View>
         </View>
       </PageShell>
     );
@@ -157,28 +188,43 @@ export default function ChatList() {
 
   return (
     <PageShell variant="scroll" noPadding>
-      <ChatListTopBar />
-      <View className="chat-list__body">
-        <SearchBar disabled placeholder="搜索聊天..." className="chat-list__search-control" />
-        {visibleSessions.length > 0 ? (
-          <View className="chat-list__list">
-            {visibleSessions.map((session) => (
-              <ChatSessionRow
-                key={session.id}
-                className="chat-list__item"
-                characterName={session.characterName}
-                avatarUrl={getCharacterAvatarUrl(session.characterName, session.characterAvatarUrl)}
-                levelLabel={getSessionLevelLabel(session.level ?? session.modelTier)}
-                timeLabel={getSessionTimeLabel(session.updatedAt)}
-                preview={getChatPreviewText(session.lastMessage)}
-                unread={Boolean(session.unreadCount)}
-                onTap={() => handleSessionTap(session)}
-              />
-            ))}
+      <View className="chat-list" style={topBarStyle as CSSProperties}>
+        <ChatListTopBackdrop />
+        <View className="chat-list__body">
+          <ChatListHeader />
+          <View className="chat-list__search-row">
+            <SearchBar
+              value={searchQuery}
+              placeholder="搜索角色或聊天内容"
+              className="chat-list__search-control"
+              onInput={setSearchQuery}
+              onClear={() => setSearchQuery('')}
+            />
           </View>
-        ) : (
-          <EmptyState className="chat-list__state" title="还没有聊天记录" message="去首页选择一个角色开始对话吧。" />
-        )}
+          {filteredSessions.length > 0 ? (
+            <View className="chat-list__list">
+              {filteredSessions.map((session) => (
+                <ChatSessionRow
+                  key={session.id}
+                  className="chat-list__item"
+                  characterName={session.characterName}
+                  avatarUrl={getCharacterAvatarUrl(session.characterName, session.characterAvatarUrl)}
+                  levelLabel={getSessionLevelLabel(session.level ?? session.modelTier)}
+                  timeLabel={getSessionTimeLabel(session.updatedAt)}
+                  preview={getChatPreviewText(session.lastMessage)}
+                  unread={Boolean(session.unreadCount)}
+                  onTap={() => handleSessionTap(session)}
+                />
+              ))}
+            </View>
+          ) : (
+            <EmptyState
+              className="chat-list__state"
+              title={hasSearchQuery ? '没有找到相关聊天' : '还没有聊天记录'}
+              message={hasSearchQuery ? '换个角色名或关键词试试。' : '去首页选择一个角色开始对话吧。'}
+            />
+          )}
+        </View>
       </View>
     </PageShell>
   );

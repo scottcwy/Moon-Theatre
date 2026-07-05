@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { NextRequest } from 'next/server';
 
 interface CharactersResponse {
   characters: Array<{ name: string }>;
@@ -24,9 +23,8 @@ vi.mock('@/server/modules/characters/index.js', () => ({
 describe('GET /api/characters', () => {
   it('allows unauthenticated users to browse active characters', async () => {
     const { GET } = await import('./route.js');
-    const request = new Request('https://api.example.com/api/characters');
 
-    const response = await GET(request as unknown as NextRequest);
+    const response = await GET();
     const body = await response.json() as CharactersResponse;
 
     expect(response.status).toBe(200);

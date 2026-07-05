@@ -1,4 +1,4 @@
-import { eq, desc, asc, and, count } from 'drizzle-orm';
+import { eq, desc, and, count } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { reviewLogs } from '../../db/schema.js';
 import { normalizePagination, type PaginatedResult, type PaginationParams } from './pagination.js';

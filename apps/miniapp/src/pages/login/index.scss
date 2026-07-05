@@ -2,43 +2,82 @@
 
 .login-page {
   min-height: 100vh;
-  padding: $space-6 $space-4;
-  padding-bottom: calc($space-6 + env(safe-area-inset-bottom, $safe-bottom));
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  background-color: #0d0708;
+  color: #fff8ef;
+
+  &__backdrop,
+  &__shade {
+    position: absolute;
+    inset: 0;
+  }
+
+  &__backdrop {
+    background-image: url('../../assets/login/login-theater-bg.jpg');
+    background-size: cover;
+    background-position: center 56%;
+    background-repeat: no-repeat;
+    transform: scale(1.02);
+  }
+
+  &__shade {
+    background: linear-gradient(
+      180deg,
+      rgba(8, 5, 5, 0.9) 0%,
+      rgba(14, 7, 8, 0.58) 38%,
+      rgba(10, 5, 6, 0.72) 64%,
+      rgba(7, 4, 5, 0.94) 100%
+    );
+  }
+
+  &__content {
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+    padding: $space-6 $space-4;
+    padding-bottom: calc($space-6 + env(safe-area-inset-bottom, $safe-bottom));
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-sizing: border-box;
+  }
 
   &__stage {
-    margin-top: $space-10;
-    padding-top: $space-6;
-    border-top: 2rpx solid $color-primary;
+    margin-top: $space-9;
   }
 
   &__brand {
     display: block;
     font-size: $font-label-md;
     font-weight: 800;
-    color: $color-primary;
+    color: #f1c88f;
     margin-bottom: $space-4;
   }
 
   &__title {
     display: block;
     max-width: 600rpx;
-    font-size: 68rpx;
-    line-height: 1.14;
+    color: #fff8ef;
+    text-shadow: 0 6rpx 28rpx rgba(0, 0, 0, 0.42);
+  }
+
+  &__title-line {
+    display: block;
+    font-size: 64rpx;
+    line-height: 1.08;
     font-weight: 900;
-    color: $color-on-background;
+    color: #fff8ef;
   }
 
   &__subtitle {
     display: block;
-    margin-top: $space-5;
-    max-width: 620rpx;
+    margin-top: $space-4;
+    max-width: 600rpx;
     font-size: $font-body-lg;
-    line-height: 1.7;
-    color: $color-on-surface-variant;
+    line-height: 1.55;
+    color: rgba(255, 248, 239, 0.76);
+    text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
   }
 
   &__footer {
@@ -51,21 +90,8 @@
 
   &__wechat-btn {
     width: 100%;
+    background-color: #7f294a;
+    box-shadow: 0 16rpx 36rpx rgba(0, 0, 0, 0.34);
   }
 
-  &__login-hint {
-    display: block;
-    margin-top: $space-3;
-    font-size: $font-label-sm;
-    line-height: 1.5;
-    text-align: center;
-    color: $color-on-surface-variant;
-  }
-
-  &__footer .notice-block {
-    margin-top: $space-5;
-    border-radius: $radius-md;
-    background-color: transparent;
-    padding: 0 $space-2;
-  }
 }

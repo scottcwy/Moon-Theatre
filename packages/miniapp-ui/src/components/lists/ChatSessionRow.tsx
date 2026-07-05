@@ -22,7 +22,7 @@ export function ChatSessionRow({
   className = '',
   onTap,
 }: ChatSessionRowProps) {
-  const classes = ['chat-session-row', className].filter(Boolean).join(' ');
+  const classes = ['chat-session-row', unread ? 'chat-session-row--unread' : '', className].filter(Boolean).join(' ');
   const previewText = preview || '还没有聊天内容';
 
   return (

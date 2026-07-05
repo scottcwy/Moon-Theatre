@@ -12,13 +12,12 @@ import {
   TopBar,
 } from '@juben-sha/miniapp-ui';
 import { api } from '../../services/api';
+import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import {
-  calculateTopBarMetrics,
   featuredScripts,
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
   getCharacterDetailUrl,
-  getHomeTopBarStyle,
   homeSections,
 } from './index.model';
 import './index.scss';
@@ -35,7 +34,7 @@ export default function Home() {
   const [characterError, setCharacterError] = useState('');
   const [selectedCharacterId, setSelectedCharacterId] = useState('');
   const [topBarStyle, setTopBarStyle] = useState<Record<string, string>>(
-    getHomeTopBarStyle(calculateTopBarMetrics()),
+    getTopBarStyle(calculateTopBarMetrics()),
   );
 
   useEffect(() => {
@@ -62,7 +61,7 @@ export default function Home() {
       const windowInfo = Taro.getWindowInfo();
       const capsuleInfo = Taro.getMenuButtonBoundingClientRect();
 
-      setTopBarStyle(getHomeTopBarStyle(calculateTopBarMetrics(
+      setTopBarStyle(getTopBarStyle(calculateTopBarMetrics(
         {
           windowWidth: windowInfo.windowWidth,
           statusBarHeight: windowInfo.statusBarHeight,
@@ -70,7 +69,7 @@ export default function Home() {
         capsuleInfo,
       )));
     } catch {
-      setTopBarStyle(getHomeTopBarStyle(calculateTopBarMetrics()));
+      setTopBarStyle(getTopBarStyle(calculateTopBarMetrics()));
     }
   }, []);
 

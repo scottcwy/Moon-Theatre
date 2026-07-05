@@ -5,7 +5,7 @@ const projectRoot = process.cwd();
 const distDir = path.join(projectRoot, 'dist');
 const appJsonPath = path.join(distDir, 'app.json');
 const projectConfigPath = path.join(projectRoot, 'project.config.json');
-const forbiddenHosts = ['api.example.com'];
+const forbiddenHosts = ['api.example.com', 'api.juben-sha.invalid'];
 const forbiddenLiterals = ['http://localhost:3000', 'https://api.example.com', 'http://api.example.com'];
 const textFileExtensions = new Set(['.js', '.json', '.wxml', '.wxss', '.map']);
 

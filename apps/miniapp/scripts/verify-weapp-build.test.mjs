@@ -57,4 +57,12 @@ describe('verify weapp build', () => {
 
     expect(() => runVerify(projectRoot)).toThrow(/api\.example\.com/);
   });
+
+  it('rejects generated files that contain invalid test API domains', () => {
+    const projectRoot = createBuildFixture({
+      'common.js': 'var BASE_URL = "https://api.juben-sha.invalid";',
+    });
+
+    expect(() => runVerify(projectRoot)).toThrow(/api\.juben-sha\.invalid/);
+  });
 });

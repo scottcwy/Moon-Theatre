@@ -10,24 +10,14 @@
   flex-direction: column;
   gap: $space-4;
   margin-top: $space-2;
-  margin-bottom: $space-5;
-  padding: $space-5;
+  margin-bottom: $space-6;
+  padding: $space-6 $space-5;
   border-radius: $radius-lg;
-  background-color: $color-surface-container;
-  box-shadow: $shadow-card;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 248, 0.92) 0%, rgba(241, 231, 228, 0.96) 100%);
+  box-shadow: 0 18rpx 42rpx rgba(58, 7, 24, 0.1);
   box-sizing: border-box;
   overflow: hidden;
-}
-
-.profile__hero::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 8rpx;
-  background-color: $color-primary;
-  opacity: 0.72;
 }
 
 .profile__hero-main {
@@ -58,6 +48,10 @@
   gap: $space-2;
 }
 
+.profile__status-badge {
+  opacity: 0.72;
+}
+
 .profile__nickname {
   font-size: $font-title-lg;
   font-weight: 800;
@@ -81,7 +75,7 @@
   padding: $space-5;
   border-radius: $radius-lg;
   background-color: $color-surface-container-low;
-  box-shadow: $shadow-card;
+  box-shadow: none;
   box-sizing: border-box;
 }
 
@@ -125,9 +119,9 @@
 
 .profile__stat-item {
   min-width: 0;
-  padding: $space-3;
-  border-radius: $radius-md;
-  background-color: rgba(255, 251, 248, 0.72);
+  padding: $space-3 0;
+  border-bottom: 2rpx solid rgba($color-outline-variant, 0.72);
+  background-color: transparent;
   box-sizing: border-box;
 }
 
@@ -168,27 +162,13 @@
   gap: $space-2;
 }
 
-.profile__empty-row {
-  padding: $space-4;
-  border-radius: $radius-md;
-  background-color: rgba(255, 251, 248, 0.68);
-  box-sizing: border-box;
+.profile__empty-panel {
+  margin-top: $space-2;
 }
 
-.profile__empty-title {
-  display: block;
-  margin-bottom: $space-1;
-  font-size: $font-body-md;
-  line-height: 1.45;
-  font-weight: 800;
-  color: $color-on-surface;
-}
-
-.profile__empty-text {
-  display: block;
-  font-size: $font-label-md;
-  line-height: 1.55;
-  color: $color-on-surface-variant;
+.profile__empty-panel .status-state-card {
+  box-shadow: none;
+  background-color: rgba(255, 251, 248, 0.72);
 }
 
 .profile__achievement {
@@ -236,16 +216,8 @@
   opacity: 0.72;
 }
 
-.profile__notice {
+.profile__ai-notice {
   margin-bottom: $space-4;
-  padding: 0 $space-1;
-}
-
-.profile__notice-text {
-  display: block;
-  font-size: $font-label-sm;
-  line-height: 1.55;
-  color: $color-outline;
 }
 
 .profile__account {
@@ -254,6 +226,7 @@
 
 .profile__logout-button {
   color: $color-error;
-  background-color: $color-error-container;
+  background-color: transparent;
+  box-shadow: none;
   width: 100%;
 }

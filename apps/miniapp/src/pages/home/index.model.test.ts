@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  calculateTopBarMetrics,
   featuredScripts,
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
   getCharacterDetailUrl,
-  getHomeTopBarStyle,
   homeSections,
 } from './index.model';
+import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 
 describe('home navigation helpers', () => {
   it('builds character detail URLs with an explicit character id', () => {
@@ -61,7 +60,7 @@ describe('home navigation helpers', () => {
   });
 
   it('builds CSS variables for positioning content below the custom top bar', () => {
-    expect(getHomeTopBarStyle({ statusBarHeight: 47, contentHeight: 56, totalHeight: 103, menuReserveWidth: 115 })).toEqual({
+    expect(getTopBarStyle({ statusBarHeight: 47, contentHeight: 56, totalHeight: 103, menuReserveWidth: 115 })).toEqual({
       '--topbar-status-height': '47px',
       '--topbar-content-height': '56px',
       '--topbar-total-height': '103px',

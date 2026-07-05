@@ -1,27 +1,127 @@
 @use '../../styles/tokens.scss' as *;
 
+.community {
+  --topbar-status-height: #{$status-bar-height};
+  --topbar-content-height: calc(#{$capsule-height} + 16px);
+  --topbar-total-height: #{$topbar-height};
+  --topbar-menu-reserve: #{$page-padding-h};
+  min-height: 100vh;
+  background: $color-background;
+}
+
+.community__topbar {
+  background: rgba($color-background, 0.96);
+  box-shadow: 0 8rpx 24rpx rgba(58, 7, 24, 0.06);
+}
+
+.community__topbar .top-bar__content {
+  position: relative;
+}
+
+.community__topbar-title-wrap {
+  position: absolute;
+  left: 50%;
+  width: 280rpx;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(-50%);
+}
+
 .community__topbar-title {
   color: $color-primary;
-  font-size: $font-headline-md;
-  font-weight: 600;
+  font-size: 36rpx;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
-/* Body content starts below TopBar */
 .community__body {
-  padding: $topbar-height $page-padding-h $page-padding-bottom;
+  min-height: 100vh;
+  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-8}) $page-padding-h calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
+  background:
+    linear-gradient(180deg, rgba(255, 217, 225, 0.32) 0%, rgba(255, 251, 248, 0) 360rpx),
+    $color-background;
+  box-sizing: border-box;
 }
 
-.community__empty {
-  margin-top: 120rpx;
-  text-align: center;
+.community__hero {
+  padding: $space-6 $space-5;
+  box-shadow: 0 8rpx 24rpx rgba(58, 7, 24, 0.06);
 }
 
-.community__empty-title {
-  color: $color-on-surface;
-  font-size: $font-title-lg;
-  font-weight: 700;
+.community__hero-title {
+  font-size: 50rpx;
+  line-height: 1.16;
 }
 
-.community__empty-subtitle {
+.community__hero-subtitle {
   margin-top: $space-3;
+  max-width: 600rpx;
+}
+
+.community__primary-action {
+  margin-top: $space-5;
+}
+
+.community__primary-action:active {
+  transform: scale(0.98);
+}
+
+.community__preview {
+  margin-top: $space-6;
+}
+
+.community__section-title {
+  display: block;
+  color: $color-on-surface;
+  font-size: $font-title-md;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.community__preview-list {
+  margin-top: $space-3;
+}
+
+.community__preview-item {
+  display: flex;
+  align-items: flex-start;
+  gap: $space-3;
+  margin-bottom: $space-3;
+  padding: $space-4;
+  border-radius: $radius-md;
+  background: rgba($color-surface-container-low, 0.82);
+  box-sizing: border-box;
+}
+
+.community__preview-mark {
+  flex: 0 0 20rpx;
+  width: 20rpx;
+  height: 20rpx;
+  margin-top: 8rpx;
+  border-radius: 50%;
+  background: $color-secondary;
+  box-shadow: 0 0 0 8rpx rgba(93, 111, 90, 0.12);
+}
+
+.community__preview-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.community__preview-title {
+  display: block;
+  color: $color-on-surface;
+  font-size: $font-title-md;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.community__preview-desc {
+  display: block;
+  margin-top: $space-1;
+  color: $color-on-surface-variant;
+  font-size: $font-body-md;
+  line-height: 1.55;
 }

@@ -5,7 +5,9 @@ import {
   AchievementIcon,
   Badge,
   CharacterAvatar,
+  EmptyState,
   LORDICON_ATTRIBUTION,
+  NoticeBlock,
   PageShell,
   PointsBadge,
   StatusStateCard,
@@ -79,6 +81,14 @@ export default function Profile() {
     Taro.navigateTo({ url: '/pages/quota/buy' });
   };
 
+  const handleChooseCharacter = () => {
+    Taro.switchTab({ url: '/pages/home/index' });
+  };
+
+  const handleViewChats = () => {
+    Taro.switchTab({ url: '/pages/chat/list' });
+  };
+
   const handleLogout = () => {
     clearAuth();
     setProfile(null);
@@ -87,17 +97,15 @@ export default function Profile() {
     Taro.navigateTo({ url: '/pages/login/index' });
   };
 
-  const nickname = profile?.nickname || '旅人';
+  const nickname = profile?.nickname || '我的';
   const displayStatus = profile?.status === 'active' ? '已登录' : profile?.status || '已登录';
   const hasTitles = titles.length > 0;
   const hasAchievements = achievements.length > 0;
   const hasGrowthRecords = hasTitles || hasAchievements;
   const aiNotice = (
-    <View className="profile__notice">
-      <Text className="profile__notice-text">
-        AI 生成角色对话内容，角色及对话均为虚构。
-      </Text>
-    </View>
+    <NoticeBlock className="profile__ai-notice">
+      本产品包含由 AI 生成的角色对话内容，所有角色及对话均为虚构。
+    </NoticeBlock>
   );
 
   if (loading) {
@@ -136,12 +144,12 @@ export default function Profile() {
           <CharacterAvatar name={nickname} src={profile?.avatarUrl || undefined} size="lg" online />
           <View className="profile__identity">
             <Text className="profile__nickname">{nickname}</Text>
-            <Text className="profile__subtitle">你的角色互动档案</Text>
+            <Text className="profile__subtitle">我的档案</Text>
           </View>
         </View>
         <View className="profile__hero-actions">
           <PointsBadge points={balance} onTap={handleBuyPoints} />
-          <Badge tone="success">{displayStatus}</Badge>
+          <Badge tone="success" className="profile__status-badge">{displayStatus}</Badge>
         </View>
       </View>
 
@@ -201,11 +209,15 @@ export default function Profile() {
             )}
           </View>
         ) : (
-          <View className="profile__empty-row">
-            <Text className="profile__empty-title">还没有角色履历</Text>
-            <Text className="profile__empty-text">
-              完成几次对话后，称号和成就会出现在这里。
-            </Text>
+          <View className="profile__empty-panel">
+            <EmptyState
+              title="开始第一段角色经历"
+              message="去首页选择角色并完成几次对话后，称号和成就会记录在这里。"
+              primaryText="去选角色"
+              secondaryText="查看聊天"
+              onPrimary={handleChooseCharacter}
+              onSecondary={handleViewChats}
+            />
           </View>
         )}
       </View>

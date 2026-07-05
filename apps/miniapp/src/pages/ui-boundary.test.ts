@@ -35,7 +35,7 @@ describe('production pages use shared miniapp ui', () => {
   it('keeps migrated page primitives on shared miniapp ui components', () => {
     const loginPage = fs.readFileSync(path.join(pagesDir, 'login/index.tsx'), 'utf8');
     expect(loginPage).toContain('PrimaryButton');
-    expect(loginPage).toContain('NoticeBlock');
+    expect(loginPage).not.toContain('NoticeBlock');
     expect(loginPage).not.toContain('button-primary');
     expect(loginPage).not.toContain('login-page__notice');
 
@@ -43,17 +43,29 @@ describe('production pages use shared miniapp ui', () => {
     expect(profilePage).toContain('profile__hero');
     expect(profilePage).toContain('profile__growth-card');
     expect(profilePage).toContain('profile__stat-grid');
-    expect(profilePage).toContain('profile__empty-row');
+    expect(profilePage).toContain('profile__empty-panel');
     expect(profilePage).toContain('CharacterAvatar');
     expect(profilePage).toContain('PointsBadge');
     expect(profilePage).toContain('AchievementIcon');
+    expect(profilePage).toContain('EmptyState');
+    expect(profilePage).toContain('NoticeBlock');
+    expect(profilePage).toContain("const nickname = profile?.nickname || '我的'");
+    expect(profilePage).toContain('开始第一段角色经历');
+    expect(profilePage).toContain('去选角色');
+    expect(profilePage).toContain("Taro.switchTab({ url: '/pages/home/index' })");
+    expect(profilePage).toContain('查看聊天');
+    expect(profilePage).toContain("Taro.switchTab({ url: '/pages/chat/list' })");
+    expect(profilePage).not.toContain("'旅人'");
+    expect(profilePage).not.toContain('profile__notice');
     expect(profilePage).not.toContain('暂无称号');
     expect(profilePage).not.toContain('暂无成就');
     expect(profilePage).not.toContain('PageSection title="称号"');
     expect(profilePage).not.toContain('PageSection title="成就"');
     expect(profilePage).not.toContain('className="page-section');
-    expect(profilePage).not.toContain('className="notice-block');
     expect(profilePage).not.toContain('surface-card');
+
+    const profileStyles = fs.readFileSync(path.join(pagesDir, 'profile/index.scss'), 'utf8');
+    expect(profileStyles).not.toContain('profile__hero::before');
 
     const detailPage = fs.readFileSync(path.join(pagesDir, 'character/detail.tsx'), 'utf8');
     expect(detailPage).toContain('PageSection');

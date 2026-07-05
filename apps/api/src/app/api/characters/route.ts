@@ -7,7 +7,7 @@ export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const characters = await listCharacters();
     return successResponse({ characters });
