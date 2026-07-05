@@ -9,83 +9,40 @@
   justify-content: space-between;
   box-sizing: border-box;
 
-  &__hero {
-    padding-top: $space-8;
+  &__stage {
+    margin-top: $space-10;
+    padding-top: $space-6;
+    border-top: 2rpx solid $color-primary;
   }
 
-  &__eyebrow {
+  &__brand {
     display: block;
     font-size: $font-label-md;
     font-weight: 800;
     color: $color-primary;
-    margin-bottom: $space-3;
+    margin-bottom: $space-4;
   }
 
   &__title {
     display: block;
-    font-size: 64rpx;
-    line-height: 1.12;
+    max-width: 600rpx;
+    font-size: 68rpx;
+    line-height: 1.14;
     font-weight: 900;
     color: $color-on-background;
   }
 
   &__subtitle {
     display: block;
-    margin-top: $space-4;
-    max-width: 640rpx;
+    margin-top: $space-5;
+    max-width: 620rpx;
     font-size: $font-body-lg;
     line-height: 1.7;
     color: $color-on-surface-variant;
   }
 
-  &__panel {
-    margin-top: $space-8;
-    border-radius: $radius-2xl;
-    padding: $space-5;
-    background-color: $color-surface-container-low;
-    box-shadow: $shadow-panel;
-  }
-
-  &__feature {
-    display: flex;
-    padding: $space-3 0;
-  }
-
-  &__feature + &__feature {
-    border-top: 1rpx solid $color-outline-variant;
-  }
-
-  &__feature-index {
-    width: 68rpx;
-    flex-shrink: 0;
-    font-size: $font-label-md;
-    font-weight: 900;
-    color: $color-tertiary;
-  }
-
-  &__feature-copy {
-    flex: 1;
-    min-width: 0;
-  }
-
-  &__feature-title {
-    display: block;
-    font-size: $font-title-md;
-    line-height: 1.35;
-    font-weight: 800;
-    color: $color-on-surface;
-  }
-
-  &__feature-text {
-    display: block;
-    margin-top: $space-1;
-    font-size: $font-body-md;
-    line-height: 1.55;
-    color: $color-on-surface-variant;
-  }
-
   &__footer {
-    margin-top: $space-8;
+    margin-top: $space-10;
   }
 
   &__action {
@@ -96,7 +53,19 @@
     width: 100%;
   }
 
+  &__login-hint {
+    display: block;
+    margin-top: $space-3;
+    font-size: $font-label-sm;
+    line-height: 1.5;
+    text-align: center;
+    color: $color-on-surface-variant;
+  }
+
   &__footer .notice-block {
-    margin-top: $space-4;
+    margin-top: $space-5;
+    border-radius: $radius-md;
+    background-color: transparent;
+    padding: 0 $space-2;
   }
 }

@@ -63,47 +63,24 @@ export default function Login() {
 
   return (
     <View className="login-page app-page">
-      <View className="login-page__hero">
-        <Text className="login-page__eyebrow">剧本杀角色聊天小程序</Text>
-        <Text className="login-page__title">月满楼</Text>
+      <View className="login-page__stage">
+        <Text className="login-page__brand">灵犀剧场</Text>
+        <Text className="login-page__title">有些角色，只等你开口</Text>
         <Text className="login-page__subtitle">
-          和各个热门剧本里的角色在线聊天，在对话中沉浸交流，延续你喜欢的剧本杀故事。
+          回来继续上次那场戏，见你聊到一半的人，也接上没走完的线索。
         </Text>
-      </View>
-
-      <View className="login-page__panel">
-        <View className="login-page__feature">
-          <Text className="login-page__feature-index">01</Text>
-          <View className="login-page__feature-copy">
-            <Text className="login-page__feature-title">热门剧本角色</Text>
-            <Text className="login-page__feature-text">选择你熟悉或心动的剧本角色，随时进入专属对话。</Text>
-          </View>
-        </View>
-        <View className="login-page__feature">
-          <Text className="login-page__feature-index">02</Text>
-          <View className="login-page__feature-copy">
-            <Text className="login-page__feature-title">沉浸式交流</Text>
-            <Text className="login-page__feature-text">角色会依据人设、剧情关系和你的消息自然回应。</Text>
-          </View>
-        </View>
-        <View className="login-page__feature">
-          <Text className="login-page__feature-index">03</Text>
-          <View className="login-page__feature-copy">
-            <Text className="login-page__feature-title">保存你的故事</Text>
-            <Text className="login-page__feature-text">登录后保留会话、点数、记忆和角色关系进度。</Text>
-          </View>
-        </View>
       </View>
 
       <View className="login-page__footer">
         <View className="login-page__action">
           <PrimaryButton className="login-page__wechat-btn" disabled={loading} onTap={handleWechatLogin}>
-            {loading ? '登录中…' : '微信登录'}
+            {loading ? '入场中…' : '进入剧场'}
           </PrimaryButton>
+          <Text className="login-page__login-hint">使用微信登录，替你找回进度。</Text>
         </View>
 
         <NoticeBlock>
-          本产品包含 AI 生成的角色对话内容。角色与剧情均为虚构，请理性体验。
+          对话由 AI 生成，角色与剧情都是虚构，请把它当作一场戏。
         </NoticeBlock>
       </View>
     </View>
@@ -111,5 +88,5 @@ export default function Login() {
 }
 
 definePageConfig({
-  navigationBarTitleText: '登录',
+  navigationBarTitleText: '灵犀剧场',
 });
