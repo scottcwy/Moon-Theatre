@@ -9,6 +9,7 @@
     "css": "scss"
   },
   "scripts": {
+    "prebuild:weapp": "node scripts/clean-dist.mjs",
     "build:weapp": "taro build --type weapp",
     "dev:weapp": "taro build --type weapp --watch",
     "lint": "eslint src/",
