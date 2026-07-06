@@ -76,6 +76,13 @@ test('caddy uses an environment-backed production domain and has no placeholder 
   assert.match(caddyfile, /reverse_proxy api:3000/);
 });
 
+test('caddy keeps response compression compatible with Mini Program clients', () => {
+  const caddyfile = readRepoFile('infra/caddy/Caddyfile');
+
+  assert.match(caddyfile, /\bencode\s+gzip\b/);
+  assert.doesNotMatch(caddyfile, /\bencode\s+zstd\b/);
+});
+
 test('FastClaw Go-only Dockerfile does not build the Web UI', () => {
   const dockerfile = readRepoFile('fastclaw/Dockerfile.go');
 

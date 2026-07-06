@@ -1,4 +1,5 @@
 {$CADDY_API_SITE_ADDRESS} {
-    encode zstd gzip
+    # Keep gzip-only for Mini Program client compatibility.
+    encode gzip
     reverse_proxy api:3000
 }
