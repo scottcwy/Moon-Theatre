@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { exchangeWeChatCode, findOrCreateUser, signJwt } from '@/server/modules/auth/index.js';
+import {
+  exchangeWeChatCode,
+  findOrCreateUser,
+  grantTestUserInitialPoints,
+  signJwt,
+  WeChatCode2SessionError,
+} from '@/server/modules/auth/index.js';
 import { errorResponse, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 
@@ -23,6 +29,7 @@ export async function POST(request: NextRequest) {
 
     const { openid } = await exchangeWeChatCode(parsed.data.code);
     const user = await findOrCreateUser(openid);
+    await grantTestUserInitialPoints(user.id);
     const token = await signJwt(user.id);
 
     return successResponse({
@@ -38,8 +45,14 @@ export async function POST(request: NextRequest) {
       return errorResponse('微信登录暂不可用，请稍后再试', 503);
     }
     if (isInvalidWeChatCodeError(err)) {
+      if (err instanceof WeChatCode2SessionError) {
+        console.error('WeChat code2session failed', { code: err.code, message: err.upstreamMessage });
+      } else {
+        console.error('WeChat code2session failed');
+      }
       return errorResponse('微信登录凭证无效，请重试', 400);
     }
+    console.error('WeChat login failed', err);
     return errorResponse('登录失败，请稍后再试', 500);
   }
 }

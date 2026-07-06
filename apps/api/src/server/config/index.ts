@@ -24,6 +24,7 @@ const rawConfig = {
   adminBasicAuthUser: process.env.ADMIN_BASIC_AUTH_USER || '',
   adminBasicAuthPassword: process.env.ADMIN_BASIC_AUTH_PASSWORD || '',
   devAuthBypass: !isProduction && process.env.DEV_AUTH_BYPASS === 'true',
+  testUserInitialPoints: parseInt(process.env.TEST_USER_INITIAL_POINTS || '0', 10),
 } as const;
 
 validateProductionConfig(rawConfig);

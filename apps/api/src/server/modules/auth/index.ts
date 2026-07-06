@@ -1,1 +1,7 @@
-export { exchangeWeChatCode, findOrCreateUser, signJwt } from './wechat.service.js';
+export {
+  exchangeWeChatCode,
+  findOrCreateUser,
+  grantTestUserInitialPoints,
+  signJwt,
+  WeChatCode2SessionError,
+} from './wechat.service.js';

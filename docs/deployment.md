@@ -29,6 +29,7 @@ rtk cp .env.example .env
 - `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。
 - `PAYMENT_PROVIDER` 和支付服务商参数。
 - `ADMIN_USER_IDS`, `ADMIN_BASIC_AUTH_USER`, `ADMIN_BASIC_AUTH_PASSWORD`。
+- `TEST_USER_INITIAL_POINTS`: 测试版体验赠点。正式版保持 `0`；只发测试版时可临时设为 `1000`，每个微信用户首次成功登录后按用户维度幂等入账一次。
 
 不要把真实 `.env` 提交到仓库。
 
