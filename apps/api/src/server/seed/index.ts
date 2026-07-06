@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { scripts, characters, characterPrompts, modelProfiles, quotaPackages, blockedKeywords } from '../db/schema.js';
+import { closeDb, db } from '../db/index.js';
+import { scripts, characters, characterPrompts, modelProfiles, blockedKeywords } from '../db/schema.js';
+import { seedQuotaPackages } from './quota-packages.js';
 import { legacyScriptTitle, seedCharacters, seedScript } from './story-data.js';
 
 const initialBlockedKeywords = [
@@ -86,35 +87,7 @@ async function seed() {
 
   console.log('Created model profiles');
 
-  await db.insert(quotaPackages).values([
-    {
-      name: '体验包',
-      priceCents: 600,
-      points: 60,
-      description: '60 点数，适合初次体验',
-      recommended: false,
-      active: true,
-      sortOrder: 1,
-    },
-    {
-      name: '标准包',
-      priceCents: 1800,
-      points: 200,
-      description: '200 点数，最超值的选择',
-      recommended: true,
-      active: true,
-      sortOrder: 2,
-    },
-    {
-      name: '沉浸包',
-      priceCents: 3800,
-      points: 450,
-      description: '450 点数，深度沉浸体验',
-      recommended: false,
-      active: true,
-      sortOrder: 3,
-    },
-  ]).onConflictDoNothing();
+  await seedQuotaPackages();
 
   console.log('Created quota packages');
 
@@ -181,7 +154,18 @@ async function refreshCharacterPrompt(
   });
 }
 
-seed().catch((err) => {
+async function main() {
+  try {
+    await seed();
+  } catch (err) {
+    console.error('Seed failed:', err);
+    process.exitCode = 1;
+  } finally {
+    await closeDb();
+  }
+}
+
+main().catch((err) => {
   console.error('Seed failed:', err);
   process.exit(1);
 });

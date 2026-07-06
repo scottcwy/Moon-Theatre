@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "剧本杀角色扮演小程序 - Monorepo",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:api": "pnpm --filter @juben-sha/api dev",
@@ -17,7 +18,8 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "test:dev-script": "node --test scripts/dev.test.mjs"
+    "test:dev-script": "node --test scripts/dev.test.mjs",
+    "test:deploy-config": "node --test scripts/deploy-config.test.mjs"
   },
   "engines": {
     "node": ">=20.0.0",

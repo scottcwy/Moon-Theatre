@@ -102,9 +102,9 @@ apps/api/src/server/db/
 
 | 模块 | 状态 | 当前实现 | 主要缺口 |
 | --- | --- | --- | --- |
-| 工程基础 | 基本完成 | Monorepo、Next.js API、Taro miniapp、Drizzle、Vitest、Docker Compose 已有 | 需要继续补部署验收文档和 CI 固化 |
-| 配置安全 | 基本完成 | 生产环境强制校验 `DATABASE_URL`、`JWT_SECRET`、支付 provider、admin 配置 | 部署模板仍需和真实环境变量对齐 |
-| 小程序构建配置 | 基本完成 | 生产构建缺少 `API_BASE_URL`、指向 localhost 或使用 `api.example.com` 会失败；`verify:weapp` 会扫描构建产物 | 需要 CI 中固定执行构建校验，且不得用 `api.example.com` 做验证构建 |
+| 工程基础 | 基本完成 | Monorepo、Next.js API、Taro miniapp、Drizzle、Vitest、Docker Compose、腾讯云 CCR 镜像部署手册已有 | CI 固化和真实服务器演练仍需补 |
+| 配置安全 | 基本完成 | 生产环境强制校验 `DATABASE_URL`、`JWT_SECRET`、支付 provider、admin 配置；Next 构建期不需要注入运行时密钥 | 真实环境变量仍需按部署手册落地 |
+| 小程序构建配置 | 基本完成 | 生产构建缺少 `API_BASE_URL`、指向 localhost 或使用 `api.example.com` 会失败；`verify:weapp` 会扫描构建产物；部署手册固定真实域名构建步骤 | 需要 CI 中固定执行构建校验，且不得用 `api.example.com` 做验证构建 |
 | 微信登录/JWT | 基本完成 | `POST /api/auth/wechat-login`、`GET /api/me`、JWT middleware 已有 | 没有 refresh token，符合 V1 当前口径 |
 | 角色/剧本 | 基本完成 | 角色列表、详情、Prompt、script 查询已有 | 内容运营、素材和更复杂剧情节点仍待补 |
 | 聊天会话 | 基本完成 | `moderated-buffered` 已同步为正式 SPEC 口径；会话创建、用户消息保存、预扣、调用 FastClaw、输出审核、保存 assistant 消息、退款和 done payload 已有 | 当前不是真正逐 token 展示；FastClaw 错误路径尚未写入 failed model usage log |
@@ -352,7 +352,7 @@ docs/openapi-v1.yaml
 2. FastClaw 模型质量、成本和延迟压测。
 3. 反向代理和微信开发者工具下的 streaming 行为验证。
 4. admin 登录/无权限/过期状态体验。
-5. 部署验收手册：env、migration、seed、health/ready、回滚。
+5. 部署验收手册已有基础版，后续需要在真实服务器按 env、migration、seed、health/ready、回滚流程演练。
 
 ## 7. 建议给新窗口的任务边界
 
@@ -429,7 +429,7 @@ readiness 失败应返回可读的组件状态，但不能泄露密钥。
 - API 测试。
 - API TypeScript 编译。
 - 小程序生产构建和 `verify:weapp`，使用真实安全 API 域名或非占位测试域名，不得使用 `api.example.com`。
-- Docker Compose 构建或部署前 dry-run。
+- Docker Compose 部署前 dry-run；服务器部署默认拉取腾讯云 CCR 镜像，不在服务器现场构建业务镜像。
 
 ### 8.5 支付真实服务商联调
 
@@ -502,7 +502,7 @@ rtk pnpm --filter @juben-sha/api seed
 2. 硬化 apps/api/src/server/modules/fastclaw/adapter.ts：超时、错误分类、生产 fallback 策略、contract test。
 3. 补模型调用日志/可观测字段：耗时、fallback、错误原因、token、上游 request id。
 4. 补强 /api/ready：在当前 FastClaw /readyz 检查基础上增加数据库和生产关键配置状态。
-5. 固化 CI/部署验收：API test/typecheck、小程序生产构建、Docker/Compose 验证。
+5. 固化 CI/部署验收：API test/typecheck、小程序生产构建、Docker/Compose 验证；当前已有腾讯云 CCR 镜像部署版 `docs/deployment.md` 和部署配置测试基础。
 6. 再推进真实支付服务商联调和支付状态机测试。
 
 开发约束：

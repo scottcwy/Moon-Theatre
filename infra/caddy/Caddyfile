@@ -1,8 +1,4 @@
-:80 {
+{$CADDY_API_SITE_ADDRESS} {
+    encode zstd gzip
     reverse_proxy api:3000
 }
-
-# Production: replace with your domain
-# api.example.com {
-#     reverse_proxy api:3000
-# }

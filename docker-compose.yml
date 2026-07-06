@@ -1,20 +1,40 @@
 name: juben-sha
 
+x-api-environment: &api-environment
+  - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+  - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+  - WECHAT_APP_ID=${WECHAT_APP_ID:?WECHAT_APP_ID is required}
+  - WECHAT_APP_SECRET=${WECHAT_APP_SECRET:?WECHAT_APP_SECRET is required}
+  - FASTCLAW_BASE_URL=http://fastclaw:18953
+  - FASTCLAW_API_KEY=${FASTCLAW_API_KEY:?FASTCLAW_API_KEY is required}
+  - FASTCLAW_AGENT_ID=${FASTCLAW_AGENT_ID:-}
+  - FASTCLAW_TIMEOUT_MS=${FASTCLAW_TIMEOUT_MS:-30000}
+  - FASTCLAW_FALLBACK_ENABLED=${FASTCLAW_FALLBACK_ENABLED:-false}
+  - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:?PAYMENT_PROVIDER is required}
+  - PAYMENT_MERCHANT_ID=${PAYMENT_MERCHANT_ID:-}
+  - PAYMENT_APP_ID=${PAYMENT_APP_ID:-}
+  - PAYMENT_SECRET=${PAYMENT_SECRET:-}
+  - PAYMENT_PUBLIC_KEY=${PAYMENT_PUBLIC_KEY:-}
+  - PAYMENT_PRIVATE_KEY=${PAYMENT_PRIVATE_KEY:-}
+  - PAYMENT_NOTIFY_URL=${PAYMENT_NOTIFY_URL:-}
+  - PAYMENT_RETURN_URL=${PAYMENT_RETURN_URL:-}
+  - ADMIN_USER_IDS=${ADMIN_USER_IDS:?ADMIN_USER_IDS is required}
+  - ADMIN_BASIC_AUTH_USER=${ADMIN_BASIC_AUTH_USER:?ADMIN_BASIC_AUTH_USER is required}
+  - ADMIN_BASIC_AUTH_PASSWORD=${ADMIN_BASIC_AUTH_PASSWORD:?ADMIN_BASIC_AUTH_PASSWORD is required}
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE is required}
     container_name: juben-sha-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: juben_sha
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - '5432:5432'
+      - POSTGRES_DB=juben_sha
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d juben_sha']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,34 +42,10 @@ services:
       - juben-sha-network
 
   api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+    image: ${API_IMAGE:?API_IMAGE is required}
     container_name: juben-sha-api
     restart: unless-stopped
-    ports:
-      - '3000:3000'
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/juben_sha
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
-      - WECHAT_APP_ID=${WECHAT_APP_ID:-}
-      - WECHAT_APP_SECRET=${WECHAT_APP_SECRET:-}
-      - FASTCLAW_BASE_URL=http://fastclaw:18953
-      - FASTCLAW_API_KEY=${FASTCLAW_API_KEY:-}
-      - FASTCLAW_AGENT_ID=${FASTCLAW_AGENT_ID:-}
-      - FASTCLAW_TIMEOUT_MS=${FASTCLAW_TIMEOUT_MS:-30000}
-      - FASTCLAW_FALLBACK_ENABLED=${FASTCLAW_FALLBACK_ENABLED:-false}
-      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:?PAYMENT_PROVIDER is required}
-      - PAYMENT_MERCHANT_ID=${PAYMENT_MERCHANT_ID:-}
-      - PAYMENT_APP_ID=${PAYMENT_APP_ID:-}
-      - PAYMENT_SECRET=${PAYMENT_SECRET:-}
-      - PAYMENT_PUBLIC_KEY=${PAYMENT_PUBLIC_KEY:-}
-      - PAYMENT_PRIVATE_KEY=${PAYMENT_PRIVATE_KEY:-}
-      - PAYMENT_NOTIFY_URL=${PAYMENT_NOTIFY_URL:-}
-      - PAYMENT_RETURN_URL=${PAYMENT_RETURN_URL:-}
-      - ADMIN_USER_IDS=${ADMIN_USER_IDS:?ADMIN_USER_IDS is required}
-      - ADMIN_BASIC_AUTH_USER=${ADMIN_BASIC_AUTH_USER:?ADMIN_BASIC_AUTH_USER is required}
-      - ADMIN_BASIC_AUTH_PASSWORD=${ADMIN_BASIC_AUTH_PASSWORD:?ADMIN_BASIC_AUTH_PASSWORD is required}
+    environment: *api-environment
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,16 +54,35 @@ services:
     networks:
       - juben-sha-network
 
+  api-migrate:
+    image: ${API_TOOLS_IMAGE:?API_TOOLS_IMAGE is required}
+    profiles:
+      - tools
+    command: pnpm --filter @juben-sha/api db:migrate
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - juben-sha-network
+
+  api-seed:
+    image: ${API_TOOLS_IMAGE:?API_TOOLS_IMAGE is required}
+    profiles:
+      - tools
+    command: pnpm --filter @juben-sha/api seed
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - juben-sha-network
+
   fastclaw:
-    build:
-      context: ./fastclaw
-      dockerfile: Dockerfile
+    image: ${FASTCLAW_IMAGE:?FASTCLAW_IMAGE is required}
     container_name: juben-sha-fastclaw
     restart: unless-stopped
-    ports:
-      - '18953:18953'
     environment:
-      - FASTCLAW_AUTH_TOKEN=${FASTCLAW_AUTH_TOKEN:-}
       - FASTCLAW_BIND=all
       - FASTCLAW_STORAGE_DSN=${FASTCLAW_STORAGE_DSN:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -77,12 +92,14 @@ services:
       - juben-sha-network
 
   caddy:
-    image: caddy:2-alpine
+    image: ${CADDY_IMAGE:?CADDY_IMAGE is required}
     container_name: juben-sha-caddy
     restart: unless-stopped
     ports:
       - '80:80'
       - '443:443'
+    environment:
+      - CADDY_API_SITE_ADDRESS=${CADDY_API_SITE_ADDRESS:?CADDY_API_SITE_ADDRESS is required}
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

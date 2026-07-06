@@ -42,6 +42,13 @@ function validateProductionConfig(cfg: typeof rawConfig): void {
     return;
   }
 
+  // During Next.js build lifecycle, the config module is loaded but
+  // environment secrets are not yet available. Skip validation here;
+  // runtime (docker entrypoint) will re-validate with real secrets.
+  if (process.env.npm_lifecycle_event === 'build') {
+    return;
+  }
+
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL must be set in production');
   }

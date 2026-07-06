@@ -59,6 +59,16 @@ describe('server config production validation', () => {
     await expect(loadConfig()).rejects.toThrow('WECHAT_APP_ID and WECHAT_APP_SECRET must be set in production');
   });
 
+  it('skips production runtime validation during the Next build lifecycle', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('npm_lifecycle_event', 'build');
+
+    const { config } = await loadConfig();
+
+    expect(config.databaseUrl).toBe('postgres://postgres:postgres@localhost:5432/juben_sha');
+    expect(config.jwtSecret).toBe('dev-secret-change-in-production');
+  });
+
   it('allows development defaults', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('JWT_SECRET', '');
