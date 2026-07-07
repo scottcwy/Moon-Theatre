@@ -1,4 +1,5 @@
-import { eq } from 'drizzle-orm';
+import { pathToFileURL } from 'node:url';
+import { eq, sql } from 'drizzle-orm';
 import { closeDb, db } from '../db/index.js';
 import { scripts, characters, characterPrompts, modelProfiles, blockedKeywords } from '../db/schema.js';
 import { seedQuotaPackages } from './quota-packages.js';
@@ -20,6 +21,39 @@ const initialBlockedKeywords = [
   { keyword: '赌博', category: 'gambling' },
   { keyword: '诈骗', category: 'fraud' },
   { keyword: '恐怖主义', category: 'extremism' },
+];
+
+const modelProfileSeeds: Array<typeof modelProfiles.$inferInsert> = [
+  {
+    tier: 'casual',
+    modelName: 'Qwen/Qwen3.5-9B',
+    provider: 'siliconflow',
+    enabled: true,
+    pointsPerCall: 1,
+    displayName: '轻松',
+    description: '轻松档位，使用轻量模型，适合日常闲聊',
+    costEstimateCents: 1,
+  },
+  {
+    tier: 'standard',
+    modelName: 'Qwen/Qwen3.5-9B',
+    provider: 'siliconflow',
+    enabled: true,
+    pointsPerCall: 3,
+    displayName: '标准',
+    description: '标准档位，平衡质量与响应速度',
+    costEstimateCents: 5,
+  },
+  {
+    tier: 'immersive',
+    modelName: 'Qwen/Qwen3.5-9B',
+    provider: 'siliconflow',
+    enabled: true,
+    pointsPerCall: 6,
+    displayName: '沉浸',
+    description: '沉浸档位，最高质量的角色扮演体验',
+    costEstimateCents: 15,
+  },
 ];
 
 async function seedBlockedKeywords() {
@@ -52,38 +86,7 @@ async function seed() {
 
   console.log(`Seeded characters: ${characterIds.join(', ')}`);
 
-  await db.insert(modelProfiles).values([
-    {
-      tier: 'casual',
-      modelName: 'Qwen/Qwen3.5-9B',
-      provider: 'openrouter',
-      enabled: true,
-      pointsPerCall: 1,
-      displayName: '轻松',
-      description: '轻松档位，使用轻量模型，适合日常闲聊',
-      costEstimateCents: 1,
-    },
-    {
-      tier: 'standard',
-      modelName: 'Qwen/Qwen3.5-9B',
-      provider: 'openrouter',
-      enabled: true,
-      pointsPerCall: 3,
-      displayName: '标准',
-      description: '标准档位，平衡质量与响应速度',
-      costEstimateCents: 5,
-    },
-    {
-      tier: 'immersive',
-      modelName: 'Qwen/Qwen3.5-9B',
-      provider: 'openrouter',
-      enabled: true,
-      pointsPerCall: 6,
-      displayName: '沉浸',
-      description: '沉浸档位，最高质量的角色扮演体验',
-      costEstimateCents: 15,
-    },
-  ]).onConflictDoNothing({ target: modelProfiles.tier });
+  await seedModelProfiles();
 
   console.log('Created model profiles');
 
@@ -93,6 +96,22 @@ async function seed() {
 
   console.log('Created blocked keywords');
   console.log('Seed completed successfully!');
+}
+
+export async function seedModelProfiles() {
+  await db.insert(modelProfiles).values(modelProfileSeeds).onConflictDoUpdate({
+    target: modelProfiles.tier,
+    set: {
+      modelName: sql`excluded.model_name`,
+      provider: sql`excluded.provider`,
+      enabled: sql`excluded.enabled`,
+      pointsPerCall: sql`excluded.points_per_call`,
+      displayName: sql`excluded.display_name`,
+      description: sql`excluded.description`,
+      costEstimateCents: sql`excluded.cost_estimate_cents`,
+      updatedAt: new Date(),
+    },
+  });
 }
 
 async function upsertScript() {
@@ -165,7 +184,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error('Seed failed:', err);
+    process.exit(1);
+  });
+}

@@ -3,6 +3,7 @@ import Taro from '@tarojs/taro';
 const BASE_URL = API_BASE_URL;
 const DEV_TOKEN = 'dev-auth-bypass-token';
 const API_REQUEST_TIMEOUT_MS = 30000;
+const CHAT_STREAM_REQUEST_TIMEOUT_MS = 130000;
 const IDEMPOTENT_REQUEST_MAX_ATTEMPTS = 2;
 const IDEMPOTENT_REQUEST_RETRY_DELAY_MS = 300;
 const API_DEBUG_LOG_PREFIX = '[api]';
@@ -256,20 +257,128 @@ export interface StreamCallbacks {
   onAuthExpired?: () => void;
 }
 
-function decodeChunk(data: unknown): string {
+interface ChunkDecoder {
+  decode: (data: unknown) => string;
+  flush: () => string;
+}
+
+function createChunkDecoder(): ChunkDecoder {
+  const textDecoderCtor = (globalThis as unknown as {
+    TextDecoder?: new (label?: string) => {
+      decode: (input?: ArrayBufferView | ArrayBuffer, options?: { stream?: boolean }) => string;
+    };
+  }).TextDecoder;
+
+  if (textDecoderCtor) {
+    const decoder = new textDecoderCtor('utf-8');
+    return {
+      decode(data: unknown): string {
+        if (typeof data === 'string') {
+          return data;
+        }
+        if (data instanceof ArrayBuffer) {
+          return decoder.decode(new Uint8Array(data), { stream: true });
+        }
+        return '';
+      },
+      flush(): string {
+        return decoder.decode();
+      },
+    };
+  }
+
+  let pending = new Uint8Array(0);
+  return {
+    decode(data: unknown): string {
+      if (typeof data === 'string') {
+        return data;
+      }
+      if (!(data instanceof ArrayBuffer)) {
+        return '';
+      }
+
+      const bytes = concatBytes(pending, new Uint8Array(data));
+      const pendingLength = getIncompleteUtf8TailLength(bytes);
+      const completeLength = bytes.length - pendingLength;
+      pending = pendingLength > 0 ? bytes.slice(completeLength) : new Uint8Array(0);
+
+      return decodeUtf8Bytes(bytes.slice(0, completeLength));
+    },
+    flush(): string {
+      const text = pending.length > 0 ? decodeUtf8Bytes(pending) : '';
+      pending = new Uint8Array(0);
+      return text;
+    },
+  };
+}
+
+function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
+  if (a.length === 0) return b;
+  if (b.length === 0) return a;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+function getIncompleteUtf8TailLength(bytes: Uint8Array): number {
+  if (bytes.length === 0) return 0;
+
+  let start = bytes.length - 1;
+  while (start >= 0 && (bytes[start]! & 0xc0) === 0x80) {
+    start -= 1;
+  }
+
+  if (start < 0) return bytes.length;
+
+  const lead = bytes[start]!;
+  const expected = lead < 0x80 ? 1 : (lead & 0xe0) === 0xc0 ? 2 : (lead & 0xf0) === 0xe0 ? 3 : (lead & 0xf8) === 0xf0 ? 4 : 1;
+  const available = bytes.length - start;
+
+  return available < expected ? available : 0;
+}
+
+function decodeUtf8Bytes(bytes: Uint8Array): string {
+  let output = '';
+  for (let i = 0; i < bytes.length;) {
+    const first = bytes[i]!;
+
+    if (first < 0x80) {
+      output += String.fromCharCode(first);
+      i += 1;
+      continue;
+    }
+
+    if ((first & 0xe0) === 0xc0 && i + 1 < bytes.length) {
+      output += String.fromCharCode(((first & 0x1f) << 6) | (bytes[i + 1]! & 0x3f));
+      i += 2;
+      continue;
+    }
+
+    if ((first & 0xf0) === 0xe0 && i + 2 < bytes.length) {
+      output += String.fromCharCode(((first & 0x0f) << 12) | ((bytes[i + 1]! & 0x3f) << 6) | (bytes[i + 2]! & 0x3f));
+      i += 3;
+      continue;
+    }
+
+    if ((first & 0xf8) === 0xf0 && i + 3 < bytes.length) {
+      const codePoint = ((first & 0x07) << 18) | ((bytes[i + 1]! & 0x3f) << 12) | ((bytes[i + 2]! & 0x3f) << 6) | (bytes[i + 3]! & 0x3f);
+      output += String.fromCodePoint(codePoint);
+      i += 4;
+      continue;
+    }
+
+    output += '\uFFFD';
+    i += 1;
+  }
+  return output;
+}
+
+function decodeChunk(data: unknown, decoder: ChunkDecoder): string {
   if (typeof data === 'string') {
     return data;
   }
-  if (data instanceof ArrayBuffer) {
-    const textDecoderCtor = (globalThis as unknown as {
-      TextDecoder?: new () => { decode: (input: ArrayBuffer) => string };
-    }).TextDecoder;
-    if (textDecoderCtor) {
-      return new textDecoderCtor().decode(data);
-    }
-    return String.fromCharCode(...new Uint8Array(data));
-  }
-  return '';
+  return decoder.decode(data);
 }
 
 export function streamChat(
@@ -283,6 +392,8 @@ export function streamChat(
 ): { abort: () => void } {
   const token = getToken() || '';
   let buffer = '';
+  let receivedChunk = false;
+  const chunkDecoder = createChunkDecoder();
 
   const processStreamText = (text: string) => {
     buffer += text;
@@ -327,7 +438,7 @@ export function streamChat(
     },
     enableChunked: true,
     responseType: 'text',
-    timeout: 120000,
+    timeout: CHAT_STREAM_REQUEST_TIMEOUT_MS,
     success(res) {
       if (res.statusCode === 401) {
         clearAuth();
@@ -350,7 +461,7 @@ export function streamChat(
         return;
       }
 
-      const data = decodeChunk(res.data);
+      const data = receivedChunk ? chunkDecoder.flush() : decodeChunk(res.data, chunkDecoder) + chunkDecoder.flush();
       if (data) {
         processStreamText(data.endsWith('\n') ? data : `${data}\n`);
       }
@@ -362,7 +473,8 @@ export function streamChat(
   });
 
   requestTask.onChunkReceived((res) => {
-    const chunk = decodeChunk(res.data);
+    receivedChunk = true;
+    const chunk = decodeChunk(res.data, chunkDecoder);
     processStreamText(chunk);
   });
 

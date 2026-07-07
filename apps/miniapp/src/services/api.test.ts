@@ -192,6 +192,49 @@ describe('miniapp api client', () => {
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ balanceAfter: 7 }));
   });
 
+  it('decodes utf-8 arraybuffer chat chunks when TextDecoder is unavailable', async () => {
+    const originalTextDecoder = globalThis.TextDecoder;
+    vi.stubGlobal('TextDecoder', undefined);
+
+    try {
+      const { setToken, streamChat } = await import('./api');
+      setToken('auth-token');
+
+      let chunkHandler: ((res: { data: unknown }) => void) | undefined;
+      requestMock.mockReturnValue({
+        onChunkReceived: vi.fn((handler: (res: { data: unknown }) => void) => {
+          chunkHandler = handler;
+        }),
+        abort: vi.fn(),
+      });
+
+      const onDelta = vi.fn();
+      streamChat(
+        {
+          characterId: 'character-id',
+          message: '你好',
+          modelTier: 'standard',
+        },
+        {
+          onDelta,
+          onDone: vi.fn(),
+          onError: vi.fn(),
+        },
+      );
+
+      const line = JSON.stringify({ type: 'delta', content: '你好，铃音。' }) + '\n';
+      const bytes = new TextEncoder().encode(line);
+      const splitAt = bytes.findIndex((byte) => byte > 0x7f) + 1;
+
+      chunkHandler?.({ data: bytes.slice(0, splitAt).buffer });
+      chunkHandler?.({ data: bytes.slice(splitAt).buffer });
+
+      expect(onDelta).toHaveBeenCalledWith('你好，铃音。');
+    } finally {
+      vi.stubGlobal('TextDecoder', originalTextDecoder);
+    }
+  });
+
   it('parses completed chat stream responses when chunk events are not delivered', async () => {
     const { setToken, streamChat } = await import('./api');
     setToken('auth-token');
@@ -238,7 +281,7 @@ describe('miniapp api client', () => {
     }));
   });
 
-  it('allows slow chat streams enough time to return', async () => {
+  it('leaves cleanup headroom beyond the server FastClaw timeout', async () => {
     const { setToken, streamChat } = await import('./api');
     setToken('auth-token');
 
@@ -266,6 +309,6 @@ describe('miniapp api client', () => {
       },
     );
 
-    expect(requestOptions.timeout).toBe(120000);
+    expect(requestOptions.timeout).toBe(130000);
   });
 });
