@@ -108,7 +108,7 @@ apps/api/src/server/db/
 | 微信登录/JWT | 基本完成 | `POST /api/auth/wechat-login`、`GET /api/me`、JWT middleware 已有 | 没有 refresh token，符合 V1 当前口径 |
 | 角色/剧本 | 基本完成 | 角色列表、详情、Prompt、script 查询已有 | 内容运营、素材和更复杂剧情节点仍待补 |
 | 聊天会话 | 基本完成 | `moderated-buffered` 已同步为正式 SPEC 口径；会话创建、用户消息保存、预扣、调用 FastClaw、输出审核、保存 assistant 消息、退款和 done payload 已有 | 当前不是真正逐 token 展示；FastClaw 错误路径尚未写入 failed model usage log |
-| FastClaw 集成 | 基础完成 | `server/modules/fastclaw` 适配层已有，调用 `/v1/chat/completions`，支持超时、fallback、`/api/ready` 检查 `/readyz` | 需要真实 FastClaw contract test、错误分类、生产 fallback 策略验收和更完整错误日志 |
+| FastClaw 集成 | 基础完成 | `server/modules/fastclaw` 适配层已有，调用 `/v1/chat/completions`，支持超时、fallback；FastClaw 暴露 runtime spec，`/api/ready` 会检查 `/readyz` 和业务 Agent `maxTokens/maxToolIterations` | 需要真实 FastClaw contract test、错误分类、生产 fallback 策略验收和更完整错误日志 |
 | 输入/输出审核 | 基本完成 | 输入关键词拦截、输出审核替换、review log 基础能力已有 | 审核策略仍偏简单，缺少更细的运营规则 |
 | 点数扣减 | 基本完成 | 发送前余额检查，生成前预扣，失败/过滤退款，返回 `balanceAfter` | 需要更多并发和异常测试 |
 | 记忆 | 基本完成 | 对话后抽取/upsert，下次对话前检索并注入 Prompt；admin 列表、筛选、禁用/覆盖已有 | 需要记忆抽取失败观测、审计和运营流程打磨 |
@@ -120,7 +120,7 @@ apps/api/src/server/db/
 | 钱包 | 基本完成 | 充值、消费、退款、余额流水均有事务处理 | 需要覆盖更多边界：并发扣点、负余额保护 |
 | admin API | 基本完成 | stats、sessions/messages/orders/payments/wallet/quota/model usage/review/keywords/memories/detail API 已有，统一使用 `verifyAdminAuth` | 后台体验、登录/无权限状态和更细编辑能力仍粗糙 |
 | admin 页面 | 基础完成 | 多个简单页面已存在，`/admin/**` 已加 Basic Auth middleware | 后台体验和无权限/过期状态仍粗糙，服务端页面读取也要继续收紧 |
-| health/ready | 部分完成 | `/api/health` 返回进程存活；`/api/ready` 检查 FastClaw 配置和 `/readyz` | readiness 尚未检查数据库连接和生产关键配置完整性 |
+| health/ready | 部分完成 | `/api/health` 返回进程存活；`/api/ready` 检查 FastClaw 配置、`/readyz`、`FASTCLAW_AGENT_ID` 和业务 Agent runtime spec | readiness 尚未检查数据库连接和其他生产关键配置完整性 |
 | API 文档 | 基础完成 | `docs/api-v1.md` 已覆盖主要小程序、支付回调和 admin API | 如需要对外联调，可再补机器可读 OpenAPI |
 | 测试 | 有基础覆盖 | auth、config、chat、fastclaw、memory、moderation、payments、wallet、miniapp api 有测试 | 缺更完整 route 级和端到端支付/聊天测试 |
 
@@ -312,18 +312,17 @@ docs/openapi-v1.yaml
 - fallback 文案流
 - fallback 单元测试
 - `/api/health` 进程存活检查
-- `/api/ready` 检查 FastClaw 配置和 `${FASTCLAW_BASE_URL}/readyz`
+- `/api/ready` 检查 FastClaw 配置、`${FASTCLAW_BASE_URL}/readyz` 和业务 Agent runtime spec
 - Docker Compose 中的 `fastclaw` 服务声明
 - `FASTCLAW_TIMEOUT_MS` 默认值已调整为 `120000`
 - `CHAT_EFFECTS_ASYNC_ENABLED` 默认 `false`，支持将业务聊天 effects 切到后台最终一致性
-- V1 业务聊天 Agent 限制已文档化：`maxTokens <= 768`、`maxToolIterations = 1`，prompt 默认 80-180 个中文字符，必要时最多 300 个中文字符
+- V1 业务聊天 Agent 限制已由 `/api/ready` runtime spec 校验：`maxTokens <= 768`、`maxToolIterations = 1`，prompt 默认 80-180 个中文字符，必要时最多 300 个中文字符
 
 仍需补：
 
-- 与真实 FastClaw 服务的 contract test 或联调脚本。
-- FastClaw Agent 真实环境配置核验：确认业务聊天 agent 已按 `maxTokens <= 768`、`maxToolIterations = 1` 生效。
+- 与真实 FastClaw 服务的 contract test 或联调脚本，覆盖鉴权、SSE 格式、错误格式和 runtime spec。
 - 生产环境 fallback 策略：默认关闭静默 fallback，失败走退款和错误响应；如要降级，必须显式配置并在响应/日志中标识。
-- readiness 检查：当前只覆盖 FastClaw 配置和 `/readyz`，还需补数据库连接和关键生产配置状态。
+- readiness 检查：当前覆盖 FastClaw 配置、`/readyz` 和业务 Agent 速度约束，还需补数据库连接和其他关键生产配置状态。
 - 模型调用日志补耗时、fallback、错误原因、token、上游 request id 等字段。
 
 ## 6. 后续开发优先级

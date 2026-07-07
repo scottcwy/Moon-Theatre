@@ -64,7 +64,7 @@ V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语�
 | 模块 | 方法 | 路径 | 说明 |
 | --- | --- | --- | --- |
 | Health | GET | `/api/health` | 进程存活检查，返回 `status: "ok"` |
-| Readiness | GET | `/api/ready` | 当前检查 FastClaw 配置和 `${FASTCLAW_BASE_URL}/readyz`；未 ready 返回 `503` |
+| Readiness | GET | `/api/ready` | 检查 FastClaw 配置、`${FASTCLAW_BASE_URL}/readyz` 和 `FASTCLAW_AGENT_ID` 对应 agent 的 runtime spec；未 ready 返回 `503` |
 
 ## 支付回调 API
 

@@ -495,6 +495,27 @@ func (a *Agent) Model() string {
 	return a.model
 }
 
+// RuntimeSpec is intentionally limited to non-secret fields. Do not add
+// provider credentials, prompts, memory, workspace paths, or user data here.
+type RuntimeSpec struct {
+	ID                string  `json:"id"`
+	Model             string  `json:"model"`
+	MaxTokens         int     `json:"maxTokens"`
+	Temperature       float64 `json:"temperature"`
+	MaxToolIterations int     `json:"maxToolIterations"`
+}
+
+// RuntimeSpec returns the non-secret runtime knobs that affect model latency.
+func (a *Agent) RuntimeSpec() RuntimeSpec {
+	return RuntimeSpec{
+		ID:                a.name,
+		Model:             a.model,
+		MaxTokens:         a.maxTokens,
+		Temperature:       a.temperature,
+		MaxToolIterations: a.maxToolIterations,
+	}
+}
+
 // CostTracker returns the agent's cost tracker for usage/billing queries.
 func (a *Agent) CostTracker() *costtracker.Tracker {
 	return a.costTracker

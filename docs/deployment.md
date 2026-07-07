@@ -26,7 +26,7 @@ rtk cp .env.example .env
 - `DATABASE_URL`: API 使用的数据库连接串，密码必须和 `POSTGRES_PASSWORD` 一致。
 - `JWT_SECRET`: 长随机字符串。
 - `WECHAT_APP_ID`, `WECHAT_APP_SECRET`: 小程序登录使用。
-- `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。
+- `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。`FASTCLAW_AGENT_ID` 必须指向专用业务聊天 Agent，且 `FASTCLAW_API_KEY` 必须有访问该 Agent 的权限。
 - `FASTCLAW_TIMEOUT_MS`: API 调 FastClaw 的超时，默认 `120000`。
 - `CHAT_EFFECTS_ASYNC_ENABLED`: 聊天 effects 异步开关，默认 `false`。设为 `true` 后，记忆、羁绊、成就/称号后台执行，聊天 `done` 只同步保证核心字段。
 - `PAYMENT_PROVIDER` 和支付服务商参数。
@@ -72,7 +72,7 @@ rtk curl -fsS https://api.your-domain.com/api/health
 rtk curl -fsS https://api.your-domain.com/api/ready
 ```
 
-`/api/health` 只表示 API 进程存活。`/api/ready` 当前检查 FastClaw 配置和 FastClaw `/readyz`，后续还应补数据库连接和关键生产配置完整性检查。
+`/api/health` 只表示 API 进程存活。`/api/ready` 当前检查 FastClaw 配置、FastClaw `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec。业务聊天 Agent 若超过 `maxTokens=768` 或 `maxToolIterations=1`，readiness 会返回 `503`。后续还应补数据库连接和关键生产配置完整性检查。
 
 ## 5. 小程序生产构建
 
@@ -100,4 +100,4 @@ rtk docker compose up -d api fastclaw caddy
 
 当前部署只使用 FastClaw Go 后端能力。`fastclaw/Dockerfile.go` 不执行 Web UI 构建；它只放入最小嵌入页面以满足 Go `embed` 编译约束。FastClaw API key、agent 和模型 provider 仍需要在真实环境中完成初始化和联调。业务 API 调用 FastClaw 的 OpenAI-compatible `/v1/chat/completions` 时，角色上下文通过 `system` message 作为 request-scoped system prompt 传入。
 
-业务聊天 Agent 需要按 V1 速度目标配置：`maxTokens <= 768`、`maxToolIterations = 1`。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
+业务聊天 Agent 需要按 V1 速度目标配置：`maxTokens <= 768`、`maxToolIterations = 1`。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；默认 FastClaw Agent 的 `8192/20` 配置不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。

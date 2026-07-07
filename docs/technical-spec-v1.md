@@ -332,7 +332,8 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - 当前 adapter 调用 `${FASTCLAW_BASE_URL}/v1/chat/completions`，使用 `Authorization: Bearer ${FASTCLAW_API_KEY}`，解析 OpenAI SSE 兼容的 `data: ...` 和 `[DONE]`。
 - 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
 - 当前 adapter 支持 `x-fastclaw-agent-id` 与 `x-fastclaw-session-key` 请求头。
-- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY` 和 `${FASTCLAW_BASE_URL}/readyz`；`/api/health` 只表示 API 进程存活。
+- 当前 FastClaw API 暴露 `GET /v1/agents/{id}/runtime-spec`，只返回 `id`、`model`、`maxTokens`、`temperature`、`maxToolIterations` 等非敏感运行参数。
+- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、`${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations <= 1`；`/api/health` 只表示 API 进程存活。
 - 当前 readiness 尚未检查数据库连接和生产关键配置完整性，生产部署验收仍需补强。
 
 ### 7.4 长期记忆
@@ -662,7 +663,7 @@ WECHAT_APP_ID=
 WECHAT_APP_SECRET=
 FASTCLAW_BASE_URL=http://fastclaw:18953
 FASTCLAW_API_KEY=
-FASTCLAW_AGENT_ID=
+FASTCLAW_AGENT_ID=<business-chat-agent-id>
 FASTCLAW_TIMEOUT_MS=120000
 FASTCLAW_FALLBACK_ENABLED=false
 CHAT_EFFECTS_ASYNC_ENABLED=false

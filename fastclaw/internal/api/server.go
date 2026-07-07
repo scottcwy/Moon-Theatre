@@ -38,10 +38,10 @@ type UserSpaceView struct {
 
 // Server handles the OpenAI-compatible API and WebSocket gateway.
 type Server struct {
-	resolver   UserResolver
+	resolver     UserResolver
 	authResolver *auth.Resolver
-	gatewayCfg *config.GatewayCfg
-	limiter    *rateLimiter
+	gatewayCfg   *config.GatewayCfg
+	limiter      *rateLimiter
 }
 
 // NewServer creates a new API server. authResolver is mandatory — there is
@@ -73,6 +73,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	if s.gatewayCfg == nil || s.gatewayCfg.HTTP.Endpoints.Agents.Enabled {
 		mux.HandleFunc("GET /v1/agents",
 			s.authMiddleware(rateLimitMiddleware(s.limiter, getUserID, s.HandleListAgents)))
+		mux.HandleFunc("GET /v1/agents/{id}/runtime-spec",
+			s.authMiddleware(rateLimitMiddleware(s.limiter, getUserID, s.HandleAgentRuntimeSpec)))
 	}
 }
 
@@ -101,6 +103,43 @@ func (s *Server) HandleListAgents(w http.ResponseWriter, r *http.Request) {
 	}
 	ident, _ := auth.FromContext(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{"agents": buildAgentList(space, ident)})
+}
+
+// HandleAgentRuntimeSpec returns non-secret runtime knobs for one agent.
+func (s *Server) HandleAgentRuntimeSpec(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("id")
+	if agentID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error": map[string]string{"message": "agent id is required", "type": "invalid_request_error"},
+		})
+		return
+	}
+
+	ident, ok := auth.FromContext(r.Context())
+	if !ok || !ident.CanAccessAgent(agentID) {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"error": map[string]string{"message": "agent access denied", "type": "permission_error"},
+		})
+		return
+	}
+
+	space, err := s.userSpaceFor(r)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{
+			"error": map[string]string{"message": err.Error(), "type": "authentication_error"},
+		})
+		return
+	}
+
+	ag := space.Agents.AgentByID(agentID)
+	if ag == nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{
+			"error": map[string]string{"message": "agent not found", "type": "not_found_error"},
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, ag.RuntimeSpec())
 }
 
 func buildAgentList(space *UserSpaceView, ident auth.Identity) []map[string]string {
