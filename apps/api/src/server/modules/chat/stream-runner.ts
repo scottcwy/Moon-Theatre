@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { config } from '../../config/index.js';
 import { db } from '../../db/index.js';
 import { modelProfiles, modelUsageLogs } from '../../db/schema.js';
 import { errorResponse } from '../../middleware/auth.js';
@@ -35,6 +36,7 @@ export const STREAM_HEADERS = {
 };
 
 export async function runChatStream(input: ChatStreamInput): Promise<Response> {
+  const requestStartedAt = Date.now();
   const { userId, characterId, sessionId, message, modelTier } = input;
 
   const [profile] = await db
@@ -73,6 +75,8 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   const prompt = await buildPromptContext(userId, characterId, character);
 
   return createGenerationResponse({
+    requestStartedAt,
+    prepareMs: Date.now() - requestStartedAt,
     userId,
     characterId,
     sessionId: session.id,
@@ -120,6 +124,8 @@ async function createBlockedInputResponse(sessionId: string): Promise<Response> 
 }
 
 function createGenerationResponse(input: {
+  requestStartedAt: number;
+  prepareMs: number;
   userId: string;
   characterId: string;
   sessionId: string;
@@ -138,10 +144,15 @@ function createGenerationResponse(input: {
       let fullContent = '';
       let usedFallback = !isFastClawConfigured();
       let balanceAfter = input.initialBalanceAfter;
+      let generationMs = 0;
+      let moderationMs = 0;
+      let saveMs = 0;
+      let effectsScheduledMs = 0;
 
       try {
         controller.enqueue(encoder.encode(JSON.stringify({ type: 'status', mode: 'moderated_buffered', stage: 'generating' }) + '\n'));
 
+        const generationStartedAt = Date.now();
         for await (const event of streamChat(input.systemPrompt, input.userMessage, {
           sessionId: input.sessionId,
         })) {
@@ -155,19 +166,37 @@ function createGenerationResponse(input: {
             if (refundResult) {
               balanceAfter = refundResult.balanceAfter;
             }
+            generationMs = Date.now() - generationStartedAt;
+            logChatLatency({
+              sessionId: input.sessionId,
+              userMessageId: input.userMessageId,
+              prepareMs: input.prepareMs,
+              generationMs,
+              moderationMs,
+              saveMs,
+              effectsScheduledMs,
+              totalUntilDoneMs: Date.now() - input.requestStartedAt,
+              effectsAsync: false,
+              blocked: false,
+              error: event.message,
+            });
             controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', message: event.message }) + '\n'));
             controller.close();
             return;
           }
         }
+        generationMs = Date.now() - generationStartedAt;
 
+        const moderationStartedAt = Date.now();
         const { mood, cleanedText } = parseMood(fullContent);
         const sanitizedText = sanitizeAssistantOutput(cleanedText);
         const outputCheck = await checkOutput(sanitizedText, input.sessionId);
         const blocked = outputCheck.blocked;
         const finalContent = blocked ? 'AI 回复触发了安全机制，该消息已被替换。' : sanitizedText;
         const finalMood = blocked ? null : mood;
+        moderationMs = Date.now() - moderationStartedAt;
 
+        const saveStartedAt = Date.now();
         const saved = await saveAssistantMessage(input.sessionId, finalContent, finalMood);
         if (blocked) {
           const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}`);
@@ -176,15 +205,38 @@ function createGenerationResponse(input: {
         } else {
           await insertModelUsage(input, 'success', input.pointsPerCall);
         }
+        saveMs = Date.now() - saveStartedAt;
 
+        const effectsStartedAt = Date.now();
+        const effectContext = {
+          userId: input.userId,
+          characterId: input.characterId,
+          userMessage: input.userMessage,
+          assistantMessage: finalContent,
+          sessionId: input.sessionId,
+          userMessageId: input.userMessageId,
+          assistantMessageId: saved.id,
+        };
         const effects = blocked
           ? { bond: null, unlockedAchievements: [], unlockedTitles: [] }
-          : await runChatCompletionEffects({
-            userId: input.userId,
-            characterId: input.characterId,
-            userMessage: input.userMessage,
-            assistantMessage: finalContent,
-          });
+          : config.chatEffectsAsyncEnabled
+            ? scheduleChatCompletionEffects(effectContext)
+            : await runChatCompletionEffects(effectContext);
+        effectsScheduledMs = Date.now() - effectsStartedAt;
+
+        logChatLatency({
+          sessionId: input.sessionId,
+          userMessageId: input.userMessageId,
+          assistantMessageId: saved.id,
+          prepareMs: input.prepareMs,
+          generationMs,
+          moderationMs,
+          saveMs,
+          effectsScheduledMs,
+          totalUntilDoneMs: Date.now() - input.requestStartedAt,
+          effectsAsync: config.chatEffectsAsyncEnabled && !blocked,
+          blocked,
+        });
 
         controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: finalContent }) + '\n'));
         controller.enqueue(encoder.encode(JSON.stringify({
@@ -194,18 +246,31 @@ function createGenerationResponse(input: {
           ...(finalMood ? { mood: finalMood } : {}),
           ...(usedFallback ? { fallback: true } : {}),
           ...(blocked ? { blocked: true } : {}),
-          ...(effects.bond ? {
+          ...(!config.chatEffectsAsyncEnabled && effects.bond ? {
             bondLevel: effects.bond.relationship.bondLevel,
             bondExp: effects.bond.relationship.bondExp,
           } : {}),
-          ...(effects.unlockedAchievements.length > 0 ? { unlockedAchievements: effects.unlockedAchievements } : {}),
-          ...(effects.unlockedTitles.length > 0 ? { unlockedTitles: effects.unlockedTitles } : {}),
+          ...(!config.chatEffectsAsyncEnabled && effects.unlockedAchievements.length > 0 ? { unlockedAchievements: effects.unlockedAchievements } : {}),
+          ...(!config.chatEffectsAsyncEnabled && effects.unlockedTitles.length > 0 ? { unlockedTitles: effects.unlockedTitles } : {}),
           balanceAfter,
         }) + '\n'));
         controller.close();
       } catch (err) {
         await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}`).catch(() => undefined);
         const message = err instanceof Error ? err.message : 'Stream error';
+        logChatLatency({
+          sessionId: input.sessionId,
+          userMessageId: input.userMessageId,
+          prepareMs: input.prepareMs,
+          generationMs,
+          moderationMs,
+          saveMs,
+          effectsScheduledMs,
+          totalUntilDoneMs: Date.now() - input.requestStartedAt,
+          effectsAsync: false,
+          blocked: false,
+          error: message,
+        });
         controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', message }) + '\n'));
         controller.close();
       }
@@ -213,6 +278,52 @@ function createGenerationResponse(input: {
   });
 
   return new Response(stream, { headers: STREAM_HEADERS });
+}
+
+function scheduleChatCompletionEffects(
+  input: Parameters<typeof runChatCompletionEffects>[0],
+): Awaited<ReturnType<typeof runChatCompletionEffects>> {
+  void runChatCompletionEffects(input).catch((err) => {
+    console.error({
+      event: 'chat_completion_effects_failed',
+      sessionId: input.sessionId,
+      userMessageId: input.userMessageId,
+      assistantMessageId: input.assistantMessageId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+  return { bond: null, unlockedAchievements: [], unlockedTitles: [] };
+}
+
+function logChatLatency(input: {
+  sessionId: string;
+  userMessageId: string;
+  assistantMessageId?: string;
+  prepareMs: number;
+  generationMs: number;
+  moderationMs: number;
+  saveMs: number;
+  effectsScheduledMs: number;
+  totalUntilDoneMs: number;
+  effectsAsync: boolean;
+  blocked: boolean;
+  error?: string;
+}): void {
+  console.info({
+    event: 'chat_stream_latency',
+    sessionId: input.sessionId,
+    userMessageId: input.userMessageId,
+    assistantMessageId: input.assistantMessageId,
+    prepareMs: input.prepareMs,
+    generationMs: input.generationMs,
+    moderationMs: input.moderationMs,
+    saveMs: input.saveMs,
+    effectsScheduledMs: input.effectsScheduledMs,
+    totalUntilDoneMs: input.totalUntilDoneMs,
+    effectsAsync: input.effectsAsync,
+    blocked: input.blocked,
+    ...(input.error ? { error: input.error } : {}),
+  });
 }
 
 async function insertModelUsage(

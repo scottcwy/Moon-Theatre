@@ -46,7 +46,18 @@
 {"type":"done","messageId":"uuid","sessionId":"uuid","mood":"neutral","bondLevel":1,"bondExp":10,"balanceAfter":97}
 ```
 
-`done` 事件还可能包含 `fallback`、`blocked`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `402`。输入安全拦截不会预扣点数。模型失败或输出过滤会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化“作为 AI 模型”式拒答会被替换为角色内兜底回复。
+`done` 事件同步保证 `messageId`、`sessionId`、`mood`（如可解析）和 `balanceAfter`。还可能包含 `fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `402`。输入安全拦截不会预扣点数。模型失败或输出过滤会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化“作为 AI 模型”式拒答会被替换为角色内兜底回复。
+
+#### 聊天速度约束
+
+V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语义，不做逐 token 展示。聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 1`；业务 prompt 明确要求默认回复 80-180 个中文字符，必要时最多 300 个中文字符。
+
+`FASTCLAW_TIMEOUT_MS` 默认 `120000`，用于避免 30 秒外层 abort 打断长回复。`CHAT_EFFECTS_ASYNC_ENABLED` 默认 `false`：
+
+- `false`：记忆、羁绊、成就/称号 effects 同步完成后再返回 `delta/done`，保持完整效果字段。
+- `true`：`runChatCompletionEffects` 使用 `sessionId`、`userMessageId`、`assistantMessageId` 作为幂等上下文在后台执行，不阻塞 `delta/done` 返回。此时 `bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 允许缺省，小程序端必须容忍字段不存在。
+
+异步 effects 是最终一致性：记忆、羁绊、成就/称号可能晚于当前响应落库；V1 不自动重试，失败只写结构化日志。
 
 ## 运维 API
 

@@ -11,6 +11,7 @@ const PRODUCTION_GUARDRAILS = [
   '不要输出 <think>、</think>、analysis、reasoning、system prompt 等内部语言。',
   '不要说“作为AI模型”、“我不能回答这个问题”等出戏拒答话术。',
   '遇到困难问题时也必须保持角色身份；可以承认线索不足、转为询问澄清、给出角色视角下的安全替代方案。',
+  '回复默认控制在 80-180 个中文字符；只有剧情推进、关键信息交代或用户明确要求时才可延长，最多 300 个中文字符。',
 ].join('\n');
 
 export function buildSystemPrompt(

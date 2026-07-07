@@ -282,7 +282,7 @@ Taro
   -> 成功时写入 model_usage_logs(status=success)
   -> 输出过滤时退款，写入 model_usage_logs(status=filtered)
   -> FastClaw 错误或流处理异常时退款并返回 error 事件
-  -> 未被过滤时触发记忆、羁绊、成就/称号
+  -> 未被过滤时按 CHAT_EFFECTS_ASYNC_ENABLED 决定同步或异步触发记忆、羁绊、成就/称号
   -> 以 NDJSON streaming 形态返回最终 delta/done 给 Taro
 ```
 
@@ -290,7 +290,7 @@ Taro
 
 点数不足时不得调用 FastClaw。接口返回可恢复的业务错误，由小程序展示点数不足状态并引导进入额度包购买页。
 
-当前实现已返回 `X-Stream-Mode: moderated-buffered`。`done` 事件可能包含 `mood`、`fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles`、`balanceAfter` 等字段。当前代码尚未在 FastClaw 错误路径写入 `model_usage_logs(status=failed)`，这是后续可观测性补强项。
+当前实现已返回 `X-Stream-Mode: moderated-buffered`。`done` 事件同步保证 `messageId`、`sessionId`、`mood`（如可解析）和 `balanceAfter`；还可能包含 `fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 等字段。`CHAT_EFFECTS_ASYNC_ENABLED=true` 时，`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 允许缺省。当前代码尚未在 FastClaw 错误路径写入 `model_usage_logs(status=failed)`，这是后续可观测性补强项。
 
 ### 7.3 FastClaw 集成
 
@@ -308,6 +308,20 @@ ChatStreamRunner
   -> PromptBuilder
   -> FastClawAdapter
 ```
+
+#### 7.3.1 V1 聊天速度边界
+
+V1 Chat Speed Fix 只优化小程序业务聊天 `/api/chat/stream`：
+
+- `FASTCLAW_TIMEOUT_MS` 默认 `120000`，避免 FastClaw 生成被 30 秒外层 abort 打断。
+- 聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 1`。这是 FastClaw Agent 运行配置约束，不改变 OpenAI-compatible `/v1/chat/completions` 通用 API 语义。
+- 业务 prompt 明确要求默认回复 80-180 个中文字符，剧情推进或用户明确要求时最多 300 个中文字符。
+- 输出审核策略、FastClaw ReAct 架构、同步扣点/退款和 `model_usage_logs` 强一致边界不变。
+- 不新增队列服务，不做逐 token 展示。
+
+`CHAT_EFFECTS_ASYNC_ENABLED` 默认 `false`。关闭时，记忆、羁绊、成就/称号 effects 仍同步完成后再返回 `delta/done`。开启时，`runChatCompletionEffects` 在后台执行，不阻塞最终 `delta/done`；`messageId`、`sessionId`、`mood`、`balanceAfter` 保持同步保证，`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 允许缺省。
+
+异步 effects 使用 `sessionId`、`userMessageId`、`assistantMessageId` 作为上下文写结构化日志。V1 不自动重试；失败只记录 `effect=memory|bond|achievement`、`sessionId`、`userMessageId`、`assistantMessageId`、`effectDurationMs`、`error`。记忆、羁绊、成就是最终一致性，允许乱序完成。
 
 FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产品化接入必须满足：
 
@@ -649,8 +663,9 @@ WECHAT_APP_SECRET=
 FASTCLAW_BASE_URL=http://fastclaw:18953
 FASTCLAW_API_KEY=
 FASTCLAW_AGENT_ID=
-FASTCLAW_TIMEOUT_MS=30000
+FASTCLAW_TIMEOUT_MS=120000
 FASTCLAW_FALLBACK_ENABLED=false
+CHAT_EFFECTS_ASYNC_ENABLED=false
 PAYMENT_PROVIDER=
 PAYMENT_MERCHANT_ID=
 PAYMENT_APP_ID=

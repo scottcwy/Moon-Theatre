@@ -27,6 +27,8 @@ rtk cp .env.example .env
 - `JWT_SECRET`: 长随机字符串。
 - `WECHAT_APP_ID`, `WECHAT_APP_SECRET`: 小程序登录使用。
 - `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。
+- `FASTCLAW_TIMEOUT_MS`: API 调 FastClaw 的超时，默认 `120000`。
+- `CHAT_EFFECTS_ASYNC_ENABLED`: 聊天 effects 异步开关，默认 `false`。设为 `true` 后，记忆、羁绊、成就/称号后台执行，聊天 `done` 只同步保证核心字段。
 - `PAYMENT_PROVIDER` 和支付服务商参数。
 - `ADMIN_USER_IDS`, `ADMIN_BASIC_AUTH_USER`, `ADMIN_BASIC_AUTH_PASSWORD`。
 - `TEST_USER_INITIAL_POINTS`: 测试版体验赠点。正式版保持 `0`；只发测试版时可临时设为 `1000`，每个微信用户首次成功登录后按用户维度幂等入账一次。
@@ -97,3 +99,5 @@ rtk docker compose up -d api fastclaw caddy
 ## 7. FastClaw 说明
 
 当前部署只使用 FastClaw Go 后端能力。`fastclaw/Dockerfile.go` 不执行 Web UI 构建；它只放入最小嵌入页面以满足 Go `embed` 编译约束。FastClaw API key、agent 和模型 provider 仍需要在真实环境中完成初始化和联调。业务 API 调用 FastClaw 的 OpenAI-compatible `/v1/chat/completions` 时，角色上下文通过 `system` message 作为 request-scoped system prompt 传入。
+
+业务聊天 Agent 需要按 V1 速度目标配置：`maxTokens <= 768`、`maxToolIterations = 1`。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。

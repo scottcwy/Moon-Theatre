@@ -147,7 +147,7 @@ X-Stream-Mode: moderated-buffered
 4. 余额足够后按模型档位预扣点数，幂等 key 为 `consume_${userMsg.id}`。
 5. 后端调用 `streamChat(systemPrompt, message)`，累积 FastClaw delta 到 `fullContent`。
 6. 模型结束后解析 mood，做输出审核。
-7. 审核通过时保存最终 assistant message，写入 `model_usage_logs(status=success)`，触发记忆、羁绊、成就/称号。
+7. 审核通过时保存最终 assistant message，写入 `model_usage_logs(status=success)`；`CHAT_EFFECTS_ASYNC_ENABLED=false` 时同步触发记忆、羁绊、成就/称号，`true` 时后台触发。
 8. 输出被过滤时保存替换文案，退款，写入 `model_usage_logs(status=filtered)`。
 9. FastClaw 返回 error 或流处理异常时退款，并向客户端返回 error 事件。
 
@@ -155,7 +155,7 @@ X-Stream-Mode: moderated-buffered
 
 - 当前仍不是逐 token 实时展示，正式 SPEC 已承认该口径。
 - FastClaw 错误路径当前会退款，但尚未写入 `model_usage_logs(status=failed)`。
-- `model_usage_logs` 还缺耗时、fallback、错误码、错误消息、上游 request id 等可观测字段。
+- 聊天链路已有结构化 latency 日志，但 `model_usage_logs` 还缺耗时、fallback、错误码、错误消息、上游 request id 等持久化可观测字段。
 
 ### 5.2 扣点时机：正式 SPEC 已同步为预扣/退款
 
@@ -314,11 +314,14 @@ docs/openapi-v1.yaml
 - `/api/health` 进程存活检查
 - `/api/ready` 检查 FastClaw 配置和 `${FASTCLAW_BASE_URL}/readyz`
 - Docker Compose 中的 `fastclaw` 服务声明
+- `FASTCLAW_TIMEOUT_MS` 默认值已调整为 `120000`
+- `CHAT_EFFECTS_ASYNC_ENABLED` 默认 `false`，支持将业务聊天 effects 切到后台最终一致性
+- V1 业务聊天 Agent 限制已文档化：`maxTokens <= 768`、`maxToolIterations = 1`，prompt 默认 80-180 个中文字符，必要时最多 300 个中文字符
 
 仍需补：
 
 - 与真实 FastClaw 服务的 contract test 或联调脚本。
-- adapter 调用超时和错误分类。
+- FastClaw Agent 真实环境配置核验：确认业务聊天 agent 已按 `maxTokens <= 768`、`maxToolIterations = 1` 生效。
 - 生产环境 fallback 策略：默认关闭静默 fallback，失败走退款和错误响应；如要降级，必须显式配置并在响应/日志中标识。
 - readiness 检查：当前只覆盖 FastClaw 配置和 `/readyz`，还需补数据库连接和关键生产配置状态。
 - 模型调用日志补耗时、fallback、错误原因、token、上游 request id 等字段。

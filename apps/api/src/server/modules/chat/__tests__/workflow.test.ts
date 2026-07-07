@@ -102,4 +102,38 @@ describe('chat completion workflow', () => {
       unlockedTitles: [],
     });
   });
+
+  it('uses assistant message id as an idempotency context', async () => {
+    const { incrementBondExp } = await import('../../relationships/index.js');
+    const { extractAndUpsertMemories } = await import('../../memory/index.js');
+    const { unlockAchievementsForChat } = await import('../../achievements/index.js');
+    const { runChatCompletionEffects } = await import('../workflow.js');
+
+    vi.mocked(incrementBondExp).mockResolvedValue({
+      relationship: { bondLevel: 1, bondExp: 10 },
+      leveledUp: false,
+    } as Awaited<ReturnType<typeof incrementBondExp>>);
+    vi.mocked(extractAndUpsertMemories).mockResolvedValue([]);
+    vi.mocked(unlockAchievementsForChat).mockResolvedValue({
+      unlockedAchievements: [],
+      unlockedTitles: [],
+    });
+
+    const input = {
+      userId: 'user-1',
+      characterId: 'character-1',
+      userMessage: '你好',
+      assistantMessage: '你好。',
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      assistantMessageId: 'assistant-message-1',
+    };
+
+    await runChatCompletionEffects(input);
+    await runChatCompletionEffects(input);
+
+    expect(incrementBondExp).toHaveBeenCalledTimes(1);
+    expect(extractAndUpsertMemories).toHaveBeenCalledTimes(1);
+    expect(unlockAchievementsForChat).toHaveBeenCalledTimes(1);
+  });
 });

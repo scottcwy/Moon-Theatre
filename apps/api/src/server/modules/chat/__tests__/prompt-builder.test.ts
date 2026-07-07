@@ -148,4 +148,13 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('不要说“作为AI模型”');
     expect(prompt).toContain('遇到困难问题时也必须保持角色身份');
   });
+
+  it('adds concise reply length guidance for business chat speed', () => {
+    const character = makeCharacter();
+    const script = makeScript();
+    const prompt = buildSystemPrompt(character, script);
+
+    expect(prompt).toContain('回复默认控制在 80-180 个中文字符');
+    expect(prompt).toContain('最多 300 个中文字符');
+  });
 });

@@ -78,5 +78,16 @@ describe('server config production validation', () => {
 
     expect(config.jwtSecret).toBe('dev-secret-change-in-production');
     expect(config.paymentProvider).toBe('mock');
+    expect(config.fastclawTimeoutMs).toBe(120000);
+    expect(config.chatEffectsAsyncEnabled).toBe(false);
+  });
+
+  it('enables async chat effects only when the env flag is true', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('CHAT_EFFECTS_ASYNC_ENABLED', 'true');
+
+    const { config } = await loadConfig();
+
+    expect(config.chatEffectsAsyncEnabled).toBe(true);
   });
 });
