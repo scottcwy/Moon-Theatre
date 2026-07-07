@@ -1,0 +1,24 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+ENV CI=true \
+  NEXT_TELEMETRY_DISABLED=1
+
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/shared/package.tools.json ./packages/shared/package.json
+COPY apps/api/package.tools.json ./apps/api/package.json
+
+RUN pnpm install --prod --lockfile=false --filter @juben-sha/api --filter @juben-sha/shared
+
+COPY packages/shared/tsconfig.json ./packages/shared/
+COPY packages/shared/src ./packages/shared/src
+COPY apps/api/tsconfig.json ./apps/api/
+COPY apps/api/drizzle.config.ts ./apps/api/
+COPY apps/api/drizzle ./apps/api/drizzle
+COPY apps/api/src/server ./apps/api/src/server
+
+CMD ["pnpm", "--filter", "@juben-sha/api", "db:migrate"]
