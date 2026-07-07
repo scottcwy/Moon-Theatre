@@ -55,7 +55,7 @@ type Agent struct {
 	// (SOUL.md, IDENTITY.md, ...). Kept on the Agent so ReloadWorkspaceFiles
 	// can rewire a fresh ContextBuilder to keep reading from the Store
 	// instead of silently falling back to pod-local filesystem.
-	memoryStore       MemoryStore
+	memoryStore MemoryStore
 	// workspaceStore is optional; when set, SkillsLoader hydrates per-agent
 	// and global skill dirs from the object store on every turn so skills
 	// uploaded post-boot or on a sibling replica become visible here.
@@ -258,7 +258,6 @@ func NewAgentWithSkillsCfg(rc config.ResolvedAgent, prov provider.Provider, mb *
 		engine:            eng,
 		costTracker:       eng.costTracker,
 	}
-
 
 	// Connect MCP servers and register their tools
 	if len(rc.MCPServers) > 0 {
@@ -501,6 +500,13 @@ func (a *Agent) CostTracker() *costtracker.Tracker {
 	return a.costTracker
 }
 
+func selectSystemPrompt(defaultPrompt string, override string) string {
+	if strings.TrimSpace(override) == "" {
+		return defaultPrompt
+	}
+	return override
+}
+
 // HandleMessage processes an inbound message through the ReAct loop.
 func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) string {
 	// Check for slash commands first
@@ -531,7 +537,7 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	// Hook: BeforeSystemPrompt
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: BeforeSystemPrompt, UserID: a.ownerUserID})
 
-	systemPrompt := a.ctxBuilder.BuildSystemPrompt()
+	systemPrompt := selectSystemPrompt(a.ctxBuilder.BuildSystemPrompt(), msg.SystemPromptOverride)
 
 	// Hook: AfterSystemPrompt
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: AfterSystemPrompt, UserID: a.ownerUserID})
@@ -903,7 +909,7 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 	sess := a.sessions.Get(msg.Channel, msg.ChatID)
 	a.bindSession(ctx, msg.ChatID)
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: BeforeSystemPrompt, UserID: a.ownerUserID})
-	systemPrompt := a.ctxBuilder.BuildSystemPrompt()
+	systemPrompt := selectSystemPrompt(a.ctxBuilder.BuildSystemPrompt(), msg.SystemPromptOverride)
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: AfterSystemPrompt, UserID: a.ownerUserID})
 
 	// Store raw user message — same multi-image flatten as HandleMessage.

@@ -16,6 +16,7 @@ import {
   saveAssistantMessage,
   saveUserMessage,
 } from './index.js';
+import { sanitizeAssistantOutput } from './output-sanitizer.js';
 import { runChatCompletionEffects } from './workflow.js';
 
 export interface ChatStreamInput {
@@ -161,9 +162,10 @@ function createGenerationResponse(input: {
         }
 
         const { mood, cleanedText } = parseMood(fullContent);
-        const outputCheck = await checkOutput(cleanedText, input.sessionId);
+        const sanitizedText = sanitizeAssistantOutput(cleanedText);
+        const outputCheck = await checkOutput(sanitizedText, input.sessionId);
         const blocked = outputCheck.blocked;
-        const finalContent = blocked ? 'AI 回复触发了安全机制，该消息已被替换。' : cleanedText;
+        const finalContent = blocked ? 'AI 回复触发了安全机制，该消息已被替换。' : sanitizedText;
         const finalMood = blocked ? null : mood;
 
         const saved = await saveAssistantMessage(input.sessionId, finalContent, finalMood);

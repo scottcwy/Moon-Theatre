@@ -55,7 +55,7 @@ export async function* streamChat(
           body: JSON.stringify({
             messages: [
               { role: 'system', content: systemPrompt },
-              { role: 'user', content: buildFastClawUserMessage(systemPrompt, userMessage) },
+              { role: 'user', content: userMessage },
             ],
             stream: true,
           }),
@@ -115,23 +115,6 @@ export async function* streamChat(
   } else {
     yield* fallbackStream(userMessage);
   }
-}
-
-function buildFastClawUserMessage(systemPrompt: string, userMessage: string): string {
-  const prompt = systemPrompt.trim();
-  if (!prompt) {
-    return userMessage;
-  }
-
-  return [
-    '请严格依据以下剧本杀角色扮演上下文回复用户。',
-    '',
-    '【上下文】',
-    prompt,
-    '',
-    '【用户消息】',
-    userMessage,
-  ].join('\n');
 }
 
 async function* fallbackStream(userMessage: string): AsyncGenerator<StreamEvent> {

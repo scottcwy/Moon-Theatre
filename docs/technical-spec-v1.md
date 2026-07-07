@@ -273,9 +273,10 @@ Taro
   -> 检索相关记忆
   -> 读取羁绊等级
   -> 拼接上下文
-  -> 调用 FastClaw 现有 API
+  -> 通过 OpenAI-compatible system message 调用 FastClaw 现有 API
   -> 接收并缓冲 FastClaw 输出
   -> 解析 mood
+  -> 净化内部语言和泛化拒答
   -> 完整回复输出关键词过滤
   -> 保存 assistant message
   -> 成功时写入 model_usage_logs(status=success)
@@ -293,7 +294,7 @@ Taro
 
 ### 7.3 FastClaw 集成
 
-首版复用 FastClaw 现有 API，由 Next.js 业务后端拼接角色、剧本、记忆、羁绊等上下文后调用 FastClaw。
+首版复用 FastClaw 现有 API，由 Next.js 业务后端拼接角色、剧本、记忆、羁绊等上下文后调用 FastClaw。角色上下文必须作为 OpenAI-compatible `system` message 传入，用户原文只放在 `user` message，不把大段上下文拼进用户消息。
 
 首版不要求改造 FastClaw 的结构化 runtime context 接口。后续如现有 API 无法承载复杂上下文、结构化输出或更细的 Agent 控制，再增加内网 runtime endpoint。
 
@@ -315,6 +316,7 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - 生产环境必须设置明确的调用超时；超时、非 2xx、流解析失败都要进入模型调用日志或服务日志。
 - fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。
 - 当前 adapter 调用 `${FASTCLAW_BASE_URL}/v1/chat/completions`，使用 `Authorization: Bearer ${FASTCLAW_API_KEY}`，解析 OpenAI SSE 兼容的 `data: ...` 和 `[DONE]`。
+- 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
 - 当前 adapter 支持 `x-fastclaw-agent-id` 与 `x-fastclaw-session-key` 请求头。
 - 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY` 和 `${FASTCLAW_BASE_URL}/readyz`；`/api/health` 只表示 API 进程存活。
 - 当前 readiness 尚未检查数据库连接和生产关键配置完整性，生产部署验收仍需补强。

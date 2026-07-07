@@ -107,11 +107,17 @@ func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		sessionKey = "api-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 
-	// Extract the last user message
+	// Extract the last user message and request-scoped system prompt.
+	var systemText string
 	var userText string
 	for i := len(req.Messages) - 1; i >= 0; i-- {
-		if req.Messages[i].Role == "user" {
+		if userText == "" && req.Messages[i].Role == "user" {
 			userText = req.Messages[i].Content
+		}
+		if systemText == "" && req.Messages[i].Role == "system" {
+			systemText = req.Messages[i].Content
+		}
+		if userText != "" && systemText != "" {
 			break
 		}
 	}
@@ -124,11 +130,12 @@ func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// Build inbound message
 	msg := bus.InboundMessage{
-		Channel:  "api",
-		ChatID:   sessionKey,
-		UserID:   "api-user",
-		Text:     userText,
-		PeerKind: "dm",
+		Channel:              "api",
+		ChatID:               sessionKey,
+		UserID:               "api-user",
+		Text:                 userText,
+		SystemPromptOverride: systemText,
+		PeerKind:             "dm",
 	}
 
 	slog.Info("chat completion request",
@@ -256,4 +263,3 @@ func resolveAgent(space *UserSpaceView, agentID string) *agent.Agent {
 	}
 	return nil
 }
-

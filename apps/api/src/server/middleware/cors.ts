@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const DEFAULT_ALLOWED_ORIGIN = 'https://servicewechat.com';
 const ALLOWED_ORIGINS = [
-  'https://servicewechat.com',
-  'https://api.example.com',
+  DEFAULT_ALLOWED_ORIGIN,
 ];
 
 const DEVELOPMENT_ORIGINS = [
@@ -16,7 +16,7 @@ export function corsHeaders(request: NextRequest): Record<string, string> {
     (process.env.NODE_ENV === 'development' && DEVELOPMENT_ORIGINS.includes(origin));
 
   return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : (ALLOWED_ORIGINS[0] ?? 'https://api.example.com'),
+    'Access-Control-Allow-Origin': isAllowed ? origin : DEFAULT_ALLOWED_ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',

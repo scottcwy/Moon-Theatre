@@ -96,4 +96,4 @@ rtk docker compose up -d api fastclaw caddy
 
 ## 7. FastClaw 说明
 
-当前部署只使用 FastClaw Go 后端能力。`fastclaw/Dockerfile.go` 不执行 Web UI 构建；它只放入最小嵌入页面以满足 Go `embed` 编译约束。FastClaw API key、agent 和模型 provider 仍需要在真实环境中完成初始化和联调。
+当前部署只使用 FastClaw Go 后端能力。`fastclaw/Dockerfile.go` 不执行 Web UI 构建；它只放入最小嵌入页面以满足 Go `embed` 编译约束。FastClaw API key、agent 和模型 provider 仍需要在真实环境中完成初始化和联调。业务 API 调用 FastClaw 的 OpenAI-compatible `/v1/chat/completions` 时，角色上下文通过 `system` message 作为 request-scoped system prompt 传入。

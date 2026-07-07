@@ -2,7 +2,7 @@
 
 本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面另有 Basic Auth middleware 保护，生产环境必须配置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
 
-聊天接口当前是 `moderated-buffered`：响应为 NDJSON streaming 形态，但服务端会先完成模型回复缓冲和输出审核，再发送最终内容。
+聊天接口当前是 `moderated-buffered`：响应为 NDJSON streaming 形态，但服务端会先完成模型回复缓冲、内部语言净化和输出审核，再发送最终内容。
 
 ## 小程序 API
 
@@ -46,7 +46,7 @@
 {"type":"done","messageId":"uuid","sessionId":"uuid","mood":"neutral","bondLevel":1,"bondExp":10,"balanceAfter":97}
 ```
 
-`done` 事件还可能包含 `fallback`、`blocked`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `402`。输入安全拦截不会预扣点数。模型失败或输出过滤会退款。
+`done` 事件还可能包含 `fallback`、`blocked`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `402`。输入安全拦截不会预扣点数。模型失败或输出过滤会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化“作为 AI 模型”式拒答会被替换为角色内兜底回复。
 
 ## 运维 API
 

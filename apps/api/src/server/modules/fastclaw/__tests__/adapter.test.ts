@@ -125,7 +125,7 @@ describe('streamChat FastClaw integration', () => {
     ]);
   });
 
-  it('sends FastClaw agent/session headers and injects prompt context into the user message', async () => {
+  it('sends FastClaw agent/session headers without duplicating prompt context in the user message', async () => {
     const fetchMock = vi.fn().mockResolvedValue(mockSseResponse(['data: [DONE]\n\n']));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -153,11 +153,10 @@ describe('streamChat FastClaw integration', () => {
     const [, init] = fetchMock.mock.calls[0] ?? [];
     expect(init).toBeDefined();
     const request = JSON.parse(String(init?.body));
-    expect(request.messages[1]).toEqual({
-      role: 'user',
-      content: expect.stringContaining('剧本杀系统上下文'),
-    });
-    expect(request.messages[1].content).toContain('继续调查');
+    expect(request.messages).toEqual([
+      { role: 'system', content: '剧本杀系统上下文' },
+      { role: 'user', content: '继续调查' },
+    ]);
   });
 
   it('lets the configured FastClaw agent choose the model instead of overriding it', async () => {
