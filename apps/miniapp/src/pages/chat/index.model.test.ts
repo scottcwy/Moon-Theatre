@@ -6,8 +6,16 @@ describe('chat message rendering helpers', () => {
     expect(getInitialModelTier()).toBe('casual');
   });
 
-  it('maps stream abort errors to a helpful retry message', () => {
-    expect(getFriendlyStreamErrorMessage('This operation was aborted')).toBe('模型响应超时，请切换轻松档或稍后重试');
+  it('maps stream abort errors to the approved timeout message', () => {
+    expect(getFriendlyStreamErrorMessage('This operation was aborted')).toBe('这次回应准备得太久了，或换个更具体的问题再试一次吧');
+  });
+
+  it('maps timeout errors to the approved timeout message', () => {
+    expect(getFriendlyStreamErrorMessage('request:fail timeout')).toBe('这次回应准备得太久了，或换个更具体的问题再试一次吧');
+  });
+
+  it('maps out-of-scope errors to the approved scope message', () => {
+    expect(getFriendlyStreamErrorMessage('out_of_scope')).toBe('这个问题超出了当前角色和剧情能可靠回应的范围。可以换成和角色、线索或当前剧情更相关的问题。');
   });
 
   it('does not render a second typing bubble when an empty assistant message already exists', () => {

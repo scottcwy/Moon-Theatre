@@ -72,6 +72,7 @@ export async function* streamChat(
         const decoder = new TextDecoder();
         let buffer = '';
 
+        let sawDone = false;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -86,6 +87,7 @@ export async function* streamChat(
 
             const data = trimmed.slice(6);
             if (data === '[DONE]') {
+              sawDone = true;
               yield { type: 'done', fallback: false };
               return;
             }
@@ -102,7 +104,9 @@ export async function* streamChat(
           }
         }
 
-        yield { type: 'done', fallback: false };
+        if (!sawDone) {
+          throw new Error('FastClaw stream ended before completion');
+        }
       } finally {
         clearTimeout(timeout);
       }

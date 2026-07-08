@@ -253,7 +253,7 @@ describe('runChatStream', () => {
     await effects.promise;
   });
 
-  it('logs latency when FastClaw returns an error event', async () => {
+  it('logs latency and failed model usage when FastClaw returns an error event', async () => {
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     streamChatMock.mockImplementation(errorStream);
 
@@ -268,6 +268,16 @@ describe('runChatStream', () => {
     const events = await readEvents(response);
 
     expect(events).toContainEqual({ type: 'error', message: 'FastClaw timed out' });
+    expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      characterId: 'character-1',
+      sessionId: 'session-1',
+      modelTier: 'standard',
+      modelName: 'Qwen/Qwen3.5-9B',
+      pointsConsumed: 0,
+      walletTransactionId: null,
+      status: 'failed',
+    }));
     expect(infoSpy).toHaveBeenCalledWith(expect.objectContaining({
       event: 'chat_stream_latency',
       sessionId: 'session-1',

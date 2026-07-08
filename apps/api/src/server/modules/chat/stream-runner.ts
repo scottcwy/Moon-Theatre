@@ -166,6 +166,7 @@ function createGenerationResponse(input: {
             if (refundResult) {
               balanceAfter = refundResult.balanceAfter;
             }
+            await insertModelUsage(input, 'failed', 0);
             generationMs = Date.now() - generationStartedAt;
             logChatLatency({
               sessionId: input.sessionId,
@@ -258,6 +259,7 @@ function createGenerationResponse(input: {
       } catch (err) {
         await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}`).catch(() => undefined);
         const message = err instanceof Error ? err.message : 'Stream error';
+        await insertModelUsage(input, 'failed', 0).catch(() => undefined);
         logChatLatency({
           sessionId: input.sessionId,
           userMessageId: input.userMessageId,
@@ -335,7 +337,7 @@ async function insertModelUsage(
     modelName: string;
     walletTransactionId: string;
   },
-  status: 'success' | 'filtered',
+  status: 'success' | 'failed' | 'filtered',
   pointsConsumed: number,
 ): Promise<void> {
   await db.insert(modelUsageLogs).values({

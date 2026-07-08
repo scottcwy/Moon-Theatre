@@ -193,6 +193,24 @@ describe('streamChat FastClaw integration', () => {
       { type: 'error', message: 'FastClaw responded with status 500' },
     ]);
   });
+
+  it('returns an error when configured FastClaw closes the stream without done', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockSseResponse([
+      'data: {"choices":[{"delta":{"content":"半截"}}]}\n\n',
+    ])));
+
+    const { streamChat: configuredStreamChat } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+    });
+
+    const events = await collectEvents(configuredStreamChat('system', 'hello'));
+
+    expect(events).toEqual([
+      { type: 'delta', content: '半截' },
+      { type: 'error', message: 'FastClaw stream ended before completion' },
+    ]);
+  });
 });
 
 async function collectEvents(generator: AsyncGenerator<StreamEvent>): Promise<StreamEvent[]> {
