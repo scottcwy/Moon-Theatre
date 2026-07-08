@@ -31,4 +31,11 @@ describe('moon garden seed story data', () => {
       '/assets/characters/kuon.jpg',
     ]);
   });
+
+  it('does not seed mood tag output instructions', () => {
+    const serialized = JSON.stringify({ seedScript, seedCharacters });
+
+    expect(serialized).not.toContain('[情绪:');
+    expect(serialized).not.toContain('当前情绪标签');
+  });
 });

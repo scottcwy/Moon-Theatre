@@ -83,19 +83,23 @@ vi.mock('../../moderation/index.js', () => ({
   checkOutput: checkOutputMock,
 }));
 
-vi.mock('../index.js', () => ({
-  buildSystemPrompt: vi.fn(() => 'system prompt'),
-  findOrCreateSession: findOrCreateSessionMock,
-  getCharacterWithPrompts: getCharacterWithPromptsMock,
-  getScriptById: getScriptByIdMock,
-  parseMood: vi.fn((content: string) => ({ mood: 'happy', cleanedText: content.replace('[情绪: Happy]', '').trim() })),
-  saveAssistantMessage: saveAssistantMessageMock,
-  saveUserMessage: saveUserMessageMock,
-}));
+vi.mock('../index.js', async () => {
+  const { parseMood } = await vi.importActual<typeof import('../mood-parser.js')>('../mood-parser.js');
+  return {
+    buildSystemPrompt: vi.fn(() => 'system prompt'),
+    findOrCreateSession: findOrCreateSessionMock,
+    getCharacterWithPrompts: getCharacterWithPromptsMock,
+    getScriptById: getScriptByIdMock,
+    parseMood,
+    saveAssistantMessage: saveAssistantMessageMock,
+    saveUserMessage: saveUserMessageMock,
+  };
+});
 
-vi.mock('../output-sanitizer.js', () => ({
-  sanitizeAssistantOutput: vi.fn((text: string) => text),
-}));
+vi.mock('../output-sanitizer.js', async () => {
+  const actual = await vi.importActual<typeof import('../output-sanitizer.js')>('../output-sanitizer.js');
+  return { sanitizeAssistantOutput: actual.sanitizeAssistantOutput };
+});
 
 vi.mock('../workflow.js', () => ({
   runChatCompletionEffects: runChatCompletionEffectsMock,
@@ -125,6 +129,13 @@ async function* successStream() {
 
 async function* errorStream() {
   yield { type: 'error' as const, message: 'FastClaw timed out' };
+}
+
+function streamWith(content: string) {
+  return async function* () {
+    yield { type: 'delta' as const, content };
+    yield { type: 'done' as const, fallback: false };
+  };
 }
 
 function setupHappyPath() {
@@ -270,5 +281,62 @@ describe('runChatStream', () => {
     expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
 
     infoSpy.mockRestore();
+  });
+
+  describe('cleanup order and mood fallback', () => {
+    it('removes visible legacy mood tag and keeps parsed mood after sanitization', async () => {
+      streamChatMock.mockImplementation(streamWith('你好，今晚月色很好。[情绪: Happy]'));
+
+      const { runChatStream } = await import('../stream-runner.js');
+
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '你好',
+        modelTier: 'standard',
+      });
+      const events = await readEvents(response);
+      const done = events.find((event) => event.type === 'done');
+
+      expect(saveAssistantMessageMock).toHaveBeenCalledWith('session-1', '你好，今晚月色很好。', 'happy');
+      expect(done).toMatchObject({ mood: 'happy' });
+    });
+
+    it('ignores mood tag inside removed internal think block and falls back to neutral', async () => {
+      const thinkBlock = '<think>我应该表现出悲伤。[情绪: Sad]</think>';
+      streamChatMock.mockImplementation(streamWith(`${thinkBlock}\n你好，今晚月色很好。`));
+
+      const { runChatStream } = await import('../stream-runner.js');
+
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '你好',
+        modelTier: 'standard',
+      });
+      const events = await readEvents(response);
+      const done = events.find((event) => event.type === 'done');
+
+      expect(saveAssistantMessageMock).toHaveBeenCalledWith('session-1', '你好，今晚月色很好。', 'neutral');
+      expect(done).toMatchObject({ mood: 'neutral' });
+    });
+
+    it('saves neutral mood when no legacy mood tag remains', async () => {
+      streamChatMock.mockImplementation(streamWith('你好，今晚月色很好。'));
+
+      const { runChatStream } = await import('../stream-runner.js');
+
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '你好',
+        modelTier: 'standard',
+      });
+      const events = await readEvents(response);
+      const done = events.find((event) => event.type === 'done');
+
+      expect(saveAssistantMessageMock).toHaveBeenCalledWith('session-1', '你好，今晚月色很好。', 'neutral');
+      expect(done).toMatchObject({ mood: 'neutral' });
+    });
   });
 });

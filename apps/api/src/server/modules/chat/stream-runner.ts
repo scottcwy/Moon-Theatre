@@ -188,12 +188,12 @@ function createGenerationResponse(input: {
         generationMs = Date.now() - generationStartedAt;
 
         const moderationStartedAt = Date.now();
-        const { mood, cleanedText } = parseMood(fullContent);
-        const sanitizedText = sanitizeAssistantOutput(cleanedText);
-        const outputCheck = await checkOutput(sanitizedText, input.sessionId);
+        const sanitizedText = sanitizeAssistantOutput(fullContent);
+        const { mood, cleanedText } = parseMood(sanitizedText);
+        const outputCheck = await checkOutput(cleanedText, input.sessionId);
         const blocked = outputCheck.blocked;
-        const finalContent = blocked ? 'AI 回复触发了安全机制，该消息已被替换。' : sanitizedText;
-        const finalMood = blocked ? null : mood;
+        const finalContent = blocked ? 'AI 回复触发了安全机制，该消息已被替换。' : cleanedText;
+        const finalMood = blocked ? null : (mood ?? 'neutral');
         moderationMs = Date.now() - moderationStartedAt;
 
         const saveStartedAt = Date.now();

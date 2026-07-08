@@ -157,4 +157,22 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('回复默认控制在 80-180 个中文字符');
     expect(prompt).toContain('最多 300 个中文字符');
   });
+
+  it('adds centralized no-UI-metadata guardrail', () => {
+    const character = makeCharacter();
+    const script = makeScript();
+    const prompt = buildSystemPrompt(character, script);
+
+    expect(prompt).toContain('不要输出 [情绪: ...]');
+    expect(prompt).toContain('用于控制界面的元数据');
+  });
+
+  it('does not ask the model for character output format mood tags', () => {
+    const character = makeCharacter();
+    const script = makeScript();
+    const prompt = buildSystemPrompt(character, script);
+
+    expect(prompt).not.toContain('偶尔在回复末尾附上当前情绪标签');
+    expect(prompt).not.toContain('[情绪: Neutral/Happy/Sad/Angry/Thinking]');
+  });
 });

@@ -20,6 +20,8 @@ export type StreamEvent = StreamDelta | StreamDone | StreamError;
 export interface StreamChatOptions {
   sessionId?: string;
   agentId?: string;
+  // Runtime provider/model/temperature/thinking settings belong to the configured FastClaw agent.
+  // This legacy option is intentionally not sent as a request-level model override.
   model?: string;
 }
 
