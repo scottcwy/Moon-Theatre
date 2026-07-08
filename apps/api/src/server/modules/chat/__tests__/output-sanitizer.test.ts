@@ -47,4 +47,24 @@ describe('sanitizeAssistantOutput', () => {
 
     expect(sanitizeAssistantOutput(text)).toBe(text);
   });
+
+  it('collapses adjacent exact duplicate sentences only', () => {
+    const result = sanitizeAssistantOutput('铃声停了。铃声停了。她抬起眼。她迟疑片刻，又抬起眼。');
+
+    expect(result).toBe('铃声停了。她抬起眼。她迟疑片刻，又抬起眼。');
+  });
+
+  it('collapses adjacent exact duplicate paragraphs', () => {
+    const paragraph = '白藏看向旧井。\n井沿还留着昨夜的水痕。';
+    const result = sanitizeAssistantOutput(`${paragraph}\n\n${paragraph}`);
+
+    expect(result).toBe(paragraph);
+  });
+
+  it('rewrites known English AI persona variants without translating story English', () => {
+    expect(sanitizeAssistantOutput('As an AI language model, I cannot help with that.')).toBe('这个问题牵着太深的雾，我不能草率替你下结论。我们换个角度，从你手里的线索慢慢拆开。');
+
+    const story = '线索上写着 Raven Hotel，白藏没有解释，只把纸条推回你手边。';
+    expect(sanitizeAssistantOutput(story)).toBe(story);
+  });
 });

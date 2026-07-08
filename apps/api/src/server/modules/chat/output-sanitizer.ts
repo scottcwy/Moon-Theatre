@@ -15,17 +15,17 @@ const INTERNAL_TAG_NAMES = [
 ].join('|');
 const INTERNAL_TAG_BLOCK_PATTERN = new RegExp(`<(?:${INTERNAL_TAG_NAMES})\\b[^>]*>[\\s\\S]*?<\\/(?:${INTERNAL_TAG_NAMES})>`, 'gi');
 const DANGLING_INTERNAL_TAG_PATTERN = new RegExp(`^<\\/?(?:${INTERNAL_TAG_NAMES})\\b[^>]*>$`, 'i');
-const GENERIC_AI_REFUSAL_PATTERN = /(作为(?:一个)?AI(?:语言)?模型|作为人工智能|我(?:无法|不能)回答这个问题|I (?:can'?t|cannot) answer)/i;
+const GENERIC_AI_REFUSAL_PATTERN = /(作为(?:一个)?AI(?:语言)?模型|作为人工智能|我是(?:AI|人工智能)|我的系统提示|As an AI language model|I am an AI|I (?:can'?t|cannot) (?:answer|help with that)|我(?:无法|不能)回答这个问题)/i;
 
 export function sanitizeAssistantOutput(text: string): string {
   const withoutInternalBlocks = text.replace(INTERNAL_TAG_BLOCK_PATTERN, '');
 
-  const cleaned = dedupeRepeatedHalves(withoutInternalBlocks
+  const cleaned = collapseAdjacentDuplicateSentences(dedupeRepeatedHalves(withoutInternalBlocks
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && !INTERNAL_LINE_PATTERN.test(line) && !DANGLING_INTERNAL_TAG_PATTERN.test(line))
     .join('\n')
-    .trim());
+    .trim()));
 
   if (!cleaned || GENERIC_AI_REFUSAL_PATTERN.test(cleaned)) {
     return IN_CHARACTER_FALLBACK;
@@ -43,9 +43,13 @@ function dedupeRepeatedHalves(text: string): string {
   const midpoint = lines.length / 2;
   const first = lines.slice(0, midpoint).join('\n');
   const second = lines.slice(midpoint).join('\n');
-  if (first.length >= 20 && first === second) {
+  if (first === second) {
     return first;
   }
 
   return text;
+}
+
+function collapseAdjacentDuplicateSentences(text: string): string {
+  return text.replace(/([^。！？!?]+[。！？!?])\1+/g, '$1');
 }

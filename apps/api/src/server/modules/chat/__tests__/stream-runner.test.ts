@@ -22,6 +22,12 @@ const getScriptByIdMock = vi.fn();
 const findOrCreateSessionMock = vi.fn();
 const saveUserMessageMock = vi.fn();
 const saveAssistantMessageMock = vi.fn();
+const findTurnByClientMessageIdMock = vi.fn();
+const getCleanHistoryMessagesMock = vi.fn();
+const markUserMessageGenerationStatusMock = vi.fn();
+const reacquireGenerationLeaseMock = vi.fn();
+const markUserMessageOutOfScopeMock = vi.fn();
+const classifyChatScopeMock = vi.fn();
 const runChatCompletionEffectsMock = vi.fn();
 
 vi.mock('../../../db/index.js', () => ({
@@ -93,6 +99,11 @@ vi.mock('../index.js', async () => {
     parseMood,
     saveAssistantMessage: saveAssistantMessageMock,
     saveUserMessage: saveUserMessageMock,
+    findTurnByClientMessageId: findTurnByClientMessageIdMock,
+    getCleanHistoryMessages: getCleanHistoryMessagesMock,
+    markUserMessageGenerationStatus: markUserMessageGenerationStatusMock,
+    markUserMessageOutOfScope: markUserMessageOutOfScopeMock,
+    reacquireGenerationLease: reacquireGenerationLeaseMock,
   };
 });
 
@@ -103,6 +114,10 @@ vi.mock('../output-sanitizer.js', async () => {
 
 vi.mock('../workflow.js', () => ({
   runChatCompletionEffects: runChatCompletionEffectsMock,
+}));
+
+vi.mock('../scope-classifier.js', () => ({
+  classifyChatScope: classifyChatScopeMock,
 }));
 
 async function readEvents(response: Response): Promise<Array<Record<string, unknown>>> {
@@ -128,7 +143,7 @@ async function* successStream() {
 }
 
 async function* errorStream() {
-  yield { type: 'error' as const, message: 'FastClaw timed out' };
+  yield { type: 'error' as const, code: 'upstream_error' as const, message: 'FastClaw timed out' };
 }
 
 function streamWith(content: string) {
@@ -159,8 +174,14 @@ function setupHappyPath() {
   });
   getScriptByIdMock.mockResolvedValue({ id: 'script-1', title: '月见庭院', description: '', worldSetting: '庭院' });
   findOrCreateSessionMock.mockResolvedValue({ id: 'session-1' });
-  saveUserMessageMock.mockResolvedValue({ id: 'user-message-1' });
+  saveUserMessageMock.mockResolvedValue({ id: 'user-message-1', generationAttempt: 1 });
   saveAssistantMessageMock.mockResolvedValue({ id: 'assistant-message-1' });
+  findTurnByClientMessageIdMock.mockResolvedValue(null);
+  getCleanHistoryMessagesMock.mockResolvedValue([]);
+  markUserMessageGenerationStatusMock.mockResolvedValue(undefined);
+  reacquireGenerationLeaseMock.mockResolvedValue({ id: 'user-message-1', generationAttempt: 2 });
+  markUserMessageOutOfScopeMock.mockResolvedValue(undefined);
+  classifyChatScopeMock.mockResolvedValue('in_scope');
   checkInputMock.mockResolvedValue({ blocked: false });
   checkOutputMock.mockResolvedValue({ blocked: false });
   getOrCreateWalletMock.mockResolvedValue(undefined);
@@ -267,7 +288,7 @@ describe('runChatStream', () => {
     });
     const events = await readEvents(response);
 
-    expect(events).toContainEqual({ type: 'error', message: 'FastClaw timed out' });
+    expect(events).toContainEqual({ type: 'error', code: 'upstream_error', message: 'FastClaw timed out' });
     expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
       characterId: 'character-1',
@@ -291,6 +312,140 @@ describe('runChatStream', () => {
     expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
 
     infoSpy.mockRestore();
+  });
+
+  it('replays a completed clientMessageId without consuming points or running effects', async () => {
+    findTurnByClientMessageIdMock.mockResolvedValue({
+      sessionId: 'session-1',
+      userMessage: {
+        id: 'user-message-1',
+        content: '你好',
+        generationStatus: 'completed',
+        generationLeaseExpiresAt: null,
+        generationAttempt: 1,
+      },
+      assistantMessage: {
+        id: 'assistant-message-1',
+        content: '已经保存的回复',
+        mood: 'neutral',
+      },
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+
+    expect(events).toEqual([
+      { type: 'delta', content: '已经保存的回复' },
+      {
+        type: 'done',
+        messageId: 'assistant-message-1',
+        sessionId: 'session-1',
+        mood: 'neutral',
+        clientMessageId: 'client-1',
+        replayed: true,
+      },
+    ]);
+    expect(saveUserMessageMock).not.toHaveBeenCalled();
+    expect(consumePointsMock).not.toHaveBeenCalled();
+    expect(streamChatMock).not.toHaveBeenCalled();
+    expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
+  });
+
+  it('returns in_progress for an unexpired generation lease without calling FastClaw', async () => {
+    findTurnByClientMessageIdMock.mockResolvedValue({
+      sessionId: 'session-1',
+      userMessage: {
+        id: 'user-message-1',
+        content: '你好',
+        generationStatus: 'generating',
+        generationLeaseExpiresAt: new Date(Date.now() + 60_000),
+        generationAttempt: 1,
+      },
+      assistantMessage: null,
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+
+    expect(events).toEqual([{ type: 'error', code: 'in_progress' }]);
+    expect(saveUserMessageMock).not.toHaveBeenCalled();
+    expect(consumePointsMock).not.toHaveBeenCalled();
+    expect(streamChatMock).not.toHaveBeenCalled();
+  });
+
+  it('sends API-owned clean history plus the current user message to FastClaw', async () => {
+    getCleanHistoryMessagesMock.mockResolvedValue([
+      { role: 'user', content: '上一轮问题' },
+      { role: 'assistant', content: '上一轮回答' },
+    ]);
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '继续调查',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    await readEvents(response);
+
+    expect(streamChatMock).toHaveBeenCalledWith('system prompt', '继续调查', {
+      messages: [
+        { role: 'system', content: 'system prompt' },
+        { role: 'user', content: '上一轮问题' },
+        { role: 'assistant', content: '上一轮回答' },
+        { role: 'user', content: '继续调查' },
+      ],
+    });
+  });
+
+  it('discards out-of-scope drafts, refunds points, records usage, and skips effects', async () => {
+    classifyChatScopeMock.mockResolvedValue('out_of_scope');
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '帮我写一段和剧本无关的广告',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+
+    expect(events).toContainEqual(expect.objectContaining({ type: 'done', outOfScope: true }));
+    expect(saveAssistantMessageMock).toHaveBeenCalledWith(
+      'session-1',
+      expect.stringContaining('当前角色和剧情'),
+      'neutral',
+      { clientMessageId: 'client-1', outOfScope: true, excludedFromContext: true },
+    );
+    expect(markUserMessageOutOfScopeMock).toHaveBeenCalledWith('user-message-1');
+    expect(refundConsumedPointsMock).toHaveBeenCalledWith('user-1', 3, 'refund_user-message-1_1');
+    expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'out_of_scope',
+      pointsConsumed: 0,
+      walletTransactionId: null,
+      clientMessageId: 'client-1',
+    }));
+    expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
   });
 
   describe('cleanup order and mood fallback', () => {

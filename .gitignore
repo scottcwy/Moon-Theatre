@@ -12,4 +12,6 @@ coverage/
 .turbo/
 drizzle/
 apps/api/drizzle/
+!apps/api/drizzle/
+!apps/api/drizzle/**
 .worktrees/

@@ -387,6 +387,7 @@ export function streamChat(
     sessionId?: string;
     message: string;
     modelTier: string;
+    clientMessageId?: string;
   },
   callbacks: StreamCallbacks
 ): { abort: () => void } {
@@ -420,7 +421,7 @@ export function streamChat(
             balanceAfter: parsed.balanceAfter,
           });
         } else if (parsed.type === 'error') {
-          callbacks.onError(parsed.message || 'Stream error');
+          callbacks.onError(parsed.code || parsed.message || 'unknown');
         }
       } catch {
         continue;

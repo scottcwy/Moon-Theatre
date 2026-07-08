@@ -14,7 +14,7 @@ import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, streamChat } from '../../services/api';
 import { navigateBackOrHome } from '../../utils/navigation';
 import { getCharacterAvatarUrl } from '../home/index.model';
-import { getFriendlyStreamErrorMessage, getInitialModelTier, shouldRenderStandaloneTypingIndicator } from './index.model';
+import { createClientMessageId, getFriendlyStreamErrorMessage, getInitialModelTier, shouldRenderStandaloneTypingIndicator } from './index.model';
 import './index.scss';
 
 interface ChatMessage {
@@ -30,6 +30,30 @@ interface CharacterHeader {
   name: string;
   avatarUrl: string;
   identity: string;
+  relationship?: {
+    bondLevel: number;
+    bondExp: number;
+  } | null;
+}
+
+interface ClientMessageLookupResponse {
+  sessionId: string;
+  clientMessageId: string;
+  userMessage: {
+    id: string;
+    content: string;
+    createdAt: string;
+    outOfScope: boolean;
+    excludedFromContext: boolean;
+  };
+  assistantMessage: null | {
+    id: string;
+    content: string;
+    mood: string | null;
+    createdAt: string;
+    outOfScope: boolean;
+    excludedFromContext: boolean;
+  };
 }
 
 interface MessagesResponse {
@@ -101,6 +125,18 @@ export default function Chat() {
     }
   }, [handleAuthError, requireAuth]);
 
+  const refreshCharacterRelationship = useCallback(async () => {
+    if (!characterId) return;
+    try {
+      const data = await api.get<CharacterHeader>(`/api/characters/${characterId}`);
+      if (!mountedRef.current) return;
+      setCharacter(data);
+      setBondLevel(data.relationship?.bondLevel ?? 1);
+    } catch (err) {
+      handleAuthError(err);
+    }
+  }, [characterId, handleAuthError]);
+
   useUnload(() => {
     mountedRef.current = false;
     abortActiveStream();
@@ -132,6 +168,7 @@ export default function Chat() {
         const data = await api.get<CharacterHeader>(`/api/characters/${characterId}`);
         if (cancelled) return;
         setCharacter(data);
+        setBondLevel(data.relationship?.bondLevel ?? 1);
         setCharacterLoading(false);
         void loadBalance();
       } catch (err) {
@@ -214,12 +251,13 @@ export default function Chat() {
     }
 
     const userMessage = inputValue.trim();
+    const clientMessageId = createClientMessageId();
     setInputValue('');
     setSending(true);
     setStreamError('');
 
-    const tempAssistantId = `assistant-${Date.now()}`;
-    const userMsgId = `user-${Date.now()}`;
+    const tempAssistantId = `assistant-${clientMessageId}`;
+    const userMsgId = `user-${clientMessageId}`;
 
     addMessage({ id: userMsgId, role: 'user', content: userMessage });
     addMessage({
@@ -237,6 +275,7 @@ export default function Chat() {
         sessionId: sessionIdRef.current,
         message: userMessage,
         modelTier,
+        clientMessageId,
       },
       {
         onDelta(content) {
@@ -261,6 +300,8 @@ export default function Chat() {
           }));
           if (typeof result.bondLevel === 'number') {
             setBondLevel(result.bondLevel);
+          } else {
+            void refreshCharacterRelationship();
           }
           if (typeof result.balanceAfter === 'number') {
             setPointsBalance(result.balanceAfter);
@@ -274,14 +315,7 @@ export default function Chat() {
         onError(message) {
           if (!mountedRef.current) return;
           const friendlyMessage = getFriendlyStreamErrorMessage(message);
-          updateLastAssistant((current) => ({
-            ...current,
-            content: current.content || `[发送失败] ${friendlyMessage}`,
-          }));
-          setStreamError(friendlyMessage);
-          activeStreamRef.current = null;
-          setSending(false);
-          void loadBalance();
+          void reconcileFailedSend(clientMessageId, friendlyMessage, tempAssistantId);
         },
         onAuthExpired() {
           if (!mountedRef.current) return;
@@ -291,6 +325,47 @@ export default function Chat() {
       }
     );
   };
+
+  const reconcileFailedSend = useCallback(async (clientMessageId: string, fallbackMessage: string, tempAssistantId: string) => {
+    try {
+      const lookup = await api.get<ClientMessageLookupResponse>(
+        `/api/chat/messages/by-client-id?clientMessageId=${encodeURIComponent(clientMessageId)}`,
+      );
+      if (!mountedRef.current) return;
+      sessionIdRef.current = lookup.sessionId;
+      if (lookup.assistantMessage) {
+        updateLastAssistant((current) => ({
+          ...current,
+          id: lookup.assistantMessage!.id,
+          content: lookup.assistantMessage!.content,
+          mood: lookup.assistantMessage!.mood as MoodType | undefined,
+        }));
+        setStreamError('');
+        scrollIntoViewRef.current = `msg-${lookup.assistantMessage.id}`;
+      } else {
+        const inProgressMessage = getFriendlyStreamErrorMessage('in_progress');
+        updateLastAssistant((current) => ({
+          ...current,
+          content: current.content || `[发送失败] ${inProgressMessage}`,
+        }));
+        setStreamError(inProgressMessage);
+        scrollIntoViewRef.current = `msg-${tempAssistantId}`;
+      }
+    } catch {
+      if (!mountedRef.current) return;
+      updateLastAssistant((current) => ({
+        ...current,
+        content: current.content || `[发送失败] ${fallbackMessage}`,
+      }));
+      setStreamError(fallbackMessage);
+      scrollIntoViewRef.current = `msg-${tempAssistantId}`;
+    } finally {
+      if (!mountedRef.current) return;
+      activeStreamRef.current = null;
+      setSending(false);
+      void loadBalance();
+    }
+  }, [loadBalance, updateLastAssistant]);
 
   const selectedTierCost = MODEL_TIER_COSTS[modelTier];
   const isInsufficientPoints = typeof pointsBalance === 'number' && pointsBalance < selectedTierCost;
