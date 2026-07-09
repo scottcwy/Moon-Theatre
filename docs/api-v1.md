@@ -13,6 +13,7 @@
 | Characters | GET | `/api/characters` | 角色列表 |
 | Characters | GET | `/api/characters/:id` | 角色详情，包含关系信息 |
 | Chat | POST | `/api/chat/stream` | 单角色聊天，NDJSON，生成前预扣点数，失败/过滤退款 |
+| Chat | GET | `/api/chat/messages/by-client-id` | 按客户端发送 ID 对账当前用户的一轮聊天消息 |
 | Sessions | GET | `/api/chat/sessions` | 当前用户会话列表 |
 | Sessions | GET | `/api/chat/sessions/:id/messages` | 当前用户会话消息 |
 | Memory | GET | `/api/memory` | 当前用户启用记忆分组 |
@@ -34,7 +35,8 @@
   "characterId": "uuid",
   "sessionId": "uuid",
   "message": "你好",
-  "modelTier": "standard"
+  "modelTier": "standard",
+  "clientMessageId": "miniapp-generated-id"
 }
 ```
 
@@ -43,10 +45,63 @@
 ```json
 {"type":"status","mode":"moderated_buffered","stage":"generating"}
 {"type":"delta","content":"最终审核后的 AI 回复"}
-{"type":"done","messageId":"uuid","sessionId":"uuid","mood":"neutral","bondLevel":1,"bondExp":10,"balanceAfter":97}
+{"type":"done","messageId":"uuid","sessionId":"uuid","mood":"neutral","bondLevel":1,"bondExp":10,"balanceAfter":97,"clientMessageId":"miniapp-generated-id"}
+{"type":"error","code":"upstream_error","message":"diagnostic only"}
 ```
 
-`done` 事件同步保证 `messageId`、`sessionId`、`mood`（如可解析）和 `balanceAfter`。还可能包含 `fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `402`。输入安全拦截不会预扣点数。模型失败或输出过滤会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化“作为 AI 模型”式拒答会被替换为角色内兜底回复。
+`clientMessageId` 由小程序每次发送生成，服务端写入同一轮 user/assistant 消息，用于失败对账、幂等重试和分析。相同 `clientMessageId` 的已完成重试会重放已保存 assistant；仍在生成且 lease 未过期时返回 `error.code="in_progress"`；失败或 lease 过期后允许同 ID 重新获取生成 lease。
+
+`done` 事件同步保证 `messageId`、`sessionId`、`mood`（如可解析）、`balanceAfter` 和 `clientMessageId`（如请求提供）。还可能包含 `fallback`、`blocked`、`outOfScope`、`replayed`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `error.code="insufficient_points"` 或 `402`。输入安全拦截不会预扣点数。模型失败、输出过滤、越界兜底会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化“作为 AI 模型”式拒答会被替换为角色内兜底回复。
+
+流式错误事件使用稳定 `code`，`message` 只用于诊断，客户端不得直接展示未知 raw message。V1 code：
+
+```text
+timeout
+upstream_error
+upstream_incomplete
+insufficient_points
+out_of_scope
+in_progress
+unknown
+```
+
+产品聊天由 API 拥有上下文状态：API 从数据库选取 `excluded_from_context=false` 的近期干净历史并显式传给 FastClaw；产品聊天请求不得依赖 FastClaw session history 或发送 `x-fastclaw-session-key`。
+
+### `GET /api/chat/messages/by-client-id`
+
+按 `clientMessageId` 查询当前登录用户的一轮消息，用于流失败后的对账。
+
+请求：
+
+```http
+GET /api/chat/messages/by-client-id?clientMessageId=miniapp-generated-id
+```
+
+响应：
+
+```json
+{
+  "sessionId": "uuid",
+  "clientMessageId": "miniapp-generated-id",
+  "userMessage": {
+    "id": "uuid",
+    "content": "你好",
+    "createdAt": "2026-07-08T12:00:00.000Z",
+    "outOfScope": false,
+    "excludedFromContext": false
+  },
+  "assistantMessage": {
+    "id": "uuid",
+    "content": "最终审核后的回复",
+    "mood": "neutral",
+    "createdAt": "2026-07-08T12:00:02.000Z",
+    "outOfScope": false,
+    "excludedFromContext": false
+  }
+}
+```
+
+找不到当前用户记录返回 `404`。只找到 user 消息但 assistant 尚未完成时返回 `200` 且 `assistantMessage: null`。同一用户多个 session 命中同一 `clientMessageId` 时返回 `409`。
 
 #### 聊天速度约束
 

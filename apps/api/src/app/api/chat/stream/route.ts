@@ -10,6 +10,7 @@ const streamRequestSchema = z.object({
   sessionId: z.string().uuid().optional(),
   message: z.string().min(1).max(5000),
   modelTier: z.enum(['casual', 'standard', 'immersive']),
+  clientMessageId: z.string().min(1).max(128).regex(/^[\x20-\x7E]+$/).optional(),
 });
 
 export async function OPTIONS(request: NextRequest) {

@@ -125,7 +125,7 @@ describe('streamChat FastClaw integration', () => {
     ]);
   });
 
-  it('sends FastClaw agent/session headers without duplicating prompt context in the user message', async () => {
+  it('forwards API-built messages exactly and does not send product chat session headers', async () => {
     const fetchMock = vi.fn().mockResolvedValue(mockSseResponse(['data: [DONE]\n\n']));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -135,8 +135,16 @@ describe('streamChat FastClaw integration', () => {
       FASTCLAW_AGENT_ID: 'default-agent',
     });
 
-    await collectEvents(configuredStreamChat('剧本杀系统上下文', '继续调查', {
+    const apiBuiltMessages = [
+      { role: 'system' as const, content: '剧本杀系统上下文' },
+      { role: 'user' as const, content: '上一轮问题' },
+      { role: 'assistant' as const, content: '上一轮回答' },
+      { role: 'user' as const, content: '继续调查' },
+    ];
+
+    await collectEvents(configuredStreamChat('ignored system', 'ignored user', {
       sessionId: 'chat-session-123',
+      messages: apiBuiltMessages,
     }));
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -146,17 +154,14 @@ describe('streamChat FastClaw integration', () => {
         headers: expect.objectContaining({
           Authorization: 'Bearer fc_test',
           'x-fastclaw-agent-id': 'default-agent',
-          'x-fastclaw-session-key': 'chat-session-123',
         }),
       }),
     );
     const [, init] = fetchMock.mock.calls[0] ?? [];
     expect(init).toBeDefined();
+    expect(init?.headers).not.toHaveProperty('x-fastclaw-session-key');
     const request = JSON.parse(String(init?.body));
-    expect(request.messages).toEqual([
-      { role: 'system', content: '剧本杀系统上下文' },
-      { role: 'user', content: '继续调查' },
-    ]);
+    expect(request.messages).toEqual(apiBuiltMessages);
   });
 
   it('lets the configured FastClaw agent choose the model instead of overriding it', async () => {
@@ -190,7 +195,7 @@ describe('streamChat FastClaw integration', () => {
     const events = await collectEvents(configuredStreamChat('system', 'hello'));
 
     expect(events).toEqual([
-      { type: 'error', message: 'FastClaw responded with status 500' },
+      { type: 'error', code: 'upstream_error', message: 'FastClaw responded with status 500' },
     ]);
   });
 
@@ -208,7 +213,7 @@ describe('streamChat FastClaw integration', () => {
 
     expect(events).toEqual([
       { type: 'delta', content: '半截' },
-      { type: 'error', message: 'FastClaw stream ended before completion' },
+      { type: 'error', code: 'upstream_incomplete', message: 'FastClaw stream ended before completion' },
     ]);
   });
 });

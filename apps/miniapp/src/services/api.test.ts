@@ -192,6 +192,50 @@ describe('miniapp api client', () => {
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ balanceAfter: 7 }));
   });
 
+  it('sends clientMessageId with chat stream requests and returns error codes before raw messages', async () => {
+    const { setToken, streamChat } = await import('./api');
+    setToken('auth-token');
+
+    let chunkHandler: ((res: { data: string }) => void) | undefined;
+    let requestOptions: { data?: Record<string, unknown> } = {};
+    requestMock.mockImplementation((options) => {
+      requestOptions = options;
+      return {
+        onChunkReceived: vi.fn((handler: (res: { data: string }) => void) => {
+          chunkHandler = handler;
+        }),
+        abort: vi.fn(),
+      };
+    });
+
+    const onError = vi.fn();
+    streamChat(
+      {
+        characterId: 'character-id',
+        message: '你好',
+        modelTier: 'standard',
+        clientMessageId: 'client-message-1',
+      },
+      {
+        onDelta: vi.fn(),
+        onDone: vi.fn(),
+        onError,
+      },
+    );
+
+    expect(requestOptions.data).toMatchObject({ clientMessageId: 'client-message-1' });
+
+    chunkHandler?.({
+      data: JSON.stringify({
+        type: 'error',
+        code: 'upstream_error',
+        message: 'FastClaw responded with status 500',
+      }) + '\n',
+    });
+
+    expect(onError).toHaveBeenCalledWith('upstream_error');
+  });
+
   it('decodes utf-8 arraybuffer chat chunks when TextDecoder is unavailable', async () => {
     const originalTextDecoder = globalThis.TextDecoder;
     vi.stubGlobal('TextDecoder', undefined);

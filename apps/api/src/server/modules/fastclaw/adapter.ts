@@ -12,6 +12,7 @@ export interface StreamDone {
 
 export interface StreamError {
   type: 'error';
+  code: 'timeout' | 'upstream_error' | 'upstream_incomplete' | 'unknown';
   message: string;
 }
 
@@ -20,6 +21,7 @@ export type StreamEvent = StreamDelta | StreamDone | StreamError;
 export interface StreamChatOptions {
   sessionId?: string;
   agentId?: string;
+  messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   // Runtime provider/model/temperature/thinking settings belong to the configured FastClaw agent.
   // This legacy option is intentionally not sent as a request-level model override.
   model?: string;
@@ -46,26 +48,24 @@ export async function* streamChat(
       if (agentId) {
         headers['x-fastclaw-agent-id'] = agentId;
       }
-      if (options.sessionId) {
-        headers['x-fastclaw-session-key'] = options.sessionId;
-      }
+      const messages = options.messages ?? [
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: userMessage },
+      ];
 
       try {
         const response = await fetch(`${config.fastclawBaseUrl}/v1/chat/completions`, {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userMessage },
-            ],
+            messages,
             stream: true,
           }),
           signal: controller.signal,
         });
 
         if (!response.ok || !response.body) {
-          throw new Error(`FastClaw responded with status ${response.status}`);
+          throw new FastClawStreamError('upstream_error', `FastClaw responded with status ${response.status}`);
         }
 
         const reader = response.body.getReader();
@@ -105,7 +105,7 @@ export async function* streamChat(
         }
 
         if (!sawDone) {
-          throw new Error('FastClaw stream ended before completion');
+          throw new FastClawStreamError('upstream_incomplete', 'FastClaw stream ended before completion');
         }
       } finally {
         clearTimeout(timeout);
@@ -116,11 +116,31 @@ export async function* streamChat(
         return;
       }
       const message = err instanceof Error ? err.message : 'FastClaw request failed';
-      yield { type: 'error', message };
+      yield { type: 'error', code: getFastClawErrorCode(err), message };
     }
   } else {
     yield* fallbackStream(userMessage);
   }
+}
+
+class FastClawStreamError extends Error {
+  constructor(
+    readonly code: StreamError['code'],
+    message: string,
+  ) {
+    super(message);
+    this.name = 'FastClawStreamError';
+  }
+}
+
+function getFastClawErrorCode(error: unknown): StreamError['code'] {
+  if (error instanceof FastClawStreamError) {
+    return error.code;
+  }
+  if (error instanceof Error && error.name === 'AbortError') {
+    return 'timeout';
+  }
+  return 'upstream_error';
 }
 
 async function* fallbackStream(userMessage: string): AsyncGenerator<StreamEvent> {

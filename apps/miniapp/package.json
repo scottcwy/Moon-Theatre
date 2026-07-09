@@ -14,10 +14,17 @@
     "dev:weapp": "taro build --type weapp --watch",
     "lint": "eslint src/",
     "test": "vitest run",
+    "test:e2e:smoke": "node e2e/smoke.mjs",
+    "test:e2e:ui": "node e2e/runtime-ui.mjs",
+    "test:e2e:ui:auth": "node e2e/runtime-ui-authenticated.mjs",
     "verify:weapp": "node scripts/verify-weapp-build.mjs",
     "typecheck": "tsc --noEmit"
   },
-  "browserslist": ["last 3 versions", "Android >= 4.1", "ios >= 8"],
+  "browserslist": [
+    "last 3 versions",
+    "Android >= 4.1",
+    "ios >= 8"
+  ],
   "dependencies": {
     "@juben-sha/miniapp-ui": "workspace:*",
     "@juben-sha/shared": "workspace:*",
@@ -35,13 +42,14 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@babel/preset-react": "^7.24.1",
-    "babel-preset-taro": "^4.0.0",
     "@tarojs/cli": "^4.0.0",
     "@tarojs/webpack5-runner": "^4.0.0",
     "@types/react": "^18.3.0",
-    "typescript": "^5.5.0",
-    "sass": "^1.77.0",
+    "@weapp-vite/miniprogram-automator": "1.2.5",
+    "babel-preset-taro": "^4.0.0",
     "eslint": "^9.0.0",
+    "sass": "^1.77.0",
+    "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   }
 }

@@ -11,14 +11,20 @@ import { checkInput, checkOutput } from '../moderation/index.js';
 import {
   buildSystemPrompt,
   findOrCreateSession,
+  getCleanHistoryMessages,
   getCharacterWithPrompts,
   getScriptById,
   parseMood,
-  saveAssistantMessage,
+  resolveClientTurn,
+  finalizeAssistantTurn,
   saveUserMessage,
+  failTurn,
 } from './index.js';
 import { sanitizeAssistantOutput } from './output-sanitizer.js';
+import { classifyChatScope } from './scope-classifier.js';
 import { runChatCompletionEffects } from './workflow.js';
+
+const OUT_OF_SCOPE_FALLBACK = '这个问题超出了当前角色和剧情能可靠回应的范围。我们可以换成和角色、线索或当前剧情更相关的问题继续。';
 
 export interface ChatStreamInput {
   userId: string;
@@ -26,6 +32,7 @@ export interface ChatStreamInput {
   sessionId?: string;
   message: string;
   modelTier: 'casual' | 'standard' | 'immersive';
+  clientMessageId?: string;
 }
 
 export const STREAM_HEADERS = {
@@ -37,7 +44,9 @@ export const STREAM_HEADERS = {
 
 export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   const requestStartedAt = Date.now();
-  const { userId, characterId, sessionId, message, modelTier } = input;
+  const { userId, characterId, sessionId, modelTier } = input;
+  const clientMessageId = input.clientMessageId?.trim();
+  let message = input.message;
 
   const [profile] = await db
     .select({
@@ -57,26 +66,116 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     return errorResponse('Character not found', 404);
   }
 
+  if (clientMessageId) {
+    const resolved = await resolveClientTurn({
+      userId,
+      characterId,
+      modelTier,
+      message,
+      clientMessageId,
+      sessionId,
+    });
+
+    switch (resolved.status) {
+      case 'collision':
+        return errorResponse('client_message_id_collision', 409);
+      case 'replay':
+        return createReplayResponse(resolved.sessionId, resolved.assistantMessage, clientMessageId);
+      case 'in_progress':
+        return createStreamErrorResponse('in_progress');
+      case 'acquired_existing': {
+        const inputCheck = await checkInput(resolved.userMessage.content, resolved.sessionId, userId, resolved.userMessage.id);
+        if (inputCheck.blocked) {
+          const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
+          const saved = await finalizeAssistantTurn({
+            sessionId: resolved.sessionId,
+            userMessageId: resolved.userMessage.id,
+            content: safeMsg,
+            mood: null,
+            clientMessageId,
+          });
+          return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
+        }
+        const promptContext = await buildPromptContext(userId, characterId, character);
+        const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
+        return createPreparedGenerationResponse({
+          requestStartedAt,
+          userId,
+          characterId,
+          sessionId: resolved.sessionId,
+          userMessageId: resolved.userMessage.id,
+          userMessage: resolved.userMessage.content,
+          modelTier,
+          modelName: profile.modelName,
+          pointsPerCall: profile.pointsPerCall,
+          systemPrompt: promptContext.systemPrompt,
+          scriptTitle: promptContext.scriptTitle,
+          worldSetting: promptContext.worldSetting,
+          characterName: character.name,
+          characterIdentity: character.identity,
+          cleanHistory,
+          clientMessageId,
+          generationAttempt: resolved.generationAttempt,
+        });
+      }
+      case 'created': {
+        const inputCheck = await checkInput(resolved.userMessage, resolved.sessionId, userId, resolved.userMessageId);
+        if (inputCheck.blocked) {
+          const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
+          const saved = await finalizeAssistantTurn({
+            sessionId: resolved.sessionId,
+            userMessageId: resolved.userMessageId,
+            content: safeMsg,
+            mood: null,
+            clientMessageId,
+          });
+          return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
+        }
+        const promptContext = await buildPromptContext(userId, characterId, character);
+        const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
+        return createPreparedGenerationResponse({
+          requestStartedAt,
+          userId,
+          characterId,
+          sessionId: resolved.sessionId,
+          userMessageId: resolved.userMessageId,
+          userMessage: resolved.userMessage,
+          modelTier,
+          modelName: profile.modelName,
+          pointsPerCall: profile.pointsPerCall,
+          systemPrompt: promptContext.systemPrompt,
+          scriptTitle: promptContext.scriptTitle,
+          worldSetting: promptContext.worldSetting,
+          characterName: character.name,
+          characterIdentity: character.identity,
+          cleanHistory,
+          clientMessageId,
+          generationAttempt: resolved.generationAttempt,
+        });
+      }
+    }
+  }
+
   const session = await findOrCreateSession(userId, characterId, modelTier, sessionId);
-  const userMsg = await saveUserMessage(session.id, message);
+  const userMsg = await saveUserMessage(session.id, message, clientMessageId ? { clientMessageId } : {});
 
   const inputCheck = await checkInput(message, session.id, userId, userMsg.id);
   if (inputCheck.blocked) {
-    return createBlockedInputResponse(session.id);
+    const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
+    const saved = await finalizeAssistantTurn({
+      sessionId: session.id,
+      userMessageId: userMsg.id,
+      content: safeMsg,
+      mood: null,
+    });
+    return createBlockedInputResponse(session.id, saved.id);
   }
 
-  await getOrCreateWallet(userId);
-  const balance = await getBalance(userId);
-  if (balance < profile.pointsPerCall) {
-    return errorResponse('Insufficient points', 402);
-  }
+  const promptContext = await buildPromptContext(userId, characterId, character);
+  const cleanHistory = await getCleanHistoryMessages(userId, session.id, clientMessageId);
 
-  const consumeResult = await consumePoints(userId, profile.pointsPerCall, `consume_${userMsg.id}`);
-  const prompt = await buildPromptContext(userId, characterId, character);
-
-  return createGenerationResponse({
+  return createPreparedGenerationResponse({
     requestStartedAt,
-    prepareMs: Date.now() - requestStartedAt,
     userId,
     characterId,
     sessionId: session.id,
@@ -85,9 +184,71 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     modelTier,
     modelName: profile.modelName,
     pointsPerCall: profile.pointsPerCall,
+    systemPrompt: promptContext.systemPrompt,
+    scriptTitle: promptContext.scriptTitle,
+    worldSetting: promptContext.worldSetting,
+    characterName: character.name,
+    characterIdentity: character.identity,
+    cleanHistory,
+    clientMessageId,
+    generationAttempt: userMsg.generationAttempt,
+  });
+}
+
+async function createPreparedGenerationResponse(input: {
+  requestStartedAt: number;
+  userId: string;
+  characterId: string;
+  sessionId: string;
+  userMessageId: string;
+  userMessage: string;
+  modelTier: 'casual' | 'standard' | 'immersive';
+  modelName: string;
+  pointsPerCall: number;
+  systemPrompt: string;
+  scriptTitle?: string;
+  worldSetting?: string;
+  characterName: string;
+  characterIdentity: string;
+  cleanHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
+  clientMessageId?: string;
+  generationAttempt: number;
+}): Promise<Response> {
+  await getOrCreateWallet(input.userId);
+  const balance = await getBalance(input.userId);
+  if (balance < input.pointsPerCall) {
+    await failTurn(input.userMessageId);
+    return errorResponse('insufficient_points', 402);
+  }
+
+  const consumeResult = await consumePoints(input.userId, input.pointsPerCall, `consume_${input.userMessageId}_${input.generationAttempt}`);
+  const messages = [
+    { role: 'system' as const, content: input.systemPrompt },
+    ...input.cleanHistory,
+    { role: 'user' as const, content: input.userMessage },
+  ];
+
+  return createGenerationResponse({
+    requestStartedAt: input.requestStartedAt,
+    prepareMs: Date.now() - input.requestStartedAt,
+    userId: input.userId,
+    characterId: input.characterId,
+    sessionId: input.sessionId,
+    userMessageId: input.userMessageId,
+    userMessage: input.userMessage,
+    modelTier: input.modelTier,
+    modelName: input.modelName,
+    pointsPerCall: input.pointsPerCall,
     walletTransactionId: consumeResult.transactionId,
     initialBalanceAfter: consumeResult.balanceAfter,
-    systemPrompt: prompt,
+    systemPrompt: input.systemPrompt,
+    scriptTitle: input.scriptTitle,
+    worldSetting: input.worldSetting,
+    characterName: input.characterName,
+    characterIdentity: input.characterIdentity,
+    messages,
+    clientMessageId: input.clientMessageId,
+    generationAttempt: input.generationAttempt,
   });
 }
 
@@ -95,33 +256,95 @@ async function buildPromptContext(
   userId: string,
   characterId: string,
   character: NonNullable<Awaited<ReturnType<typeof getCharacterWithPrompts>>>,
-): Promise<string> {
+): Promise<{ systemPrompt: string; scriptTitle?: string; worldSetting?: string }> {
   const script = character.scriptId ? await getScriptById(character.scriptId) : null;
   const [existingMemories, existingRelationship] = await Promise.all([
     getEnabledMemories(userId, characterId),
     getRelationship(userId, characterId),
   ]);
 
-  return buildSystemPrompt(character, script, {
-    memories: existingMemories.map((m) => ({ type: m.type, content: m.content })),
-    bondLevel: existingRelationship?.bondLevel,
-    bondExp: existingRelationship?.bondExp,
-  });
+  return {
+    systemPrompt: buildSystemPrompt(character, script, {
+      memories: existingMemories.map((m) => ({ type: m.type, content: m.content })),
+      bondLevel: existingRelationship?.bondLevel,
+      bondExp: existingRelationship?.bondExp,
+    }),
+    scriptTitle: script?.title,
+    worldSetting: script?.worldSetting,
+  };
 }
 
-async function createBlockedInputResponse(sessionId: string): Promise<Response> {
+async function createBlockedInputResponse(
+  sessionId: string,
+  assistantMessageId: string,
+  clientMessageId?: string,
+): Promise<Response> {
   const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
-  const saved = await saveAssistantMessage(sessionId, safeMsg, null);
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
       controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: safeMsg }) + '\n'));
-      controller.enqueue(encoder.encode(JSON.stringify({ type: 'done', messageId: saved.id, sessionId, blocked: true }) + '\n'));
+      controller.enqueue(encoder.encode(JSON.stringify({
+        type: 'done',
+        messageId: assistantMessageId,
+        sessionId,
+        blocked: true,
+        ...(clientMessageId ? { clientMessageId } : {}),
+      }) + '\n'));
       controller.close();
     },
   });
   return new Response(stream, { headers: STREAM_HEADERS });
 }
+
+function createReplayResponse(
+  sessionId: string,
+  assistantMessage: { id: string; content: string; mood: string | null },
+  clientMessageId: string,
+): Response {
+  console.info({
+    event: 'chat_stream_replayed',
+    sessionId,
+    assistantMessageId: assistantMessage.id,
+    clientMessageId,
+  });
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: assistantMessage.content }) + '\n'));
+      controller.enqueue(encoder.encode(JSON.stringify({
+        type: 'done',
+        messageId: assistantMessage.id,
+        sessionId,
+        ...(assistantMessage.mood ? { mood: assistantMessage.mood } : {}),
+        clientMessageId,
+        replayed: true,
+      }) + '\n'));
+      controller.close();
+    },
+  });
+  return new Response(stream, { headers: STREAM_HEADERS });
+}
+
+function createStreamErrorResponse(code: ChatStreamErrorCode, message?: string): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code, ...(message ? { message } : {}) }) + '\n'));
+      controller.close();
+    },
+  });
+  return new Response(stream, { headers: STREAM_HEADERS });
+}
+
+type ChatStreamErrorCode =
+  | 'timeout'
+  | 'upstream_error'
+  | 'upstream_incomplete'
+  | 'insufficient_points'
+  | 'out_of_scope'
+  | 'in_progress'
+  | 'unknown';
 
 function createGenerationResponse(input: {
   requestStartedAt: number;
@@ -137,6 +360,13 @@ function createGenerationResponse(input: {
   walletTransactionId: string;
   initialBalanceAfter: number;
   systemPrompt: string;
+  scriptTitle?: string;
+  worldSetting?: string;
+  characterName: string;
+  characterIdentity: string;
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  clientMessageId?: string;
+  generationAttempt: number;
 }): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -154,7 +384,7 @@ function createGenerationResponse(input: {
 
         const generationStartedAt = Date.now();
         for await (const event of streamChat(input.systemPrompt, input.userMessage, {
-          sessionId: input.sessionId,
+          messages: input.messages,
         })) {
           if (event.type === 'delta') {
             fullContent += event.content;
@@ -162,11 +392,13 @@ function createGenerationResponse(input: {
             usedFallback = event.fallback;
             break;
           } else if (event.type === 'error') {
-            const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}`).catch(() => undefined);
+            const code = event.code ?? 'unknown';
+            const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`).catch(() => undefined);
             if (refundResult) {
               balanceAfter = refundResult.balanceAfter;
             }
-            await insertModelUsage(input, 'failed', 0);
+            await failTurn(input.userMessageId);
+            await insertModelUsage(input, 'failed', 0, code);
             generationMs = Date.now() - generationStartedAt;
             logChatLatency({
               sessionId: input.sessionId,
@@ -180,8 +412,9 @@ function createGenerationResponse(input: {
               effectsAsync: false,
               blocked: false,
               error: event.message,
+              errorCode: code,
             });
-            controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', message: event.message }) + '\n'));
+            controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code, message: event.message }) + '\n'));
             controller.close();
             return;
           }
@@ -191,21 +424,114 @@ function createGenerationResponse(input: {
         const moderationStartedAt = Date.now();
         const sanitizedText = sanitizeAssistantOutput(fullContent);
         const { mood, cleanedText } = parseMood(sanitizedText);
+
+        let scopeClassification: 'in_scope' | 'out_of_scope' = 'in_scope';
+        try {
+          const classification = await classifyChatScope({
+            userMessage: input.userMessage,
+            assistantDraft: cleanedText,
+            characterName: input.characterName,
+            characterIdentity: input.characterIdentity,
+            scriptTitle: input.scriptTitle,
+            worldSetting: input.worldSetting,
+          });
+          scopeClassification = classification === 'out_of_scope' ? 'out_of_scope' : 'in_scope';
+        } catch (err) {
+          console.warn({
+            event: 'scope_classifier_failed',
+            sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+            clientMessageId: input.clientMessageId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+
+        if (scopeClassification === 'out_of_scope') {
+          const saveStartedAt = Date.now();
+          const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
+          balanceAfter = refundResult.balanceAfter;
+          const saved = await finalizeAssistantTurn({
+            sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+            content: OUT_OF_SCOPE_FALLBACK,
+            mood: 'neutral',
+            ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+            outOfScope: true,
+            excludedFromContext: true,
+            usage: {
+              userId: input.userId,
+              characterId: input.characterId,
+              modelTier: input.modelTier,
+              modelName: input.modelName,
+              walletTransactionId: null,
+              status: 'out_of_scope',
+              pointsConsumed: 0,
+            },
+          });
+          saveMs = Date.now() - saveStartedAt;
+          moderationMs = Date.now() - moderationStartedAt;
+
+          console.info({
+            event: 'chat_turn_out_of_scope',
+            sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+            assistantMessageId: saved.id,
+            clientMessageId: input.clientMessageId,
+          });
+          logChatLatency({
+            sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+            assistantMessageId: saved.id,
+            prepareMs: input.prepareMs,
+            generationMs,
+            moderationMs,
+            saveMs,
+            effectsScheduledMs,
+            totalUntilDoneMs: Date.now() - input.requestStartedAt,
+            effectsAsync: false,
+            blocked: false,
+          });
+          controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: OUT_OF_SCOPE_FALLBACK }) + '\n'));
+          controller.enqueue(encoder.encode(JSON.stringify({
+            type: 'done',
+            messageId: saved.id,
+            sessionId: input.sessionId,
+            mood: 'neutral',
+            outOfScope: true,
+            ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+            balanceAfter,
+          }) + '\n'));
+          controller.close();
+          return;
+        }
+
         const outputCheck = await checkOutput(cleanedText, input.sessionId);
         const blocked = outputCheck.blocked;
-        const finalContent = blocked ? 'AI 回复触发了安全机制，该消息已被替换。' : cleanedText;
+        const finalContent = blocked ? '回复触发了安全机制，该消息已被替换。' : cleanedText;
         const finalMood = blocked ? null : (mood ?? 'neutral');
         moderationMs = Date.now() - moderationStartedAt;
 
         const saveStartedAt = Date.now();
-        const saved = await saveAssistantMessage(input.sessionId, finalContent, finalMood);
         if (blocked) {
-          const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}`);
+          const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
           balanceAfter = refundResult.balanceAfter;
-          await insertModelUsage(input, 'filtered', 0);
-        } else {
-          await insertModelUsage(input, 'success', input.pointsPerCall);
         }
+        const saved = await finalizeAssistantTurn({
+          sessionId: input.sessionId,
+          userMessageId: input.userMessageId,
+          content: finalContent,
+          mood: finalMood,
+          ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+          usage: {
+            userId: input.userId,
+            characterId: input.characterId,
+            modelTier: input.modelTier,
+            modelName: input.modelName,
+            walletTransactionId: blocked ? null : input.walletTransactionId,
+            status: blocked ? 'filtered' : 'success',
+            pointsConsumed: blocked ? 0 : input.pointsPerCall,
+          },
+        });
         saveMs = Date.now() - saveStartedAt;
 
         const effectsStartedAt = Date.now();
@@ -247,6 +573,7 @@ function createGenerationResponse(input: {
           ...(finalMood ? { mood: finalMood } : {}),
           ...(usedFallback ? { fallback: true } : {}),
           ...(blocked ? { blocked: true } : {}),
+          ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
           ...(!config.chatEffectsAsyncEnabled && effects.bond ? {
             bondLevel: effects.bond.relationship.bondLevel,
             bondExp: effects.bond.relationship.bondExp,
@@ -257,9 +584,10 @@ function createGenerationResponse(input: {
         }) + '\n'));
         controller.close();
       } catch (err) {
-        await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}`).catch(() => undefined);
+        await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`).catch(() => undefined);
         const message = err instanceof Error ? err.message : 'Stream error';
-        await insertModelUsage(input, 'failed', 0).catch(() => undefined);
+        await failTurn(input.userMessageId).catch(() => undefined);
+        await insertModelUsage(input, 'failed', 0, 'unknown').catch(() => undefined);
         logChatLatency({
           sessionId: input.sessionId,
           userMessageId: input.userMessageId,
@@ -272,8 +600,9 @@ function createGenerationResponse(input: {
           effectsAsync: false,
           blocked: false,
           error: message,
+          errorCode: 'unknown',
         });
-        controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', message }) + '\n'));
+        controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code: 'unknown', message }) + '\n'));
         controller.close();
       }
     },
@@ -310,6 +639,7 @@ function logChatLatency(input: {
   effectsAsync: boolean;
   blocked: boolean;
   error?: string;
+  errorCode?: string;
 }): void {
   console.info({
     event: 'chat_stream_latency',
@@ -325,6 +655,7 @@ function logChatLatency(input: {
     effectsAsync: input.effectsAsync,
     blocked: input.blocked,
     ...(input.error ? { error: input.error } : {}),
+    ...(input.errorCode ? { errorCode: input.errorCode } : {}),
   });
 }
 
@@ -336,9 +667,11 @@ async function insertModelUsage(
     modelTier: 'casual' | 'standard' | 'immersive';
     modelName: string;
     walletTransactionId: string;
+    clientMessageId?: string;
   },
-  status: 'success' | 'failed' | 'filtered',
+  status: 'success' | 'failed' | 'filtered' | 'out_of_scope',
   pointsConsumed: number,
+  errorCode?: string,
 ): Promise<void> {
   await db.insert(modelUsageLogs).values({
     userId: input.userId,
@@ -348,6 +681,8 @@ async function insertModelUsage(
     modelName: input.modelName,
     pointsConsumed,
     walletTransactionId: status === 'success' ? input.walletTransactionId : null,
+    clientMessageId: input.clientMessageId ?? null,
+    errorCode: errorCode ?? null,
     status,
   });
 }

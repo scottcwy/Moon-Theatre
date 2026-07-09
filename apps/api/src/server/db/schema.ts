@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 export const modelTierEnum = pgEnum('model_tier', ['casual', 'standard', 'immersive']);
 export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'system']);
@@ -8,7 +8,7 @@ export const memoryTypeEnum = pgEnum('memory_type', ['user_info', 'relationship'
 export const orderStatusEnum = pgEnum('order_status', ['created', 'prepay_created', 'paid', 'credited', 'closed', 'failed', 'refunded']);
 export const paymentStatusEnum = pgEnum('payment_status', ['pending', 'success', 'failed', 'cancelled']);
 export const walletTxTypeEnum = pgEnum('wallet_tx_type', ['recharge', 'consume', 'adjust']);
-export const modelUsageStatusEnum = pgEnum('model_usage_status', ['success', 'failed', 'filtered']);
+export const modelUsageStatusEnum = pgEnum('model_usage_status', ['success', 'failed', 'filtered', 'out_of_scope']);
 export const sessionStatusEnum = pgEnum('session_status', ['active', 'archived']);
 export const userStatusEnum = pgEnum('user_status', ['active', 'banned']);
 export const characterStatusEnum = pgEnum('character_status', ['active', 'inactive']);
@@ -105,12 +105,22 @@ export const messages = pgTable('messages', {
   sessionId: uuid('session_id').references(() => chatSessions.id, { onDelete: 'cascade' }).notNull(),
   role: messageRoleEnum('role').notNull(),
   content: text('content').notNull(),
+  clientMessageId: varchar('client_message_id', { length: 128 }),
+  outOfScope: boolean('out_of_scope').default(false).notNull(),
+  excludedFromContext: boolean('excluded_from_context').default(false).notNull(),
+  generationStatus: varchar('generation_status', { length: 32 }),
+  generationLeaseExpiresAt: timestamp('generation_lease_expires_at', { withTimezone: true }),
+  generationAttempt: integer('generation_attempt').default(1).notNull(),
   mood: moodTypeEnum('mood'),
   modelTier: modelTierEnum('model_tier'),
   tokensUsed: integer('tokens_used'),
   pointsConsumed: integer('points_consumed'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  userClientMessageUnique: uniqueIndex('messages_user_client_message_unique')
+    .on(table.sessionId, table.role, table.clientMessageId)
+    .where(sql`${table.role} = 'user' and ${table.clientMessageId} is not null`),
+}));
 
 export const memories = pgTable('memories', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -133,6 +143,18 @@ export const relationships = pgTable('relationships', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   userCharacterUnique: uniqueIndex('relationships_user_character_unique').on(table.userId, table.characterId),
+}));
+
+export const relationshipBondExpEvents = pgTable('relationship_bond_exp_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assistantMessageId: uuid('assistant_message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  characterId: uuid('character_id').references(() => characters.id).notNull(),
+  expIncrement: integer('exp_increment').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  assistantMessageUnique: uniqueIndex('relationship_bond_exp_events_assistant_message_unique')
+    .on(table.assistantMessageId),
 }));
 
 export const titles = pgTable('titles', {
@@ -200,9 +222,25 @@ export const modelUsageLogs = pgTable('model_usage_logs', {
   costEstimateCents: integer('cost_estimate_cents'),
   pointsConsumed: integer('points_consumed').notNull(),
   walletTransactionId: uuid('wallet_transaction_id').references(() => walletTransactions.id),
+  clientMessageId: varchar('client_message_id', { length: 128 }),
+  errorCode: varchar('error_code', { length: 64 }),
   status: modelUsageStatusEnum('status').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const chatEffectRuns = pgTable('chat_effect_runs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assistantMessageId: uuid('assistant_message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull(),
+  effectName: varchar('effect_name', { length: 32 }).notNull(),
+  status: varchar('status', { length: 32 }).notNull(),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+  error: varchar('error', { length: 512 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  assistantEffectUnique: uniqueIndex('chat_effect_runs_assistant_effect_unique')
+    .on(table.assistantMessageId, table.effectName),
+}));
 
 export const quotaPackages = pgTable('quota_packages', {
   id: uuid('id').defaultRandom().primaryKey(),

@@ -151,7 +151,9 @@ That mapping would let product tiers select different FastClaw agents while pres
 
 ### 7. FastClaw raw history remains an investigation item
 
-Do not change session history architecture in this first implementation.
+Superseded for product chat by `2026-07-08-chat-experience-closure-design.md` and ADR `0001-api-owned-chat-context-and-client-message-id.md`: product chat now treats FastClaw as a stateless model executor and the API as the chat state owner.
+
+For this older cleanup-only change, do not change session history architecture.
 
 Before deciding whether to remove `x-fastclaw-session-key` or move to API-owned clean history, verify what FastClaw persists:
 
