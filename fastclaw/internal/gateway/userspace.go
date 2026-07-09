@@ -303,7 +303,7 @@ func (sp *UserSpace) EnsureAgent(ctx context.Context, st store.Store, mb *bus.Me
 		if ovr.Temperature > 0 {
 			rc.Temperature = ovr.Temperature
 		}
-		if ovr.MaxToolIterations > 0 {
+		if ovr.HasMaxToolIterations() {
 			rc.MaxToolIterations = ovr.MaxToolIterations
 		}
 		if ovr.Thinking != "" {
@@ -391,7 +391,7 @@ func loadUserSpace(ctx context.Context, userID string, mb *bus.MessageBus, st st
 			if agentOverride.Temperature > 0 {
 				rc.Temperature = agentOverride.Temperature
 			}
-			if agentOverride.MaxToolIterations > 0 {
+			if agentOverride.HasMaxToolIterations() {
 				rc.MaxToolIterations = agentOverride.MaxToolIterations
 			}
 			if agentOverride.Thinking != "" {

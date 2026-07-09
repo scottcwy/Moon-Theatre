@@ -20,7 +20,7 @@ data:
           "model": "gpt-4o",
           "maxTokens": 8192,
           "temperature": 0.7,
-          "maxToolIterations": 20
+          "maxToolIterations": 0
         },
         "list": []
       },

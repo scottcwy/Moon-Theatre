@@ -528,6 +528,53 @@ func selectSystemPrompt(defaultPrompt string, override string) string {
 	return override
 }
 
+func (a *Agent) handleMessageWithoutTools(
+	ctx context.Context,
+	msg bus.InboundMessage,
+	sess *session.Session,
+	messages []provider.Message,
+) string {
+	hcBefore := &HookContext{AgentName: a.name, Point: BeforeModelCall, Messages: messages, ChatID: msg.ChatID, UserID: a.ownerUserID}
+	a.hooks.Run(ctx, hcBefore)
+
+	llmMessages := messages
+	if a.piiScrubEnabled {
+		llmMessages = privacy.ScrubMessages(messages)
+	}
+
+	if a.provider == nil {
+		slog.Error("agent has no provider configured", "agent", a.name, "model", a.model)
+		noProviderMsg := "Agent is not configured with a usable LLM provider. Check that cfg.Providers contains the prefix referenced by model `" + a.model + "`."
+		emitEvent(ctx, ChatEvent{Type: "error", Data: map[string]any{"message": noProviderMsg}})
+		emitEvent(ctx, ChatEvent{Type: "done"})
+		return noProviderMsg
+	}
+	resp, err := a.provider.Chat(ctx, llmMessages, nil, a.model, a.maxTokens, a.temperature)
+
+	hcAfter := &HookContext{AgentName: a.name, Point: AfterModelCall, Messages: messages, Response: resp, Error: err, StartTime: hcBefore.StartTime, ChatID: msg.ChatID, UserID: a.ownerUserID}
+	a.hooks.Run(ctx, hcAfter)
+
+	if err != nil {
+		slog.Error("LLM chat failed", "agent", a.name, "error", err)
+		emitEvent(ctx, ChatEvent{Type: "error", Data: map[string]any{"message": err.Error()}})
+		emitEvent(ctx, ChatEvent{Type: "done"})
+		return "Sorry, I encountered an error processing your request."
+	}
+
+	assistantMsg := provider.Message{
+		Role:         "assistant",
+		Content:      resp.Content,
+		Thinking:     resp.Thinking,
+		Timestamp:    time.Now().UnixMilli(),
+		RawAssistant: resp.RawAssistant,
+	}
+	sess.Append(assistantMsg)
+	emitEvent(ctx, ChatEvent{Type: "content", Data: map[string]any{"content": resp.Content}})
+	emitEvent(ctx, ChatEvent{Type: "done"})
+	a.runPostTurn(ctx, append(messages, assistantMsg), 0)
+	return resp.Content
+}
+
 // HandleMessage processes an inbound message through the ReAct loop.
 func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) string {
 	// Check for slash commands first
@@ -607,6 +654,9 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	messages = append(messages, provider.Message{Role: "system", Content: systemPrompt})
 	messages = append(messages, sessionMsgs...)
 
+	if a.maxToolIterations == 0 {
+		return a.handleMessageWithoutTools(ctx, msg, sess, messages)
+	}
 	toolDefs := a.registry.Definitions()
 
 	// Loop detection: track consecutive identical tool calls
@@ -971,6 +1021,9 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 	messages = append(messages, provider.Message{Role: "system", Content: systemPrompt})
 	messages = append(messages, sessionMsgs...)
 
+	if a.maxToolIterations == 0 {
+		return a.stringStream(a.handleMessageWithoutTools(ctx, msg, sess, messages))
+	}
 	toolDefs := a.registry.Definitions()
 
 	type toolCallSig struct {
