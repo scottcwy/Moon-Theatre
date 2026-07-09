@@ -5,7 +5,9 @@
 
   &--script {
     margin-top: -$space-4;
+    border-radius: $radius-lg;
     background-color: $color-secondary-container;
+    overflow: hidden;
   }
 
   .page-section__title {
