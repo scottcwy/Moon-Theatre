@@ -9,7 +9,7 @@ interface SharePreviewCardProps {
   bondLevel?: number;
 }
 
-export function SharePreviewCard({ characterName, excerpt, bondLevel = 4 }: SharePreviewCardProps) {
+export function SharePreviewCard({ characterName, excerpt, bondLevel = 1 }: SharePreviewCardProps) {
   return (
     <View className="share-preview-card">
       <View className="share-preview-card__overlay" />

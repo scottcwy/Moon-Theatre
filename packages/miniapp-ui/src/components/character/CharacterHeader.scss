@@ -50,6 +50,13 @@
   white-space: nowrap;
 }
 
+.character-header__bond-exp {
+  display: block;
+  margin-top: 4rpx;
+  font-size: $font-label-sm;
+  color: $color-on-surface-variant;
+}
+
 .character-header__points {
   flex-shrink: 0;
   margin-left: $space-2;

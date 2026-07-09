@@ -154,7 +154,7 @@ describe('miniapp api client', () => {
     expect(requestMock).toHaveBeenCalledTimes(2);
   });
 
-  it('passes balanceAfter through chat stream done events', async () => {
+  it('passes chat stream done metadata through to callers', async () => {
     const { setToken, streamChat } = await import('./api');
     setToken('auth-token');
 
@@ -185,11 +185,25 @@ describe('miniapp api client', () => {
         type: 'done',
         messageId: 'message-id',
         sessionId: 'session-id',
+        clientMessageId: 'client-message-id',
+        replayed: true,
+        blocked: false,
+        outOfScope: true,
+        unlockedAchievements: [{ code: 'first_chat', name: '初次相逢' }],
+        unlockedTitles: [{ code: 'moon_walker', name: '月下行者' }],
         balanceAfter: 7,
       }) + '\n',
     });
 
-    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ balanceAfter: 7 }));
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({
+      clientMessageId: 'client-message-id',
+      replayed: true,
+      blocked: false,
+      outOfScope: true,
+      unlockedAchievements: [{ code: 'first_chat', name: '初次相逢' }],
+      unlockedTitles: [{ code: 'moon_walker', name: '月下行者' }],
+      balanceAfter: 7,
+    }));
   });
 
   it('sends clientMessageId with chat stream requests and returns error codes before raw messages', async () => {

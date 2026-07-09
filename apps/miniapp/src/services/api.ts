@@ -247,10 +247,16 @@ export interface StreamCallbacks {
   onDone: (result: {
     messageId: string;
     sessionId: string;
+    clientMessageId?: string;
     mood?: string;
     fallback?: boolean;
+    replayed?: boolean;
+    blocked?: boolean;
+    outOfScope?: boolean;
     bondLevel?: number;
     bondExp?: number;
+    unlockedAchievements?: unknown[];
+    unlockedTitles?: unknown[];
     balanceAfter?: number;
   }) => void;
   onError: (message: string) => void;
@@ -414,10 +420,16 @@ export function streamChat(
           callbacks.onDone({
             messageId: parsed.messageId,
             sessionId: parsed.sessionId,
+            clientMessageId: parsed.clientMessageId,
             mood: parsed.mood,
             fallback: parsed.fallback,
+            replayed: parsed.replayed,
+            blocked: parsed.blocked,
+            outOfScope: parsed.outOfScope,
             bondLevel: parsed.bondLevel,
             bondExp: parsed.bondExp,
+            unlockedAchievements: parsed.unlockedAchievements,
+            unlockedTitles: parsed.unlockedTitles,
             balanceAfter: parsed.balanceAfter,
           });
         } else if (parsed.type === 'error') {

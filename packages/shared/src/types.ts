@@ -40,6 +40,12 @@ export interface Message {
   sessionId: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  clientMessageId: string | null;
+  outOfScope: boolean;
+  excludedFromContext: boolean;
+  generationStatus: 'generating' | 'completed' | 'failed' | null;
+  generationLeaseExpiresAt: Date | null;
+  generationAttempt: number;
   mood: MoodType | null;
   modelTier: ModelTier | null;
   tokensUsed: number | null;

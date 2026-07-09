@@ -283,8 +283,9 @@ describe('playbook component functional behavior', () => {
     expect(bond.props.className).toContain('bond-progress');
     expect(textContent(bond)).toContain('信赖');
 
-    const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bondLevel={2} points={12} onBack={onBack} />);
+    const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bondLevel={2} bondExp={20} points={12} onBack={onBack} />);
     expect(header.props.className).toContain('character-header');
+    expect(textContent(header)).toContain('20/200');
     (findByClass(header, 'character-header__back').props.onTap as () => void)();
     expect(onBack).toHaveBeenCalledTimes(1);
 

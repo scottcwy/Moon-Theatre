@@ -74,6 +74,7 @@ const MODEL_TIER_COSTS: Record<ModelTier, number> = {
   standard: 3,
   immersive: 6,
 };
+const BOND_EXP_PER_LEVEL = 100;
 
 export default function Chat() {
   const router = useRouter();
@@ -87,6 +88,7 @@ export default function Chat() {
   const [modelTier, setModelTier] = useState<ModelTier>(getInitialModelTier());
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
   const [bondLevel, setBondLevel] = useState(1);
+  const [bondExp, setBondExp] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
@@ -132,6 +134,7 @@ export default function Chat() {
       if (!mountedRef.current) return;
       setCharacter(data);
       setBondLevel(data.relationship?.bondLevel ?? 1);
+      setBondExp(data.relationship?.bondExp ?? 0);
     } catch (err) {
       handleAuthError(err);
     }
@@ -169,6 +172,7 @@ export default function Chat() {
         if (cancelled) return;
         setCharacter(data);
         setBondLevel(data.relationship?.bondLevel ?? 1);
+        setBondExp(data.relationship?.bondExp ?? 0);
         setCharacterLoading(false);
         void loadBalance();
       } catch (err) {
@@ -300,6 +304,11 @@ export default function Chat() {
           }));
           if (typeof result.bondLevel === 'number') {
             setBondLevel(result.bondLevel);
+            if (typeof result.bondExp === 'number') {
+              setBondExp(result.bondExp);
+            } else {
+              void refreshCharacterRelationship();
+            }
           } else {
             void refreshCharacterRelationship();
           }
@@ -364,8 +373,9 @@ export default function Chat() {
       activeStreamRef.current = null;
       setSending(false);
       void loadBalance();
+      void refreshCharacterRelationship();
     }
-  }, [loadBalance, updateLastAssistant]);
+  }, [loadBalance, refreshCharacterRelationship, updateLastAssistant]);
 
   const selectedTierCost = MODEL_TIER_COSTS[modelTier];
   const isInsufficientPoints = typeof pointsBalance === 'number' && pointsBalance < selectedTierCost;
@@ -416,6 +426,8 @@ export default function Chat() {
         identity={character.identity}
         avatarUrl={characterAvatarUrl}
         bondLevel={bondLevel}
+        bondExp={bondExp}
+        bondMaxExp={bondLevel * BOND_EXP_PER_LEVEL}
         points={pointsBalance}
         onPointsTap={handleBuyPoints}
         onBack={navigateBackOrHome}
