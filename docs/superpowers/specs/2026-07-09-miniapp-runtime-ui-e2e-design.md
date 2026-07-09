@@ -57,6 +57,21 @@ Initial coverage:
 | Quota Result | `/pages/quota/result` | missing order/login/result state renders without blank screen |
 | Share Preview | `/pages/share/preview` | share preview card and bottom actions render inside viewport |
 
+Authenticated/mock API coverage:
+
+| Scenario | Route | Required Runtime State |
+| --- | --- | --- |
+| Auth Home | `/pages/home/index` | mock 角色列表渲染为角色卡，不停留在空态或错误态 |
+| Auth Character Detail | `/pages/character/detail?characterId=hakuzo` | 角色 hero、世界观、人设简介和底部操作渲染，底部操作不低于视口 |
+| Auth Chat List | `/pages/chat/list` | mock 会话列表和会话行渲染，不停留在登录态或加载态 |
+| Auth Profile | `/pages/profile/index` | 登录用户资料、点数和成长记录容器渲染 |
+| Auth Memory | `/pages/memory/index` | mock 记忆分组和记忆卡片渲染 |
+| Chat Insufficient Points | `/pages/chat/index?characterId=hakuzo` | 切到高消耗模型后余额不足提示和输入栏渲染，输入栏不被底部遮挡 |
+| Chat Stream Error | `/pages/chat/index?characterId=hakuzo` | 发送消息后 mock stream error 触发失败提示和失败气泡，不保持 loading |
+| Auth Quota Buy | `/pages/quota/buy` | 额度包列表和底部支付按钮渲染，按钮不低于视口 |
+| Auth Quota Result | `/pages/quota/result?orderId=order-seeded` | mock 订单结果卡片渲染 |
+| Mock Checkout | `/pages/quota/buy` -> `/pages/quota/result` | 选择额度包、mock 支付确认、跳转支付结果页 |
+
 ## Runtime Checks
 
 Each page check should verify:
@@ -77,6 +92,7 @@ Write artifacts under:
 
 ```text
 apps/miniapp/e2e/artifacts/runtime-ui/
+apps/miniapp/e2e/artifacts/runtime-ui-authenticated/
 ```
 
 Each run should produce:
@@ -114,7 +130,5 @@ Soft/manual review:
 
 Later test files can add:
 
-- authenticated demo mode checks with `DEV_AUTH_BYPASS=true`
-- chat send failure UI checks against mocked or local API
 - payment request UI checks with `wx.requestPayment` mock
 - screenshot diff baselines after page states stabilize

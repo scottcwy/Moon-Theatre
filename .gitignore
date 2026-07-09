@@ -3,10 +3,14 @@ dist/
 .taro/
 .swc/
 .next/
+.logs/
+server-logs/
 .env
 .env.local
 .env.*.local
 *.tsbuildinfo
+*.log
+*.db
 .DS_Store
 coverage/
 .turbo/
@@ -15,3 +19,5 @@ apps/api/drizzle/
 !apps/api/drizzle/
 !apps/api/drizzle/**
 .worktrees/
+project.private.config.json
+apps/miniapp/e2e/artifacts/
