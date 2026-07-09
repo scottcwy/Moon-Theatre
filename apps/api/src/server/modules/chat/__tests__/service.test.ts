@@ -13,12 +13,20 @@ const updateMock = vi.fn();
 const setMock = vi.fn();
 const updateWhereMock = vi.fn();
 const returningMock = vi.fn();
+const transactionMock = vi.fn();
+const txInsertMock = vi.fn();
+const txUpdateMock = vi.fn();
+const txValuesMock = vi.fn();
+const txReturningMock = vi.fn();
+const txSetMock = vi.fn();
+const txWhereMock = vi.fn();
 
 vi.mock('../../../db/index.js', () => ({
   db: {
     select: selectMock,
     insert: insertMock,
     update: updateMock,
+    transaction: transactionMock,
   },
 }));
 
@@ -50,6 +58,19 @@ vi.mock('../../../db/schema', () => ({
     excludedFromContext: 'messages.excludedFromContext',
     mood: 'messages.mood',
   },
+  modelUsageLogs: {
+    id: 'modelUsageLogs.id',
+    userId: 'modelUsageLogs.userId',
+    characterId: 'modelUsageLogs.characterId',
+    sessionId: 'modelUsageLogs.sessionId',
+    modelTier: 'modelUsageLogs.modelTier',
+    modelName: 'modelUsageLogs.modelName',
+    pointsConsumed: 'modelUsageLogs.pointsConsumed',
+    walletTransactionId: 'modelUsageLogs.walletTransactionId',
+    clientMessageId: 'modelUsageLogs.clientMessageId',
+    errorCode: 'modelUsageLogs.errorCode',
+    status: 'modelUsageLogs.status',
+  },
   scripts: {},
 }));
 
@@ -71,6 +92,30 @@ vi.mock('drizzle-orm', () => ({
   inArray: (col: unknown, vals: unknown) => ({ type: 'inArray', col, vals }),
   sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ type: 'sql', strings, vals }),
 }));
+
+function setupTransactionMocks() {
+  txInsertMock.mockImplementation((target: unknown) => ({
+    values: (values: unknown) => {
+      txValuesMock(target, values);
+      if (JSON.stringify(target).includes('messages.id')) {
+        return { returning: txReturningMock };
+      }
+      return Promise.resolve(undefined);
+    },
+  }));
+  txUpdateMock.mockImplementation((target: unknown) => ({
+    set: (values: unknown) => {
+      txSetMock(target, values);
+      return { where: txWhereMock };
+    },
+  }));
+  txReturningMock.mockResolvedValue([{ id: 'assistant-message-1' }]);
+  txWhereMock.mockResolvedValue(undefined);
+  transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
+    insert: txInsertMock,
+    update: txUpdateMock,
+  }));
+}
 
 describe('chat service', () => {
   beforeEach(() => {
@@ -94,6 +139,90 @@ describe('chat service', () => {
         { type: 'eq', left: 'characters.status', right: 'active' },
       ],
     });
+  });
+});
+
+describe('finalizeAssistantTurn', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    setupTransactionMocks();
+  });
+
+  it('finalizes assistant, usage, user completion, and latest session tier in one transaction', async () => {
+    const { finalizeAssistantTurn } = await import('../service.js');
+
+    const result = await finalizeAssistantTurn({
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      content: 'final answer',
+      mood: 'happy',
+      clientMessageId: 'client-1',
+      usage: {
+        userId: 'user-1',
+        characterId: 'character-1',
+        modelTier: 'immersive',
+        modelName: 'Qwen/Qwen3.5-32B',
+        walletTransactionId: 'wallet-tx-1',
+        status: 'success',
+        pointsConsumed: 8,
+      },
+    });
+
+    expect(result).toEqual({ id: 'assistant-message-1' });
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(txInsertMock).toHaveBeenCalledTimes(2);
+    expect(txValuesMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'messages.id' }), expect.objectContaining({
+      sessionId: 'session-1',
+      role: 'assistant',
+      content: 'final answer',
+      clientMessageId: 'client-1',
+      mood: 'happy',
+    }));
+    expect(txValuesMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'modelUsageLogs.id' }), expect.objectContaining({
+      userId: 'user-1',
+      characterId: 'character-1',
+      sessionId: 'session-1',
+      modelTier: 'immersive',
+      modelName: 'Qwen/Qwen3.5-32B',
+      walletTransactionId: 'wallet-tx-1',
+      clientMessageId: 'client-1',
+      status: 'success',
+      pointsConsumed: 8,
+    }));
+    expect(txSetMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'messages.id' }), expect.objectContaining({
+      generationStatus: 'completed',
+      generationLeaseExpiresAt: null,
+    }));
+    expect(txSetMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'chatSessions.id' }), expect.objectContaining({
+      modelTier: 'immersive',
+      updatedAt: expect.any(Date),
+    }));
+  });
+
+  it('can finalize blocked input without model usage', async () => {
+    const { finalizeAssistantTurn } = await import('../service.js');
+
+    await finalizeAssistantTurn({
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      content: 'blocked',
+      mood: null,
+      clientMessageId: 'client-1',
+    });
+
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(txInsertMock).toHaveBeenCalledTimes(1);
+    expect(txValuesMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'messages.id' }), expect.objectContaining({
+      content: 'blocked',
+      clientMessageId: 'client-1',
+      mood: null,
+    }));
+    expect(txValuesMock.mock.calls.some(([target]) => JSON.stringify(target).includes('modelUsageLogs.id'))).toBe(false);
+    expect(txSetMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'messages.id' }), expect.objectContaining({
+      generationStatus: 'completed',
+      generationLeaseExpiresAt: null,
+    }));
   });
 });
 
@@ -184,7 +313,7 @@ describe('getCleanHistoryMessages', () => {
     selectLimitMock.mockResolvedValue([]);
   });
 
-  it('queries eligible messages before limiting to 20', async () => {
+  it('over-fetches candidate messages before filtering complete turns down to 20', async () => {
     selectLimitMock.mockResolvedValue([
       { role: 'assistant', content: 'Hi', clientMessageId: null, generationStatus: null, createdAt: new Date() },
     ]);
@@ -192,8 +321,9 @@ describe('getCleanHistoryMessages', () => {
     const { getCleanHistoryMessages } = await import('../service.js');
     await getCleanHistoryMessages('user-1', 'session-1');
 
-    // Must limit to 20 (not 60) — eligibility is in the WHERE, not post-filter
-    expect(selectLimitMock).toHaveBeenCalledWith(20);
+    // Pairing assistant messages to completed user turns is done in service code,
+    // so the query intentionally over-fetches before the final 20-message window.
+    expect(selectLimitMock).toHaveBeenCalledWith(60);
     // Must include generation status eligibility in where clause
     const whereCall = selectWhereMock.mock.calls[0]?.[0];
     expect(whereCall.type).toBe('and');
@@ -263,6 +393,23 @@ describe('getCleanHistoryMessages', () => {
     expect(resultIds).toContain('B');     // turn-2 kept
     expect(resultIds).toContain('C');     // turn-3 kept
     expect(result.length).toBe(4); // user+assistant for turn-2 and turn-3
+  });
+
+  it('excludes assistant messages whose paired user turn is still generating', async () => {
+    selectLimitMock.mockResolvedValue([
+      { role: 'assistant' as const, content: 'Complete reply', clientMessageId: 'turn-complete', generationStatus: null, createdAt: new Date('2026-01-04') },
+      { role: 'user' as const, content: 'Complete user', clientMessageId: 'turn-complete', generationStatus: 'completed', createdAt: new Date('2026-01-03') },
+      { role: 'assistant' as const, content: 'Half reply', clientMessageId: 'turn-half', generationStatus: null, createdAt: new Date('2026-01-02') },
+      { role: 'user' as const, content: 'Half user', clientMessageId: 'turn-half', generationStatus: 'generating', createdAt: new Date('2026-01-01') },
+    ]);
+
+    const { getCleanHistoryMessages } = await import('../service.js');
+    const result = await getCleanHistoryMessages('user-1', 'session-1');
+
+    expect(result).toEqual([
+      { role: 'user', content: 'Complete user' },
+      { role: 'assistant', content: 'Complete reply' },
+    ]);
   });
 });
 
@@ -357,6 +504,42 @@ describe('resolveClientTurn', () => {
       expect(result.assistantMessage.id).toBe('msg-a');
       expect(result.userMessage.id).toBe('msg-u');
     }
+  });
+
+  it('existing assistant with active generating user returns in_progress instead of replay', async () => {
+    orderByMock.mockResolvedValueOnce([
+      userRow({ generationStatus: 'generating', generationLeaseExpiresAt: new Date(Date.now() + 60_000) }),
+      assistantRow(),
+    ]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(baseInput);
+
+    expect(result.status).toBe('in_progress');
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('existing assistant with expired generating user repairs completion and replays', async () => {
+    orderByMock.mockResolvedValueOnce([
+      userRow({ generationStatus: 'generating', generationLeaseExpiresAt: new Date(Date.now() - 60_000) }),
+      assistantRow(),
+    ]);
+    updateMock.mockReturnValue({ set: setMock });
+    setMock.mockReturnValue({ where: updateWhereMock });
+    updateWhereMock.mockResolvedValue(undefined);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(baseInput);
+
+    expect(result.status).toBe('replay');
+    if (result.status === 'replay') {
+      expect(result.assistantMessage.id).toBe('msg-a');
+    }
+    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({
+      generationStatus: 'completed',
+      generationLeaseExpiresAt: null,
+    }));
   });
 
   it('unique constraint (23505) on insert -> re-read generating without assistant -> in_progress', async () => {

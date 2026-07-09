@@ -145,6 +145,18 @@ export const relationships = pgTable('relationships', {
   userCharacterUnique: uniqueIndex('relationships_user_character_unique').on(table.userId, table.characterId),
 }));
 
+export const relationshipBondExpEvents = pgTable('relationship_bond_exp_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assistantMessageId: uuid('assistant_message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  characterId: uuid('character_id').references(() => characters.id).notNull(),
+  expIncrement: integer('exp_increment').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  assistantMessageUnique: uniqueIndex('relationship_bond_exp_events_assistant_message_unique')
+    .on(table.assistantMessageId),
+}));
+
 export const titles = pgTable('titles', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 64 }).notNull(),
@@ -215,6 +227,20 @@ export const modelUsageLogs = pgTable('model_usage_logs', {
   status: modelUsageStatusEnum('status').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const chatEffectRuns = pgTable('chat_effect_runs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assistantMessageId: uuid('assistant_message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull(),
+  effectName: varchar('effect_name', { length: 32 }).notNull(),
+  status: varchar('status', { length: 32 }).notNull(),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+  error: varchar('error', { length: 512 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  assistantEffectUnique: uniqueIndex('chat_effect_runs_assistant_effect_unique')
+    .on(table.assistantMessageId, table.effectName),
+}));
 
 export const quotaPackages = pgTable('quota_packages', {
   id: uuid('id').defaultRandom().primaryKey(),

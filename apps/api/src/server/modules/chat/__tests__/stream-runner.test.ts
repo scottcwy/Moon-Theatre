@@ -26,6 +26,7 @@ const classifyChatScopeMock = vi.fn();
 const runChatCompletionEffectsMock = vi.fn();
 const resolveClientTurnMock = vi.fn();
 const saveAssistantForTurnMock = vi.fn();
+const finalizeAssistantTurnMock = vi.fn();
 const completeTurnMock = vi.fn();
 const failTurnMock = vi.fn();
 const markTurnOutOfScopeMock = vi.fn();
@@ -101,6 +102,7 @@ vi.mock('../index.js', async () => {
     getCleanHistoryMessages: getCleanHistoryMessagesMock,
     resolveClientTurn: resolveClientTurnMock,
     saveAssistantForTurn: saveAssistantForTurnMock,
+    finalizeAssistantTurn: finalizeAssistantTurnMock,
     completeTurn: completeTurnMock,
     failTurn: failTurnMock,
     markTurnOutOfScope: markTurnOutOfScopeMock,
@@ -195,6 +197,7 @@ function setupHappyPath() {
     generationAttempt: 1,
   });
   saveAssistantForTurnMock.mockResolvedValue({ id: 'assistant-message-1' });
+  finalizeAssistantTurnMock.mockResolvedValue({ id: 'assistant-message-1' });
   completeTurnMock.mockResolvedValue(undefined);
   failTurnMock.mockResolvedValue(undefined);
   markTurnOutOfScopeMock.mockResolvedValue(undefined);
@@ -235,6 +238,44 @@ describe('runChatStream', () => {
       unlockedAchievements: ['first_chat'],
       unlockedTitles: ['入戏者'],
     });
+  });
+
+  it('finalizes successful generated turns through the lifecycle service', async () => {
+    runChatCompletionEffectsMock.mockResolvedValue({
+      bond: null,
+      unlockedAchievements: [],
+      unlockedTitles: [],
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    await readEvents(response);
+
+    expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      content: '你好，今晚月色很好。',
+      mood: 'happy',
+      clientMessageId: 'client-1',
+      usage: {
+        userId: 'user-1',
+        characterId: 'character-1',
+        modelTier: 'standard',
+        modelName: 'Qwen/Qwen3.5-9B',
+        walletTransactionId: 'wallet-tx-1',
+        status: 'success',
+        pointsConsumed: 3,
+      },
+    });
+    expect(saveAssistantForTurnMock).not.toHaveBeenCalled();
+    expect(completeTurnMock).not.toHaveBeenCalled();
   });
 
   it('returns done before chat completion effects finish when async mode is enabled', async () => {
@@ -454,22 +495,26 @@ describe('runChatStream', () => {
     const events = await readEvents(response);
 
     expect(events).toContainEqual(expect.objectContaining({ type: 'done', outOfScope: true }));
-    expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+    expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
       sessionId: 'session-1',
+      userMessageId: 'user-message-1',
       content: expect.stringContaining('当前角色和剧情'),
       mood: 'neutral',
       clientMessageId: 'client-1',
       outOfScope: true,
       excludedFromContext: true,
+      usage: {
+        userId: 'user-1',
+        characterId: 'character-1',
+        modelTier: 'standard',
+        modelName: 'Qwen/Qwen3.5-9B',
+        walletTransactionId: null,
+        status: 'out_of_scope',
+        pointsConsumed: 0,
+      },
     });
-    expect(markTurnOutOfScopeMock).toHaveBeenCalledWith('user-message-1');
     expect(refundConsumedPointsMock).toHaveBeenCalledWith('user-1', 3, 'refund_user-message-1_1');
-    expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
-      status: 'out_of_scope',
-      pointsConsumed: 0,
-      walletTransactionId: null,
-      clientMessageId: 'client-1',
-    }));
+    expect(markTurnOutOfScopeMock).not.toHaveBeenCalled();
     expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
   });
 
@@ -494,13 +539,14 @@ describe('runChatStream', () => {
     });
     const events = await readEvents(response);
 
-    expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+    expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
       sessionId: 'session-1',
+      userMessageId: 'user-message-1',
       content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。',
       mood: null,
       clientMessageId: 'client-1',
     });
-    expect(completeTurnMock).toHaveBeenCalledWith('user-message-1');
+    expect(completeTurnMock).not.toHaveBeenCalled();
     const done = events.find((event) => event.type === 'done');
     expect(done).toBeDefined();
     expect(done).toMatchObject({
@@ -526,12 +572,13 @@ describe('runChatStream', () => {
     });
     const events = await readEvents(response);
 
-    expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+    expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
       sessionId: 'session-1',
+      userMessageId: 'user-message-1',
       content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。',
       mood: null,
     });
-    expect(completeTurnMock).toHaveBeenCalledWith('user-message-1');
+    expect(completeTurnMock).not.toHaveBeenCalled();
     const done = events.find((event) => event.type === 'done');
     expect(done).toMatchObject({
       messageId: 'assistant-message-1',
@@ -609,10 +656,20 @@ describe('runChatStream', () => {
       const events = await readEvents(response);
       const done = events.find((event) => event.type === 'done');
 
-      expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
         sessionId: 'session-1',
+        userMessageId: 'user-message-1',
         content: '你好，今晚月色很好。',
         mood: 'happy',
+        usage: {
+          userId: 'user-1',
+          characterId: 'character-1',
+          modelTier: 'standard',
+          modelName: 'Qwen/Qwen3.5-9B',
+          walletTransactionId: 'wallet-tx-1',
+          status: 'success',
+          pointsConsumed: 3,
+        },
       });
       expect(done).toMatchObject({ mood: 'happy' });
     });
@@ -632,10 +689,20 @@ describe('runChatStream', () => {
       const events = await readEvents(response);
       const done = events.find((event) => event.type === 'done');
 
-      expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
         sessionId: 'session-1',
+        userMessageId: 'user-message-1',
         content: '你好，今晚月色很好。',
         mood: 'neutral',
+        usage: {
+          userId: 'user-1',
+          characterId: 'character-1',
+          modelTier: 'standard',
+          modelName: 'Qwen/Qwen3.5-9B',
+          walletTransactionId: 'wallet-tx-1',
+          status: 'success',
+          pointsConsumed: 3,
+        },
       });
       expect(done).toMatchObject({ mood: 'neutral' });
     });
@@ -654,10 +721,20 @@ describe('runChatStream', () => {
       const events = await readEvents(response);
       const done = events.find((event) => event.type === 'done');
 
-      expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
         sessionId: 'session-1',
+        userMessageId: 'user-message-1',
         content: '你好，今晚月色很好。',
         mood: 'neutral',
+        usage: {
+          userId: 'user-1',
+          characterId: 'character-1',
+          modelTier: 'standard',
+          modelName: 'Qwen/Qwen3.5-9B',
+          walletTransactionId: 'wallet-tx-1',
+          status: 'success',
+          pointsConsumed: 3,
+        },
       });
       expect(done).toMatchObject({ mood: 'neutral' });
     });

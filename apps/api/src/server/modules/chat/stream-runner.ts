@@ -16,11 +16,9 @@ import {
   getScriptById,
   parseMood,
   resolveClientTurn,
-  saveAssistantForTurn,
+  finalizeAssistantTurn,
   saveUserMessage,
-  completeTurn,
   failTurn,
-  markTurnOutOfScope,
 } from './index.js';
 import { sanitizeAssistantOutput } from './output-sanitizer.js';
 import { classifyChatScope } from './scope-classifier.js';
@@ -89,8 +87,13 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
         const inputCheck = await checkInput(resolved.userMessage.content, resolved.sessionId, userId, resolved.userMessage.id);
         if (inputCheck.blocked) {
           const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
-          const saved = await saveAssistantForTurn({ sessionId: resolved.sessionId, content: safeMsg, mood: null, clientMessageId });
-          await completeTurn(resolved.userMessage.id);
+          const saved = await finalizeAssistantTurn({
+            sessionId: resolved.sessionId,
+            userMessageId: resolved.userMessage.id,
+            content: safeMsg,
+            mood: null,
+            clientMessageId,
+          });
           return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
         }
         const promptContext = await buildPromptContext(userId, characterId, character);
@@ -119,8 +122,13 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
         const inputCheck = await checkInput(resolved.userMessage, resolved.sessionId, userId, resolved.userMessageId);
         if (inputCheck.blocked) {
           const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
-          const saved = await saveAssistantForTurn({ sessionId: resolved.sessionId, content: safeMsg, mood: null, clientMessageId });
-          await completeTurn(resolved.userMessageId);
+          const saved = await finalizeAssistantTurn({
+            sessionId: resolved.sessionId,
+            userMessageId: resolved.userMessageId,
+            content: safeMsg,
+            mood: null,
+            clientMessageId,
+          });
           return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
         }
         const promptContext = await buildPromptContext(userId, characterId, character);
@@ -154,8 +162,12 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   const inputCheck = await checkInput(message, session.id, userId, userMsg.id);
   if (inputCheck.blocked) {
     const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
-    const saved = await saveAssistantForTurn({ sessionId: session.id, content: safeMsg, mood: null });
-    await completeTurn(userMsg.id);
+    const saved = await finalizeAssistantTurn({
+      sessionId: session.id,
+      userMessageId: userMsg.id,
+      content: safeMsg,
+      mood: null,
+    });
     return createBlockedInputResponse(session.id, saved.id);
   }
 
@@ -436,19 +448,26 @@ function createGenerationResponse(input: {
 
         if (scopeClassification === 'out_of_scope') {
           const saveStartedAt = Date.now();
-          await markTurnOutOfScope(input.userMessageId);
-          const saved = await saveAssistantForTurn({
+          const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
+          balanceAfter = refundResult.balanceAfter;
+          const saved = await finalizeAssistantTurn({
             sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
             content: OUT_OF_SCOPE_FALLBACK,
             mood: 'neutral',
             ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
             outOfScope: true,
             excludedFromContext: true,
+            usage: {
+              userId: input.userId,
+              characterId: input.characterId,
+              modelTier: input.modelTier,
+              modelName: input.modelName,
+              walletTransactionId: null,
+              status: 'out_of_scope',
+              pointsConsumed: 0,
+            },
           });
-          const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
-          balanceAfter = refundResult.balanceAfter;
-          await insertModelUsage(input, 'out_of_scope', 0);
-          await completeTurn(input.userMessageId);
           saveMs = Date.now() - saveStartedAt;
           moderationMs = Date.now() - moderationStartedAt;
 
@@ -493,20 +512,26 @@ function createGenerationResponse(input: {
         moderationMs = Date.now() - moderationStartedAt;
 
         const saveStartedAt = Date.now();
-        const saved = await saveAssistantForTurn({
-          sessionId: input.sessionId,
-          content: finalContent,
-          mood: finalMood,
-          ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
-        });
         if (blocked) {
           const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
           balanceAfter = refundResult.balanceAfter;
-          await insertModelUsage(input, 'filtered', 0);
-        } else {
-          await insertModelUsage(input, 'success', input.pointsPerCall);
         }
-        await completeTurn(input.userMessageId);
+        const saved = await finalizeAssistantTurn({
+          sessionId: input.sessionId,
+          userMessageId: input.userMessageId,
+          content: finalContent,
+          mood: finalMood,
+          ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+          usage: {
+            userId: input.userId,
+            characterId: input.characterId,
+            modelTier: input.modelTier,
+            modelName: input.modelName,
+            walletTransactionId: blocked ? null : input.walletTransactionId,
+            status: blocked ? 'filtered' : 'success',
+            pointsConsumed: blocked ? 0 : input.pointsPerCall,
+          },
+        });
         saveMs = Date.now() - saveStartedAt;
 
         const effectsStartedAt = Date.now();

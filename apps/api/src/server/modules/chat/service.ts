@@ -1,10 +1,11 @@
 import { asc, desc, eq, and, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { config } from '../../config/index.js';
 import { db } from '../../db/index.js';
-import { chatSessions, messages, characters, characterPrompts, scripts } from '../../db/schema';
+import { chatSessions, messages, characters, characterPrompts, scripts, modelUsageLogs } from '../../db/schema';
 
 export type ChatGenerationStatus = 'generating' | 'completed' | 'failed';
 export type ChatPromptMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+export type ChatModelTier = 'casual' | 'standard' | 'immersive';
 
 export interface ChatTurnUserMessage {
   id: string;
@@ -77,6 +78,20 @@ export type SaveAssistantForTurnInput = {
   mood: 'neutral' | 'happy' | 'sad' | 'angry' | 'thinking' | null;
   outOfScope?: boolean;
   excludedFromContext?: boolean;
+};
+
+export type FinalizeAssistantTurnInput = SaveAssistantForTurnInput & {
+  userMessageId: string;
+  usage?: {
+    userId: string;
+    characterId: string;
+    modelTier: ChatModelTier;
+    modelName: string;
+    walletTransactionId?: string | null;
+    status: 'success' | 'filtered' | 'out_of_scope';
+    pointsConsumed: number;
+    errorCode?: string | null;
+  };
 };
 
 const BLOCKED_INPUT_FALLBACK = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
@@ -392,16 +407,38 @@ async function resolveExistingClientTurn(
   existing: ChatTurnByClientMessageId,
   clientMessageId: string,
 ): Promise<Exclude<ResolveClientTurnResult, { status: 'created' | 'collision' }>> {
+  const userMessage = existing.userMessage;
   if (existing.assistantMessage) {
+    if (userMessage.generationStatus === 'completed' || userMessage.generationStatus === null) {
+      return {
+        status: 'replay',
+        sessionId: existing.sessionId,
+        userMessage,
+        assistantMessage: existing.assistantMessage,
+      };
+    }
+
+    if (
+      userMessage.generationStatus === 'generating' &&
+      userMessage.generationLeaseExpiresAt &&
+      new Date(userMessage.generationLeaseExpiresAt) > new Date()
+    ) {
+      return { status: 'in_progress', sessionId: existing.sessionId, userMessage };
+    }
+
+    await completeTurn(userMessage.id);
     return {
       status: 'replay',
       sessionId: existing.sessionId,
-      userMessage: existing.userMessage,
+      userMessage: {
+        ...userMessage,
+        generationStatus: 'completed',
+        generationLeaseExpiresAt: null,
+      },
       assistantMessage: existing.assistantMessage,
     };
   }
 
-  const userMessage = existing.userMessage;
   if (userMessage.generationStatus === 'completed') {
     const saved = await saveAssistantForTurn({
       sessionId: existing.sessionId,
@@ -525,6 +562,65 @@ export async function saveAssistantForTurn(input: SaveAssistantForTurnInput): Pr
   });
 }
 
+export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): Promise<{ id: string }> {
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const [assistant] = await tx
+      .insert(messages)
+      .values({
+        sessionId: input.sessionId,
+        role: 'assistant',
+        content: input.content,
+        clientMessageId: input.clientMessageId ?? null,
+        outOfScope: input.outOfScope ?? false,
+        excludedFromContext: input.excludedFromContext ?? false,
+        mood: input.mood,
+      })
+      .returning({ id: messages.id });
+
+    if (!assistant) {
+      throw new Error('Failed to save assistant message');
+    }
+
+    if (input.usage) {
+      await tx.insert(modelUsageLogs).values({
+        userId: input.usage.userId,
+        characterId: input.usage.characterId,
+        sessionId: input.sessionId,
+        modelTier: input.usage.modelTier,
+        modelName: input.usage.modelName,
+        pointsConsumed: input.usage.pointsConsumed,
+        walletTransactionId: input.usage.status === 'success'
+          ? (input.usage.walletTransactionId ?? null)
+          : null,
+        clientMessageId: input.clientMessageId ?? null,
+        errorCode: input.usage.errorCode ?? null,
+        status: input.usage.status,
+      });
+    }
+
+    await tx
+      .update(messages)
+      .set({
+        generationStatus: 'completed',
+        generationLeaseExpiresAt: null,
+        outOfScope: input.outOfScope ?? false,
+        excludedFromContext: input.excludedFromContext ?? false,
+      })
+      .where(and(eq(messages.id, input.userMessageId), eq(messages.role, 'user')));
+
+    await tx
+      .update(chatSessions)
+      .set({
+        updatedAt: now,
+        ...(input.usage ? { modelTier: input.usage.modelTier } : {}),
+      })
+      .where(eq(chatSessions.id, input.sessionId));
+
+    return { id: assistant.id };
+  });
+}
+
 export async function getCleanHistoryMessages(
   userId: string,
   sessionId: string,
@@ -558,16 +654,35 @@ export async function getCleanHistoryMessages(
       role: messages.role,
       content: messages.content,
       clientMessageId: messages.clientMessageId,
+      generationStatus: messages.generationStatus,
       createdAt: messages.createdAt,
     })
     .from(messages)
     .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
     .where(and(...conditions))
     .orderBy(desc(messages.createdAt))
-    .limit(20);
+    .limit(60);
 
-  const eligible = rows
-    .reverse()
+  const orderedRows = rows.reverse();
+  const completedTurnIds = new Set(
+    orderedRows
+      .filter((row) =>
+        row.role === 'user' &&
+        row.clientMessageId &&
+        (!row.generationStatus || row.generationStatus === 'completed')
+      )
+      .map((row) => row.clientMessageId as string),
+  );
+
+  const eligible = orderedRows
+    .filter((row) => {
+      if (!row.clientMessageId) return true;
+      if (row.role === 'user') {
+        return !row.generationStatus || row.generationStatus === 'completed';
+      }
+      return completedTurnIds.has(row.clientMessageId);
+    })
+    .slice(-20)
     .map((row) => ({
       role: row.role as 'user' | 'assistant',
       content: row.content,

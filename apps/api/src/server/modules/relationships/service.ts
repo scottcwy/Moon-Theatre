@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { relationships } from '../../db/schema';
+import { relationshipBondExpEvents, relationships } from '../../db/schema';
 
 export interface RelationshipRecord {
   id: string;
@@ -28,8 +28,57 @@ export function calculateBondExpForNextLevel(currentLevel: number): number {
 export async function incrementBondExp(
   userId: string,
   characterId: string,
-  expIncrement: number = 10
+  expIncrement: number = 10,
+  assistantMessageId?: string,
 ): Promise<{ relationship: RelationshipRecord; leveledUp: boolean }> {
+  if (assistantMessageId) {
+    return db.transaction(async (tx) => {
+      const [before] = await tx
+        .select()
+        .from(relationships)
+        .where(
+          and(
+            eq(relationships.userId, userId),
+            eq(relationships.characterId, characterId)
+          )
+        )
+        .limit(1);
+
+      const [event] = await tx
+        .insert(relationshipBondExpEvents)
+        .values({
+          assistantMessageId,
+          userId,
+          characterId,
+          expIncrement,
+        })
+        .onConflictDoNothing({
+          target: relationshipBondExpEvents.assistantMessageId,
+        })
+        .returning({ id: relationshipBondExpEvents.id });
+
+      if (!event) {
+        const [current] = await tx
+          .select()
+          .from(relationships)
+          .where(
+            and(
+              eq(relationships.userId, userId),
+              eq(relationships.characterId, characterId)
+            )
+          )
+          .limit(1);
+
+        if (!current) throw new Error('Relationship bond event exists without relationship');
+        return { relationship: current, leveledUp: false };
+      }
+
+      const oldLevel = before?.bondLevel ?? 1;
+      const relationship = await upsertRelationshipBondExp(tx, userId, characterId, expIncrement);
+      return { relationship, leveledUp: relationship.bondLevel > oldLevel };
+    });
+  }
+
   const [before] = await db
     .select()
     .from(relationships)
@@ -42,8 +91,17 @@ export async function incrementBondExp(
     .limit(1);
 
   const oldLevel = before?.bondLevel ?? 1;
+  const relationship = await upsertRelationshipBondExp(db, userId, characterId, expIncrement);
+  return { relationship, leveledUp: relationship.bondLevel > oldLevel };
+}
 
-  const [relationship] = await db
+async function upsertRelationshipBondExp(
+  executor: Pick<typeof db, 'insert'>,
+  userId: string,
+  characterId: string,
+  expIncrement: number,
+): Promise<RelationshipRecord> {
+  const [relationship] = await executor
     .insert(relationships)
     .values({
       userId,
@@ -62,7 +120,7 @@ export async function incrementBondExp(
     .returning();
 
   if (!relationship) throw new Error('Failed to upsert relationship');
-  return { relationship, leveledUp: relationship.bondLevel > oldLevel };
+  return relationship;
 }
 
 export async function getRelationship(

@@ -14,6 +14,7 @@ export {
   failTurn,
   markTurnOutOfScope,
   saveAssistantForTurn,
+  finalizeAssistantTurn,
 } from './service.js';
 export type {
   ChatGenerationStatus,
@@ -24,6 +25,7 @@ export type {
   ResolveClientTurnInput,
   ResolveClientTurnResult,
   SaveAssistantForTurnInput,
+  FinalizeAssistantTurnInput,
   Script,
   CharacterWithPrompts,
 } from './service.js';
