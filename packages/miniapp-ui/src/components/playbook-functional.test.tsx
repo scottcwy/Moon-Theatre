@@ -21,6 +21,7 @@ import {
   SearchBar,
   SharePreviewCard,
   TopBar,
+  createBondViewModel,
 } from '../index';
 
 interface RenderedNode {
@@ -283,12 +284,14 @@ describe('playbook component functional behavior', () => {
     expect(bond.props.className).toContain('bond-progress');
     expect(textContent(bond)).toContain('信赖');
 
-    const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bondLevel={2} bondExp={20} points={12} onBack={onBack} />);
+    const headerBond = createBondViewModel({ bondLevel: 2, bondExp: 20 });
+    const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bond={headerBond} points={12} onBack={onBack} />);
     expect(header.props.className).toContain('character-header');
-    expect(textContent(header)).toContain('20/200');
+    expect(textContent(header)).toContain('20/100');
     (findByClass(header, 'character-header__back').props.onTap as () => void)();
     expect(onBack).toHaveBeenCalledTimes(1);
 
+    const heroBond = createBondViewModel({ bondLevel: 2, bondExp: 120 });
     const hero = renderElement(
       <CharacterDetailHero
         name="白藏"
@@ -297,9 +300,7 @@ describe('playbook component functional behavior', () => {
         description="守着庭院边界的狐神。"
         mood="happy"
         relationship="信赖"
-        bondLevel={2}
-        bondExp={20}
-        bondMaxExp={100}
+        bond={heroBond}
         onBack={onBack}
       />,
     );

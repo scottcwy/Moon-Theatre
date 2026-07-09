@@ -1,7 +1,7 @@
 import { View, Canvas } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useEffect, useState } from 'react';
-import { BottomAction, PrimaryButton, SharePreviewCard, TonalButton, getShareIdentityLabel } from '@juben-sha/miniapp-ui';
+import { BottomAction, createBondViewModel, PrimaryButton, SharePreviewCard, TonalButton, getShareIdentityLabel } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import './preview.scss';
@@ -56,6 +56,8 @@ export default function SharePreview() {
     return () => { cancelled = true; };
   }, [characterId, handleAuthError, verifyAuth]);
 
+  const bondViewModel = createBondViewModel(character.relationship);
+
   const drawPoster = () => {
     const ctx = Taro.createCanvasContext(CANVAS_ID);
     ctx.setFillStyle('#1d1218');
@@ -86,7 +88,7 @@ export default function SharePreview() {
 
     ctx.setFillStyle('#f6e6ea');
     ctx.setFontSize(22);
-    ctx.fillText(`羁绊 Lv.${character.relationship?.bondLevel ?? 1}`, 64, 670);
+    ctx.fillText(bondViewModel.levelLabel, 64, 670);
 
     ctx.setFillStyle('#f8dfe7');
     ctx.setFontSize(22);
@@ -136,7 +138,7 @@ export default function SharePreview() {
 
   return (
     <View className="share-preview-page">
-      <SharePreviewCard characterName={character.name} excerpt={EXCERPT} bondLevel={character.relationship?.bondLevel ?? 1} />
+      <SharePreviewCard characterName={character.name} excerpt={EXCERPT} bondLevel={bondViewModel.level} />
 
       <BottomAction variant="dark">
         <View className="share-preview-page__actions">

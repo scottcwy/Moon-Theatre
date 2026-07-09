@@ -26,7 +26,7 @@ const characters = [
     },
     relationship: {
       bondLevel: 4,
-      bondExp: 38,
+      bondExp: 338,
     },
   },
   {
@@ -43,7 +43,7 @@ const characters = [
     },
     relationship: {
       bondLevel: 2,
-      bondExp: 64,
+      bondExp: 164,
     },
   },
 ];
@@ -288,7 +288,7 @@ function routeRequest({ req, res, url, body, options, orders }) {
           sessionId: 'session-hakuzo',
           mood: 'neutral',
           bondLevel: 4,
-          bondExp: 42,
+          bondExp: 342,
           balanceAfter: Math.max(0, options.balancePoints - 1),
         }),
       ].join('\n') + '\n');

@@ -5,6 +5,7 @@ import {
   CharacterHeader,
   ChatBubble,
   ChatInputBar,
+  createBondViewModel,
   EmptyState,
   ModelTierSegmentedControl,
   StatusStateCard,
@@ -74,7 +75,6 @@ const MODEL_TIER_COSTS: Record<ModelTier, number> = {
   standard: 3,
   immersive: 6,
 };
-const BOND_EXP_PER_LEVEL = 100;
 
 export default function Chat() {
   const router = useRouter();
@@ -380,6 +380,7 @@ export default function Chat() {
   const selectedTierCost = MODEL_TIER_COSTS[modelTier];
   const isInsufficientPoints = typeof pointsBalance === 'number' && pointsBalance < selectedTierCost;
   const characterAvatarUrl = character ? getCharacterAvatarUrl(character.name, character.avatarUrl) : '';
+  const bondViewModel = createBondViewModel({ bondLevel, bondExp });
 
   if (characterLoading || historyLoading) {
     return (
@@ -425,9 +426,7 @@ export default function Chat() {
         name={character.name}
         identity={character.identity}
         avatarUrl={characterAvatarUrl}
-        bondLevel={bondLevel}
-        bondExp={bondExp}
-        bondMaxExp={bondLevel * BOND_EXP_PER_LEVEL}
+        bond={bondViewModel}
         points={pointsBalance}
         onPointsTap={handleBuyPoints}
         onBack={navigateBackOrHome}

@@ -7,6 +7,43 @@ async function readJson(response) {
 }
 
 describe('authenticated miniapp mock API server', () => {
+  it('returns cumulative bondExp for character detail', async () => {
+    const server = await startMockApiServer({ port: 0 });
+    try {
+      const hakuzo = await fetch(`${server.baseUrl}/api/characters/hakuzo`).then((r) => r.json());
+      expect(hakuzo.relationship).toMatchObject({
+        bondLevel: 4,
+        bondExp: 338,
+      });
+
+      const kiyoharu = await fetch(`${server.baseUrl}/api/characters/kiyoharu`).then((r) => r.json());
+      expect(kiyoharu.relationship).toMatchObject({
+        bondLevel: 2,
+        bondExp: 164,
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('returns cumulative bondExp in stream done event', async () => {
+    const server = await startMockApiServer({ port: 0, chatMode: 'success' });
+    try {
+      const response = await fetch(`${server.baseUrl}/api/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: 'hakuzo', message: 'hi', modelTier: 'standard', clientMessageId: 'c1' }),
+      });
+      const text = await response.text();
+      const doneLine = text.split('\n').find((line) => line.includes('"type":"done"'));
+      const done = JSON.parse(doneLine);
+      expect(done.bondLevel).toBe(4);
+      expect(done.bondExp).toBe(342);
+    } finally {
+      await server.close();
+    }
+  });
+
   it('serves authenticated page data used by runtime UI E2E', async () => {
     const server = await startMockApiServer({ port: 0, balancePoints: 8 });
 

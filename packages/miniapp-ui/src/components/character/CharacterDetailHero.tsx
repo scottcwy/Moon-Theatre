@@ -3,6 +3,7 @@ import { CharacterAvatar } from './CharacterAvatar';
 import { IconButton } from '../ui/Button';
 import { Badge, MoodChip } from '../ui/Badge';
 import { BondProgress } from './BondProgress';
+import type { BondViewModel } from './bond.model';
 import type { MoodType } from '@juben-sha/shared';
 import './CharacterDetailHero.scss';
 
@@ -12,9 +13,7 @@ interface CharacterDetailHeroProps {
   description: string;
   avatarUrl?: string;
   relationship: string;
-  bondLevel: number;
-  bondExp: number;
-  bondMaxExp: number;
+  bond: BondViewModel;
   mood: MoodType;
   onBack: () => void;
 }
@@ -25,9 +24,7 @@ export function CharacterDetailHero({
   description,
   avatarUrl,
   relationship,
-  bondLevel,
-  bondExp,
-  bondMaxExp,
+  bond,
   mood,
   onBack,
 }: CharacterDetailHeroProps) {
@@ -57,10 +54,10 @@ export function CharacterDetailHero({
 
         <View className="character-detail-hero__quick-row">
           <MoodChip mood={mood} />
-          <Badge tone="secondary">羁绊 Lv.{bondLevel}</Badge>
+          <Badge tone="secondary">{bond.levelLabel}</Badge>
         </View>
 
-        <BondProgress relationship={relationship} level={bondLevel} exp={bondExp} maxExp={bondMaxExp} />
+        <BondProgress relationship={relationship} bond={bond} />
       </View>
     </View>
   );

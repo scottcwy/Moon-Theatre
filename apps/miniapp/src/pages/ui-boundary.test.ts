@@ -72,9 +72,18 @@ describe('production pages use shared miniapp ui', () => {
     expect(detailPage).toContain('BottomAction');
     expect(detailPage).toContain('PrimaryButton');
     expect(detailPage).toContain('PageSection');
+    expect(detailPage).toContain('createBondViewModel');
+    expect(detailPage).toContain('useDidShow');
+    expect(detailPage).not.toContain('BOND_EXP_PER_LEVEL');
+    expect(detailPage).not.toContain('bondMaxExp');
     expect(detailPage).not.toContain('detail__section surface-card');
     expect(detailPage).not.toContain('title="人设简介"');
     expect(detailPage).not.toContain('character.description}</Text>');
+
+    const chatPage = fs.readFileSync(path.join(pagesDir, 'chat/index.tsx'), 'utf8');
+    expect(chatPage).toContain('createBondViewModel');
+    expect(chatPage).not.toContain('BOND_EXP_PER_LEVEL');
+    expect(chatPage).not.toContain('bondMaxExp');
 
     const chatListPage = fs.readFileSync(path.join(pagesDir, 'chat/list.tsx'), 'utf8');
     expect(chatListPage).toContain('EmptyState');
