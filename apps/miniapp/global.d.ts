@@ -10,6 +10,7 @@ interface AppConfig {
     color: string;
     selectedColor: string;
     backgroundColor: string;
+    borderStyle?: 'black' | 'white';
     list: Array<{
       pagePath: string;
       text: string;
@@ -18,6 +19,7 @@ interface AppConfig {
     }>;
   };
   window: {
+    backgroundColor?: string;
     backgroundTextStyle: string;
     navigationBarBackgroundColor: string;
     navigationBarTitleText: string;

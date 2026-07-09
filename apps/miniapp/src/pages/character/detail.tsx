@@ -151,10 +151,6 @@ export default function CharacterDetail() {
         </PageSection>
       )}
 
-      <PageSection title="人设简介" surface className="detail__section">
-        <Text className="detail__description" userSelect>{character.description}</Text>
-      </PageSection>
-
       <BottomAction>
         <PrimaryButton onTap={handleEnterChat}>▰ 开启对话</PrimaryButton>
       </BottomAction>

@@ -52,10 +52,12 @@
 }
 
 .theater-home__content {
+  min-height: 100vh;
   padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-3}) $page-padding-h calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
   background:
     linear-gradient(180deg, rgba(255, 247, 248, 0.72) 0%, rgba(255, 251, 248, 0) 360rpx),
     $color-background;
+  box-sizing: border-box;
 }
 
 .theater-home__hero-section,
@@ -84,16 +86,18 @@
   position: relative;
   flex: 0 0 100%;
   height: 668rpx;
-  border-radius: $radius-md;
+  border-radius: $radius-lg;
   overflow: hidden;
   background: #1c1117;
-  box-shadow: 0 20rpx 54rpx rgba(58, 7, 24, 0.14);
+  box-shadow: 0 12rpx 28rpx rgba(58, 7, 24, 0.1);
+  transform: translateZ(0);
 }
 
 .theater-home__hero-image {
   width: 100%;
   height: 100%;
   display: block;
+  border-radius: inherit;
 }
 
 .theater-home__hero-shade {
@@ -175,7 +179,7 @@
 
 .theater-home__poster-card .character-poster-card__poster {
   aspect-ratio: 1 / 1.28;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
   background-color: $color-surface-container-low;
 }
 

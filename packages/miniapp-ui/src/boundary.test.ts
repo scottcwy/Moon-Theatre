@@ -30,4 +30,12 @@ describe('miniapp-ui package boundary', () => {
 
     expect(offenders.map((filePath) => path.relative(srcDir, filePath))).toEqual([]);
   });
+
+  it('keeps character poster selected state tonal instead of border-only', () => {
+    const posterStyles = fs.readFileSync(path.join(srcDir, 'components/discovery/CharacterPosterCard.scss'), 'utf8');
+
+    expect(posterStyles).toContain('character-poster-card--selected .character-poster-card__poster');
+    expect(posterStyles).toContain('$color-primary-container');
+    expect(posterStyles).not.toContain('border: 4rpx solid $color-primary');
+  });
 });

@@ -304,6 +304,12 @@ describe('playbook component functional behavior', () => {
       />,
     );
     expect(hero.props.className).toContain('character-detail-hero');
+    expect(textContent(hero)).toContain('守着庭院边界的狐神。');
+    expect(textContent(hero)).not.toContain('角色相册');
+    expect(textContent(hero)).not.toContain('回忆记录');
+    expect(findAll(hero, (node) => String(node.props.className ?? '').includes('character-detail-hero__watermark'))).toHaveLength(0);
+    expect(findAll(hero, (node) => String(node.props.className ?? '').includes('character-detail-hero__tools'))).toHaveLength(0);
+    expect(findAll(hero, (node) => String(node.props.className ?? '').split(' ').includes('ui-icon-button'))).toHaveLength(1);
     (findByClass(hero, 'ui-icon-button').props.onTap as () => void)();
     expect(onBack).toHaveBeenCalledTimes(2);
 

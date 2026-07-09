@@ -18,6 +18,7 @@ import {
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
   getCharacterDetailUrl,
+  getScriptRoleSelectUrl,
   homeSections,
 } from './index.model';
 import './index.scss';
@@ -73,19 +74,17 @@ export default function Home() {
     }
   }, []);
 
-  const firstCharacterId = characters[0]?.id ?? '';
-
   const openCharacter = (characterId: string) => {
     setSelectedCharacterId(characterId);
     Taro.navigateTo({ url: getCharacterDetailUrl(characterId) });
   };
 
-  const chooseRole = () => {
-    if (!firstCharacterId) {
-      Taro.showToast({ title: characterError || '角色加载中，请稍后再试', icon: 'none' });
-      return;
+  const chooseRole = (scriptId: string) => {
+    try {
+      Taro.navigateTo({ url: getScriptRoleSelectUrl(scriptId) });
+    } catch {
+      Taro.showToast({ title: '该剧本角色页准备中', icon: 'none' });
     }
-    openCharacter(firstCharacterId);
   };
 
   return (
@@ -103,7 +102,7 @@ export default function Home() {
         />
       </View>
 
-      <View className="theater-home__content">
+      <View className="theater-home__content" style={topBarStyle as CSSProperties}>
         <PageSection title={homeSections.scriptTitle} kicker={homeSections.scriptKicker} className="theater-home__hero-section">
           <View className="theater-home__feature-strip">
             {featuredScripts.map((script) => (
@@ -117,7 +116,7 @@ export default function Home() {
                   <Badge tone="secondary" className="theater-home__tag">{script.tag}</Badge>
                   <Text className="theater-home__hero-title">{script.title}</Text>
                   <Text className="theater-home__hero-desc">{script.description}</Text>
-                  <PrimaryButton className="theater-home__primary-action" onTap={chooseRole}>
+                  <PrimaryButton className="theater-home__primary-action" onTap={() => chooseRole(script.id)}>
                     {homeSections.scriptPrimaryAction}
                   </PrimaryButton>
                 </View>

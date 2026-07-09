@@ -68,8 +68,13 @@ describe('production pages use shared miniapp ui', () => {
     expect(profileStyles).not.toContain('profile__hero::before');
 
     const detailPage = fs.readFileSync(path.join(pagesDir, 'character/detail.tsx'), 'utf8');
+    expect(detailPage).toContain('CharacterDetailHero');
+    expect(detailPage).toContain('BottomAction');
+    expect(detailPage).toContain('PrimaryButton');
     expect(detailPage).toContain('PageSection');
     expect(detailPage).not.toContain('detail__section surface-card');
+    expect(detailPage).not.toContain('title="人设简介"');
+    expect(detailPage).not.toContain('character.description}</Text>');
 
     const chatListPage = fs.readFileSync(path.join(pagesDir, 'chat/list.tsx'), 'utf8');
     expect(chatListPage).toContain('EmptyState');
@@ -84,5 +89,9 @@ describe('production pages use shared miniapp ui', () => {
     expect(homePage).not.toContain('theater-home__script-card');
     expect(homePage).not.toContain('theater-home__poster-wrap');
     expect(homePage).not.toContain('theater-home__start-button');
+
+    const moonRoleStyles = fs.readFileSync(path.join(pagesDir, 'role-select/moon-garden.scss'), 'utf8');
+    expect(moonRoleStyles).not.toContain('.moon-role-select__hero-badge');
+    expect(moonRoleStyles).toContain('$color-surface-container-low');
   });
 });

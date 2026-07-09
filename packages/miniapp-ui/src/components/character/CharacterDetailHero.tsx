@@ -38,12 +38,7 @@ export function CharacterDetailHero({
         <View className="character-detail-hero__shade" />
         <View className="character-detail-hero__top-actions">
           <IconButton label="返回" icon="‹" onTap={onBack} />
-          <View className="character-detail-hero__top-right">
-            <IconButton label="收藏" icon="♡" />
-            <IconButton label="更多" icon="…" />
-          </View>
         </View>
-        <Text className="character-detail-hero__watermark">{name.slice(0, 2)}</Text>
       </View>
 
       <View className="character-detail-hero__sheet">
@@ -66,17 +61,6 @@ export function CharacterDetailHero({
         </View>
 
         <BondProgress relationship={relationship} level={bondLevel} exp={bondExp} maxExp={bondMaxExp} />
-
-        <View className="character-detail-hero__tools">
-          <View className="character-detail-hero__tool">
-            <Text className="character-detail-hero__tool-icon">▧</Text>
-            <Text className="character-detail-hero__tool-text">角色相册</Text>
-          </View>
-          <View className="character-detail-hero__tool">
-            <Text className="character-detail-hero__tool-icon">↺</Text>
-            <Text className="character-detail-hero__tool-text">回忆记录</Text>
-          </View>
-        </View>
       </View>
     </View>
   );

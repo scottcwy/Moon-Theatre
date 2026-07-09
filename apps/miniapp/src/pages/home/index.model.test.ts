@@ -4,6 +4,7 @@ import {
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
   getCharacterDetailUrl,
+  getScriptRoleSelectUrl,
   homeSections,
 } from './index.model';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
@@ -28,6 +29,14 @@ describe('home navigation helpers', () => {
     expect(homeSections.scriptTitle).toBe('热门剧本');
     expect(homeSections.scriptPrimaryAction).toBe('选择角色');
     expect(homeSections.characterTitle).toBe('最近角色');
+  });
+
+  it('routes Moon Garden script selection to its dedicated role selection page', () => {
+    expect(getScriptRoleSelectUrl('moon-garden')).toBe('/pages/role-select/moon-garden');
+  });
+
+  it('rejects unknown scripts instead of falling through to the first character', () => {
+    expect(() => getScriptRoleSelectUrl('unknown-script')).toThrow('unsupported script id');
   });
 
   it('uses local character portraits when API avatar urls are empty', () => {

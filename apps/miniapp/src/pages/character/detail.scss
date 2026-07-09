@@ -1,12 +1,12 @@
 @use '../../styles/tokens.scss' as *;
 
 .detail__section {
-  margin: 0 $space-4 $space-4;
+  margin: 0 $space-4 $space-5;
 
   &--script {
-    margin-top: -$space-4;
+    margin-top: $space-4;
     border-radius: $radius-lg;
-    background-color: $color-secondary-container;
+    background-color: $color-surface-container-low;
     overflow: hidden;
   }
 
@@ -21,7 +21,7 @@
   display: block;
   margin-top: $space-3;
   font-size: $font-body-md;
-  line-height: 1.72;
+  line-height: 1.68;
   color: $color-on-surface-variant;
 
   &--muted {

@@ -34,6 +34,10 @@ export const homeSections = {
   characterTitle: '最近角色',
 } as const;
 
+const SCRIPT_ROLE_SELECT_URLS: Record<string, string> = {
+  'moon-garden': '/pages/role-select/moon-garden',
+};
+
 const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
   白藏: '/assets/characters/hakuzo.jpg',
   贺茂清玄: '/assets/characters/kiyoharu.jpg',
@@ -54,6 +58,14 @@ export function getCharacterDetailUrl(characterId: string): string {
     throw new Error('characterId is required');
   }
   return `/pages/character/detail?characterId=${encodeURIComponent(id)}`;
+}
+
+export function getScriptRoleSelectUrl(scriptId: string): string {
+  const url = SCRIPT_ROLE_SELECT_URLS[scriptId.trim()];
+  if (!url) {
+    throw new Error('unsupported script id');
+  }
+  return url;
 }
 
 export function getCharacterAvatarUrl(name: string, avatarUrl?: string | null): string {
