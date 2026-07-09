@@ -55,7 +55,7 @@ describe('chat completion workflow', () => {
     insertMock.mockReturnValue({ values: valuesMock });
     valuesMock.mockReturnValue({ onConflictDoUpdate: onConflictDoUpdateMock });
     onConflictDoUpdateMock.mockReturnValue({ returning: returningMock });
-    returningMock.mockImplementation((_shape: unknown) => {
+    returningMock.mockImplementation(() => {
       const values = valuesMock.mock.calls.at(-1)?.[0] as { assistantMessageId?: string; effectName?: string };
       const key = `${values.assistantMessageId}:${values.effectName}`;
       if (effectRunState.get(key) === 'completed' || effectRunState.get(key) === 'running') {
