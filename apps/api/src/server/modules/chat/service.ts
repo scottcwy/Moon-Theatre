@@ -6,27 +6,80 @@ import { chatSessions, messages, characters, characterPrompts, scripts } from '.
 export type ChatGenerationStatus = 'generating' | 'completed' | 'failed';
 export type ChatPromptMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
+export interface ChatTurnUserMessage {
+  id: string;
+  content: string;
+  generationStatus: string | null;
+  generationLeaseExpiresAt: Date | null;
+  generationAttempt: number;
+  createdAt: Date;
+  outOfScope: boolean;
+  excludedFromContext: boolean;
+}
+
+export interface ChatTurnAssistantMessage {
+  id: string;
+  content: string;
+  mood: string | null;
+  createdAt: Date;
+  outOfScope: boolean;
+  excludedFromContext: boolean;
+}
+
 export interface ChatTurnByClientMessageId {
   sessionId: string;
-  userMessage: {
-    id: string;
-    content: string;
-    generationStatus: string | null;
-    generationLeaseExpiresAt: Date | null;
-    generationAttempt: number;
-    createdAt: Date;
-    outOfScope: boolean;
-    excludedFromContext: boolean;
-  };
-  assistantMessage: null | {
-    id: string;
-    content: string;
-    mood: string | null;
-    createdAt: Date;
-    outOfScope: boolean;
-    excludedFromContext: boolean;
-  };
+  userMessage: ChatTurnUserMessage;
+  assistantMessage: null | ChatTurnAssistantMessage;
 }
+
+export type ResolveClientTurnInput = {
+  userId: string;
+  characterId: string;
+  modelTier: 'casual' | 'standard' | 'immersive';
+  message: string;
+  clientMessageId: string;
+  sessionId?: string;
+};
+
+export type ResolveClientTurnResult =
+  | {
+      status: 'replay';
+      sessionId: string;
+      userMessage: ChatTurnUserMessage;
+      assistantMessage: ChatTurnAssistantMessage;
+    }
+  | {
+      status: 'in_progress';
+      sessionId: string;
+      userMessage: ChatTurnUserMessage;
+    }
+  | {
+      status: 'acquired_existing';
+      sessionId: string;
+      userMessage: ChatTurnUserMessage;
+      generationAttempt: number;
+    }
+  | {
+      status: 'created';
+      sessionId: string;
+      userMessageId: string;
+      userMessage: string;
+      generationAttempt: number;
+    }
+  | {
+      status: 'collision';
+    };
+
+export type SaveAssistantForTurnInput = {
+  sessionId: string;
+  clientMessageId?: string;
+  content: string;
+  mood: 'neutral' | 'happy' | 'sad' | 'angry' | 'thinking' | null;
+  outOfScope?: boolean;
+  excludedFromContext?: boolean;
+};
+
+const BLOCKED_INPUT_FALLBACK = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
 
 export interface Script {
   id: string;
@@ -254,8 +307,10 @@ export async function reacquireGenerationLease(
       eq(messages.role, 'user'),
       or(
         eq(messages.generationStatus, 'failed'),
-        isNull(messages.generationLeaseExpiresAt),
-        lte(messages.generationLeaseExpiresAt, now),
+        and(
+          eq(messages.generationStatus, 'generating'),
+          lte(messages.generationLeaseExpiresAt, now),
+        ),
       ),
     ))
     .returning({ id: messages.id, generationAttempt: messages.generationAttempt });
@@ -321,6 +376,155 @@ export async function findTurnByClientMessageId(
   };
 }
 
+function isUniqueConstraintError(error: unknown, constraintName: string): boolean {
+  if (error && typeof error === 'object' && error !== null) {
+    const err = error as Record<string, unknown>;
+    if (err.code === '23505') {
+      const constraint = err.constraint || err.constraint_name;
+      if (typeof constraint === 'string' && constraint === constraintName) return true;
+    }
+    if (typeof err.message === 'string' && err.message.includes(constraintName)) return true;
+  }
+  return false;
+}
+
+async function resolveExistingClientTurn(
+  existing: ChatTurnByClientMessageId,
+  clientMessageId: string,
+): Promise<Exclude<ResolveClientTurnResult, { status: 'created' | 'collision' }>> {
+  if (existing.assistantMessage) {
+    return {
+      status: 'replay',
+      sessionId: existing.sessionId,
+      userMessage: existing.userMessage,
+      assistantMessage: existing.assistantMessage,
+    };
+  }
+
+  const userMessage = existing.userMessage;
+  if (userMessage.generationStatus === 'completed') {
+    const saved = await saveAssistantForTurn({
+      sessionId: existing.sessionId,
+      clientMessageId,
+      content: BLOCKED_INPUT_FALLBACK,
+      mood: null,
+    });
+    return {
+      status: 'replay',
+      sessionId: existing.sessionId,
+      userMessage,
+      assistantMessage: {
+        id: saved.id,
+        content: BLOCKED_INPUT_FALLBACK,
+        mood: null,
+        createdAt: new Date(),
+        outOfScope: false,
+        excludedFromContext: false,
+      },
+    };
+  }
+
+  if (
+    userMessage.generationStatus === 'generating' &&
+    userMessage.generationLeaseExpiresAt &&
+    new Date(userMessage.generationLeaseExpiresAt) > new Date()
+  ) {
+    return { status: 'in_progress', sessionId: existing.sessionId, userMessage };
+  }
+
+  if (
+    userMessage.generationStatus === 'failed' ||
+    (userMessage.generationStatus === 'generating' &&
+      userMessage.generationLeaseExpiresAt &&
+      new Date(userMessage.generationLeaseExpiresAt) <= new Date())
+  ) {
+    const reacquired = await reacquireGenerationLease(userMessage.id);
+    if (reacquired) {
+      return {
+        status: 'acquired_existing',
+        sessionId: existing.sessionId,
+        userMessage,
+        generationAttempt: reacquired.generationAttempt,
+      };
+    }
+    return { status: 'in_progress', sessionId: existing.sessionId, userMessage };
+  }
+
+  return { status: 'in_progress', sessionId: existing.sessionId, userMessage };
+}
+
+export async function resolveClientTurn(
+  input: ResolveClientTurnInput,
+): Promise<ResolveClientTurnResult> {
+  const existing = await findTurnByClientMessageId(input.userId, input.clientMessageId, input.sessionId);
+
+  // Collision: same clientMessageId in multiple sessions, or session mismatch
+  if (existing && 'collision' in existing) {
+    return { status: 'collision' };
+  }
+
+  if (existing) {
+    return resolveExistingClientTurn(existing, input.clientMessageId);
+  }
+
+  // No existing turn → create
+  try {
+    const session = await findOrCreateSession(
+      input.userId,
+      input.characterId,
+      input.modelTier,
+      input.sessionId,
+    );
+    const userMessage = await saveUserMessage(session.id, input.message, {
+      clientMessageId: input.clientMessageId,
+      generationStatus: 'generating',
+      generationLeaseExpiresAt: createGenerationLeaseExpiresAt(),
+      generationAttempt: 1,
+    });
+
+    return {
+      status: 'created',
+      sessionId: session.id,
+      userMessageId: userMessage.id,
+      userMessage: input.message,
+      generationAttempt: userMessage.generationAttempt,
+    };
+  } catch (error: unknown) {
+    if (isUniqueConstraintError(error, 'messages_user_client_message_unique')) {
+      const reRead = await findTurnByClientMessageId(
+        input.userId,
+        input.clientMessageId,
+        input.sessionId,
+      );
+      if (!reRead || 'collision' in reRead) {
+        return { status: 'collision' };
+      }
+      return resolveExistingClientTurn(reRead, input.clientMessageId);
+    }
+    throw error;
+  }
+}
+
+export async function completeTurn(userMessageId: string): Promise<void> {
+  await markUserMessageGenerationStatus(userMessageId, 'completed');
+}
+
+export async function failTurn(userMessageId: string): Promise<void> {
+  await markUserMessageGenerationStatus(userMessageId, 'failed');
+}
+
+export async function markTurnOutOfScope(userMessageId: string): Promise<void> {
+  await markUserMessageOutOfScope(userMessageId);
+}
+
+export async function saveAssistantForTurn(input: SaveAssistantForTurnInput): Promise<{ id: string }> {
+  return saveAssistantMessage(input.sessionId, input.content, input.mood, {
+    ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+    ...(input.outOfScope !== undefined ? { outOfScope: input.outOfScope } : {}),
+    ...(input.excludedFromContext !== undefined ? { excludedFromContext: input.excludedFromContext } : {}),
+  });
+}
+
 export async function getCleanHistoryMessages(
   userId: string,
   sessionId: string,
@@ -331,9 +535,22 @@ export async function getCleanHistoryMessages(
     eq(messages.sessionId, sessionId),
     eq(messages.excludedFromContext, false),
     inArray(messages.role, ['user', 'assistant']),
+    // Eligibility: assistant OR (user with null/completed generationStatus)
+    or(
+      eq(messages.role, 'assistant'),
+      and(
+        eq(messages.role, 'user'),
+        or(
+          isNull(messages.generationStatus),
+          eq(messages.generationStatus, 'completed'),
+        ),
+      ),
+    ),
   ];
   if (currentClientMessageId) {
-    conditions.push(or(isNull(messages.clientMessageId), ne(messages.clientMessageId, currentClientMessageId))!);
+    conditions.push(
+      or(isNull(messages.clientMessageId), ne(messages.clientMessageId, currentClientMessageId))!
+    );
   }
 
   const rows = await db
@@ -341,20 +558,21 @@ export async function getCleanHistoryMessages(
       role: messages.role,
       content: messages.content,
       clientMessageId: messages.clientMessageId,
-      generationStatus: messages.generationStatus,
       createdAt: messages.createdAt,
     })
     .from(messages)
     .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
     .where(and(...conditions))
     .orderBy(desc(messages.createdAt))
-    .limit(60);
+    .limit(20);
 
   const eligible = rows
     .reverse()
-    .filter((row) => row.role === 'assistant' || !row.generationStatus || row.generationStatus === 'completed')
-    .slice(-20)
-    .map((row) => ({ role: row.role as 'user' | 'assistant', content: row.content, clientMessageId: row.clientMessageId }));
+    .map((row) => ({
+      role: row.role as 'user' | 'assistant',
+      content: row.content,
+      clientMessageId: row.clientMessageId,
+    }));
 
   while (eligible.reduce((sum, row) => sum + row.content.length, 0) > 6000 && eligible.length > 0) {
     const oldestTurnId = eligible[0]?.clientMessageId;

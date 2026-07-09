@@ -10,17 +10,17 @@ import { getBalance, consumePoints, getOrCreateWallet, refundConsumedPoints } fr
 import { checkInput, checkOutput } from '../moderation/index.js';
 import {
   buildSystemPrompt,
-  findTurnByClientMessageId,
   findOrCreateSession,
   getCleanHistoryMessages,
   getCharacterWithPrompts,
   getScriptById,
-  markUserMessageGenerationStatus,
-  markUserMessageOutOfScope,
   parseMood,
-  reacquireGenerationLease,
-  saveAssistantMessage,
+  resolveClientTurn,
+  saveAssistantForTurn,
   saveUserMessage,
+  completeTurn,
+  failTurn,
+  markTurnOutOfScope,
 } from './index.js';
 import { sanitizeAssistantOutput } from './output-sanitizer.js';
 import { classifyChatScope } from './scope-classifier.js';
@@ -69,45 +69,82 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   }
 
   if (clientMessageId) {
-    const existingTurn = await findTurnByClientMessageId(userId, clientMessageId, sessionId);
-    if (existingTurn && 'collision' in existingTurn) {
-      return errorResponse('client_message_id_collision', 409);
-    }
-    if (existingTurn?.assistantMessage) {
-      return createReplayResponse(existingTurn.sessionId, existingTurn.assistantMessage, clientMessageId);
-    }
-    if (existingTurn?.userMessage) {
-      const leaseExpiresAt = existingTurn.userMessage.generationLeaseExpiresAt;
-      const leaseActive = existingTurn.userMessage.generationStatus === 'generating' && !!leaseExpiresAt && leaseExpiresAt > new Date();
-      if (leaseActive) {
+    const resolved = await resolveClientTurn({
+      userId,
+      characterId,
+      modelTier,
+      message,
+      clientMessageId,
+      sessionId,
+    });
+
+    switch (resolved.status) {
+      case 'collision':
+        return errorResponse('client_message_id_collision', 409);
+      case 'replay':
+        return createReplayResponse(resolved.sessionId, resolved.assistantMessage, clientMessageId);
+      case 'in_progress':
         return createStreamErrorResponse('in_progress');
+      case 'acquired_existing': {
+        const inputCheck = await checkInput(resolved.userMessage.content, resolved.sessionId, userId, resolved.userMessage.id);
+        if (inputCheck.blocked) {
+          const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
+          const saved = await saveAssistantForTurn({ sessionId: resolved.sessionId, content: safeMsg, mood: null, clientMessageId });
+          await completeTurn(resolved.userMessage.id);
+          return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
+        }
+        const promptContext = await buildPromptContext(userId, characterId, character);
+        const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
+        return createPreparedGenerationResponse({
+          requestStartedAt,
+          userId,
+          characterId,
+          sessionId: resolved.sessionId,
+          userMessageId: resolved.userMessage.id,
+          userMessage: resolved.userMessage.content,
+          modelTier,
+          modelName: profile.modelName,
+          pointsPerCall: profile.pointsPerCall,
+          systemPrompt: promptContext.systemPrompt,
+          scriptTitle: promptContext.scriptTitle,
+          worldSetting: promptContext.worldSetting,
+          characterName: character.name,
+          characterIdentity: character.identity,
+          cleanHistory,
+          clientMessageId,
+          generationAttempt: resolved.generationAttempt,
+        });
       }
-      const reacquired = await reacquireGenerationLease(existingTurn.userMessage.id);
-      if (!reacquired) {
-        return createStreamErrorResponse('in_progress');
+      case 'created': {
+        const inputCheck = await checkInput(resolved.userMessage, resolved.sessionId, userId, resolved.userMessageId);
+        if (inputCheck.blocked) {
+          const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
+          const saved = await saveAssistantForTurn({ sessionId: resolved.sessionId, content: safeMsg, mood: null, clientMessageId });
+          await completeTurn(resolved.userMessageId);
+          return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
+        }
+        const promptContext = await buildPromptContext(userId, characterId, character);
+        const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
+        return createPreparedGenerationResponse({
+          requestStartedAt,
+          userId,
+          characterId,
+          sessionId: resolved.sessionId,
+          userMessageId: resolved.userMessageId,
+          userMessage: resolved.userMessage,
+          modelTier,
+          modelName: profile.modelName,
+          pointsPerCall: profile.pointsPerCall,
+          systemPrompt: promptContext.systemPrompt,
+          scriptTitle: promptContext.scriptTitle,
+          worldSetting: promptContext.worldSetting,
+          characterName: character.name,
+          characterIdentity: character.identity,
+          cleanHistory,
+          clientMessageId,
+          generationAttempt: resolved.generationAttempt,
+        });
       }
-      message = existingTurn.userMessage.content;
-      const promptContext = await buildPromptContext(userId, characterId, character);
-      const cleanHistory = await getCleanHistoryMessages(userId, existingTurn.sessionId, clientMessageId);
-      return createPreparedGenerationResponse({
-        requestStartedAt,
-        userId,
-        characterId,
-        sessionId: existingTurn.sessionId,
-        userMessageId: existingTurn.userMessage.id,
-        userMessage: message,
-        modelTier,
-        modelName: profile.modelName,
-        pointsPerCall: profile.pointsPerCall,
-        systemPrompt: promptContext.systemPrompt,
-        scriptTitle: promptContext.scriptTitle,
-        worldSetting: promptContext.worldSetting,
-        characterName: character.name,
-        characterIdentity: character.identity,
-        cleanHistory,
-        clientMessageId,
-        generationAttempt: reacquired.generationAttempt,
-      });
     }
   }
 
@@ -116,10 +153,10 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
 
   const inputCheck = await checkInput(message, session.id, userId, userMsg.id);
   if (inputCheck.blocked) {
-    if (clientMessageId) {
-      await markUserMessageGenerationStatus(userMsg.id, 'completed');
-    }
-    return createBlockedInputResponse(session.id);
+    const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
+    const saved = await saveAssistantForTurn({ sessionId: session.id, content: safeMsg, mood: null });
+    await completeTurn(userMsg.id);
+    return createBlockedInputResponse(session.id, saved.id);
   }
 
   const promptContext = await buildPromptContext(userId, characterId, character);
@@ -168,7 +205,7 @@ async function createPreparedGenerationResponse(input: {
   await getOrCreateWallet(input.userId);
   const balance = await getBalance(input.userId);
   if (balance < input.pointsPerCall) {
-    await markUserMessageGenerationStatus(input.userMessageId, 'failed');
+    await failTurn(input.userMessageId);
     return errorResponse('insufficient_points', 402);
   }
 
@@ -225,14 +262,23 @@ async function buildPromptContext(
   };
 }
 
-async function createBlockedInputResponse(sessionId: string): Promise<Response> {
+async function createBlockedInputResponse(
+  sessionId: string,
+  assistantMessageId: string,
+  clientMessageId?: string,
+): Promise<Response> {
   const safeMsg = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
-  const saved = await saveAssistantMessage(sessionId, safeMsg, null);
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
       controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: safeMsg }) + '\n'));
-      controller.enqueue(encoder.encode(JSON.stringify({ type: 'done', messageId: saved.id, sessionId, blocked: true }) + '\n'));
+      controller.enqueue(encoder.encode(JSON.stringify({
+        type: 'done',
+        messageId: assistantMessageId,
+        sessionId,
+        blocked: true,
+        ...(clientMessageId ? { clientMessageId } : {}),
+      }) + '\n'));
       controller.close();
     },
   });
@@ -339,7 +385,7 @@ function createGenerationResponse(input: {
             if (refundResult) {
               balanceAfter = refundResult.balanceAfter;
             }
-            await markUserMessageGenerationStatus(input.userMessageId, 'failed');
+            await failTurn(input.userMessageId);
             await insertModelUsage(input, 'failed', 0, code);
             generationMs = Date.now() - generationStartedAt;
             logChatLatency({
@@ -390,16 +436,19 @@ function createGenerationResponse(input: {
 
         if (scopeClassification === 'out_of_scope') {
           const saveStartedAt = Date.now();
-          await markUserMessageOutOfScope(input.userMessageId);
-          const saved = await saveAssistantMessage(input.sessionId, OUT_OF_SCOPE_FALLBACK, 'neutral', {
-            clientMessageId: input.clientMessageId,
+          await markTurnOutOfScope(input.userMessageId);
+          const saved = await saveAssistantForTurn({
+            sessionId: input.sessionId,
+            content: OUT_OF_SCOPE_FALLBACK,
+            mood: 'neutral',
+            ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
             outOfScope: true,
             excludedFromContext: true,
           });
           const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
           balanceAfter = refundResult.balanceAfter;
           await insertModelUsage(input, 'out_of_scope', 0);
-          await markUserMessageGenerationStatus(input.userMessageId, 'completed');
+          await completeTurn(input.userMessageId);
           saveMs = Date.now() - saveStartedAt;
           moderationMs = Date.now() - moderationStartedAt;
 
@@ -444,9 +493,12 @@ function createGenerationResponse(input: {
         moderationMs = Date.now() - moderationStartedAt;
 
         const saveStartedAt = Date.now();
-        const saved = input.clientMessageId
-          ? await saveAssistantMessage(input.sessionId, finalContent, finalMood, { clientMessageId: input.clientMessageId })
-          : await saveAssistantMessage(input.sessionId, finalContent, finalMood);
+        const saved = await saveAssistantForTurn({
+          sessionId: input.sessionId,
+          content: finalContent,
+          mood: finalMood,
+          ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+        });
         if (blocked) {
           const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
           balanceAfter = refundResult.balanceAfter;
@@ -454,7 +506,7 @@ function createGenerationResponse(input: {
         } else {
           await insertModelUsage(input, 'success', input.pointsPerCall);
         }
-        await markUserMessageGenerationStatus(input.userMessageId, 'completed');
+        await completeTurn(input.userMessageId);
         saveMs = Date.now() - saveStartedAt;
 
         const effectsStartedAt = Date.now();
@@ -509,7 +561,7 @@ function createGenerationResponse(input: {
       } catch (err) {
         await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`).catch(() => undefined);
         const message = err instanceof Error ? err.message : 'Stream error';
-        await markUserMessageGenerationStatus(input.userMessageId, 'failed').catch(() => undefined);
+        await failTurn(input.userMessageId).catch(() => undefined);
         await insertModelUsage(input, 'failed', 0, 'unknown').catch(() => undefined);
         logChatLatency({
           sessionId: input.sessionId,

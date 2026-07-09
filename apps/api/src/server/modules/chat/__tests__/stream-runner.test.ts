@@ -21,14 +21,14 @@ const getCharacterWithPromptsMock = vi.fn();
 const getScriptByIdMock = vi.fn();
 const findOrCreateSessionMock = vi.fn();
 const saveUserMessageMock = vi.fn();
-const saveAssistantMessageMock = vi.fn();
-const findTurnByClientMessageIdMock = vi.fn();
 const getCleanHistoryMessagesMock = vi.fn();
-const markUserMessageGenerationStatusMock = vi.fn();
-const reacquireGenerationLeaseMock = vi.fn();
-const markUserMessageOutOfScopeMock = vi.fn();
 const classifyChatScopeMock = vi.fn();
 const runChatCompletionEffectsMock = vi.fn();
+const resolveClientTurnMock = vi.fn();
+const saveAssistantForTurnMock = vi.fn();
+const completeTurnMock = vi.fn();
+const failTurnMock = vi.fn();
+const markTurnOutOfScopeMock = vi.fn();
 
 vi.mock('../../../db/index.js', () => ({
   db: {
@@ -97,13 +97,13 @@ vi.mock('../index.js', async () => {
     getCharacterWithPrompts: getCharacterWithPromptsMock,
     getScriptById: getScriptByIdMock,
     parseMood,
-    saveAssistantMessage: saveAssistantMessageMock,
     saveUserMessage: saveUserMessageMock,
-    findTurnByClientMessageId: findTurnByClientMessageIdMock,
     getCleanHistoryMessages: getCleanHistoryMessagesMock,
-    markUserMessageGenerationStatus: markUserMessageGenerationStatusMock,
-    markUserMessageOutOfScope: markUserMessageOutOfScopeMock,
-    reacquireGenerationLease: reacquireGenerationLeaseMock,
+    resolveClientTurn: resolveClientTurnMock,
+    saveAssistantForTurn: saveAssistantForTurnMock,
+    completeTurn: completeTurnMock,
+    failTurn: failTurnMock,
+    markTurnOutOfScope: markTurnOutOfScopeMock,
   };
 });
 
@@ -175,12 +175,7 @@ function setupHappyPath() {
   getScriptByIdMock.mockResolvedValue({ id: 'script-1', title: '月见庭院', description: '', worldSetting: '庭院' });
   findOrCreateSessionMock.mockResolvedValue({ id: 'session-1' });
   saveUserMessageMock.mockResolvedValue({ id: 'user-message-1', generationAttempt: 1 });
-  saveAssistantMessageMock.mockResolvedValue({ id: 'assistant-message-1' });
-  findTurnByClientMessageIdMock.mockResolvedValue(null);
   getCleanHistoryMessagesMock.mockResolvedValue([]);
-  markUserMessageGenerationStatusMock.mockResolvedValue(undefined);
-  reacquireGenerationLeaseMock.mockResolvedValue({ id: 'user-message-1', generationAttempt: 2 });
-  markUserMessageOutOfScopeMock.mockResolvedValue(undefined);
   classifyChatScopeMock.mockResolvedValue('in_scope');
   checkInputMock.mockResolvedValue({ blocked: false });
   checkOutputMock.mockResolvedValue({ blocked: false });
@@ -192,6 +187,17 @@ function setupHappyPath() {
   getRelationshipMock.mockResolvedValue(null);
   isFastClawConfiguredMock.mockReturnValue(true);
   streamChatMock.mockImplementation(successStream);
+  resolveClientTurnMock.mockResolvedValue({
+    status: 'created',
+    sessionId: 'session-1',
+    userMessageId: 'user-message-1',
+    userMessage: '你好',
+    generationAttempt: 1,
+  });
+  saveAssistantForTurnMock.mockResolvedValue({ id: 'assistant-message-1' });
+  completeTurnMock.mockResolvedValue(undefined);
+  failTurnMock.mockResolvedValue(undefined);
+  markTurnOutOfScopeMock.mockResolvedValue(undefined);
 }
 
 describe('runChatStream', () => {
@@ -315,7 +321,8 @@ describe('runChatStream', () => {
   });
 
   it('replays a completed clientMessageId without consuming points or running effects', async () => {
-    findTurnByClientMessageIdMock.mockResolvedValue({
+    resolveClientTurnMock.mockResolvedValue({
+      status: 'replay',
       sessionId: 'session-1',
       userMessage: {
         id: 'user-message-1',
@@ -323,11 +330,17 @@ describe('runChatStream', () => {
         generationStatus: 'completed',
         generationLeaseExpiresAt: null,
         generationAttempt: 1,
+        createdAt: new Date(),
+        outOfScope: false,
+        excludedFromContext: false,
       },
       assistantMessage: {
         id: 'assistant-message-1',
         content: '已经保存的回复',
         mood: 'neutral',
+        createdAt: new Date(),
+        outOfScope: false,
+        excludedFromContext: false,
       },
     });
 
@@ -360,7 +373,8 @@ describe('runChatStream', () => {
   });
 
   it('returns in_progress for an unexpired generation lease without calling FastClaw', async () => {
-    findTurnByClientMessageIdMock.mockResolvedValue({
+    resolveClientTurnMock.mockResolvedValue({
+      status: 'in_progress',
       sessionId: 'session-1',
       userMessage: {
         id: 'user-message-1',
@@ -368,8 +382,10 @@ describe('runChatStream', () => {
         generationStatus: 'generating',
         generationLeaseExpiresAt: new Date(Date.now() + 60_000),
         generationAttempt: 1,
+        createdAt: new Date(),
+        outOfScope: false,
+        excludedFromContext: false,
       },
-      assistantMessage: null,
     });
 
     const { runChatStream } = await import('../stream-runner.js');
@@ -390,6 +406,13 @@ describe('runChatStream', () => {
   });
 
   it('sends API-owned clean history plus the current user message to FastClaw', async () => {
+    resolveClientTurnMock.mockResolvedValue({
+      status: 'created',
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      userMessage: '继续调查',
+      generationAttempt: 1,
+    });
     getCleanHistoryMessagesMock.mockResolvedValue([
       { role: 'user', content: '上一轮问题' },
       { role: 'assistant', content: '上一轮回答' },
@@ -431,13 +454,15 @@ describe('runChatStream', () => {
     const events = await readEvents(response);
 
     expect(events).toContainEqual(expect.objectContaining({ type: 'done', outOfScope: true }));
-    expect(saveAssistantMessageMock).toHaveBeenCalledWith(
-      'session-1',
-      expect.stringContaining('当前角色和剧情'),
-      'neutral',
-      { clientMessageId: 'client-1', outOfScope: true, excludedFromContext: true },
-    );
-    expect(markUserMessageOutOfScopeMock).toHaveBeenCalledWith('user-message-1');
+    expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      content: expect.stringContaining('当前角色和剧情'),
+      mood: 'neutral',
+      clientMessageId: 'client-1',
+      outOfScope: true,
+      excludedFromContext: true,
+    });
+    expect(markTurnOutOfScopeMock).toHaveBeenCalledWith('user-message-1');
     expect(refundConsumedPointsMock).toHaveBeenCalledWith('user-1', 3, 'refund_user-message-1_1');
     expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
       status: 'out_of_scope',
@@ -445,6 +470,127 @@ describe('runChatStream', () => {
       walletTransactionId: null,
       clientMessageId: 'client-1',
     }));
+    expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
+  });
+
+  it('blocked input with clientMessageId saves assistant fallback with the same clientMessageId', async () => {
+    resolveClientTurnMock.mockResolvedValue({
+      status: 'created',
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      userMessage: 'bad words',
+      generationAttempt: 1,
+    });
+    checkInputMock.mockResolvedValue({ blocked: true });
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: 'bad words',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+
+    expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。',
+      mood: null,
+      clientMessageId: 'client-1',
+    });
+    expect(completeTurnMock).toHaveBeenCalledWith('user-message-1');
+    const done = events.find((event) => event.type === 'done');
+    expect(done).toBeDefined();
+    expect(done).toMatchObject({
+      messageId: 'assistant-message-1',
+      sessionId: 'session-1',
+      blocked: true,
+      clientMessageId: 'client-1',
+    });
+    expect(consumePointsMock).not.toHaveBeenCalled();
+    expect(streamChatMock).not.toHaveBeenCalled();
+  });
+
+  it('legacy blocked input without clientMessageId completes the user turn', async () => {
+    checkInputMock.mockResolvedValue({ blocked: true });
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: 'bad words',
+      modelTier: 'standard',
+    });
+    const events = await readEvents(response);
+
+    expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。',
+      mood: null,
+    });
+    expect(completeTurnMock).toHaveBeenCalledWith('user-message-1');
+    const done = events.find((event) => event.type === 'done');
+    expect(done).toMatchObject({
+      messageId: 'assistant-message-1',
+      sessionId: 'session-1',
+      blocked: true,
+    });
+    expect(done).not.toHaveProperty('clientMessageId');
+    expect(consumePointsMock).not.toHaveBeenCalled();
+    expect(streamChatMock).not.toHaveBeenCalled();
+  });
+
+  it('blocked input retry replays saved fallback without FastClaw or point consumption', async () => {
+    resolveClientTurnMock.mockResolvedValue({
+      status: 'replay',
+      sessionId: 'session-1',
+      userMessage: {
+        id: 'user-message-1',
+        content: 'bad words',
+        generationStatus: 'completed',
+        generationLeaseExpiresAt: null,
+        generationAttempt: 1,
+        createdAt: new Date(),
+        outOfScope: false,
+        excludedFromContext: false,
+      },
+      assistantMessage: {
+        id: 'assistant-message-1',
+        content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。',
+        mood: null,
+        createdAt: new Date(),
+        outOfScope: false,
+        excludedFromContext: false,
+      },
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: 'bad words',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+
+    expect(events).toEqual([
+      { type: 'delta', content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。' },
+      {
+        type: 'done',
+        messageId: 'assistant-message-1',
+        sessionId: 'session-1',
+        clientMessageId: 'client-1',
+        replayed: true,
+      },
+    ]);
+    expect(saveUserMessageMock).not.toHaveBeenCalled();
+    expect(consumePointsMock).not.toHaveBeenCalled();
+    expect(streamChatMock).not.toHaveBeenCalled();
     expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
   });
 
@@ -463,7 +609,11 @@ describe('runChatStream', () => {
       const events = await readEvents(response);
       const done = events.find((event) => event.type === 'done');
 
-      expect(saveAssistantMessageMock).toHaveBeenCalledWith('session-1', '你好，今晚月色很好。', 'happy');
+      expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        content: '你好，今晚月色很好。',
+        mood: 'happy',
+      });
       expect(done).toMatchObject({ mood: 'happy' });
     });
 
@@ -482,7 +632,11 @@ describe('runChatStream', () => {
       const events = await readEvents(response);
       const done = events.find((event) => event.type === 'done');
 
-      expect(saveAssistantMessageMock).toHaveBeenCalledWith('session-1', '你好，今晚月色很好。', 'neutral');
+      expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        content: '你好，今晚月色很好。',
+        mood: 'neutral',
+      });
       expect(done).toMatchObject({ mood: 'neutral' });
     });
 
@@ -500,7 +654,11 @@ describe('runChatStream', () => {
       const events = await readEvents(response);
       const done = events.find((event) => event.type === 'done');
 
-      expect(saveAssistantMessageMock).toHaveBeenCalledWith('session-1', '你好，今晚月色很好。', 'neutral');
+      expect(saveAssistantForTurnMock).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        content: '你好，今晚月色很好。',
+        mood: 'neutral',
+      });
       expect(done).toMatchObject({ mood: 'neutral' });
     });
   });
