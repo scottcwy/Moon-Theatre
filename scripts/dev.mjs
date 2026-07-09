@@ -39,10 +39,17 @@ function loadRootEnv(cwd) {
   return parseDotEnv(fs.readFileSync(envPath, 'utf8'));
 }
 
-export function createDevPlan(cwd = process.cwd(), rootEnv = loadRootEnv(cwd)) {
+function loadApiLocalEnv(cwd) {
+  const envPath = path.join(cwd, 'apps/api/.env.local');
+  if (!fs.existsSync(envPath)) return {};
+  return parseDotEnv(fs.readFileSync(envPath, 'utf8'));
+}
+
+export function createDevPlan(cwd = process.cwd(), rootEnv = loadRootEnv(cwd), apiLocalEnv = loadApiLocalEnv(cwd)) {
   const serviceEnv = {
     ...process.env,
     API_BASE_URL: LOCAL_API_BASE_URL,
+    ...apiLocalEnv,
     ...rootEnv,
   };
 
@@ -156,7 +163,7 @@ async function runDev() {
   });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runDev().catch((error) => {
     process.stderr.write(`[dev] ${error.message}\n`);
     process.exitCode = 1;

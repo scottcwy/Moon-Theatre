@@ -75,4 +75,28 @@ describe('createDevPlan', () => {
       }
     }
   });
+
+  it('uses API local env values when root env does not override them', () => {
+    const plan = createDevPlan('/repo', {}, {
+      DEV_AUTH_BYPASS: 'true',
+      WECHAT_APP_ID: 'local-app-id',
+    });
+
+    for (const service of plan.services) {
+      assert.equal(service.env.DEV_AUTH_BYPASS, 'true');
+      assert.equal(service.env.WECHAT_APP_ID, 'local-app-id');
+    }
+  });
+
+  it('lets root env override API local env values', () => {
+    const plan = createDevPlan('/repo', {
+      DEV_AUTH_BYPASS: 'false',
+    }, {
+      DEV_AUTH_BYPASS: 'true',
+    });
+
+    for (const service of plan.services) {
+      assert.equal(service.env.DEV_AUTH_BYPASS, 'false');
+    }
+  });
 });
