@@ -9,7 +9,7 @@ Make the V1 chat speed requirements verifiable at runtime instead of relying on 
 The current chat speed fix correctly extends the API-side FastClaw timeout and optionally moves post-chat effects to the background, but the most important generation-side limits live inside FastClaw agent runtime config:
 
 - `maxTokens <= 768`
-- `maxToolIterations = 1`
+- `maxToolIterations = 0`
 
 The API adapter intentionally calls FastClaw through the OpenAI-compatible `/v1/chat/completions` endpoint and only sends `messages` plus `stream: true`. It does not send `max_tokens` or tool-loop controls, and FastClaw's generic chat completion request does not accept those fields today. That preserves generic API semantics, but it also means the business chat speed limit is only effective if `FASTCLAW_AGENT_ID` points at an agent whose resolved runtime config already has those values.
 
@@ -53,9 +53,9 @@ The check is ready only when:
 - `FASTCLAW_AGENT_ID` is non-empty.
 - `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` succeeds.
 - `maxTokens <= 768`.
-- `maxToolIterations <= 1`.
+- `maxToolIterations = 0`.
 
-If `FASTCLAW_AGENT_ID` is missing, readiness should fail with a clear error. Falling back to FastClaw's default or first agent is unsafe for this product because the default FastClaw config is `maxTokens=8192` and `maxToolIterations=20`.
+If `FASTCLAW_AGENT_ID` is missing, readiness should fail with a clear error. Falling back to an arbitrary FastClaw agent is unsafe for this product because the business chat runtime must be explicitly capped at `maxTokens<=768` and `maxToolIterations=0`.
 
 ### 3. Chat generation path remains unchanged
 
@@ -104,12 +104,12 @@ Add focused tests for:
 - FastClaw runtime spec endpoint returns the agent's resolved `maxTokens` and `maxToolIterations`.
 - FastClaw runtime spec endpoint does not include secret config.
 - API readiness fails when `FASTCLAW_AGENT_ID` is missing.
-- API readiness fails when runtime spec exceeds `768/1`.
+- API readiness fails when runtime spec exceeds `768/0`.
 - API readiness passes when runtime spec is within limits.
 
 ## Acceptance Criteria
 
-- A deployment with default FastClaw agent settings `8192/20` is not reported ready for the miniapp API.
-- A deployment with a configured business chat agent `768/1` is reported ready.
+- A deployment whose FastClaw agent exceeds `maxTokens=768` or enables any tool iteration is not reported ready for the miniapp API.
+- A deployment with a configured business chat agent `768/0` is reported ready.
 - No change is made to `/v1/chat/completions` request semantics.
 - No `api.example.com` is introduced into miniapp build artifacts.

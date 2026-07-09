@@ -105,7 +105,7 @@ GET /api/chat/messages/by-client-id?clientMessageId=miniapp-generated-id
 
 #### 聊天速度约束
 
-V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语义，不做逐 token 展示。聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 1`；业务 prompt 明确要求默认回复 80-180 个中文字符，必要时最多 300 个中文字符。
+V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语义，不做逐 token 展示。聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 0`，FastClaw runtime 默认模型使用 `siliconflow/deepseek-ai/DeepSeek-V4-Flash`；业务 prompt 明确要求默认回复 80-180 个中文字符，必要时最多 300 个中文字符。
 
 `FASTCLAW_TIMEOUT_MS` 默认 `120000`，用于避免 30 秒外层 abort 打断长回复。`CHAT_EFFECTS_ASYNC_ENABLED` 默认 `false`：
 

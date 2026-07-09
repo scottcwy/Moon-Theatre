@@ -663,8 +663,11 @@ func expandPath(path string) string {
 
 // ApplyDefaults fills in zero-valued knobs on Agents.Defaults.
 func ApplyDefaults(cfg *Config) {
+	if cfg.Agents.Defaults.Model == "" {
+		cfg.Agents.Defaults.Model = "siliconflow/deepseek-ai/DeepSeek-V4-Flash"
+	}
 	if cfg.Agents.Defaults.MaxTokens == 0 {
-		cfg.Agents.Defaults.MaxTokens = 8192
+		cfg.Agents.Defaults.MaxTokens = 768
 	}
 	if cfg.Agents.Defaults.Temperature == 0 {
 		cfg.Agents.Defaults.Temperature = 0.7

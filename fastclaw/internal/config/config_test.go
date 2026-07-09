@@ -17,8 +17,11 @@ func TestApplyDefaultsKeepsExplicitZeroMaxToolIterations(t *testing.T) {
 	if cfg.Agents.Defaults.MaxToolIterations != 0 {
 		t.Fatalf("maxToolIterations = %d, want explicit 0", cfg.Agents.Defaults.MaxToolIterations)
 	}
-	if cfg.Agents.Defaults.MaxTokens != 8192 {
-		t.Fatalf("maxTokens = %d, want default 8192", cfg.Agents.Defaults.MaxTokens)
+	if cfg.Agents.Defaults.MaxTokens != 768 {
+		t.Fatalf("maxTokens = %d, want default 768", cfg.Agents.Defaults.MaxTokens)
+	}
+	if cfg.Agents.Defaults.Model != "siliconflow/deepseek-ai/DeepSeek-V4-Flash" {
+		t.Fatalf("model = %q, want DeepSeek-V4 Flash default", cfg.Agents.Defaults.Model)
 	}
 }
 

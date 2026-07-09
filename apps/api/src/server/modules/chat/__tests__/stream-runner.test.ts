@@ -156,7 +156,7 @@ function streamWith(content: string) {
 }
 
 function setupHappyPath() {
-  limitMock.mockResolvedValue([{ modelName: 'Qwen/Qwen3.5-9B', pointsPerCall: 3 }]);
+  limitMock.mockResolvedValue([{ modelName: 'deepseek-ai/DeepSeek-V4-Flash', pointsPerCall: 3 }]);
   whereMock.mockReturnValue({ limit: limitMock });
   fromMock.mockReturnValue({ where: whereMock });
   selectMock.mockReturnValue({ from: fromMock });
@@ -268,7 +268,7 @@ describe('runChatStream', () => {
         userId: 'user-1',
         characterId: 'character-1',
         modelTier: 'standard',
-        modelName: 'Qwen/Qwen3.5-9B',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
         walletTransactionId: 'wallet-tx-1',
         status: 'success',
         pointsConsumed: 3,
@@ -341,7 +341,7 @@ describe('runChatStream', () => {
       characterId: 'character-1',
       sessionId: 'session-1',
       modelTier: 'standard',
-      modelName: 'Qwen/Qwen3.5-9B',
+      modelName: 'deepseek-ai/DeepSeek-V4-Flash',
       pointsConsumed: 0,
       walletTransactionId: null,
       status: 'failed',
@@ -507,7 +507,7 @@ describe('runChatStream', () => {
         userId: 'user-1',
         characterId: 'character-1',
         modelTier: 'standard',
-        modelName: 'Qwen/Qwen3.5-9B',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
         walletTransactionId: null,
         status: 'out_of_scope',
         pointsConsumed: 0,
@@ -665,7 +665,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'Qwen/Qwen3.5-9B',
+          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,
@@ -698,7 +698,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'Qwen/Qwen3.5-9B',
+          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,
@@ -730,7 +730,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'Qwen/Qwen3.5-9B',
+          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,

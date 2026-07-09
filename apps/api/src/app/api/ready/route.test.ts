@@ -43,7 +43,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
     }));
   });
 
-  it('fails readiness when the FastClaw agent exceeds chat speed limits', async () => {
+  it('fails readiness when the FastClaw agent exceeds chat runtime limits', async () => {
     vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
     vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
     vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_slow');
@@ -52,7 +52,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
       .mockResolvedValueOnce(Response.json({
         id: 'agt_slow',
         model: 'openrouter/test',
-        maxTokens: 8192,
+        maxTokens: 769,
         temperature: 0.7,
         maxToolIterations: 20,
       }));
@@ -73,13 +73,42 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
     expect(body.checks.fastclaw).toEqual(expect.objectContaining({
       ok: false,
       agentId: 'agt_slow',
-      maxTokens: 8192,
+      maxTokens: 769,
       maxToolIterations: 20,
-      error: 'FastClaw agent exceeds chat speed limits: maxTokens=8192, maxToolIterations=20',
+      error: 'FastClaw agent exceeds chat runtime limits: maxTokens=769, maxToolIterations=20; required maxTokens<=768 and maxToolIterations=0',
     }));
   });
 
-  it('passes readiness when the FastClaw agent is within chat speed limits', async () => {
+  it('fails readiness when the FastClaw agent enables any tool iteration', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_tools');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+      .mockResolvedValueOnce(Response.json({
+        id: 'agt_tools',
+        model: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
+        maxTokens: 768,
+        temperature: 0.7,
+        maxToolIterations: 1,
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(503);
+    expect(body.checks.fastclaw).toEqual(expect.objectContaining({
+      ok: false,
+      agentId: 'agt_tools',
+      maxTokens: 768,
+      maxToolIterations: 1,
+      error: 'FastClaw agent exceeds chat runtime limits: maxTokens=768, maxToolIterations=1; required maxTokens<=768 and maxToolIterations=0',
+    }));
+  });
+
+  it('passes readiness when the FastClaw agent is within chat runtime limits', async () => {
     vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
     vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
     vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_speed');
@@ -87,10 +116,10 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
       .mockResolvedValueOnce(new Response('ok', { status: 200 }))
       .mockResolvedValueOnce(Response.json({
         id: 'agt_speed',
-        model: 'openrouter/test',
+        model: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
         maxTokens: 768,
         temperature: 0.7,
-        maxToolIterations: 1,
+        maxToolIterations: 0,
       }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -105,7 +134,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
       configured: true,
       agentId: 'agt_speed',
       maxTokens: 768,
-      maxToolIterations: 1,
+      maxToolIterations: 0,
     }));
   });
 });

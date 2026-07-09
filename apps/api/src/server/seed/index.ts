@@ -26,7 +26,7 @@ const initialBlockedKeywords = [
 const modelProfileSeeds: Array<typeof modelProfiles.$inferInsert> = [
   {
     tier: 'casual',
-    modelName: 'Qwen/Qwen3.5-9B',
+    modelName: 'deepseek-ai/DeepSeek-V4-Flash',
     provider: 'siliconflow',
     enabled: true,
     pointsPerCall: 1,
@@ -36,7 +36,7 @@ const modelProfileSeeds: Array<typeof modelProfiles.$inferInsert> = [
   },
   {
     tier: 'standard',
-    modelName: 'Qwen/Qwen3.5-9B',
+    modelName: 'deepseek-ai/DeepSeek-V4-Flash',
     provider: 'siliconflow',
     enabled: true,
     pointsPerCall: 3,
@@ -46,7 +46,7 @@ const modelProfileSeeds: Array<typeof modelProfiles.$inferInsert> = [
   },
   {
     tier: 'immersive',
-    modelName: 'Qwen/Qwen3.5-9B',
+    modelName: 'deepseek-ai/DeepSeek-V4-Flash',
     provider: 'siliconflow',
     enabled: true,
     pointsPerCall: 6,

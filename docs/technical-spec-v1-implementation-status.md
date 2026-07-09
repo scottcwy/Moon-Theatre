@@ -316,7 +316,7 @@ docs/openapi-v1.yaml
 - Docker Compose 中的 `fastclaw` 服务声明
 - `FASTCLAW_TIMEOUT_MS` 默认值已调整为 `120000`
 - `CHAT_EFFECTS_ASYNC_ENABLED` 默认 `false`，支持将业务聊天 effects 切到后台最终一致性
-- V1 业务聊天 Agent 限制已由 `/api/ready` runtime spec 校验：`maxTokens <= 768`、`maxToolIterations = 1`，prompt 默认 80-180 个中文字符，必要时最多 300 个中文字符
+- V1 业务聊天 Agent 限制已由 `/api/ready` runtime spec 校验：`maxTokens <= 768`、`maxToolIterations = 0`，FastClaw runtime 默认模型为 `siliconflow/deepseek-ai/DeepSeek-V4-Flash`，prompt 默认 80-180 个中文字符，必要时最多 300 个中文字符
 
 仍需补：
 

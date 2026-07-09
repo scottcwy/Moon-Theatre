@@ -314,7 +314,7 @@ ChatStreamRunner
 V1 Chat Speed Fix 只优化小程序业务聊天 `/api/chat/stream`：
 
 - `FASTCLAW_TIMEOUT_MS` 默认 `120000`，避免 FastClaw 生成被 30 秒外层 abort 打断。
-- 聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 1`。这是 FastClaw Agent 运行配置约束，不改变 OpenAI-compatible `/v1/chat/completions` 通用 API 语义。
+- 聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 0`，默认 runtime 模型为 `siliconflow/deepseek-ai/DeepSeek-V4-Flash`。这是 FastClaw Agent 运行配置约束，不改变 OpenAI-compatible `/v1/chat/completions` 通用 API 语义。
 - 业务 prompt 明确要求默认回复 80-180 个中文字符，剧情推进或用户明确要求时最多 300 个中文字符。
 - 输出审核策略、FastClaw ReAct 架构、同步扣点/退款和 `model_usage_logs` 强一致边界不变。
 - 不新增队列服务，不做逐 token 展示。
@@ -333,7 +333,7 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
 - 当前 adapter 支持 `x-fastclaw-agent-id` 与 `x-fastclaw-session-key` 请求头。
 - 当前 FastClaw API 暴露 `GET /v1/agents/{id}/runtime-spec`，只返回 `id`、`model`、`maxTokens`、`temperature`、`maxToolIterations` 等非敏感运行参数。
-- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、`${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations <= 1`；`/api/health` 只表示 API 进程存活。
+- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、`${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations = 0`；`/api/health` 只表示 API 进程存活。
 - 当前 readiness 尚未检查数据库连接和生产关键配置完整性，生产部署验收仍需补强。
 
 ### 7.4 长期记忆
