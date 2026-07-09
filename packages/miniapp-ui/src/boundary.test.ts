@@ -38,4 +38,12 @@ describe('miniapp-ui package boundary', () => {
     expect(posterStyles).toContain('$color-primary-container');
     expect(posterStyles).not.toContain('border: 4rpx solid $color-primary');
   });
+
+  it('reserves full fixed bottom action space for scrollable page content', () => {
+    const pageShellStyles = fs.readFileSync(path.join(srcDir, 'components/layout/PageContainer.scss'), 'utf8');
+
+    expect(pageShellStyles).toContain('&--bottom-reserve');
+    expect(pageShellStyles).toContain('padding-bottom: calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));');
+    expect(pageShellStyles).not.toContain('padding-bottom: calc(130rpx + env(safe-area-inset-bottom, $safe-bottom));');
+  });
 });

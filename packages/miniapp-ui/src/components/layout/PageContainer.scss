@@ -52,7 +52,7 @@
   }
 
   &--bottom-reserve {
-    padding-bottom: calc(130rpx + env(safe-area-inset-bottom, $safe-bottom));
+    padding-bottom: calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
   }
 
   &--full.page-shell--tabbar {
