@@ -29,6 +29,7 @@ The plugin is a workflow harness, not a project-specific documentation migration
 - Do not require unit, API, and end-to-end tests to be duplicated for every batch.
 - Do not treat process metrics such as defect rework rate as feature acceptance criteria.
 - Do not store credentials, tokens, or secrets in project configuration or run artifacts.
+- Do not implement a local PKI, shared-secret signature scheme, or provider-specific CI attestation service in version 1.
 
 ## Canonical Terms
 
@@ -621,6 +622,12 @@ Approved during implementation review on 2026-07-11.
 - Resumable Batch completion uses hashed `batch-complete` JSON records backed by a Batch Gate package; legacy free-form completion lines are not trusted.
 - Every Batch declares at least one normalized project-relative file path; an empty file set is not independence proof.
 - Batch Gate packages bind one Plan-declared Batch ID, and snapshot validation reconstructs configuration and Change Packet artifacts from the package commit before accepting historical evidence.
+
+## Amendment A-02: Evidence Authenticity Boundary
+
+Approved during final implementation review on 2026-07-11.
+
+Ink-Harness version 1 is tamper-evident and internally consistent, not a cryptographic identity system. It assumes repository permissions, branch protection, CI identity, and human account control are trusted. It validates Git ancestry, committed blobs, policy-derived fields, state transitions, package structure, and evidence hashes. Provider-signed CI attestations or signed human approvals require an external integration and are deferred; local shared secrets are forbidden because they neither establish independent identity nor comply with the no-secrets policy.
 
 ## Delivery Boundary
 
