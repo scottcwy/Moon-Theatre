@@ -1,6 +1,7 @@
 # Ink-Harness Codex Personal Plugin Design
 
-Status: draft
+Status: frozen
+Approved: 2026-07-11
 
 ## Goal
 
