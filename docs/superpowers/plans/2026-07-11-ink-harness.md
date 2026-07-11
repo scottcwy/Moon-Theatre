@@ -174,17 +174,17 @@ Set `.codex-plugin/plugin.json` to:
 }
 ```
 
-- [ ] **Step 5: Validate and commit the scaffold**
+- [ ] **Step 5: Validate manifest syntax and commit the scaffold**
 
 Run:
 
 ```bash
-rtk proxy python3 /Users/macbookpro/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py /Users/macbookpro/plugins/ink-harness
+rtk proxy python3 -m json.tool /Users/macbookpro/plugins/ink-harness/.codex-plugin/plugin.json
 rtk proxy git -C /Users/macbookpro/plugins/ink-harness add .
 rtk proxy git -C /Users/macbookpro/plugins/ink-harness commit -m 'chore: scaffold Ink-Harness plugin'
 ```
 
-Expected: plugin validation passes and the first plugin commit contains only scaffold and metadata files.
+Expected: manifest syntax passes and the first plugin commit contains only scaffold and metadata files. Full plugin validation runs after `SKILL.md` is implemented in Tasks 6 and 8.
 
 ---
 
