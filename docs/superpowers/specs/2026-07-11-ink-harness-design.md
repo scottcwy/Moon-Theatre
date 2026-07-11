@@ -169,7 +169,7 @@ Each initialized repository contains:
 `-- runs/
 ```
 
-`project.yaml` is committed to Git. `local.yaml` is ignored by Git and may contain machine-specific paths, but never secrets.
+`project.yaml` is committed to Git. `local.yaml` is ignored by Git and may contain machine-specific paths, but never secrets. In version 1, the only local override is `worktrees.directory`; commands, document paths, review owners, gates, merge policy, risk policy, and safety policy remain committed project state.
 
 Configuration precedence is:
 
@@ -605,6 +605,17 @@ After interruption, Ink-Harness resumes from durable repository and run state wi
 ### AC-10: Validation
 
 Plugin, skill, configuration, artifact, and behavioral validation complete successfully, while negative fixtures demonstrate rejection of unsafe configuration, invalid state transitions, missing approvals, and unjustified parallel execution.
+
+## Amendment A-01: Evidence And Local Override Hardening
+
+Approved during implementation review on 2026-07-11.
+
+- A frozen Design does not unlock planning until a current-head `gate_passed` Design package is validated and the Design transition is recorded.
+- Review packages use only committed `.spec-harness/project.yaml` and committed Change Packet artifacts; lifecycle validation rebuilds the package and compares all hashes and policy-derived fields.
+- Resume accepts completed Batch commits only when they are ancestors of current HEAD and their recorded evidence hashes remain valid.
+- Plan file paths are normalized before overlap checks, Plan and Design `change_id` values must match, and missing independence proof is unsafe.
+- Initialization stages atomic writes and can repair missing document roots from an existing valid adapter.
+- Version 1 local configuration is limited to `worktrees.directory` so uncommitted machine settings cannot replace required commands or policy.
 
 ## Delivery Boundary
 
