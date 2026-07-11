@@ -616,6 +616,10 @@ Approved during implementation review on 2026-07-11.
 - Plan file paths are normalized before overlap checks, Plan and Design `change_id` values must match, and missing independence proof is unsafe.
 - Initialization stages atomic writes and can repair missing document roots from an existing valid adapter.
 - Version 1 local configuration is limited to `worktrees.directory` so uncommitted machine settings cannot replace required commands or policy.
+- Risk categories are derived from committed Design frontmatter; caller input cannot remove them.
+- Gate transitions persist artifact hashes and are revalidated against current Design state, so amendments require a new Design Gate.
+- Resumable Batch completion uses hashed `batch-complete` JSON records backed by a Batch Gate package; legacy free-form completion lines are not trusted.
+- Every Batch declares at least one normalized project-relative file path; an empty file set is not independence proof.
 
 ## Delivery Boundary
 
