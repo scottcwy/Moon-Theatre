@@ -620,6 +620,7 @@ Approved during implementation review on 2026-07-11.
 - Gate transitions persist artifact hashes and are revalidated against current Design state, so amendments require a new Design Gate.
 - Resumable Batch completion uses hashed `batch-complete` JSON records backed by a Batch Gate package; legacy free-form completion lines are not trusted.
 - Every Batch declares at least one normalized project-relative file path; an empty file set is not independence proof.
+- Batch Gate packages bind one Plan-declared Batch ID, and snapshot validation reconstructs configuration and Change Packet artifacts from the package commit before accepting historical evidence.
 
 ## Delivery Boundary
 
