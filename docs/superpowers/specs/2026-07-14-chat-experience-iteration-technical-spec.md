@@ -356,7 +356,38 @@ availableModes 根据角色和剧本可用状态计算。角色没有 active 剧
 
 ### 9.3 会话列表与作用域查询
 
-扩展 GET /api/chat/sessions，支持可选过滤：
+新增 GET /api/chat/characters，返回当前用户按角色聚合的聊天入口。聚合必须在服务端完成，不能由客户端对分页后的 Chat Session 结果去重：
+
+~~~json
+{
+  "characters": [
+    {
+      "characterId": "uuid",
+      "characterName": "白藏",
+      "characterAvatarUrl": "/assets/characters/hakuzo.jpg",
+      "latestSessionId": "uuid",
+      "lastUsedMode": "free",
+      "lastMessage": "下次也来找我。",
+      "updatedAt": "2026-07-15T02:30:00.000Z",
+      "canSend": true
+    }
+  ],
+  "page": 1,
+  "limit": 20,
+  "hasMore": false
+}
+~~~
+
+约束：
+
+- 每个 `userId + characterId` 最多返回一项；
+- 摘要字段来自该角色最近更新的 Chat Session；
+- `latestSessionId` 是点击入口时的默认目标；
+- 搜索参数 `q` 匹配角色名和最近消息，分页发生在角色聚合之后；
+- retired 历史角色仍可返回，`canSend=false`；
+- 接口不合并消息、Generation Context 或 memory。
+
+GET /api/chat/sessions 保留为聊天页的模式作用域查询，并支持可选过滤：
 
 ~~~text
 characterId
@@ -376,11 +407,6 @@ limit
   "canSend": true
 }
 ~~~
-
-显示语义：
-
-- Script Mode：剧本 · 剧本名
-- Free Conversation Mode：自由聊天
 
 retired 剧本的历史会话继续返回，但 canSend 为 false。
 
@@ -636,7 +662,7 @@ lastUsedMode 只影响默认视觉优先级，不隐藏另一入口。
 
 ### 11.4 会话列表
 
-每条会话显示模式标签。列表搜索仍可搜索角色和消息预览，但不能把两种模式合并为一条展示。
+会话列表消费 GET /api/chat/characters，每个角色只显示一条 Character Chat Entry。列表不显示模式筛选或模式标签；入口展示最近消息和更新时间，点击 `latestSessionId` 后由聊天页恢复最近模式。模式切换继续发生在聊天页，并通过 GET /api/chat/sessions 按 `characterId + mode + scriptId` 查询独立 Chat Session。
 
 ### 11.5 剧本搜索与通用角色选择
 
@@ -686,7 +712,7 @@ P1 使用参数化页面：
 - 模式化 Prompt、历史、记忆和剧情状态；
 - Free Mode 跳过剧情越界分类；
 - 角色详情双入口和聊天模式标识；
-- 会话列表模式标签；
+- 服务端角色级聊天摘要和唯一列表入口；
 - 成功回复与羁绊强一致；
 - 网络失败恢复和重复发送保护；
 - 移除“流氓叙事”新入口；
@@ -892,7 +918,7 @@ P1 故障可独立回滚首页和搜索页面到静态月见庭院入口，但�
 ### 19.1 P0
 
 - AC-P0-01：用户可保存 1—20 字符的 preferredName；非法输入不覆盖旧值，下一轮成功对话可以使用新称呼。
-- AC-P0-02：角色详情明确提供 Script Mode 和 Free Conversation Mode，聊天页和会话列表展示持久化模式。
+- AC-P0-02：角色详情明确提供 Script Mode 和 Free Conversation Mode；聊天列表每个角色只有一个入口并默认打开最近模式，聊天页展示当前持久化模式且可切换到另一套独立历史。
 - AC-P0-03：同一角色两种模式的消息、clean history、剧情状态和 story memories 互不混用。
 - AC-P0-04：Free Conversation Mode 保持角色人格，不注入剧情场景，不执行剧情越界分类。
 - AC-P0-05：Script Mode 继续注入剧本和剧情上下文，并保留剧情边界处理。

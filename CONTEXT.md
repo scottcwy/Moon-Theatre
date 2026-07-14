@@ -40,6 +40,30 @@ _Avoid_: user agent, per-user character, runtime agent
 An API-owned product instance representing one user's relationship with one Character Template, including that user's sessions, memories, bond, unlocks, and optional product-level overrides.
 _Avoid_: FastClaw session, FastClaw tenant, long-lived agent process
 
+**Character Chat Entry**:
+The single chat-list entry through which one user opens all conversations with one Character Template.
+_Avoid_: session row, mode conversation, merged session
+
+**Chat Session**:
+A persisted conversation for one user, one character, and exactly one chat mode, with Script Mode additionally bound to one script.
+_Avoid_: character chat entry, mixed-mode chat, conversation bucket
+
+**Visible History**:
+The messages shown for the currently selected Chat Session without messages from another mode.
+_Avoid_: combined history, character-wide timeline
+
+**Generation Context**:
+The messages and memories supplied to the model for the current Chat Session and mode.
+_Avoid_: visible history, global character history
+
+**Shared Memory**:
+Non-plot user and relationship knowledge available to both chat modes for one User Character Agent Instance.
+_Avoid_: global memory, cross-mode history
+
+**Script Memory**:
+Plot knowledge bound to one user, one character, and one script.
+_Avoid_: shared memory, character memory, mode memory
+
 ## Relationships · 关系
 
 - One **Client Message ID** identifies exactly one client send attempt.
@@ -47,11 +71,17 @@ _Avoid_: FastClaw session, FastClaw tenant, long-lived agent process
 - An **Out-of-Scope Turn** produces messages marked **Excluded From Context**.
 - One **Character Template** can have many **User Character Agent Instances**.
 - One **User Character Agent Instance** belongs to exactly one user and one **Character Template**.
+- One user and one **Character Template** have exactly one **Character Chat Entry** in the chat list.
+- One **Character Chat Entry** can open one or more **Chat Sessions**, but points by default to the most recently updated session.
 - One **User Character Agent Instance** can have one or more **Chat Sessions** in each chat mode.
 - Each **Chat Session** belongs to exactly one mode: **Script Mode** or **Free Conversation Mode**.
+- Each **Visible History** belongs to exactly one **Chat Session**.
+- Each **Generation Context** belongs to exactly one **Chat Session** and never reads messages from the other mode.
 - A **Script Mode** session applies one selected script's plot constraints.
 - A **Free Conversation Mode** session does not require plot progression but remains bound to one selected character.
-- **User Preferred Name** and relationship state may be shared across modes; plot context must not be shared across modes.
+- One **User Character Agent Instance** can have zero or more **Shared Memories** available in both modes.
+- One user, one **Character Template**, and one script can have zero or more **Script Memories** available only to that script's Script Mode.
+- **User Preferred Name**, **Shared Memory**, and relationship state may be shared across modes; **Visible History**, **Generation Context**, and **Script Memory** must not be shared across modes.
 
 ## Flagged Ambiguities · 已澄清歧义
 
@@ -59,3 +89,5 @@ _Avoid_: FastClaw session, FastClaw tenant, long-lived agent process
 - "保存但不进上下文" means visible message history with **Excluded From Context**, not deletion or UI-only hiding.
 - "agent instance" means **User Character Agent Instance** unless explicitly qualified as a FastClaw runtime agent.
 - "副本" and "剧本" were used interchangeably for the chat boundary; resolved: product language uses **Script Mode** and **Free Conversation Mode**, not 副本模式.
+- "会话列表" previously meant a list of **Chat Sessions**; resolved: the user-facing list contains one **Character Chat Entry** per character, while mode-specific **Chat Sessions** remain separate underneath.
+- "全局共享且可见" means both modes are reachable through one **Character Chat Entry**; it does not mean a combined **Visible History** or mixed **Generation Context**.
