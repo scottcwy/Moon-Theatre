@@ -1,7 +1,7 @@
 # 剧本杀角色扮演小程序技术 SPEC v1 实现状态与剩余缺口
 
-> 版本日期：2026-07-04
-> 当前基线：本地工作区，已按当前代码重新核对 API 路由、数据库 schema、聊天扣点、FastClaw adapter、health/ready、admin 鉴权、小程序构建校验和 API 文档
+> 版本日期：2026-07-14
+> 当前基线：本地工作区，已按当前代码重新核对 API 路由、数据库 schema、聊天扣点、FastClaw adapter、health/ready、admin 鉴权、小程序构建校验、API 文档、Scripts API、mode/scriptId/canSend/hasSuccessfulTurn 会话元数据、角色双模式字段、PATCH /api/me、memory scope 隔离和 clientMessageId 幂等
 > 适用对象：后续新窗口 / opencode / Codex 接手开发前的项目状态对齐
 
 ## 1. 文档用途
@@ -52,6 +52,7 @@ apps/api/src/app/api/
   orders/
   payments/aggregate/notify/
   ready/
+  scripts/
   admin/
 
 apps/api/src/app/admin/
@@ -106,8 +107,8 @@ apps/api/src/server/db/
 | 配置安全 | 基本完成 | 生产环境强制校验 `DATABASE_URL`、`JWT_SECRET`、支付 provider、admin 配置；Next 构建期不需要注入运行时密钥 | 真实环境变量仍需按部署手册落地 |
 | 小程序构建配置 | 基本完成 | 生产构建缺少 `API_BASE_URL`、指向 localhost 或使用 `api.example.com` 会失败；`verify:weapp` 会扫描构建产物；部署手册固定真实域名构建步骤 | 需要 CI 中固定执行构建校验，且不得用 `api.example.com` 做验证构建 |
 | 微信登录/JWT | 基本完成 | `POST /api/auth/wechat-login`、`GET /api/me`、JWT middleware 已有 | 没有 refresh token，符合 V1 当前口径 |
-| 角色/剧本 | 基本完成 | 角色列表、详情、Prompt、script 查询已有 | 内容运营、素材和更复杂剧情节点仍待补 |
-| 聊天会话 | 基本完成 | `moderated-buffered` 已同步为正式 SPEC 口径；会话创建、用户消息保存、预扣、调用 FastClaw、输出审核、保存 assistant 消息、退款和 done payload 已有 | 当前不是真正逐 token 展示；FastClaw 错误路径尚未写入 failed model usage log |
+| 角色/剧本 | 基本完成 | 角色列表（含 starterQuestions）、详情（含 availableModes/lastUsedMode/starterQuestions/relationship）、Prompt、Scripts 列表和详情 API（GET /api/scripts, GET /api/scripts/:id）已有 | 内容运营、素材和更复杂剧情节点仍待补 |
+| 聊天会话 | 基本完成 | `moderated-buffered` 已同步；stream 支持 mode/scriptId 参数和脚本下架拦截；会话列表/消息含 canSend/hasSuccessfulTurn/mode/scriptId 元数据；clientMessageId 幂等重试/重放/碰撞检测；预扣/退款/done payload 已有 | 当前不是真正逐 token 展示；`model_usage_logs` 仍缺耗时、fallback、错误码、错误消息、上游 request id 等持久化可观测字段 |
 | FastClaw 集成 | 基础完成 | `server/modules/fastclaw` 适配层已有，调用 `/v1/chat/completions`，支持超时、fallback；FastClaw 暴露 runtime spec，`/api/ready` 会检查 `/readyz` 和业务 Agent `maxTokens/maxToolIterations` | 需要真实 FastClaw contract test、错误分类、生产 fallback 策略验收和更完整错误日志 |
 | 输入/输出审核 | 基本完成 | 输入关键词拦截、输出审核替换、review log 基础能力已有 | 审核策略仍偏简单，缺少更细的运营规则 |
 | 点数扣减 | 基本完成 | 发送前余额检查，生成前预扣，失败/过滤退款，返回 `balanceAfter` | 需要更多并发和异常测试 |
@@ -133,6 +134,8 @@ apps/api/src/server/db/
 - `apps/api/src/app/api/chat/stream/route.ts`
 - `apps/api/src/server/modules/chat/stream-runner.ts`
 
+当前新增参数：`mode`（`"script"` | `"free"`）和 `scriptId`（可选，向后兼容旧客户端）。`mode=script` 时 `scriptId` 必填；`mode=free` 时不可传 `scriptId`。`mode`/`scriptId` 与已有 session 不匹配时返回 `session_scope_mismatch`（409）。`scriptId` 对应剧本已下架时返回 `script_unavailable`（409）。`done` 事件始终包含 `mode` 字段。
+
 当前响应头包含：
 
 ```text
@@ -154,7 +157,6 @@ X-Stream-Mode: moderated-buffered
 剩余缺口：
 
 - 当前仍不是逐 token 实时展示，正式 SPEC 已承认该口径。
-- FastClaw 错误路径当前会退款，但尚未写入 `model_usage_logs(status=failed)`。
 - 聊天链路已有结构化 latency 日志，但 `model_usage_logs` 还缺耗时、fallback、错误码、错误消息、上游 request id 等持久化可观测字段。
 
 ### 5.2 扣点时机：正式 SPEC 已同步为预扣/退款
@@ -324,6 +326,64 @@ docs/openapi-v1.yaml
 - 生产环境 fallback 策略：默认关闭静默 fallback，失败走退款和错误响应；如要降级，必须显式配置并在响应/日志中标识。
 - readiness 检查：当前覆盖 FastClaw 配置、`/readyz` 和业务 Agent 速度约束，还需补数据库连接和其他关键生产配置状态。
 - 模型调用日志补耗时、fallback、错误原因、token、上游 request id 等字段。
+
+### 5.9 Scripts API：已实现
+
+当前实现位置：
+
+- `apps/api/src/app/api/scripts/route.ts` — `GET /api/scripts`（无需认证，支持可选 `?q=` 搜索）
+- `apps/api/src/app/api/scripts/[id]/route.ts` — `GET /api/scripts/:id`（需认证）
+- `apps/api/src/server/modules/scripts/service.ts`
+
+`GET /api/scripts/:id` 返回剧本详情 + 角色列表（含 `starterQuestions`），不暴露系统 Prompt。已下架剧本返回 `404`。
+
+### 5.10 角色详情双模式字段：已实现
+
+`GET /api/characters/:id` 返回扩展字段：
+
+- `availableModes`: `string[]` — 有剧本角色为 `["script", "free"]`，无剧本角色为 `["free"]`
+- `lastUsedMode`: `string | null` — 当前用户上次与该角色的聊天模式
+- `starterQuestions`: `{ script: string[], free: string[] }`
+- `relationship`: `{ bondLevel: number, bondExp: number } | null`
+
+`prompts` 字段在路由层剥离，不返回给客户端。
+
+### 5.11 会话元数据：canSend / hasSuccessfulTurn / mode / scriptId
+
+`GET /api/chat/sessions` 支持查询参数 `page`、`limit`、`characterId`、`mode`、`scriptId`；每条 session 返回 `mode`、`scriptId`、`scriptTitle`、`canSend`、`lastMessage`。
+
+`GET /api/chat/sessions/:id/messages` 支持分页（默认 `limit=50` 上限 100）；返回 `session` 元数据对象含 `mode`、`scriptId`、`scriptTitle`、`characterIdentity`、`canSend`、`hasSuccessfulTurn`。消息列表永不返回 system 角色消息。
+
+`canSend` 规则：角色 `status=active` 且（无剧本或剧本 `status=active`）时为 `true`。剧本下架后 `canSend=false`。
+
+`hasSuccessfulTurn`：由 `model_usage_logs.status='success'` 判定；兼容旧数据中未标记 `outOfScope`/`excludedFromContext` 的 assistant 消息。
+
+### 5.12 PATCH /api/me
+
+`PATCH /api/me` 允许更新 `preferredName`（玩家被 AI 称呼的名字）。限制 1-20 个 Unicode 码点；空字符串/空白返回 `400`，`error: "invalid_preferred_name"`。
+
+### 5.13 Memory scope 隔离
+
+记忆表包含 `scope`（`"shared"` | `"script"`）和 `scriptId` 字段，带 CHECK 约束确保 scope 一致性。
+
+- free 模式：仅检索 `scope=shared` 的记忆。
+- script 模式：检索 `scope=shared` + 当前剧本 `scope=script` 的记忆。
+- `story` 类型记忆仅在有明确 `scriptId` 时写入，free/旧版调用不写 story 行。
+
+`GET /api/memory` 返回按角色分组的启用记忆，含 `type` 字段。
+
+### 5.14 clientMessageId 幂等与 retired 禁止发送
+
+`POST /api/chat/stream` 的 `clientMessageId` 实现完整幂等逻辑：
+
+- 已完成 turn 重放已保存 assistant（`done.replayed=true`）。
+- 仍在生成且 lease 未过期返回 `in_progress`。
+- 失败或 lease 过期后允许重新获取生成 lease（`acquired_existing`）。
+- 同一 `clientMessageId` 在多个 session 中出现时返回 `409`（`client_message_id_collision`）。
+
+`GET /api/chat/messages/by-client-id` 返回 `mode` 和 `scriptId` 字段。
+
+角色绑定的剧本状态非 `active` 时，stream 请求返回 `script_unavailable`（409），session 的 `canSend` 变为 `false`。无绑定角色的剧本不受影响。
 
 ## 6. 后续开发优先级
 

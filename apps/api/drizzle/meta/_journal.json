@@ -29,6 +29,20 @@
       "when": 1783578000000,
       "tag": "0003_chat_effect_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784025990000,
+      "tag": "0004_chat_modes_and_memory_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784025990271,
+      "tag": "0005_scripts_catalog_and_starter_questions",
+      "breakpoints": true
     }
   ]
 }

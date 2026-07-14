@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { characters, characterPrompts, scripts } from '../../db/schema';
+import { characters, characterPrompts, chatSessions, scripts } from '../../db/schema';
 
 export async function listCharacters() {
   return db
@@ -12,15 +12,24 @@ export async function listCharacters() {
       description: characters.description,
       scriptId: characters.scriptId,
       initialRelationship: characters.initialRelationship,
+      starterQuestions: characters.starterQuestions,
       sortOrder: characters.sortOrder,
       status: characters.status,
     })
     .from(characters)
-    .where(eq(characters.status, 'active'))
+    .leftJoin(scripts, eq(characters.scriptId, scripts.id))
+    .where(and(
+      eq(characters.status, 'active'),
+      or(isNull(characters.scriptId), eq(scripts.status, 'active')),
+    ))
     .orderBy(characters.sortOrder);
 }
 
-export async function getCharacterById(id: string) {
+export interface GetCharacterByIdOptions {
+  userId?: string;
+}
+
+export async function getCharacterById(id: string, options?: GetCharacterByIdOptions) {
   const [character] = await db
     .select()
     .from(characters)
@@ -40,9 +49,38 @@ export async function getCharacterById(id: string) {
     ? await db.select().from(scripts).where(eq(scripts.id, character.scriptId)).limit(1)
     : [];
 
+  if (character.scriptId && (!script || script.status !== 'active')) {
+    return null;
+  }
+
+  const availableModes: string[] = character.scriptId ? ['script', 'free'] : ['free'];
+
+  // lastUsedMode: derived from user's most recently updated active session
+  let lastUsedMode: string | null = null;
+  if (options?.userId) {
+    const [lastSession] = await db
+      .select({ mode: chatSessions.mode })
+      .from(chatSessions)
+      .where(
+        and(
+          eq(chatSessions.userId, options.userId),
+          eq(chatSessions.characterId, id),
+          eq(chatSessions.status, 'active'),
+        ),
+      )
+      .orderBy(desc(chatSessions.updatedAt))
+      .limit(1);
+    lastUsedMode = lastSession?.mode ?? null;
+  }
+
+  const starterQuestions = character.starterQuestions ?? { script: [], free: [] };
+
   return {
     ...character,
     prompts,
     script: script || null,
+    availableModes,
+    lastUsedMode,
+    starterQuestions,
   };
 }

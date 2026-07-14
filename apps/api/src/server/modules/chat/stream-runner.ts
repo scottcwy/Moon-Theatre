@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { config } from '../../config/index.js';
 import { db } from '../../db/index.js';
-import { modelProfiles, modelUsageLogs } from '../../db/schema.js';
+import { modelProfiles, modelUsageLogs, users } from '../../db/schema.js';
 import { errorResponse } from '../../middleware/auth.js';
 import { streamChat, isFastClawConfigured } from '../fastclaw/index.js';
 import { getEnabledMemories } from '../memory/index.js';
@@ -13,13 +13,17 @@ import {
   findOrCreateSession,
   getCleanHistoryMessages,
   getCharacterWithPrompts,
+  getChatSessionScope,
   getScriptById,
   parseMood,
   resolveClientTurn,
   finalizeAssistantTurn,
   saveUserMessage,
   failTurn,
+  ScriptUnavailableError,
+  SessionScopeMismatchError,
 } from './index.js';
+import type { ChatMode } from './index.js';
 import { sanitizeAssistantOutput } from './output-sanitizer.js';
 import { classifyChatScope } from './scope-classifier.js';
 import { runChatCompletionEffects } from './workflow.js';
@@ -33,6 +37,8 @@ export interface ChatStreamInput {
   message: string;
   modelTier: 'casual' | 'standard' | 'immersive';
   clientMessageId?: string;
+  mode?: ChatMode;
+  scriptId?: string;
 }
 
 export const STREAM_HEADERS = {
@@ -46,7 +52,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   const requestStartedAt = Date.now();
   const { userId, characterId, sessionId, modelTier } = input;
   const clientMessageId = input.clientMessageId?.trim();
-  let message = input.message;
+  const message = input.message;
 
   const [profile] = await db
     .select({
@@ -66,6 +72,19 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     return errorResponse('Character not found', 404);
   }
 
+  let scope: { mode: ChatMode; scriptId: string | null };
+  try {
+    scope = await resolveRequestScope(input, character);
+  } catch (error) {
+    if (error instanceof SessionScopeMismatchError) {
+      return errorResponse('session_scope_mismatch', 409);
+    }
+    if (error instanceof ScriptUnavailableError) {
+      return errorResponse('script_unavailable', 409);
+    }
+    throw error;
+  }
+
   if (clientMessageId) {
     const resolved = await resolveClientTurn({
       userId,
@@ -74,13 +93,23 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
       message,
       clientMessageId,
       sessionId,
+      mode: input.mode,
+      ...(input.scriptId ? { scriptId: input.scriptId } : {}),
     });
 
     switch (resolved.status) {
       case 'collision':
         return errorResponse('client_message_id_collision', 409);
+      case 'session_scope_mismatch':
+        return errorResponse('session_scope_mismatch', 409);
       case 'replay':
-        return createReplayResponse(resolved.sessionId, resolved.assistantMessage, clientMessageId);
+        return createReplayResponse(
+          resolved.sessionId,
+          resolved.assistantMessage,
+          clientMessageId,
+          await getRelationship(userId, characterId),
+          scope.mode,
+        );
       case 'in_progress':
         return createStreamErrorResponse('in_progress');
       case 'acquired_existing': {
@@ -93,10 +122,11 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
             content: safeMsg,
             mood: null,
             clientMessageId,
+            excludedFromContext: true,
           });
           return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
         }
-        const promptContext = await buildPromptContext(userId, characterId, character);
+        const promptContext = await buildPromptContext(userId, characterId, character, scope);
         const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
         return createPreparedGenerationResponse({
           requestStartedAt,
@@ -116,6 +146,8 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           cleanHistory,
           clientMessageId,
           generationAttempt: resolved.generationAttempt,
+          mode: scope.mode,
+          scriptId: scope.scriptId,
         });
       }
       case 'created': {
@@ -128,10 +160,11 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
             content: safeMsg,
             mood: null,
             clientMessageId,
+            excludedFromContext: true,
           });
           return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
         }
-        const promptContext = await buildPromptContext(userId, characterId, character);
+        const promptContext = await buildPromptContext(userId, characterId, character, scope);
         const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
         return createPreparedGenerationResponse({
           requestStartedAt,
@@ -151,12 +184,21 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           cleanHistory,
           clientMessageId,
           generationAttempt: resolved.generationAttempt,
+          mode: scope.mode,
+          scriptId: scope.scriptId,
         });
       }
     }
   }
 
-  const session = await findOrCreateSession(userId, characterId, modelTier, sessionId);
+  const session = await findOrCreateSession(
+    userId,
+    characterId,
+    modelTier,
+    sessionId,
+    scope.mode,
+    scope.scriptId,
+  );
   const userMsg = await saveUserMessage(session.id, message, clientMessageId ? { clientMessageId } : {});
 
   const inputCheck = await checkInput(message, session.id, userId, userMsg.id);
@@ -167,11 +209,12 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
       userMessageId: userMsg.id,
       content: safeMsg,
       mood: null,
+      excludedFromContext: true,
     });
     return createBlockedInputResponse(session.id, saved.id);
   }
 
-  const promptContext = await buildPromptContext(userId, characterId, character);
+  const promptContext = await buildPromptContext(userId, characterId, character, session);
   const cleanHistory = await getCleanHistoryMessages(userId, session.id, clientMessageId);
 
   return createPreparedGenerationResponse({
@@ -192,7 +235,66 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     cleanHistory,
     clientMessageId,
     generationAttempt: userMsg.generationAttempt,
+    mode: session.mode,
+    scriptId: session.scriptId,
   });
+}
+
+async function resolveRequestScope(
+  input: ChatStreamInput,
+  character: NonNullable<Awaited<ReturnType<typeof getCharacterWithPrompts>>>,
+): Promise<{ mode: ChatMode; scriptId: string | null }> {
+  const currentScript = character.scriptId ? await getScriptById(character.scriptId) : null;
+  if (character.scriptId && (!currentScript || currentScript.status !== 'active')) {
+    throw new ScriptUnavailableError();
+  }
+
+  if (input.sessionId) {
+    const persisted = await getChatSessionScope(input.userId, input.sessionId);
+    if (
+      !persisted ||
+      persisted.status !== 'active' ||
+      persisted.characterId !== character.id
+    ) {
+      throw new ScriptUnavailableError();
+    }
+
+    if (input.mode) {
+      const requestedScriptId = input.mode === 'script' ? (input.scriptId ?? null) : null;
+      if (persisted.mode !== input.mode || persisted.scriptId !== requestedScriptId) {
+        throw new SessionScopeMismatchError(
+          input.sessionId,
+          persisted.mode,
+          persisted.scriptId,
+          input.mode,
+          requestedScriptId,
+        );
+      }
+    }
+
+    if (persisted.mode === 'script') {
+      if (!persisted.scriptId) throw new ScriptUnavailableError();
+      const script = await getScriptById(persisted.scriptId);
+      if (!script || script.status !== 'active') throw new ScriptUnavailableError();
+    }
+    return { mode: persisted.mode, scriptId: persisted.scriptId };
+  }
+
+  if (input.mode === 'free') {
+    return { mode: 'free', scriptId: null };
+  }
+
+  if (input.mode === 'script') {
+    if (!input.scriptId || input.scriptId !== character.scriptId || !currentScript) {
+      throw new ScriptUnavailableError();
+    }
+    return { mode: 'script', scriptId: input.scriptId };
+  }
+
+  if (!currentScript || !character.scriptId) {
+    throw new ScriptUnavailableError();
+  }
+  return { mode: 'script', scriptId: character.scriptId };
 }
 
 async function createPreparedGenerationResponse(input: {
@@ -213,6 +315,8 @@ async function createPreparedGenerationResponse(input: {
   cleanHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   clientMessageId?: string;
   generationAttempt: number;
+  mode: ChatMode;
+  scriptId: string | null;
 }): Promise<Response> {
   await getOrCreateWallet(input.userId);
   const balance = await getBalance(input.userId);
@@ -249,6 +353,8 @@ async function createPreparedGenerationResponse(input: {
     messages,
     clientMessageId: input.clientMessageId,
     generationAttempt: input.generationAttempt,
+    mode: input.mode,
+    scriptId: input.scriptId,
   });
 }
 
@@ -256,15 +362,26 @@ async function buildPromptContext(
   userId: string,
   characterId: string,
   character: NonNullable<Awaited<ReturnType<typeof getCharacterWithPrompts>>>,
+  scope: { mode: ChatMode; scriptId: string | null },
 ): Promise<{ systemPrompt: string; scriptTitle?: string; worldSetting?: string }> {
-  const script = character.scriptId ? await getScriptById(character.scriptId) : null;
-  const [existingMemories, existingRelationship] = await Promise.all([
-    getEnabledMemories(userId, characterId),
+  const script = scope.mode === 'script' && scope.scriptId
+    ? await getScriptById(scope.scriptId)
+    : null;
+  const [existingMemories, existingRelationship, user] = await Promise.all([
+    getEnabledMemories(userId, characterId, scope.mode, scope.scriptId),
     getRelationship(userId, characterId),
+    db
+      .select({ preferredName: users.preferredName })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+      .then(([row]) => row ?? null),
   ]);
 
   return {
     systemPrompt: buildSystemPrompt(character, script, {
+      mode: scope.mode,
+      preferredName: user?.preferredName ?? undefined,
       memories: existingMemories.map((m) => ({ type: m.type, content: m.content })),
       bondLevel: existingRelationship?.bondLevel,
       bondExp: existingRelationship?.bondExp,
@@ -301,6 +418,8 @@ function createReplayResponse(
   sessionId: string,
   assistantMessage: { id: string; content: string; mood: string | null },
   clientMessageId: string,
+  relationship: { bondLevel: number; bondExp: number } | null,
+  mode: ChatMode,
 ): Response {
   console.info({
     event: 'chat_stream_replayed',
@@ -316,9 +435,14 @@ function createReplayResponse(
         type: 'done',
         messageId: assistantMessage.id,
         sessionId,
+        mode,
         ...(assistantMessage.mood ? { mood: assistantMessage.mood } : {}),
         clientMessageId,
         replayed: true,
+        ...(relationship ? {
+          bondLevel: relationship.bondLevel,
+          bondExp: relationship.bondExp,
+        } : {}),
       }) + '\n'));
       controller.close();
     },
@@ -367,6 +491,8 @@ function createGenerationResponse(input: {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   clientMessageId?: string;
   generationAttempt: number;
+  mode: ChatMode;
+  scriptId: string | null;
 }): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -414,7 +540,7 @@ function createGenerationResponse(input: {
               error: event.message,
               errorCode: code,
             });
-            controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code, message: event.message }) + '\n'));
+            controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code }) + '\n'));
             controller.close();
             return;
           }
@@ -426,24 +552,26 @@ function createGenerationResponse(input: {
         const { mood, cleanedText } = parseMood(sanitizedText);
 
         let scopeClassification: 'in_scope' | 'out_of_scope' = 'in_scope';
-        try {
-          const classification = await classifyChatScope({
-            userMessage: input.userMessage,
-            assistantDraft: cleanedText,
-            characterName: input.characterName,
-            characterIdentity: input.characterIdentity,
-            scriptTitle: input.scriptTitle,
-            worldSetting: input.worldSetting,
-          });
-          scopeClassification = classification === 'out_of_scope' ? 'out_of_scope' : 'in_scope';
-        } catch (err) {
-          console.warn({
-            event: 'scope_classifier_failed',
-            sessionId: input.sessionId,
-            userMessageId: input.userMessageId,
-            clientMessageId: input.clientMessageId,
-            error: err instanceof Error ? err.message : String(err),
-          });
+        if (input.mode === 'script') {
+          try {
+            const classification = await classifyChatScope({
+              userMessage: input.userMessage,
+              assistantDraft: cleanedText,
+              characterName: input.characterName,
+              characterIdentity: input.characterIdentity,
+              scriptTitle: input.scriptTitle,
+              worldSetting: input.worldSetting,
+            });
+            scopeClassification = classification === 'out_of_scope' ? 'out_of_scope' : 'in_scope';
+          } catch (err) {
+            console.warn({
+              event: 'scope_classifier_failed',
+              sessionId: input.sessionId,
+              userMessageId: input.userMessageId,
+              clientMessageId: input.clientMessageId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
         }
 
         if (scopeClassification === 'out_of_scope') {
@@ -496,6 +624,7 @@ function createGenerationResponse(input: {
             type: 'done',
             messageId: saved.id,
             sessionId: input.sessionId,
+            mode: input.mode,
             mood: 'neutral',
             outOfScope: true,
             ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
@@ -522,6 +651,7 @@ function createGenerationResponse(input: {
           content: finalContent,
           mood: finalMood,
           ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+          ...(blocked ? { excludedFromContext: true } : {}),
           usage: {
             userId: input.userId,
             characterId: input.characterId,
@@ -543,12 +673,15 @@ function createGenerationResponse(input: {
           sessionId: input.sessionId,
           userMessageId: input.userMessageId,
           assistantMessageId: saved.id,
+          mode: input.mode,
+          scriptId: input.scriptId,
         };
         const effects = blocked
           ? { bond: null, unlockedAchievements: [], unlockedTitles: [] }
           : config.chatEffectsAsyncEnabled
             ? scheduleChatCompletionEffects(effectContext)
             : await runChatCompletionEffects(effectContext);
+        const safeEffects = effects ?? { bond: null, unlockedAchievements: [], unlockedTitles: [] };
         effectsScheduledMs = Date.now() - effectsStartedAt;
 
         logChatLatency({
@@ -570,22 +703,21 @@ function createGenerationResponse(input: {
           type: 'done',
           messageId: saved.id,
           sessionId: input.sessionId,
+          mode: input.mode,
           ...(finalMood ? { mood: finalMood } : {}),
           ...(usedFallback ? { fallback: true } : {}),
           ...(blocked ? { blocked: true } : {}),
           ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
-          ...(!config.chatEffectsAsyncEnabled && effects.bond ? {
-            bondLevel: effects.bond.relationship.bondLevel,
-            bondExp: effects.bond.relationship.bondExp,
-          } : {}),
-          ...(!config.chatEffectsAsyncEnabled && effects.unlockedAchievements.length > 0 ? { unlockedAchievements: effects.unlockedAchievements } : {}),
-          ...(!config.chatEffectsAsyncEnabled && effects.unlockedTitles.length > 0 ? { unlockedTitles: effects.unlockedTitles } : {}),
+          ...(saved.bondLevel !== undefined ? { bondLevel: saved.bondLevel } : {}),
+          ...(saved.bondExp !== undefined ? { bondExp: saved.bondExp } : {}),
+          ...(!config.chatEffectsAsyncEnabled && safeEffects.unlockedAchievements.length > 0 ? { unlockedAchievements: safeEffects.unlockedAchievements } : {}),
+          ...(!config.chatEffectsAsyncEnabled && safeEffects.unlockedTitles.length > 0 ? { unlockedTitles: safeEffects.unlockedTitles } : {}),
           balanceAfter,
         }) + '\n'));
         controller.close();
       } catch (err) {
         await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`).catch(() => undefined);
-        const message = err instanceof Error ? err.message : 'Stream error';
+        const errorMessage = err instanceof Error ? err.message : 'Stream error';
         await failTurn(input.userMessageId).catch(() => undefined);
         await insertModelUsage(input, 'failed', 0, 'unknown').catch(() => undefined);
         logChatLatency({
@@ -599,10 +731,10 @@ function createGenerationResponse(input: {
           totalUntilDoneMs: Date.now() - input.requestStartedAt,
           effectsAsync: false,
           blocked: false,
-          error: message,
+          error: errorMessage,
           errorCode: 'unknown',
         });
-        controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code: 'unknown', message }) + '\n'));
+        controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code: 'unknown' }) + '\n'));
         controller.close();
       }
     },

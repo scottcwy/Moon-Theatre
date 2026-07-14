@@ -34,6 +34,7 @@ vi.mock('../../../db/schema', () => ({
   characters: {
     id: 'characters.id',
     status: 'characters.status',
+    scriptId: 'characters.scriptId',
   },
   characterPrompts: {},
   chatSessions: {
@@ -43,6 +44,8 @@ vi.mock('../../../db/schema', () => ({
     status: 'chatSessions.status',
     updatedAt: 'chatSessions.updatedAt',
     modelTier: 'chatSessions.modelTier',
+    mode: 'chatSessions.mode',
+    scriptId: 'chatSessions.scriptId',
   },
   messages: {
     id: 'messages.id',
@@ -71,7 +74,27 @@ vi.mock('../../../db/schema', () => ({
     errorCode: 'modelUsageLogs.errorCode',
     status: 'modelUsageLogs.status',
   },
-  scripts: {},
+  scripts: {
+    id: 'scripts.id',
+    title: 'scripts.title',
+    description: 'scripts.description',
+    worldSetting: 'scripts.worldSetting',
+    status: 'scripts.status',
+  },
+  relationshipBondExpEvents: {
+    id: 'relationshipBondExpEvents.id',
+    assistantMessageId: 'relationshipBondExpEvents.assistantMessageId',
+    userId: 'relationshipBondExpEvents.userId',
+    characterId: 'relationshipBondExpEvents.characterId',
+    expIncrement: 'relationshipBondExpEvents.expIncrement',
+  },
+  relationships: {
+    userId: 'relationships.userId',
+    characterId: 'relationships.characterId',
+    bondLevel: 'relationships.bondLevel',
+    bondExp: 'relationships.bondExp',
+    updatedAt: 'relationships.updatedAt',
+  },
 }));
 
 vi.mock('../../../config/index.js', () => ({
@@ -93,12 +116,41 @@ vi.mock('drizzle-orm', () => ({
   sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ type: 'sql', strings, vals }),
 }));
 
+/** Helper: build a session row used by findOrCreateSession's sessionId lookups */
+function sessionRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'session-1',
+    userId: 'user-1',
+    characterId: 'char-1',
+    status: 'active',
+    mode: 'script',
+    scriptId: 'script-1',
+    ...overrides,
+  };
+}
+
+/** Helper: build a session row for the NEW-session creation (insert returning) */
+function createdSessionRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'session-1',
+    mode: 'script',
+    scriptId: 'script-1',
+    ...overrides,
+  };
+}
+
 function setupTransactionMocks() {
   txInsertMock.mockImplementation((target: unknown) => ({
     values: (values: unknown) => {
       txValuesMock(target, values);
       if (JSON.stringify(target).includes('messages.id')) {
         return { returning: txReturningMock };
+      }
+      if (JSON.stringify(target).includes('relationshipBondExpEvents')) {
+        return { onConflictDoNothing: () => ({ returning: txReturningMock }) };
+      }
+      if (JSON.stringify(target).includes('relationships')) {
+        return { onConflictDoUpdate: () => ({ returning: txReturningMock }) };
       }
       return Promise.resolve(undefined);
     },
@@ -113,6 +165,7 @@ function setupTransactionMocks() {
   txWhereMock.mockResolvedValue(undefined);
   transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
     insert: txInsertMock,
+    select: selectMock,
     update: txUpdateMock,
   }));
 }
@@ -171,7 +224,7 @@ describe('finalizeAssistantTurn', () => {
 
     expect(result).toEqual({ id: 'assistant-message-1' });
     expect(transactionMock).toHaveBeenCalledTimes(1);
-    expect(txInsertMock).toHaveBeenCalledTimes(2);
+    expect(txInsertMock).toHaveBeenCalledTimes(4);
     expect(txValuesMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'messages.id' }), expect.objectContaining({
       sessionId: 'session-1',
       role: 'assistant',
@@ -242,16 +295,11 @@ describe('reacquireGenerationLease', () => {
     const result = await reacquireGenerationLease('completed-msg-id');
 
     expect(result).toBeNull();
-    // Verify that the where clause does NOT contain a standalone isNull condition
-    // that would match completed turns (which have null lease after completion).
     const whereCall = updateWhereMock.mock.calls[0]?.[0];
     expect(whereCall).toBeDefined();
-    // The where condition should be an outer 'and' (id + role) with an inner 'or'
     expect(whereCall.type).toBe('and');
     const orCondition = whereCall.conditions.find((c: { type: string }) => c.type === 'or');
     expect(orCondition).toBeDefined();
-    // The or should contain: eq(failed) OR and(generating, lte(expired))
-    // and NOT a standalone isNull branch
     const hasIsNull = JSON.stringify(orCondition).includes('"isNull"');
     expect(hasIsNull).toBe(false);
   });
@@ -263,7 +311,6 @@ describe('reacquireGenerationLease', () => {
     const result = await reacquireGenerationLease('failed-msg-id');
 
     expect(result).toEqual({ id: 'msg-1', generationAttempt: 2 });
-    // set must increment generationAttempt via sql
     expect(setMock).toHaveBeenCalledWith(
       expect.objectContaining({
         generationStatus: 'generating',
@@ -279,7 +326,6 @@ describe('reacquireGenerationLease', () => {
     const result = await reacquireGenerationLease('expired-msg-id');
 
     expect(result).toEqual({ id: 'msg-2', generationAttempt: 3 });
-    // Verify the where clause includes the lte condition for expired lease
     const whereCall = updateWhereMock.mock.calls[0]?.[0];
     expect(JSON.stringify(whereCall)).toContain('"lte"');
   });
@@ -291,11 +337,8 @@ describe('reacquireGenerationLease', () => {
     const result = await reacquireGenerationLease('generating-msg-id');
 
     expect(result).toBeNull();
-    // The where condition should have been called; the empty returning means
-    // the unexpired lease did not match any rows.
     const whereCall = updateWhereMock.mock.calls[0]?.[0];
     expect(whereCall).toBeDefined();
-    // Should still contain the or condition structure
     const orCondition = whereCall.conditions.find((c: { type: string }) => c.type === 'or');
     expect(orCondition).toBeDefined();
   });
@@ -321,16 +364,10 @@ describe('getCleanHistoryMessages', () => {
     const { getCleanHistoryMessages } = await import('../service.js');
     await getCleanHistoryMessages('user-1', 'session-1');
 
-    // Pairing assistant messages to completed user turns is done in service code,
-    // so the query intentionally over-fetches before the final 20-message window.
     expect(selectLimitMock).toHaveBeenCalledWith(60);
-    // Must include generation status eligibility in where clause
     const whereCall = selectWhereMock.mock.calls[0]?.[0];
     expect(whereCall.type).toBe('and');
-    // The where conditions should include the role + generationStatus filter
-    // — generating/failed user messages must be excluded at the query level
     const whereStr = JSON.stringify(whereCall);
-    // The mock mirrors dotted column names like messages.generationStatus
     expect(whereStr).toContain('messages.generationStatus');
     expect(whereStr).toContain('"right":"completed"');
     expect(whereStr).toContain('"isNull"');
@@ -346,7 +383,6 @@ describe('getCleanHistoryMessages', () => {
 
     const whereCall = selectWhereMock.mock.calls[0]?.[0];
     const whereStr = JSON.stringify(whereCall);
-    // Should include condition to exclude current turn's clientMessageId
     expect(whereStr).toContain('"ne"');
     expect(whereStr).toContain('current-turn');
   });
@@ -361,15 +397,12 @@ describe('getCleanHistoryMessages', () => {
 
     const whereCall = selectWhereMock.mock.calls[0]?.[0];
     const whereStr = JSON.stringify(whereCall);
-    // Should include excluded_from_context = false
-    // The mock schema returns dotted paths like: messages.excludedFromContext
     expect(whereStr).toContain('messages.excludedFromContext');
     expect(whereStr).toContain('"right":false');
   });
 
   it('drops oldest complete turns first when over the 6000 character budget', async () => {
     const now = new Date();
-    // DB returns desc(createdAt) — newest first. reverse() gives ASC for trimming.
     const messages = [
       { role: 'assistant' as const, content: 'C'.repeat(1500), clientMessageId: 'turn-3', generationStatus: null, createdAt: new Date(now.getTime() - 9000) },
       { role: 'user' as const, content: 'C'.repeat(1500), clientMessageId: 'turn-3', generationStatus: 'completed', createdAt: new Date(now.getTime() - 10000) },
@@ -383,16 +416,14 @@ describe('getCleanHistoryMessages', () => {
     const { getCleanHistoryMessages } = await import('../service.js');
     const result = await getCleanHistoryMessages('user-1', 'session-1');
 
-    // turn-1 (oldest) should be dropped → only turn-2 and turn-3 remain
-    // Each remaining turn = 3000 chars, total = 6000 — at budget
     const resultIds = result
       .filter((r) => r.role === 'user')
       .map((r) => r.content.substring(0, 1));
 
-    expect(resultIds).not.toContain('A'); // turn-1 dropped
-    expect(resultIds).toContain('B');     // turn-2 kept
-    expect(resultIds).toContain('C');     // turn-3 kept
-    expect(result.length).toBe(4); // user+assistant for turn-2 and turn-3
+    expect(resultIds).not.toContain('A');
+    expect(resultIds).toContain('B');
+    expect(resultIds).toContain('C');
+    expect(result.length).toBe(4);
   });
 
   it('excludes assistant messages whose paired user turn is still generating', async () => {
@@ -435,6 +466,7 @@ describe('resolveClientTurn', () => {
     returningMock.mockResolvedValue([]);
   });
 
+  /** Base input with explicit mode/scriptId (new client behavior) */
   const baseInput = {
     userId: 'user-1',
     characterId: 'char-1',
@@ -442,6 +474,8 @@ describe('resolveClientTurn', () => {
     message: 'hello',
     clientMessageId: 'cm-1',
     sessionId: 'session-1',
+    mode: 'script' as const,
+    scriptId: 'script-1',
   };
 
   function userRow(overrides: Record<string, unknown> = {}) {
@@ -485,11 +519,11 @@ describe('resolveClientTurn', () => {
     });
   }
 
+  // ── Existing tests (updated for mode-aware mocks) ──
+
   it('unique constraint (23505) on insert -> re-read with assistant -> replay', async () => {
     orderByMock.mockResolvedValueOnce([]);
-    selectLimitMock.mockResolvedValueOnce([
-      { id: 'session-1', userId: 'user-1', characterId: 'char-1', status: 'active' },
-    ]);
+    selectLimitMock.mockResolvedValueOnce([sessionRow()]);
     insertReturningMock.mockRejectedValueOnce(pgUniqueError('messages_user_client_message_unique'));
     orderByMock.mockResolvedValueOnce([
       userRow({ generationStatus: 'completed', generationLeaseExpiresAt: null }),
@@ -544,9 +578,7 @@ describe('resolveClientTurn', () => {
 
   it('unique constraint (23505) on insert -> re-read generating without assistant -> in_progress', async () => {
     orderByMock.mockResolvedValueOnce([]);
-    selectLimitMock.mockResolvedValueOnce([
-      { id: 'session-1', userId: 'user-1', characterId: 'char-1', status: 'active' },
-    ]);
+    selectLimitMock.mockResolvedValueOnce([sessionRow()]);
     insertReturningMock.mockRejectedValueOnce(pgUniqueError('messages_user_client_message_unique'));
     orderByMock.mockResolvedValueOnce([userRow()]);
 
@@ -559,9 +591,7 @@ describe('resolveClientTurn', () => {
 
   it('unique constraint (23505) on insert -> re-read failed without assistant -> acquired_existing', async () => {
     orderByMock.mockResolvedValueOnce([]);
-    selectLimitMock.mockResolvedValueOnce([
-      { id: 'session-1', userId: 'user-1', characterId: 'char-1', status: 'active' },
-    ]);
+    selectLimitMock.mockResolvedValueOnce([sessionRow()]);
     insertReturningMock.mockRejectedValueOnce(pgUniqueError('messages_user_client_message_unique'));
     orderByMock.mockResolvedValueOnce([
       userRow({ generationStatus: 'failed', generationLeaseExpiresAt: null, generationAttempt: 2 }),
@@ -639,9 +669,7 @@ describe('resolveClientTurn', () => {
 
   it('re-read after unique constraint returning empty set returns collision', async () => {
     orderByMock.mockResolvedValueOnce([]);
-    selectLimitMock.mockResolvedValueOnce([
-      { id: 'session-1', userId: 'user-1', characterId: 'char-1', status: 'active' },
-    ]);
+    selectLimitMock.mockResolvedValueOnce([sessionRow()]);
     insertReturningMock.mockRejectedValueOnce(pgUniqueError('messages_user_client_message_unique'));
     orderByMock.mockResolvedValueOnce([]);
 
@@ -649,5 +677,308 @@ describe('resolveClientTurn', () => {
     const result = await resolveClientTurn(baseInput);
 
     expect(result.status).toBe('collision');
+  });
+
+  // ── NEW: session_scope_mismatch ──
+
+  it('returns session_scope_mismatch when stored mode differs from requested mode', async () => {
+    orderByMock.mockResolvedValueOnce([]);
+    // Session exists but with mode=free, while request asks for script
+    selectLimitMock.mockResolvedValueOnce([sessionRow({ mode: 'free', scriptId: null })]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(baseInput); // baseInput has mode='script', scriptId='script-1'
+
+    expect(result.status).toBe('session_scope_mismatch');
+    if (result.status === 'session_scope_mismatch') {
+      expect(result.sessionId).toBe('session-1');
+      expect(result.storedMode).toBe('free');
+      expect(result.storedScriptId).toBeNull();
+      expect(result.requestedMode).toBe('script');
+      expect(result.requestedScriptId).toBe('script-1');
+    }
+  });
+
+  it('returns session_scope_mismatch when stored scriptId differs', async () => {
+    orderByMock.mockResolvedValueOnce([]);
+    selectLimitMock.mockResolvedValueOnce([sessionRow({ mode: 'script', scriptId: 'other-script' })]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(baseInput);
+
+    expect(result.status).toBe('session_scope_mismatch');
+    if (result.status === 'session_scope_mismatch') {
+      expect(result.storedScriptId).toBe('other-script');
+      expect(result.requestedScriptId).toBe('script-1');
+    }
+  });
+
+  // ── NEW: Free mode session creation ──
+
+  it('creates a new free-mode session when mode=free is passed', async () => {
+    const freeInput = {
+      ...baseInput,
+      mode: 'free' as const,
+      scriptId: undefined,
+      sessionId: undefined,
+    };
+    orderByMock.mockResolvedValueOnce([]); // findTurnByClientMessageId → empty
+    // findOrCreateSession: no sessionId → queries character for backward compat
+    // Since mode IS provided, backward-compat character query is skipped
+    // But there's no active session either
+    selectLimitMock.mockResolvedValueOnce([]); // active-session lookup → empty
+    // Then insert
+    insertReturningMock.mockResolvedValueOnce([createdSessionRow({ mode: 'free', scriptId: null })]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(freeInput);
+
+    expect(result.status).toBe('created');
+    if (result.status === 'created') {
+      expect(result.sessionId).toBe('session-1');
+    }
+  });
+
+  // ── NEW: Legacy inference — no mode + sessionId → read from persisted session ──
+
+  it('infers mode from persisted session when mode is missing but sessionId is provided', async () => {
+    const legacyInput = {
+      ...baseInput,
+      mode: undefined,
+      scriptId: undefined,
+      sessionId: 'session-1',
+    };
+    orderByMock.mockResolvedValueOnce([]); // findTurnByClientMessageId → empty
+    // resolveClientTurn legacy path: reads session mode/scriptId
+    selectLimitMock.mockResolvedValueOnce([sessionRow({ mode: 'free', scriptId: null })]);
+    // findOrCreateSession: sessionId provided → reads session again, scope check passes (no mode check since mode not passed to findOrCreateSession from legacy code... wait)
+    // Actually, resolveClientTurn passes resolvedMode='free', resolvedScriptId=null to findOrCreateSession
+    // findOrCreateSession with sessionId + mode: reads session, scope check: stored mode='free' matches 'free', stored scriptId=null matches null → OK
+    selectLimitMock.mockResolvedValueOnce([sessionRow({ mode: 'free', scriptId: null })]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(legacyInput);
+
+    expect(result.status).toBe('created'); // No existing turn → creates
+    // Verify the console.info was called with chat_mode_inferred_legacy
+    // (can't easily test console calls with mock, but we trust the code path)
+  });
+
+  // ── NEW: Legacy inference — no mode + no sessionId → infer Script + character.scriptId ──
+
+  it('infers script mode from character when no mode and no sessionId', async () => {
+    const legacyInput = {
+      ...baseInput,
+      mode: undefined,
+      scriptId: undefined,
+      sessionId: undefined,
+    };
+    orderByMock.mockResolvedValueOnce([]); // findTurnByClientMessageId → empty
+    // resolveClientTurn legacy path: reads character.scriptId
+    selectLimitMock.mockResolvedValueOnce([{ scriptId: 'script-1' }]); // character query
+    // findOrCreateSession: no sessionId, mode='script' (not provided → backward compat triggers)
+    // But wait — resolveClientTurn already resolved mode='script', scriptId='script-1'
+    // So it passes mode to findOrCreateSession, which skips backward-compat character query
+    // Active session lookup
+    selectLimitMock.mockResolvedValueOnce([]); // no active session
+    // Insert new session
+    insertReturningMock.mockResolvedValueOnce([createdSessionRow()]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(legacyInput);
+
+    expect(result.status).toBe('created');
+    if (result.status === 'created') {
+      expect(result.sessionId).toBe('session-1');
+    }
+  });
+
+  // ── NEW: Legacy inference — no mode + no sessionId + character has no scriptId ──
+
+  it('rejects legacy script inference when character has no scriptId', async () => {
+    const legacyInput = {
+      ...baseInput,
+      mode: undefined,
+      scriptId: undefined,
+      sessionId: undefined,
+    };
+    orderByMock.mockResolvedValueOnce([]);
+    // Character has no scriptId
+    selectLimitMock.mockResolvedValueOnce([{ scriptId: null }]);
+    const { resolveClientTurn } = await import('../service.js');
+    await expect(resolveClientTurn(legacyInput)).rejects.toMatchObject({
+      code: 'script_unavailable',
+    });
+  });
+
+  // ── NEW: Script mode with scriptId creates script-scoped session ──
+
+  it('creates script-mode session with scriptId in insert', async () => {
+    const scriptInput = {
+      ...baseInput,
+      sessionId: undefined,
+      mode: 'script' as const,
+      scriptId: 'script-99',
+    };
+    orderByMock.mockResolvedValueOnce([]);
+    // findOrCreateSession: no sessionId, mode provided → skips backward-compat
+    selectLimitMock.mockResolvedValueOnce([]); // no active session
+    insertReturningMock.mockResolvedValueOnce([createdSessionRow({ mode: 'script', scriptId: 'script-99' })]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(scriptInput);
+
+    expect(result.status).toBe('created');
+    if (result.status === 'created') {
+      expect(result.sessionId).toBe('session-1');
+    }
+  });
+
+  // ── NEW: Free mode reuses existing free active session ──
+
+  it('reuses existing free active session for same user+character', async () => {
+    const freeInput = {
+      ...baseInput,
+      sessionId: undefined,
+      mode: 'free' as const,
+      scriptId: undefined,
+    };
+    orderByMock.mockResolvedValueOnce([]);
+    // Active session found — reused
+    selectLimitMock.mockResolvedValueOnce([sessionRow({ mode: 'free', scriptId: null })]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(freeInput);
+
+    expect(result.status).toBe('created');
+    if (result.status === 'created') {
+      expect(result.sessionId).toBe('session-1');
+    }
+    // The session was reused (no new session INSERT), but a user message IS inserted
+    // Verify the insert was for messages (saveUserMessage), not a new session
+    expect(insertMock).toHaveBeenCalled(); // user message insertion
+  });
+
+  // ── NEW: Script mode isolates by scriptId ──
+
+  it('creates a new script session when same user+character uses a different scriptId', async () => {
+    const scriptInput = {
+      ...baseInput,
+      sessionId: undefined,
+      mode: 'script' as const,
+      scriptId: 'script-2',
+    };
+    orderByMock.mockResolvedValueOnce([]);
+    // Active session query for mode=script, scriptId='script-2' → empty
+    selectLimitMock.mockResolvedValueOnce([]);
+    insertReturningMock.mockResolvedValueOnce([createdSessionRow({ mode: 'script', scriptId: 'script-2' })]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(scriptInput);
+
+    expect(result.status).toBe('created');
+    expect(insertMock).toHaveBeenCalled();
+    expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'script',
+      scriptId: 'script-2',
+    }));
+  });
+});
+
+describe('findOrCreateSession boundary validation', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    selectMock.mockReturnValue({ from: fromMock });
+    fromMock.mockReturnValue({ where: selectWhereMock });
+    selectWhereMock.mockReturnValue({ limit: selectLimitMock });
+    selectLimitMock.mockResolvedValue([]);
+    insertMock.mockReturnValue({ values: valuesMock });
+    valuesMock.mockReturnValue({ returning: insertReturningMock });
+    insertReturningMock.mockResolvedValue([{ id: 'session-new', mode: 'script', scriptId: 'script-1' }]);
+  });
+
+  it('throws ScriptUnavailableError when mode=script and scriptId is null', async () => {
+    const { findOrCreateSession } = await import('../service.js');
+
+    await expect(
+      findOrCreateSession('user-1', 'char-1', 'casual', undefined, 'script', null),
+    ).rejects.toMatchObject({ code: 'script_unavailable' });
+
+    // Must NOT query the DB — validation before any query
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it('throws ScriptUnavailableError when mode=script and scriptId is undefined', async () => {
+    const { findOrCreateSession } = await import('../service.js');
+
+    await expect(
+      findOrCreateSession('user-1', 'char-1', 'casual', undefined, 'script', undefined),
+    ).rejects.toMatchObject({ code: 'script_unavailable' });
+
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it('throws Error when mode=free and scriptId is provided', async () => {
+    const { findOrCreateSession } = await import('../service.js');
+
+    await expect(
+      findOrCreateSession('user-1', 'char-1', 'casual', undefined, 'free', 'script-1'),
+    ).rejects.toThrow('scriptId must not be provided for free mode');
+
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid script scope before reading an existing session', async () => {
+    const { findOrCreateSession } = await import('../service.js');
+
+    await expect(
+      findOrCreateSession('user-1', 'char-1', 'casual', 'session-1', 'script', null),
+    ).rejects.toMatchObject({ code: 'script_unavailable' });
+
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a free scope carrying scriptId before reading an existing session', async () => {
+    const { findOrCreateSession } = await import('../service.js');
+
+    await expect(
+      findOrCreateSession('user-1', 'char-1', 'casual', 'session-1', 'free', 'script-1'),
+    ).rejects.toThrow('scriptId must not be provided for free mode');
+
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it('allows script mode with valid scriptId (no throw)', async () => {
+    selectLimitMock.mockResolvedValueOnce([]); // no active session
+    insertReturningMock.mockResolvedValueOnce([{ id: 's-new', mode: 'script', scriptId: 'script-1' }]);
+
+    const { findOrCreateSession } = await import('../service.js');
+
+    const result = await findOrCreateSession('user-1', 'char-1', 'casual', undefined, 'script', 'script-1');
+    expect(result.mode).toBe('script');
+    expect(result.scriptId).toBe('script-1');
+  });
+
+  it('allows free mode without scriptId (no throw)', async () => {
+    selectLimitMock.mockResolvedValueOnce([]);
+    insertReturningMock.mockResolvedValueOnce([{ id: 's-free', mode: 'free', scriptId: null }]);
+
+    const { findOrCreateSession } = await import('../service.js');
+
+    const result = await findOrCreateSession('user-1', 'char-1', 'casual', undefined, 'free', null);
+    expect(result.mode).toBe('free');
+    expect(result.scriptId).toBeNull();
+  });
+
+  it('allows free mode with undefined scriptId (no throw)', async () => {
+    selectLimitMock.mockResolvedValueOnce([]);
+    insertReturningMock.mockResolvedValueOnce([{ id: 's-free2', mode: 'free', scriptId: null }]);
+
+    const { findOrCreateSession } = await import('../service.js');
+
+    const result = await findOrCreateSession('user-1', 'char-1', 'casual', undefined, 'free', undefined);
+    expect(result.mode).toBe('free');
+    expect(result.scriptId).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
 export const modelTierEnum = pgEnum('model_tier', ['casual', 'standard', 'immersive']);
@@ -13,6 +13,8 @@ export const sessionStatusEnum = pgEnum('session_status', ['active', 'archived']
 export const userStatusEnum = pgEnum('user_status', ['active', 'banned']);
 export const characterStatusEnum = pgEnum('character_status', ['active', 'inactive']);
 export const reviewStatusEnum = pgEnum('review_status', ['normal', 'flagged', 'resolved']);
+export const chatModeEnum = pgEnum('chat_mode', ['script', 'free']);
+export const memoryScopeEnum = pgEnum('memory_scope', ['shared', 'script']);
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -20,6 +22,7 @@ export const users = pgTable('users', {
   nickname: varchar('nickname', { length: 64 }),
   avatarUrl: varchar('avatar_url', { length: 512 }),
   status: userStatusEnum('status').default('active').notNull(),
+  preferredName: varchar('preferred_name', { length: 20 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -29,10 +32,20 @@ export const scripts = pgTable('scripts', {
   title: varchar('title', { length: 128 }).notNull(),
   description: text('description').notNull(),
   worldSetting: text('world_setting').notNull(),
+  slug: varchar('slug', { length: 128 }).notNull().unique(),
+  genre: varchar('genre', { length: 128 }).notNull(),
+  searchKeywords: text('search_keywords').notNull().default(''),
+  coverUrl: varchar('cover_url', { length: 512 }),
+  sortOrder: integer('sort_order').notNull().default(0),
   status: varchar('status', { length: 32 }).default('active').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export type StarterQuestions = {
+  script: string[];
+  free: string[];
+};
 
 export const characters = pgTable('characters', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -42,6 +55,10 @@ export const characters = pgTable('characters', {
   description: text('description').notNull(),
   scriptId: uuid('script_id').references(() => scripts.id),
   initialRelationship: varchar('initial_relationship', { length: 256 }).notNull(),
+  starterQuestions: jsonb('starter_questions')
+    .$type<StarterQuestions>()
+    .notNull()
+    .default({ script: [], free: [] }),
   sortOrder: integer('sort_order').default(0).notNull(),
   status: characterStatusEnum('status').default('active').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -95,10 +112,23 @@ export const chatSessions = pgTable('chat_sessions', {
   characterId: uuid('character_id').references(() => characters.id).notNull(),
   title: varchar('title', { length: 256 }),
   modelTier: modelTierEnum('model_tier').default('standard').notNull(),
+  mode: chatModeEnum('mode').notNull(),
+  scriptId: uuid('script_id').references(() => scripts.id),
   status: sessionStatusEnum('status').default('active').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  modeScriptIdCheck: check(
+    'chat_sessions_mode_script_id_check',
+    sql`(${table.mode} = 'script' AND ${table.scriptId} IS NOT NULL) OR (${table.mode} = 'free' AND ${table.scriptId} IS NULL)`,
+  ),
+  activeFreeSessionUnique: uniqueIndex('chat_sessions_active_free_unique')
+    .on(table.userId, table.characterId, table.mode)
+    .where(sql`${table.status} = 'active' and ${table.mode} = 'free'`),
+  activeScriptSessionUnique: uniqueIndex('chat_sessions_active_script_unique')
+    .on(table.userId, table.characterId, table.mode, table.scriptId)
+    .where(sql`${table.status} = 'active' and ${table.mode} = 'script'`),
+}));
 
 export const messages = pgTable('messages', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -127,11 +157,18 @@ export const memories = pgTable('memories', {
   userId: uuid('user_id').references(() => users.id).notNull(),
   characterId: uuid('character_id').references(() => characters.id).notNull(),
   type: memoryTypeEnum('type').notNull(),
+  scope: memoryScopeEnum('scope').notNull(),
+  scriptId: uuid('script_id').references(() => scripts.id),
   content: text('content').notNull(),
   enabled: boolean('enabled').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  scopeScriptIdCheck: check(
+    'memories_scope_script_id_check',
+    sql`(${table.scope} = 'shared' AND ${table.scriptId} IS NULL) OR (${table.scope} = 'script' AND ${table.scriptId} IS NOT NULL)`,
+  ),
+}));
 
 export const relationships = pgTable('relationships', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -364,6 +401,7 @@ export const storyNodesRelations = relations(storyNodes, ({ one }) => ({
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
   user: one(users, { fields: [chatSessions.userId], references: [users.id] }),
   character: one(characters, { fields: [chatSessions.characterId], references: [characters.id] }),
+  script: one(scripts, { fields: [chatSessions.scriptId], references: [scripts.id] }),
   messages: many(messages),
   reviewLogs: many(reviewLogs),
 }));
@@ -375,6 +413,7 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 export const memoriesRelations = relations(memories, ({ one }) => ({
   user: one(users, { fields: [memories.userId], references: [users.id] }),
   character: one(characters, { fields: [memories.characterId], references: [characters.id] }),
+  script: one(scripts, { fields: [memories.scriptId], references: [scripts.id] }),
 }));
 
 export const relationshipsRelations = relations(relationships, ({ one }) => ({

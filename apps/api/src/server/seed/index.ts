@@ -68,7 +68,7 @@ async function seed() {
 
   console.log('Seeding database...');
 
-  await db.update(scripts).set({ status: 'inactive' }).where(eq(scripts.title, legacyScriptTitle));
+  await db.update(scripts).set({ status: 'retired' }).where(eq(scripts.title, legacyScriptTitle));
   await db.update(characters).set({ status: 'inactive' }).where(eq(characters.name, '蒋伯驾'));
   await db.update(characters).set({ status: 'inactive' }).where(eq(characters.name, '程聿怀'));
   await db.update(characters).set({ status: 'inactive' }).where(eq(characters.name, '以撒'));
@@ -115,7 +115,11 @@ export async function seedModelProfiles() {
 }
 
 async function upsertScript() {
-  const [existing] = await db.select().from(scripts).where(eq(scripts.title, seedScript.title)).limit(1);
+  const [existing] = await db
+    .select()
+    .from(scripts)
+    .where(eq(scripts.slug, seedScript.slug))
+    .limit(1);
 
   if (existing) {
     const [updated] = await db
@@ -139,6 +143,10 @@ async function upsertCharacter(scriptId: string, seedCharacter: (typeof seedChar
     description: seedCharacter.description,
     scriptId,
     initialRelationship: seedCharacter.initialRelationship,
+    starterQuestions: {
+      script: [...seedCharacter.starterQuestions.script],
+      free: [...seedCharacter.starterQuestions.free],
+    },
     sortOrder: seedCharacter.sortOrder,
     status: seedCharacter.status,
   };

@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { characters, memories } from '../../db/schema';
 import { extractCandidateMemories } from './extractor.js';
@@ -11,6 +11,8 @@ export interface MemoryRecord {
   userId: string;
   characterId: string;
   type: MemoryType;
+  scope: 'shared' | 'script';
+  scriptId: string | null;
   content: string;
   enabled: boolean;
   createdAt: Date;
@@ -35,13 +37,30 @@ export async function extractAndUpsertMemories(
   userId: string,
   characterId: string,
   userText: string,
-  assistantText: string
+  assistantText: string,
+  mode?: 'script' | 'free',
+  scriptId?: string | null,
 ): Promise<MemoryRecord[]> {
   const candidates = extractCandidateMemories(userText, assistantText);
   if (candidates.length === 0) return [];
 
+  // Story memories require an explicit script scope. Free and legacy calls must
+  // never fall back to writing a story row with a null scriptId.
+  const canWriteStory = mode === 'script' && Boolean(scriptId);
+  const filteredCandidates = candidates.filter((candidate) =>
+    candidate.type !== 'story' || canWriteStory,
+  );
+
+  if (filteredCandidates.length === 0) return [];
+
   const existing = await db
-    .select({ id: memories.id, content: memories.content, type: memories.type })
+    .select({
+      id: memories.id,
+      content: memories.content,
+      type: memories.type,
+      scope: memories.scope,
+      scriptId: memories.scriptId,
+    })
     .from(memories)
     .where(
       and(
@@ -51,23 +70,42 @@ export async function extractAndUpsertMemories(
       )
     );
 
-  const existingContents = new Set(existing.map((m) => m.type + '::' + m.content));
+  const memoryKey = (memory: {
+    type: string;
+    scope: string;
+    scriptId: string | null;
+    content: string;
+  }) => `${memory.type}::${memory.scope}::${memory.scriptId ?? ''}::${memory.content}`;
+
+  const existingContents = new Set(existing.map(memoryKey));
 
   const toInsert: Array<{
     userId: string;
     characterId: string;
     type: MemoryType;
     content: string;
+    scope: 'shared' | 'script';
+    scriptId: string | null;
   }> = [];
 
-  for (const candidate of candidates) {
-    const key = candidate.type + '::' + candidate.content;
+  for (const candidate of filteredCandidates) {
+    const isStoryType = candidate.type === 'story';
+    const scope = isStoryType ? 'script' : 'shared';
+    const candidateScriptId = isStoryType ? scriptId! : null;
+    const key = memoryKey({
+      type: candidate.type,
+      scope,
+      scriptId: candidateScriptId,
+      content: candidate.content,
+    });
     if (!existingContents.has(key)) {
       toInsert.push({
         userId,
         characterId,
         type: candidate.type,
         content: normalizeTextContent(candidate.content),
+        scope,
+        scriptId: candidateScriptId,
       });
       existingContents.add(key);
     }
@@ -81,18 +119,34 @@ export async function extractAndUpsertMemories(
 
 export async function getEnabledMemories(
   userId: string,
-  characterId: string
+  characterId: string,
+  mode?: 'script' | 'free',
+  scriptId?: string | null,
 ): Promise<MemoryRecord[]> {
+  const conditions = [
+    eq(memories.userId, userId),
+    eq(memories.characterId, characterId),
+    eq(memories.enabled, true),
+  ];
+
+  if (mode === 'free') {
+    // Free mode: only shared memories
+    conditions.push(eq(memories.scope, 'shared'));
+  } else if (mode === 'script' && scriptId) {
+    // Script mode: shared + current script memories
+    conditions.push(
+      or(
+        eq(memories.scope, 'shared'),
+        and(eq(memories.scope, 'script'), eq(memories.scriptId, scriptId)),
+      )!,
+    );
+  }
+  // No mode (backward compat): return all enabled, no scope filter
+
   const rows = await db
     .select()
     .from(memories)
-    .where(
-      and(
-        eq(memories.userId, userId),
-        eq(memories.characterId, characterId),
-        eq(memories.enabled, true)
-      )
-    )
+    .where(and(...conditions))
     .orderBy(memories.createdAt);
 
   return rows as MemoryRecord[];
