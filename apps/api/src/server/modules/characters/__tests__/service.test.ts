@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const selectMock = vi.fn();
-const fromMock = vi.fn();
-const whereMock = vi.fn();
-const limitMock = vi.fn();
-const orderByMock = vi.fn();
 
 const charactersTable = {
   id: 'characters.id',

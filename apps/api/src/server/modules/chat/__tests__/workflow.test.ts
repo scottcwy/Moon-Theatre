@@ -79,7 +79,6 @@ describe('chat completion workflow', () => {
   });
 
   it('returns only optional effect results because bond is finalized transactionally', async () => {
-    const { incrementBondExp } = await import('../../relationships/index.js');
     const { extractAndUpsertMemories } = await import('../../memory/index.js');
     const { unlockAchievementsForChat } = await import('../../achievements/index.js');
     const { runChatCompletionEffects } = await import('../workflow.js');
@@ -127,7 +126,6 @@ describe('chat completion workflow', () => {
   });
 
   it('keeps chat completion resilient when optional side effects fail', async () => {
-    const { incrementBondExp } = await import('../../relationships/index.js');
     const { extractAndUpsertMemories } = await import('../../memory/index.js');
     const { unlockAchievementsForChat } = await import('../../achievements/index.js');
     const { runChatCompletionEffects } = await import('../workflow.js');

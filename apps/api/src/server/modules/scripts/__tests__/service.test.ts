@@ -40,7 +40,6 @@ vi.mock('../../../db/schema', () => ({
 }));
 
 vi.mock('drizzle-orm', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const captured: { where: unknown[]; orderBy: unknown[]; from: unknown[] } = {
     where: [],
     orderBy: [],

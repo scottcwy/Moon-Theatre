@@ -36,10 +36,7 @@ function chainable<T>(result: T) {
   return fn as unknown as ReturnType<typeof vi.fn> & Promise<T>;
 }
 
-let sessionRow: Record<string, unknown> | null = null;
-
 function setupDbMock(session: Record<string, unknown> | null) {
-  sessionRow = session;
   const dbMock = {
     select: vi.fn(() => chainable(session ? [session] : [])),
   };
@@ -80,7 +77,6 @@ describe('GET /api/chat/messages/by-client-id', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    sessionRow = null;
   });
 
   function authedRequest(clientMessageId: string, userId = 'user-1') {

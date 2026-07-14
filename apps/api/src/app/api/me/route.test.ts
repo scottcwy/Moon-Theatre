@@ -306,8 +306,6 @@ describe('PATCH /api/me', () => {
     const withName = { ...baseUser, preferredName: '小岚' };
     mockDb([withName]);
 
-    const mod = await import('./route.js');
-
     // Then try an invalid update - mock db to show old value is preserved
     vi.resetModules();
 

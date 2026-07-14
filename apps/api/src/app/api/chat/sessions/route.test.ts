@@ -26,12 +26,6 @@ vi.mock('@/server/middleware/cors.js', () => ({
 }));
 
 // ── Plain-object chainable (NO vi.fn for chain methods) ──
-const CHAIN_METHODS = new Set([
-  'select', 'from', 'innerJoin', 'leftJoin', 'where', 'orderBy', 'limit', 'offset',
-  'groupBy', 'having', 'onConflictDoNothing', 'onConflictDoUpdate',
-  'set', 'values', 'returning',
-]);
-
 function chainable<T>(result: T): Record<string, unknown> & Promise<T> {
   const proxy: Record<string, unknown> = {};
 

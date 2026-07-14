@@ -29,7 +29,8 @@ export async function GET(
       return errorResponse('Character not found', 404);
     }
 
-    const { prompts: _prompts, ...publicCharacter } = character;
+    const { prompts, ...publicCharacter } = character;
+    void prompts;
 
     return successResponse({
       ...publicCharacter,

@@ -353,7 +353,11 @@ describe('0005 snapshot integrity', () => {
     const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf-8'));
     const uniqueConstraints = snap.tables['public.scripts'].uniqueConstraints || {};
     const slugConstraint = Object.values(uniqueConstraints).find(
-      (c: any) => c.name === 'scripts_slug_unique',
+      (c) =>
+        typeof c === 'object' &&
+        c !== null &&
+        'name' in c &&
+        c.name === 'scripts_slug_unique',
     );
     expect(slugConstraint).toBeDefined();
   });
