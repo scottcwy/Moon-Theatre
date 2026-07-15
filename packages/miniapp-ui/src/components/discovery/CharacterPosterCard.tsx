@@ -4,6 +4,7 @@ import './CharacterPosterCard.scss';
 interface CharacterPosterCardProps {
   title: string;
   subtitle: string;
+  description?: string;
   imageUrl?: string;
   badge?: string;
   selected?: boolean;
@@ -14,6 +15,7 @@ interface CharacterPosterCardProps {
 export function CharacterPosterCard({
   title,
   subtitle,
+  description,
   imageUrl,
   badge,
   selected = false,
@@ -40,6 +42,7 @@ export function CharacterPosterCard({
       </View>
       <Text className="character-poster-card__title">{title}</Text>
       <Text className="character-poster-card__subtitle">{subtitle}</Text>
+      {description ? <Text className="character-poster-card__description">{description}</Text> : null}
     </View>
   );
 }

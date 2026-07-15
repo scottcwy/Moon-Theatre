@@ -5,6 +5,8 @@ interface ChatSessionRowProps {
   characterName: string;
   avatarUrl?: string | null;
   levelLabel?: string;
+  contextLabel?: string;
+  readOnly?: boolean;
   timeLabel?: string;
   preview?: string | null;
   unread?: boolean;
@@ -16,6 +18,8 @@ export function ChatSessionRow({
   characterName,
   avatarUrl,
   levelLabel,
+  contextLabel,
+  readOnly = false,
   timeLabel,
   preview,
   unread = false,
@@ -45,6 +49,12 @@ export function ChatSessionRow({
           </View>
           {timeLabel ? <Text className="chat-session-row__time">{timeLabel}</Text> : null}
         </View>
+        {(contextLabel || readOnly) && (
+          <View className="chat-session-row__context-line">
+            {contextLabel ? <Text className="chat-session-row__context">{contextLabel}</Text> : null}
+            {readOnly ? <Text className="chat-session-row__readonly">只读</Text> : null}
+          </View>
+        )}
         <Text className="chat-session-row__preview">{previewText}</Text>
       </View>
     </View>

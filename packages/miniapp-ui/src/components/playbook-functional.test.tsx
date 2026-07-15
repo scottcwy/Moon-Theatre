@@ -183,18 +183,38 @@ describe('playbook component functional behavior', () => {
 
   it('preserves card fallback content, selection flags, and tap behavior', () => {
     const onSessionTap = vi.fn();
-    const session = renderElement(<ChatSessionRow characterName="月岛澪" preview="" unread onTap={onSessionTap} />);
+    const session = renderElement(
+      <ChatSessionRow
+        characterName="月岛澪"
+        contextLabel="剧本 · 月见庭院"
+        preview=""
+        unread
+        readOnly
+        onTap={onSessionTap}
+      />,
+    );
     (session.props.onTap as () => void)();
     expect(onSessionTap).toHaveBeenCalledTimes(1);
     expect(session.props.className).toContain('chat-session-row--unread');
     expect(textContent(session)).toContain('还没有聊天内容');
+    expect(textContent(session)).toContain('剧本 · 月见庭院');
+    expect(textContent(session)).toContain('只读');
     expect(textContent(session)).toContain('月');
     expect(findAll(session, (node) => String(node.props.className ?? '').includes('chat-session-row__unread-dot'))).toHaveLength(1);
 
-    const poster = renderElement(<CharacterPosterCard title="贺茂清玄" subtitle="冷面阴阳师" badge="Lv.1" selected />);
+    const poster = renderElement(
+      <CharacterPosterCard
+        title="贺茂清玄"
+        subtitle="冷面阴阳师"
+        description="负责守住庭院契约边界。"
+        badge="Lv.1"
+        selected
+      />,
+    );
     expect(poster.props.className).toContain('character-poster-card--selected');
     expect(textContent(poster)).toContain('贺茂');
     expect(textContent(poster)).toContain('Lv.1');
+    expect(textContent(poster)).toContain('负责守住庭院契约边界。');
 
     const imagePoster = renderElement(<CharacterPosterCard title="白藏" subtitle="庭院狐神" imageUrl="/assets/characters/hakuzo.jpg" />);
     expect(findByType(imagePoster, 'image').props.src).toBe('/assets/characters/hakuzo.jpg');

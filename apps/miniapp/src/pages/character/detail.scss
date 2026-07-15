@@ -1,5 +1,23 @@
 @use '../../styles/tokens.scss' as *;
 
+.detail .character-detail-hero__image-wrap {
+  height: calc(820rpx - #{$space-3});
+}
+
+.detail .bottom-action--default {
+  background-color: $color-background;
+}
+
+.detail__actions {
+  display: flex;
+  gap: $space-3;
+}
+
+.detail__actions > .ui-button {
+  flex: 1;
+  min-width: 0;
+}
+
 .detail__section {
   margin: 0 $space-4 $space-5;
 

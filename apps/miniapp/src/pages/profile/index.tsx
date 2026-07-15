@@ -1,4 +1,4 @@
-import { View, Text } from '@tarojs/components';
+import { Input, View, Text } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import { useCallback, useRef, useState } from 'react';
 import {
@@ -6,22 +6,40 @@ import {
   Badge,
   CharacterAvatar,
   EmptyState,
-  LORDICON_ATTRIBUTION,
+  IconButton,
   NoticeBlock,
   PageShell,
   PointsBadge,
+  PrimaryButton,
   StatusStateCard,
   TonalButton,
 } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
-import { api, clearAuth, isLoggedIn } from '../../services/api';
+import { api, clearAuth, isApiError, isLoggedIn, setUser } from '../../services/api';
+import { getPreferredNameError, getPreferredNameSaveValue, getProfileDisplayName } from './index.model';
 import './index.scss';
 
 interface ProfileData {
   id: string;
   nickname: string | null;
   avatarUrl: string | null;
+  preferredName: string | null;
   status: string;
+}
+
+interface AchievementItem {
+  id: string;
+  name: string;
+  description: string;
+  code?: string | null;
+  iconUrl?: string | null;
+}
+
+interface TitleItem {
+  id: string;
+  name: string;
+  description: string;
+  iconUrl?: string | null;
 }
 
 export default function Profile() {
@@ -31,8 +49,11 @@ export default function Profile() {
   const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
   const [balance, setBalance] = useState<number | null>(null);
-  const [titles] = useState<string[]>([]);
-  const [achievements] = useState<Array<{ id: string; name: string; description: string; code?: string | null; iconUrl?: string | null }>>([]);
+  const [titles, setTitles] = useState<TitleItem[]>([]);
+  const [achievements, setAchievements] = useState<AchievementItem[]>([]);
+  const [preferredNameDraft, setPreferredNameDraft] = useState('');
+  const [editingPreferredName, setEditingPreferredName] = useState(false);
+  const [savingPreferredName, setSavingPreferredName] = useState(false);
   const loadIdRef = useRef(0);
 
   const loadProfile = useCallback(async () => {
@@ -47,20 +68,33 @@ export default function Profile() {
       if (!authenticated) {
         setProfile(null);
         setBalance(null);
+        setTitles([]);
+        setAchievements([]);
+        setPreferredNameDraft('');
+        setEditingPreferredName(false);
         setLoading(false);
         return;
       }
-      const [profileData, balData] = await Promise.all([
+      const [profileData, balData, growthData] = await Promise.all([
         api.get<ProfileData>('/api/me'),
         api.get<{ balancePoints: number }>('/api/quota/balance'),
+        api.get<{ achievements: AchievementItem[]; titles: TitleItem[] }>('/api/achievements').catch((err) => {
+          if (handleAuthError(err)) throw err;
+          return null;
+        }),
       ]);
       if (loadIdRef.current !== loadId) return;
       setProfile(profileData);
       setBalance(balData.balancePoints);
+      setPreferredNameDraft(profileData.preferredName || '');
+      setEditingPreferredName(false);
+      setAchievements(growthData?.achievements || []);
+      setTitles(growthData?.titles || []);
+      if (!growthData) setError('成长记录暂时无法同步，其他资料仍可使用');
     } catch (err) {
       if (loadIdRef.current !== loadId) return;
       if (!handleAuthError(err)) {
-        setError(err instanceof Error ? err.message : '加载失败');
+        setError('资料加载失败，请稍后重试');
       }
     } finally {
       if (loadIdRef.current === loadId) {
@@ -93,11 +127,57 @@ export default function Profile() {
     clearAuth();
     setProfile(null);
     setBalance(null);
+    setTitles([]);
+    setAchievements([]);
+    setPreferredNameDraft('');
+    setEditingPreferredName(false);
     Taro.showToast({ title: '已退出登录', icon: 'success' });
     Taro.navigateTo({ url: '/pages/login/index' });
   };
 
-  const nickname = profile?.nickname || '我的';
+  const handleEditPreferredName = () => {
+    if (!profile || savingPreferredName) return;
+    setPreferredNameDraft(profile.preferredName || '');
+    setEditingPreferredName(true);
+  };
+
+  const handleSavePreferredName = async () => {
+    if (!profile || savingPreferredName) return;
+    const errorMessage = getPreferredNameError(preferredNameDraft);
+    const preferredName = getPreferredNameSaveValue(preferredNameDraft);
+    if (!preferredName) {
+      Taro.showToast({ title: errorMessage, icon: 'none' });
+      return;
+    }
+    setSavingPreferredName(true);
+    try {
+      const updated = await api.patch<ProfileData>('/api/me', { preferredName });
+      setProfile(updated);
+      setPreferredNameDraft(updated.preferredName || '');
+      setUser({
+        id: updated.id,
+        nickname: updated.nickname,
+        avatarUrl: updated.avatarUrl,
+        preferredName: updated.preferredName,
+      });
+      setEditingPreferredName(false);
+      Taro.showToast({ title: '对话称呼已保存', icon: 'success' });
+    } catch (err) {
+      if (!handleAuthError(err)) {
+        const data = isApiError(err) && err.data && typeof err.data === 'object'
+          ? err.data as Record<string, unknown>
+          : null;
+        const message = data?.error === 'invalid_preferred_name'
+          ? '称呼格式不合法，已保留原称呼'
+          : '保存失败，已保留原称呼';
+        Taro.showToast({ title: message, icon: 'none' });
+      }
+    } finally {
+      setSavingPreferredName(false);
+    }
+  };
+
+  const displayName = getProfileDisplayName(profile?.preferredName, profile?.nickname);
   const displayStatus = profile?.status === 'active' ? '已登录' : profile?.status || '已登录';
   const hasTitles = titles.length > 0;
   const hasAchievements = achievements.length > 0;
@@ -141,9 +221,43 @@ export default function Profile() {
     <PageShell variant="scroll" tabBarReserve className="profile">
       <View className="profile__hero">
         <View className="profile__hero-main">
-          <CharacterAvatar name={nickname} src={profile?.avatarUrl || undefined} size="lg" online />
+          <CharacterAvatar name={displayName} src={profile?.avatarUrl || undefined} size="lg" online />
           <View className="profile__identity">
-            <Text className="profile__nickname">{nickname}</Text>
+            <View className="profile__name-line">
+              {editingPreferredName ? (
+                <View className="profile__name-editor">
+                  <Input
+                    className="profile__name-input"
+                    value={preferredNameDraft}
+                    maxlength={40}
+                    placeholder="输入对话称呼"
+                    placeholderClass="profile__name-placeholder"
+                    disabled={savingPreferredName}
+                    focus
+                    onInput={(event) => setPreferredNameDraft(event.detail.value)}
+                  />
+                  <PrimaryButton
+                    className="profile__name-save"
+                    size="md"
+                    disabled={savingPreferredName}
+                    onTap={handleSavePreferredName}
+                  >
+                    {savingPreferredName ? '保存中…' : '保存'}
+                  </PrimaryButton>
+                </View>
+              ) : (
+                <View className="profile__name-display">
+                  <Text className="profile__nickname">{displayName}</Text>
+                  <IconButton
+                    className="profile__name-edit"
+                    label="编辑对话称呼"
+                    icon="✎"
+                    tone="tonal"
+                    onTap={handleEditPreferredName}
+                  />
+                </View>
+              )}
+            </View>
             <Text className="profile__subtitle">我的档案</Text>
           </View>
         </View>
@@ -183,7 +297,7 @@ export default function Profile() {
                 <Text className="profile__group-label">称号</Text>
                 <View className="profile__title-list">
                   {titles.map((title) => (
-                    <Badge key={title}>{title}</Badge>
+                    <Badge key={title.id}>{title.name}</Badge>
                   ))}
                 </View>
               </View>
@@ -221,10 +335,6 @@ export default function Profile() {
           </View>
         )}
       </View>
-
-      {achievements.length > 0 && (
-        <Text className="profile__icon-credit">{LORDICON_ATTRIBUTION}</Text>
-      )}
 
       {aiNotice}
 

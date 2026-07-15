@@ -36,6 +36,12 @@ describe('V1 tab bar configuration', () => {
     expect(appConfig.pages).toContain('pages/role-select/moon-garden');
   });
 
+  it('registers the API-driven generic script role selection page', async () => {
+    const { default: appConfig } = await import('./app.config');
+
+    expect(appConfig.pages).toContain('pages/script/select');
+  });
+
   it('keeps rubber-band overscroll on the app background instead of black or white edges', async () => {
     const { default: appConfig } = await import('./app.config');
 

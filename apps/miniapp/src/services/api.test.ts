@@ -36,6 +36,7 @@ describe('miniapp api client', () => {
       id: 'dev-user',
       nickname: '开发调试用户',
       avatarUrl: null,
+      preferredName: null,
     });
   });
 
@@ -49,13 +50,14 @@ describe('miniapp api client', () => {
       id: 'dev-user',
       nickname: '开发调试用户',
       avatarUrl: null,
+      preferredName: null,
     });
   });
 
   it('throws a typed auth error and clears auth storage on 401', async () => {
     const { api, ApiError, setToken, setUser, isAuthExpiredError, getToken, getUser } = await import('./api');
     setToken('expired-token');
-    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: null });
     requestMock.mockResolvedValue({ statusCode: 401, data: { error: 'Unauthorized' } });
 
     await expect(api.get('/api/me')).rejects.toMatchObject({
@@ -72,7 +74,7 @@ describe('miniapp api client', () => {
   it('clears the stored user session on logout', async () => {
     const { clearAuth, getToken, getUser, setToken, setUser } = await import('./api');
     setToken('auth-token');
-    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: null });
 
     clearAuth();
 
@@ -85,7 +87,7 @@ describe('miniapp api client', () => {
     setToken('auth-token');
     requestMock.mockResolvedValue({
       statusCode: 200,
-      data: { id: 'user-id', nickname: '旅人', avatarUrl: null, status: 'active' },
+      data: { id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: '小岚', status: 'active' },
     });
 
     await expect(verifyStoredAuth()).resolves.toBe(true);
@@ -94,25 +96,25 @@ describe('miniapp api client', () => {
       url: 'http://127.0.0.1:3000/api/me',
       method: 'GET',
     }));
-    expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+    expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: '小岚' });
   });
 
   it('keeps the stored user session when verification hits a transient network failure', async () => {
     const { getToken, getUser, setToken, setUser, verifyStoredAuth } = await import('./api');
     setToken('auth-token');
-    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: null });
     requestMock.mockRejectedValue({ errMsg: 'request:fail timeout' });
 
     await expect(verifyStoredAuth()).resolves.toBe(true);
 
     expect(getToken()).toBe('auth-token');
-    expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+    expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: null });
   });
 
   it('clears a stored user session when verification fails', async () => {
     const { getToken, getUser, setToken, setUser, verifyStoredAuth } = await import('./api');
     setToken('expired-token');
-    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null });
+    setUser({ id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: null });
     requestMock.mockResolvedValue({ statusCode: 401, data: { error: 'Unauthorized' } });
 
     await expect(verifyStoredAuth()).resolves.toBe(false);
@@ -172,6 +174,7 @@ describe('miniapp api client', () => {
         characterId: 'character-id',
         message: '你好',
         modelTier: 'standard',
+        mode: 'free',
       },
       {
         onDelta: vi.fn(),
@@ -229,6 +232,8 @@ describe('miniapp api client', () => {
         message: '你好',
         modelTier: 'standard',
         clientMessageId: 'client-message-1',
+        mode: 'script',
+        scriptId: 'script-id',
       },
       {
         onDelta: vi.fn(),
@@ -237,7 +242,11 @@ describe('miniapp api client', () => {
       },
     );
 
-    expect(requestOptions.data).toMatchObject({ clientMessageId: 'client-message-1' });
+    expect(requestOptions.data).toMatchObject({
+      clientMessageId: 'client-message-1',
+      mode: 'script',
+      scriptId: 'script-id',
+    });
 
     chunkHandler?.({
       data: JSON.stringify({
@@ -248,6 +257,116 @@ describe('miniapp api client', () => {
     });
 
     expect(onError).toHaveBeenCalledWith('upstream_error');
+  });
+
+  it('sends free chat scope without a script id', async () => {
+    const { setToken, streamChat } = await import('./api');
+    setToken('auth-token');
+
+    let requestOptions: { data?: Record<string, unknown> } = {};
+    requestMock.mockImplementation((options) => {
+      requestOptions = options;
+      return { onChunkReceived: vi.fn(), abort: vi.fn() };
+    });
+
+    streamChat(
+      {
+        characterId: 'character-id',
+        message: '聊聊今天吧',
+        modelTier: 'casual',
+        clientMessageId: 'client-message-free',
+        mode: 'free',
+      },
+      { onDelta: vi.fn(), onDone: vi.fn(), onError: vi.fn() },
+    );
+
+    expect(requestOptions.data).toMatchObject({ mode: 'free' });
+    expect(requestOptions.data).not.toHaveProperty('scriptId');
+  });
+
+  it('passes the persisted mode from done events through to callers', async () => {
+    const { setToken, streamChat } = await import('./api');
+    setToken('auth-token');
+
+    let chunkHandler: ((res: { data: string }) => void) | undefined;
+    requestMock.mockReturnValue({
+      onChunkReceived: vi.fn((handler: (res: { data: string }) => void) => {
+        chunkHandler = handler;
+      }),
+      abort: vi.fn(),
+    });
+
+    const onDone = vi.fn();
+    streamChat(
+      {
+        characterId: 'character-id',
+        message: '你好',
+        modelTier: 'standard',
+        mode: 'free',
+      },
+      { onDelta: vi.fn(), onDone, onError: vi.fn() },
+    );
+
+    chunkHandler?.({
+      data: JSON.stringify({
+        type: 'done',
+        messageId: 'message-id',
+        sessionId: 'session-id',
+        mode: 'free',
+      }) + '\n',
+    });
+
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ mode: 'free' }));
+  });
+
+  it('uses stable stream error codes from non-2xx responses', async () => {
+    const { setToken, streamChat } = await import('./api');
+    setToken('auth-token');
+
+    let requestOptions: { success?: (res: { statusCode: number; data: unknown }) => void } = {};
+    requestMock.mockImplementation((options) => {
+      requestOptions = options;
+      return { onChunkReceived: vi.fn(), abort: vi.fn() };
+    });
+
+    const onError = vi.fn();
+    streamChat(
+      {
+        characterId: 'character-id',
+        message: '继续',
+        modelTier: 'standard',
+        mode: 'script',
+        scriptId: 'retired-script',
+      },
+      { onDelta: vi.fn(), onDone: vi.fn(), onError },
+    );
+
+    requestOptions.success?.({ statusCode: 409, data: { error: 'script_unavailable' } });
+
+    expect(onError).toHaveBeenCalledWith('script_unavailable');
+  });
+
+  it('stops stream error recovery after authentication expires', async () => {
+    const { setToken, streamChat } = await import('./api');
+    setToken('auth-token');
+
+    let requestOptions: { success?: (res: { statusCode: number; data: unknown }) => void } = {};
+    requestMock.mockImplementation((options) => {
+      requestOptions = options;
+      return { onChunkReceived: vi.fn(), abort: vi.fn() };
+    });
+
+    const onAuthExpired = vi.fn();
+    const onError = vi.fn();
+    streamChat(
+      { characterId: 'character-id', message: '你好', modelTier: 'standard', mode: 'free' },
+      { onDelta: vi.fn(), onDone: vi.fn(), onError, onAuthExpired },
+    );
+
+    requestOptions.success?.({ statusCode: 401, data: { error: 'Unauthorized' } });
+
+    expect(onAuthExpired).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it('decodes utf-8 arraybuffer chat chunks when TextDecoder is unavailable', async () => {
@@ -272,6 +391,7 @@ describe('miniapp api client', () => {
           characterId: 'character-id',
           message: '你好',
           modelTier: 'standard',
+          mode: 'free',
         },
         {
           onDelta,
@@ -315,6 +435,7 @@ describe('miniapp api client', () => {
         characterId: 'character-id',
         message: '你好',
         modelTier: 'standard',
+        mode: 'free',
       },
       {
         onDelta,
@@ -359,6 +480,7 @@ describe('miniapp api client', () => {
         characterId: 'character-id',
         message: '你好',
         modelTier: 'casual',
+        mode: 'free',
       },
       {
         onDelta: vi.fn(),

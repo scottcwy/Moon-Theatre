@@ -53,10 +53,73 @@
 }
 
 .profile__nickname {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   font-size: $font-title-lg;
   font-weight: 800;
   color: $color-on-surface;
   line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile__name-line {
+  width: 100%;
+  min-height: 72rpx;
+  display: flex;
+  align-items: center;
+}
+
+.profile__name-display {
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.profile__name-display .profile__nickname {
+  flex: 0 1 auto;
+}
+
+.profile__name-editor {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.profile__name-input {
+  flex: 1;
+  min-width: 0;
+  height: 72rpx;
+  padding: 0 $space-3;
+  border: 2rpx solid $color-outline-variant;
+  border-radius: $radius-md;
+  background-color: $color-background;
+  color: $color-on-surface;
+  font-size: $font-body-md;
+  box-sizing: border-box;
+}
+
+.profile__name-placeholder {
+  color: $color-on-surface-variant;
+}
+
+.profile__name-edit.ui-icon-button {
+  width: 56rpx;
+  height: 56rpx;
+  flex: 0 0 56rpx;
+}
+
+.profile__name-edit .ui-icon-button__icon {
+  font-size: 28rpx;
+}
+
+.profile__name-save {
+  flex: 0 0 132rpx;
 }
 
 .profile__subtitle {
@@ -206,14 +269,6 @@
   font-size: $font-label-sm;
   line-height: 1.5;
   color: $color-on-surface-variant;
-}
-
-.profile__icon-credit {
-  display: block;
-  margin: $space-2 0 $space-4;
-  font-size: $font-label-sm;
-  color: $color-on-surface-variant;
-  opacity: 0.72;
 }
 
 .profile__ai-notice {

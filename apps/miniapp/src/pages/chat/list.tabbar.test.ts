@@ -14,14 +14,17 @@ describe('chat list tab bar integration', () => {
     expect(source).not.toContain('chat-list-tabbar');
   });
 
-  it('refreshes auth and sessions whenever the cached tab page is shown', () => {
+  it('refreshes auth and character chats whenever the cached tab page is shown', () => {
     expect(source).toContain('useDidShow');
-    expect(source).toContain('loadSessions');
+    expect(source).toContain('loadCharacterChats');
   });
 
-  it('uses an active local search instead of a disabled fake search affordance', () => {
+  it('uses an active debounced server search instead of a disabled fake search affordance', () => {
     expect(source).toContain('searchQuery');
-    expect(source).toContain('filterChatSessions');
+    expect(source).toContain('buildCharacterChatsUrl');
+    expect(source).toContain('setTimeout');
+    expect(source).toContain('250');
+    expect(source).not.toContain('filterChatSessions');
     expect(source).not.toContain('<SearchBar disabled');
   });
 

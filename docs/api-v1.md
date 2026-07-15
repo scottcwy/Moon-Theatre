@@ -17,7 +17,8 @@
 | Scripts | GET | `/api/scripts/:id` | 剧本详情，含角色列表和 starterQuestions |
 | Chat | POST | `/api/chat/stream` | 单角色聊天，NDJSON，预扣点数，失败/过滤退款；支持 mode/scriptId |
 | Chat | GET | `/api/chat/messages/by-client-id` | 按客户端发送 ID 对账当前用户的一轮聊天消息，含 mode/scriptId |
-| Sessions | GET | `/api/chat/sessions` | 当前用户会话列表，支持分页/筛选，含 canSend |
+| Chat | GET | `/api/chat/characters` | 当前用户按角色聚合的唯一聊天入口，默认指向最近模式 |
+| Sessions | GET | `/api/chat/sessions` | 当前用户底层模式会话查询，供聊天页切换/恢复使用 |
 | Sessions | GET | `/api/chat/sessions/:id/messages` | 当前用户会话消息，含 session 元数据（canSend/hasSuccessfulTurn） |
 | Memory | GET | `/api/memory` | 当前用户启用记忆分组（按角色分组，scope 隔离） |
 | Achievements | GET | `/api/achievements` | 当前用户已解锁成就和称号 |
@@ -189,9 +190,47 @@ unknown
 
 产品聊天由 API 拥有上下文状态：API 从数据库选取 `excluded_from_context=false` 的近期干净历史并显式传给 FastClaw；产品聊天请求不得依赖 FastClaw session history 或发送 `x-fastclaw-session-key`。
 
+### `GET /api/chat/characters`
+
+聊天列表的唯一数据源。服务端先按角色聚合当前用户的底层会话，再执行搜索和分页；每个 `characterId` 最多返回一项。
+
+查询参数：
+
+- `q`：可选，匹配角色名和该角色最近一条 user/assistant 消息。
+- `page` / `limit`：聚合后分页（默认 `page=1, limit=20`，`limit` 上限 50）。
+
+响应：
+
+```json
+{
+  "characters": [
+    {
+      "characterId": "uuid",
+      "characterName": "白藏",
+      "characterAvatarUrl": "...",
+      "latestSessionId": "uuid",
+      "lastUsedMode": "free",
+      "lastMessage": "下次也来找我。",
+      "updatedAt": "2026-07-15T03:00:00.000Z",
+      "canSend": true
+    }
+  ],
+  "page": 1,
+  "limit": 20,
+  "hasMore": false
+}
+```
+
+- `latestSessionId`：该角色最近更新的底层模式会话；列表点击后用它恢复默认模式和历史。
+- `lastMessage`：最近一条 user/assistant 消息预览，最大 100 字符 + 省略号 `…`（U+2026），不暴露 system 消息。
+- 聚合入口只返回 `characters.status=active` 且 `characters.scriptId` 所属剧本 `status=active` 的角色。角色或所属剧本下架后，在搜索和分页前排除，不返回只读列表行。
+- `canSend`：当前聚合入口是否允许继续发送；按上述过滤规则，正常返回项为 `true`。
+- 该接口只聚合导航摘要，不合并剧本模式与自由聊天的消息、模型上下文或剧情记忆。
+- 下架历史没有被删除；`GET /api/chat/sessions` 和 `GET /api/chat/sessions/:id/messages` 仍可对已知会话返回 `canSend=false` 的只读数据。
+
 ### `GET /api/chat/sessions`
 
-会话列表支持查询参数：
+底层模式会话查询支持以下参数，主要供聊天页切换模式和恢复指定作用域：
 
 - `page` / `limit`：分页（默认 `page=1, limit=20`，`limit` 上限 50）。
 - `characterId`：按角色筛选。

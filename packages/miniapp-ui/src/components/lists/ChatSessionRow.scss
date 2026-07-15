@@ -129,3 +129,33 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+
+.chat-session-row__context-line {
+  min-width: 0;
+  margin-top: 6rpx;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.chat-session-row__context {
+  min-width: 0;
+  overflow: hidden;
+  color: $color-primary;
+  font-size: $font-label-sm;
+  line-height: 1.35;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-session-row__readonly {
+  flex: 0 0 auto;
+  padding: 2rpx $space-2;
+  border-radius: $radius-full;
+  background-color: $color-error-container;
+  color: $color-error;
+  font-size: 20rpx;
+  line-height: 1.4;
+  font-weight: 700;
+}

@@ -1,12 +1,22 @@
-import { Text } from '@tarojs/components';
+import { Text, View } from '@tarojs/components';
 import Taro, { useDidShow, useRouter } from '@tarojs/taro';
 import { useCallback, useRef, useState } from 'react';
-import { BottomAction, CharacterDetailHero, createBondViewModel, PageSection, PageShell, PrimaryButton, StatusStateCard } from '@juben-sha/miniapp-ui';
+import {
+  BottomAction,
+  CharacterDetailHero,
+  createBondViewModel,
+  PageSection,
+  PageShell,
+  PrimaryButton,
+  StatusStateCard,
+  TonalButton,
+} from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
-import { api } from '../../services/api';
-import type { MoodType } from '../../types';
+import { api, isApiError } from '../../services/api';
+import type { ChatMode, MoodType, StarterQuestions } from '../../types';
 import { navigateBackOrHome } from '../../utils/navigation';
 import { getCharacterAvatarUrl } from '../home/index.model';
+import { buildCharacterChatUrl, getCharacterDefaultMode } from './detail.model';
 import './detail.scss';
 
 interface CharacterDetailData {
@@ -16,7 +26,9 @@ interface CharacterDetailData {
   identity: string;
   description: string;
   initialRelationship: string;
+  scriptId: string | null;
   script: {
+    id: string;
     title: string;
     description: string;
     worldSetting: string;
@@ -25,6 +37,9 @@ interface CharacterDetailData {
     bondLevel: number;
     bondExp: number;
   } | null;
+  availableModes: ChatMode[];
+  lastUsedMode: ChatMode | null;
+  starterQuestions: StarterQuestions;
 }
 
 export default function CharacterDetail() {
@@ -63,7 +78,7 @@ export default function CharacterDetail() {
     } catch (err) {
       if (loadIdRef.current !== loadId) return;
       if (!handleAuthError(err)) {
-        setError(err instanceof Error ? err.message : '加载角色失败');
+        setError(isApiError(err) && err.statusCode === 404 ? '角色或所属剧本当前不可用' : '角色资料加载失败，请稍后重试');
       }
     } finally {
       if (loadIdRef.current === loadId) {
@@ -76,8 +91,13 @@ export default function CharacterDetail() {
     void fetchCharacter();
   });
 
-  const handleEnterChat = () => {
-    Taro.navigateTo({ url: `/pages/chat/index?characterId=${characterId}` });
+  const handleEnterChat = (mode: ChatMode) => {
+    const scriptId = character?.script?.id || character?.scriptId || undefined;
+    try {
+      Taro.navigateTo({ url: buildCharacterChatUrl(characterId, mode, scriptId) });
+    } catch {
+      Taro.showToast({ title: '当前聊天模式不可用', icon: 'none' });
+    }
   };
 
   const handleLogin = () => {
@@ -85,6 +105,8 @@ export default function CharacterDetail() {
   };
 
   const bondViewModel = createBondViewModel(character?.relationship);
+  const availableModes = character?.availableModes || [];
+  const defaultMode = character ? getCharacterDefaultMode(availableModes, character.lastUsedMode) : 'free';
 
   if (loading) {
     return (
@@ -126,7 +148,7 @@ export default function CharacterDetail() {
   }
 
   return (
-    <PageShell variant="scroll" noPadding bottomReserve>
+    <PageShell variant="scroll" noPadding bottomReserve className="detail">
       <CharacterDetailHero
         name={character.name}
         identity={character.identity}
@@ -147,7 +169,22 @@ export default function CharacterDetail() {
       )}
 
       <BottomAction>
-        <PrimaryButton onTap={handleEnterChat}>▰ 开启对话</PrimaryButton>
+        <View className="detail__actions">
+          {availableModes.includes('script') && (
+            defaultMode === 'script' ? (
+              <PrimaryButton onTap={() => handleEnterChat('script')}>进入剧本</PrimaryButton>
+            ) : (
+              <TonalButton onTap={() => handleEnterChat('script')}>进入剧本</TonalButton>
+            )
+          )}
+          {availableModes.includes('free') && (
+            defaultMode === 'free' ? (
+              <PrimaryButton onTap={() => handleEnterChat('free')}>自由聊天</PrimaryButton>
+            ) : (
+              <TonalButton onTap={() => handleEnterChat('free')}>自由聊天</TonalButton>
+            )
+          )}
+        </View>
       </BottomAction>
     </PageShell>
   );

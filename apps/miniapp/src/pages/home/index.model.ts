@@ -1,30 +1,7 @@
-export interface FeaturedScript {
-  id: string;
-  title: string;
-  genre: string;
-  tag: string;
-  description: string;
-  cover: string;
+export interface ScriptCoverInput {
+  slug: string;
+  coverUrl?: string | null;
 }
-
-export const featuredScripts: FeaturedScript[] = [
-  {
-    id: 'moon-garden',
-    title: '月见庭院：狐神的新娘',
-    genre: '和风幻想 / 前世今生',
-    tag: '满月开启',
-    description: '踏入只在满月出现的庭院，在狐嫁试炼中找回前世记忆与未完成的契约。',
-    cover: '/assets/home/moon-garden-cover.jpg',
-  },
-  {
-    id: 'liumang',
-    title: '流氓叙事',
-    genre: '赛博悬疑 / 街巷群像',
-    tag: '沉浸式体验',
-    description: '在迷离的霓虹街巷中，扮演边缘人物，于帮派纷争与暗影交易中寻找自我。',
-    cover: '/assets/home/liumang-cover.jpg',
-  },
-];
 
 export const homeSections = {
   scriptKicker: '今日开演',
@@ -34,8 +11,8 @@ export const homeSections = {
   characterTitle: '最近角色',
 } as const;
 
-const SCRIPT_ROLE_SELECT_URLS: Record<string, string> = {
-  'moon-garden': '/pages/role-select/moon-garden',
+const LOCAL_SCRIPT_COVERS: Record<string, string> = {
+  'moon-garden': '/assets/home/moon-garden-cover.jpg',
 };
 
 const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
@@ -54,18 +31,29 @@ const CHARACTER_DECISION_BADGES: Record<string, string> = {
 
 export function getCharacterDetailUrl(characterId: string): string {
   const id = characterId.trim();
-  if (!id) {
-    throw new Error('characterId is required');
-  }
+  if (!id) throw new Error('characterId is required');
   return `/pages/character/detail?characterId=${encodeURIComponent(id)}`;
 }
 
 export function getScriptRoleSelectUrl(scriptId: string): string {
-  const url = SCRIPT_ROLE_SELECT_URLS[scriptId.trim()];
-  if (!url) {
-    throw new Error('unsupported script id');
-  }
-  return url;
+  const id = scriptId.trim();
+  if (!id) throw new Error('scriptId is required');
+  return `/pages/script/select?scriptId=${encodeURIComponent(id)}`;
+}
+
+export function buildScriptsUrl(query: string): string {
+  const keyword = query.trim();
+  return keyword ? `/api/scripts?q=${encodeURIComponent(keyword)}` : '/api/scripts';
+}
+
+export function shouldApplyScriptResponse(requestId: number, latestRequestId: number): boolean {
+  return requestId === latestRequestId;
+}
+
+export function getScriptCoverUrl(script: ScriptCoverInput): string {
+  const explicitUrl = script.coverUrl?.trim();
+  if (explicitUrl) return explicitUrl;
+  return LOCAL_SCRIPT_COVERS[script.slug] || '';
 }
 
 export function getCharacterAvatarUrl(name: string, avatarUrl?: string | null): string {

@@ -39,11 +39,11 @@ export default function Login() {
 
           const data = await api.post<{
             token: string;
-            user: { id: string; nickname: string | null; avatarUrl: string | null };
+            user: { id: string; nickname: string | null; avatarUrl: string | null; preferredName?: string | null };
           }>('/api/auth/wechat-login', { code: res.code });
 
           setToken(data.token);
-          setUser(data.user);
+          setUser({ ...data.user, preferredName: data.user.preferredName ?? null });
 
           Taro.switchTab({ url: '/pages/home/index' });
         } catch (err) {

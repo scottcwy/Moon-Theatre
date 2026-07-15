@@ -662,7 +662,9 @@ lastUsedMode 只影响默认视觉优先级，不隐藏另一入口。
 
 ### 11.4 会话列表
 
-会话列表消费 GET /api/chat/characters，每个角色只显示一条 Character Chat Entry。列表不显示模式筛选或模式标签；入口展示最近消息和更新时间，点击 `latestSessionId` 后由聊天页恢复最近模式。模式切换继续发生在聊天页，并通过 GET /api/chat/sessions 按 `characterId + mode + scriptId` 查询独立 Chat Session。
+会话列表消费 GET /api/chat/characters，每个角色只显示一条 Character Chat Entry。服务端根据 `characters.scriptId` 判断角色所属剧本状态，在搜索和分页前排除 inactive 角色及非 active 剧本角色，不返回只读列表入口。列表不显示模式筛选或模式标签；入口展示最近消息和更新时间，点击 `latestSessionId` 后由聊天页恢复最近模式。模式切换继续发生在聊天页，并通过 GET /api/chat/sessions 按 `characterId + mode + scriptId` 查询独立 Chat Session。
+
+从 Free Session 恢复聊天页时，客户端必须在允许模式切换前完成 active 角色详情加载，并保留角色所属剧本元数据。目标 Script Session 不存在时，客户端进入 Script Mode 空历史；不存在历史不是“剧本不可用”。
 
 ### 11.5 剧本搜索与通用角色选择
 
@@ -908,7 +910,7 @@ P1 故障可独立回滚首页和搜索页面到静态月见庭院入口，但�
 | Free Mode 被剧情分类器拦截 | 高 | 代码路径显式跳过 classifier |
 | 重试重复增加羁绊 | 高 | assistantMessageId 唯一事件和完成事务 |
 | 关系事务失败导致回复半完成 | 高 | assistant、usage、turn、bond、session 同事务 |
-| retired 剧本历史消失 | 中 | 历史接口不按 active 过滤，canSend 控制只读 |
+| retired 剧本历史被误删 | 中 | 聚合列表排除 retired 入口，但历史接口不按 active 过滤并用 canSend 控制只读 |
 | 剧本目录双源 | 中 | P1 后首页和搜索统一读取 API |
 | 推荐问题覆盖用户输入 | 低 | 输入非空时禁止覆盖 |
 | 回滚到旧 resolver 混合新数据 | 高 | 禁止服务端 destructive rollback，隐藏入口并前向修复 |
@@ -918,7 +920,7 @@ P1 故障可独立回滚首页和搜索页面到静态月见庭院入口，但�
 ### 19.1 P0
 
 - AC-P0-01：用户可保存 1—20 字符的 preferredName；非法输入不覆盖旧值，下一轮成功对话可以使用新称呼。
-- AC-P0-02：角色详情明确提供 Script Mode 和 Free Conversation Mode；聊天列表每个角色只有一个入口并默认打开最近模式，聊天页展示当前持久化模式且可切换到另一套独立历史。
+- AC-P0-02：角色详情明确提供 Script Mode 和 Free Conversation Mode；聊天列表每个 active 剧本角色只有一个入口并默认打开最近模式，聊天页展示当前持久化模式且可切换到另一套独立历史；目标模式没有会话时显示空历史。
 - AC-P0-03：同一角色两种模式的消息、clean history、剧情状态和 story memories 互不混用。
 - AC-P0-04：Free Conversation Mode 保持角色人格，不注入剧情场景，不执行剧情越界分类。
 - AC-P0-05：Script Mode 继续注入剧本和剧情上下文，并保留剧情边界处理。
@@ -927,7 +929,7 @@ P1 故障可独立回滚首页和搜索页面到静态月见庭院入口，但�
 - AC-P0-08：相同 Client Message ID 重试不重复消息、扣点或羁绊。
 - AC-P0-09：网络中断或页面重进后可以通过服务端状态恢复最终消息。
 - AC-P0-10：“流氓叙事”不出现在首页、新入口或可用搜索结果中。
-- AC-P0-11：retired 剧本历史可读，但不能创建新会话或继续发送。
+- AC-P0-11：retired 剧本角色不出现在聊天聚合列表；已知历史仍可读，但不能创建新会话或继续发送。
 - AC-P0-12：生成中有明确状态，模式切换被禁用；失败后原消息可恢复重试。
 
 ### 19.2 P1
@@ -990,7 +992,7 @@ rtk pnpm --filter @juben-sha/api db:migrate
 2. Free Mode 发送日常问题，确认不产生 out_of_scope。
 3. 修改 preferredName 后发送下一轮，确认新称呼进入 Prompt，历史内容不变。
 4. 人为中断请求后使用同一 Client Message ID 恢复，确认无重复消息、扣点和羁绊。
-5. 打开 retired 剧本历史，确认可读且不可发送。
+5. 确认 retired 剧本角色不出现在聊天列表，并通过已知历史会话确认可读且不可发送。
 6. 搜索存在、不存在和清空关键词，确认导航不误选。
 7. 点击推荐问题，确认输入可编辑且没有网络调用。
 

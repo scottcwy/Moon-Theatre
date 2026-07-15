@@ -69,6 +69,14 @@
   margin-top: $space-2;
 }
 
+.theater-home__script-search {
+  margin-bottom: $space-4;
+}
+
+.theater-home__script-state {
+  margin-top: $space-2;
+}
+
 .theater-home__feature-strip {
   width: 100%;
   display: flex;
@@ -98,6 +106,10 @@
   height: 100%;
   display: block;
   border-radius: inherit;
+}
+
+.theater-home__hero-image--placeholder {
+  background-color: $color-primary;
 }
 
 .theater-home__hero-shade {

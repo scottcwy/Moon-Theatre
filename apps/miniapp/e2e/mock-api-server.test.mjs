@@ -32,13 +32,21 @@ describe('authenticated miniapp mock API server', () => {
       const response = await fetch(`${server.baseUrl}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ characterId: 'hakuzo', message: 'hi', modelTier: 'standard', clientMessageId: 'c1' }),
+        body: JSON.stringify({
+          characterId: 'hakuzo',
+          message: 'hi',
+          modelTier: 'standard',
+          clientMessageId: 'c1',
+          mode: 'script',
+          scriptId: 'script-moon-garden',
+        }),
       });
       const text = await response.text();
       const doneLine = text.split('\n').find((line) => line.includes('"type":"done"'));
       const done = JSON.parse(doneLine);
       expect(done.bondLevel).toBe(4);
       expect(done.bondExp).toBe(342);
+      expect(done.mode).toBe('script');
     } finally {
       await server.close();
     }
@@ -48,21 +56,55 @@ describe('authenticated miniapp mock API server', () => {
     const server = await startMockApiServer({ port: 0, balancePoints: 8 });
 
     try {
-      const [me, characters] = await Promise.all([
+      const [me, characters, scripts, achievements, characterChats, sessions, history, freeHistory, emptyScriptSessions] = await Promise.all([
         fetch(`${server.baseUrl}/api/me`).then(readJson),
         fetch(`${server.baseUrl}/api/characters`).then(readJson),
+        fetch(`${server.baseUrl}/api/scripts`).then(readJson),
+        fetch(`${server.baseUrl}/api/achievements`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E7%99%BD`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/sessions?page=1&limit=20`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/sessions/session-hakuzo/messages`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/sessions/session-hakuzo-free-only/messages`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/sessions?characterId=hakuzo-free-only&mode=script`).then(readJson),
       ]);
 
       expect(me).toMatchObject({
         id: 'dev-user',
         nickname: '开发调试用户',
         status: 'active',
+        preferredName: null,
       });
       expect(characters.characters).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: 'hakuzo', name: '白藏' }),
         ]),
       );
+      expect(scripts.scripts).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'script-moon-garden', slug: 'moon-garden' }),
+      ]));
+      expect(achievements).toMatchObject({ achievements: expect.any(Array), titles: expect.any(Array) });
+      expect(characterChats).toMatchObject({
+        characters: [
+          expect.objectContaining({
+            characterId: 'hakuzo',
+            latestSessionId: 'session-hakuzo',
+            lastUsedMode: 'script',
+            canSend: true,
+          }),
+        ],
+        page: 1,
+        limit: 20,
+        hasMore: false,
+      });
+      expect(sessions.sessions[0]).toMatchObject({ mode: 'script', scriptId: 'script-moon-garden', canSend: true });
+      expect(history.session).toMatchObject({ mode: 'script', scriptId: 'script-moon-garden', hasSuccessfulTurn: true });
+      expect(freeHistory.session).toMatchObject({
+        characterId: 'hakuzo-free-only',
+        mode: 'free',
+        scriptId: null,
+        canSend: true,
+      });
+      expect(emptyScriptSessions.sessions).toEqual([]);
     } finally {
       await server.close();
     }
@@ -80,6 +122,8 @@ describe('authenticated miniapp mock API server', () => {
           message: '月下见',
           modelTier: 'standard',
           clientMessageId: 'client-1',
+          mode: 'script',
+          scriptId: 'script-moon-garden',
         }),
       });
 
