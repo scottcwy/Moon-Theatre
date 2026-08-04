@@ -33,3 +33,30 @@ export function buildCharacterChatsUrl(query: string, page = 1, limit = 20): str
 export function getCharacterChatUrl(latestSessionId: string): string {
   return `/pages/chat/index?sessionId=${encodeURIComponent(latestSessionId)}`;
 }
+
+export interface ReturnMessage {
+  id: string;
+  characterId: string;
+  characterName: string;
+  characterAvatarUrl?: string | null;
+  content: string;
+  reason: string;
+  createdAt: string;
+  readAt?: string | null;
+}
+
+export interface ReturnMessagesCheckResponse {
+  messages: ReturnMessage[];
+  characterUnread: Record<string, number>;
+}
+
+export const RETURN_MESSAGES_CHECK_PATH = '/api/return-messages/check';
+export const RETURN_MESSAGES_READ_PATH = '/api/return-messages/read';
+
+export function buildReturnMessagesReadBody(characterId: string): { characterId: string } {
+  return { characterId };
+}
+
+export function getReturnMessageTimeLabel(createdAt: string): string {
+  return getSessionTimeLabel(createdAt);
+}
