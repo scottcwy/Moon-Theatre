@@ -25,7 +25,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "relationship_bond_exp_events" ADD CONSTRAINT "relationship_bond_exp_events_assistant_message_id_messages_id_fk" FOREIGN KEY ("assistant_message_id") REFERENCES "public"."messages"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "relationship_bond_exp_events" ADD CONSTRAINT "relationship_bond_exp_events_assistant_message_id_messages_fk" FOREIGN KEY ("assistant_message_id") REFERENCES "public"."messages"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

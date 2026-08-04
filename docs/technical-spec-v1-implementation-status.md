@@ -30,7 +30,7 @@ rtk pnpm -r test
 
 - 工程架构、数据库 schema、API 分层、服务模块已经成型。
 - 用户登录、角色、聊天、记忆、羁绊、点数、订单、支付回调、钱包流水、admin 基础页均已有实现。
-- 之前几个发布阻断风险已经有代码修复：生产配置强校验、小程序生产构建防 localhost 和 `api.example.com`、admin 白名单、admin 页面 Basic Auth、支付回调行锁和订单级幂等、本地 mock 支付确认闭环。
+- 之前几个发布阻断风险已经有代码修复：生产配置强校验、小程序生产构建防 localhost 和 `api.example.com`、admin 白名单、admin 页面与 API Basic Auth、支付回调行锁和订单级幂等、本地 mock 支付确认闭环。
 - 当前最大问题不是“没写”，而是“真实服务联调和产品化硬化还没完成”，尤其是 FastClaw 生产接入、模型调用失败可观测性、readiness 覆盖面、部署验收、支付服务商实参联调和更完整的端到端测试。
 
 后续开发可以继续推进，但要避免把已经修过的底层闭环推倒重来。
@@ -119,7 +119,7 @@ apps/api/src/server/db/
 | 订单/支付 | 核心闭环完成 | 创建订单、prepay、mock-confirm、aggregate notify、支付记录 | 真实聚合支付平台参数需最终落地 |
 | 支付回调幂等 | 已修关键风险 | 事务内 `select ... for update`，订单级 `credit_order_${order.id}` 幂等 key | 需要保留并补充更多重复回调测试 |
 | 钱包 | 基本完成 | 充值、消费、退款、余额流水均有事务处理 | 需要覆盖更多边界：并发扣点、负余额保护 |
-| admin API | 基本完成 | stats、sessions/messages/orders/payments/wallet/quota/model usage/review/keywords/memories/detail API 已有，统一使用 `verifyAdminAuth` | 后台体验、登录/无权限状态和更细编辑能力仍粗糙 |
+| admin API | 基本完成 | stats、sessions/messages/orders/payments/wallet/quota/model usage/review/keywords/memories/detail API 已有，统一使用 `verifyAdminAuth` 且受 Basic Auth middleware 保护 | 后台体验、登录/无权限状态和更细编辑能力仍粗糙 |
 | admin 页面 | 基础完成 | 多个简单页面已存在，`/admin/**` 已加 Basic Auth middleware | 后台体验和无权限/过期状态仍粗糙，服务端页面读取也要继续收紧 |
 | health/ready | 部分完成 | `/api/health` 返回进程存活；`/api/ready` 检查 FastClaw 配置、`/readyz`、`FASTCLAW_AGENT_ID` 和业务 Agent runtime spec | readiness 尚未检查数据库连接和其他生产关键配置完整性 |
 | API 文档 | 基础完成 | `docs/api-v1.md` 已覆盖主要小程序、支付回调和 admin API | 如需要对外联调，可再补机器可读 OpenAPI |
@@ -200,9 +200,9 @@ X-Stream-Mode: moderated-buffered
 - `GET /api/admin/model-usage-logs`
 - `GET/POST /api/admin/blocked-keywords`
 
-所有 admin API 当前已使用 `verifyAdminAuth`，会校验普通 JWT 后再检查 `ADMIN_USER_IDS` 白名单。
+所有 admin API 当前已使用 `verifyAdminAuth`，会校验普通 JWT 后再检查 `ADMIN_USER_IDS` 白名单；同时 `/api/admin/**` 请求须先通过 Basic Auth middleware。
 
-`/admin/**` 页面当前已通过 `apps/api/src/middleware.ts` 增加 Basic Auth 二次保护；生产环境启动时要求设置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
+`/admin/**` 页面与 `/api/admin/**` API 当前已通过 `apps/api/src/middleware.ts` 增加 Basic Auth 二次保护（admin API 需 Basic Auth 与 JWT 白名单双层校验都通过）；生产环境启动时要求设置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
 
 当前已看到：
 
@@ -574,8 +574,8 @@ rtk pnpm --filter @juben-sha/api seed
 - 不要在没有安全策略前强行做真实逐 token 输出。
 - 不要重复实现已经存在的 admin stats/detail、memory admin、achievements 和 docs/api-v1.md。
 - FastClaw 生产环境不要静默 fallback 后伪装为正常成功。
-- admin API 必须使用 verifyAdminAuth。
-- admin 页面当前已有 Basic Auth middleware，生产环境必须配置 ADMIN_BASIC_AUTH_USER 和 ADMIN_BASIC_AUTH_PASSWORD。
+- admin API 必须使用 verifyAdminAuth，且须先通过 Basic Auth middleware。
+- admin 页面与 admin API 当前已有 Basic Auth middleware，生产环境必须配置 ADMIN_BASIC_AUTH_USER 和 ADMIN_BASIC_AUTH_PASSWORD。
 - 支付和钱包相关改动必须保留事务、行锁和幂等 key。
 - 新增接口必须补测试。
 - 杜绝 api.example.com 进入小程序产物；不要为了测试或验证而编译出包含 api.example.com 的小程序产物。

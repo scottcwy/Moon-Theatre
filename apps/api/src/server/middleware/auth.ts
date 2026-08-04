@@ -15,13 +15,24 @@ const DEV_AUTH_BYPASS_OPENID = 'dev-auth-bypass';
 const DEV_AUTH_BYPASS_INITIAL_POINTS = 1000;
 const DEV_AUTH_BYPASS_POINTS_KEY = 'dev-auth-bypass-initial-points';
 
-export async function verifyAuth(request: NextRequest): Promise<{ userId: string } | null> {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
+function bearerToken(authHeader: string | null): string | null {
+  if (!authHeader) {
     return null;
   }
+  for (const part of authHeader.split(',')) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith('Bearer ')) {
+      return trimmed.slice('Bearer '.length);
+    }
+  }
+  return null;
+}
 
-  const token = authHeader.slice(7);
+export async function verifyAuth(request: NextRequest): Promise<{ userId: string } | null> {
+  const token = bearerToken(request.headers.get('Authorization'));
+  if (!token) {
+    return null;
+  }
   if (config.devAuthBypass && token === DEV_AUTH_BYPASS_TOKEN) {
     const { findOrCreateUser } = await import('../modules/auth/index.js');
     const user = await findOrCreateUser(DEV_AUTH_BYPASS_OPENID);

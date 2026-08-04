@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex, index, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex, index, check, foreignKey } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
 export const modelTierEnum = pgEnum('model_tier', ['casual', 'standard', 'immersive']);
@@ -184,7 +184,7 @@ export const relationships = pgTable('relationships', {
 
 export const relationshipBondExpEvents = pgTable('relationship_bond_exp_events', {
   id: uuid('id').defaultRandom().primaryKey(),
-  assistantMessageId: uuid('assistant_message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull(),
+  assistantMessageId: uuid('assistant_message_id').notNull(),
   userId: uuid('user_id').references(() => users.id).notNull(),
   characterId: uuid('character_id').references(() => characters.id).notNull(),
   expIncrement: integer('exp_increment').notNull(),
@@ -192,6 +192,11 @@ export const relationshipBondExpEvents = pgTable('relationship_bond_exp_events',
 }, (table) => ({
   assistantMessageUnique: uniqueIndex('relationship_bond_exp_events_assistant_message_unique')
     .on(table.assistantMessageId),
+  assistantMessageFk: foreignKey({
+    columns: [table.assistantMessageId],
+    foreignColumns: [messages.id],
+    name: 'relationship_bond_exp_events_assistant_message_id_messages_fk',
+  }).onDelete('cascade'),
 }));
 
 export const titles = pgTable('titles', {
@@ -258,12 +263,18 @@ export const modelUsageLogs = pgTable('model_usage_logs', {
   outputTokens: integer('output_tokens'),
   costEstimateCents: integer('cost_estimate_cents'),
   pointsConsumed: integer('points_consumed').notNull(),
-  walletTransactionId: uuid('wallet_transaction_id').references(() => walletTransactions.id),
+  walletTransactionId: uuid('wallet_transaction_id'),
   clientMessageId: varchar('client_message_id', { length: 128 }),
   errorCode: varchar('error_code', { length: 64 }),
   status: modelUsageStatusEnum('status').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  walletTransactionFk: foreignKey({
+    columns: [table.walletTransactionId],
+    foreignColumns: [walletTransactions.id],
+    name: 'model_usage_logs_wallet_transaction_id_wallet_transactions_fk',
+  }),
+}));
 
 export const chatEffectRuns = pgTable('chat_effect_runs', {
   id: uuid('id').defaultRandom().primaryKey(),
