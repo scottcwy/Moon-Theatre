@@ -25,6 +25,8 @@ export interface StreamChatOptions {
   // Runtime provider/model/temperature/thinking settings belong to the configured FastClaw agent.
   // This legacy option is intentionally not sent as a request-level model override.
   model?: string;
+  // Per-call timeout override; defaults to config.fastclawTimeoutMs.
+  timeoutMs?: number;
 }
 
 export function isFastClawConfigured(): boolean {
@@ -39,7 +41,7 @@ export async function* streamChat(
   if (isFastClawConfigured()) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), config.fastclawTimeoutMs);
+      const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? config.fastclawTimeoutMs);
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.fastclawApiKey}`,
