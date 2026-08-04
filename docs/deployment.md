@@ -1,6 +1,6 @@
 # 部署手册
 
-本文记录服务器部署所需的最小闭环：服务器从腾讯云 CCR 拉取 Postgres、API、API tools、FastClaw Go 后端和 Caddy 镜像，由 Docker Compose 启动服务；小程序构建时把真实 HTTPS API 域名写入 `API_BASE_URL`。
+本文记录服务器部署所需的最小闭环：服务器从腾讯云 CCR 拉取 Postgres、API、API tools、FastClaw Go 后端和 Caddy 镜像，由 Docker Compose 启动服务；小程序 API 域名统一配置在 `apps/miniapp/config/hosts.json`，生产构建自动读取。
 
 ## 1. 域名和服务器前置条件
 
@@ -76,12 +76,16 @@ rtk curl -fsS https://api.your-domain.com/api/ready
 
 ## 5. 小程序生产构建
 
+API 域名统一配置在 `apps/miniapp/config/hosts.json`（`dev` 本地调试 / `prod` 生产域名），生产构建自动读取 `prod`，无需手动传参：
+
 ```bash
-rtk API_BASE_URL="https://api.your-domain.com" pnpm --filter @juben-sha/miniapp build:weapp
+rtk pnpm --filter @juben-sha/miniapp build:weapp
 rtk pnpm --filter @juben-sha/miniapp verify:weapp
 ```
 
-构建前确认 `API_BASE_URL` 是真实 HTTPS API 域名，并且已加入微信 request 合法域名。构建后必须运行 `verify:weapp`，让产物扫描继续挡住占位 API 主机和 localhost。
+- 构建前确认 `hosts.json` 的 `prod` 是真实 HTTPS API 域名，并且已加入微信 request 合法域名。
+- `API_BASE_URL` 环境变量仍可临时覆盖 `hosts.json`（供 CI 或紧急切换使用），优先级高于配置文件。
+- 构建后必须运行 `verify:weapp`，让产物扫描继续挡住占位 API 主机和 localhost。
 
 ## 6. 回滚
 
