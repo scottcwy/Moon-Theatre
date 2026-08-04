@@ -53,6 +53,21 @@ describe('POST /api/return-messages/read', () => {
     expect(markCharacterMessagesReadMock).not.toHaveBeenCalled();
   });
 
+  it('returns 400 for malformed JSON without calling the service', async () => {
+    verifyAuthMock.mockResolvedValue({ userId: 'user-1' });
+
+    const { POST } = await import('./route.js');
+    const response = await POST(new NextRequest('http://localhost/api/return-messages/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{',
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid characterId' });
+    expect(markCharacterMessagesReadMock).not.toHaveBeenCalled();
+  });
+
   it('returns 400 for an invalid body', async () => {
     verifyAuthMock.mockResolvedValue({ userId: 'user-1' });
 

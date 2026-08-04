@@ -18,13 +18,19 @@ export async function POST(request: NextRequest) {
     return unauthorizedResponse();
   }
 
+  let body: unknown;
   try {
-    const body = await request.json();
-    const parsed = readSchema.safeParse(body);
-    if (!parsed.success) {
-      return errorResponse('Invalid characterId', 400);
-    }
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid characterId', 400);
+  }
 
+  const parsed = readSchema.safeParse(body);
+  if (!parsed.success) {
+    return errorResponse('Invalid characterId', 400);
+  }
+
+  try {
     const updated = await markCharacterMessagesRead(auth.userId, parsed.data.characterId);
     return successResponse({ updated });
   } catch (err) {

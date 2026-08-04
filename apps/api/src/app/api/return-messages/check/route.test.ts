@@ -28,8 +28,8 @@ vi.mock('@/server/modules/return-messages/index.js', () => ({
   checkReturnMessages: checkReturnMessagesMock,
 }));
 
-function postRequest(url = 'http://localhost/api/return-messages/check') {
-  return new NextRequest(url, { method: 'POST' });
+function postRequest() {
+  return new NextRequest('http://localhost/api/return-messages/check', { method: 'POST' });
 }
 
 describe('POST /api/return-messages/check', () => {
