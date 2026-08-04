@@ -40,6 +40,11 @@ export async function generateReturnMessageContent(character: {
       } else if (event.type === 'error') {
         return pickReturnMessageTemplate(character.name);
       } else if (event.type === 'done') {
+        // adapter 内置兜底流（FastClaw 未配置或 fallbackEnabled）产出的是通用聊天文本，
+        // 不表达惦记/邀请回来，视为失败，走运营模板兜底。
+        if (event.fallback === true) {
+          return pickReturnMessageTemplate(character.name);
+        }
         sawDone = true;
       }
     }

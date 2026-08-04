@@ -80,6 +80,18 @@ describe('generateReturnMessageContent', () => {
     expect(content.length).toBeGreaterThan(0);
   });
 
+  it('adapter 兜底流（done fallback: true）视为失败并返回该角色模板，而非收集文本', async () => {
+    mockStream([
+      { type: 'delta', content: '[情绪: 平静] 最近过得怎么样？' },
+      { type: 'done', fallback: true },
+    ]);
+
+    const content = await generateReturnMessageContent(character);
+
+    expect(content).toBe(returnMessageTemplates[character.name]?.[0]);
+    expect(content).not.toContain('[情绪');
+  });
+
   it('只产出 done 无 delta 时返回该角色模板', async () => {
     mockStream([{ type: 'done', fallback: false }]);
 
