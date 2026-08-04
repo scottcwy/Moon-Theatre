@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex, index, check } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
 export const modelTierEnum = pgEnum('model_tier', ['casual', 'standard', 'immersive']);
@@ -362,6 +362,22 @@ export const blockedKeywords = pgTable('blocked_keywords', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const characterReturnMessages = pgTable('character_return_messages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  characterId: uuid('character_id').references(() => characters.id).notNull(),
+  content: text('content').notNull(),
+  reason: varchar('reason', { length: 16 }).notNull(),
+  windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  readAt: timestamp('read_at', { withTimezone: true }),
+}, (table) => ({
+  windowUnique: uniqueIndex('character_return_messages_window_unique')
+    .on(table.userId, table.characterId, table.windowStart),
+  unreadIdx: index('character_return_messages_unread_idx')
+    .on(table.userId, table.readAt),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   chatSessions: many(chatSessions),
   relationships: many(relationships),
@@ -371,6 +387,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   walletAccount: many(walletAccounts),
   walletTransactions: many(walletTransactions),
+  characterReturnMessages: many(characterReturnMessages),
 }));
 
 export const scriptsRelations = relations(scripts, ({ many }) => ({
@@ -384,6 +401,7 @@ export const charactersRelations = relations(characters, ({ one, many }) => ({
   prompts: many(characterPrompts),
   chatSessions: many(chatSessions),
   relationships: many(relationships),
+  characterReturnMessages: many(characterReturnMessages),
 }));
 
 export const characterPromptsRelations = relations(characterPrompts, ({ one }) => ({
@@ -419,6 +437,11 @@ export const memoriesRelations = relations(memories, ({ one }) => ({
 export const relationshipsRelations = relations(relationships, ({ one }) => ({
   user: one(users, { fields: [relationships.userId], references: [users.id] }),
   character: one(characters, { fields: [relationships.characterId], references: [characters.id] }),
+}));
+
+export const characterReturnMessagesRelations = relations(characterReturnMessages, ({ one }) => ({
+  user: one(users, { fields: [characterReturnMessages.userId], references: [users.id] }),
+  character: one(characters, { fields: [characterReturnMessages.characterId], references: [characters.id] }),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
