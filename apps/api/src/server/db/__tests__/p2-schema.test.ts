@@ -202,7 +202,7 @@ describe('Migration journal integrity', () => {
 describe('0006 snapshot integrity', () => {
   const snapshotPath = path.resolve(
     __dirname,
-    '../../../../drizzle/meta/0006_character_return_messages_snapshot.json',
+    '../../../../drizzle/meta/0006_snapshot.json',
   );
 
   it('snapshot file exists', () => {
