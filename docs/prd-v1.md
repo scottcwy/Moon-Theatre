@@ -6,7 +6,7 @@
 
 本文档面向甲方和内部开发团队，尽量避免技术细节，以功能、体验和交付标准为主。
 
-V1.1 聊天体验迭代以 [V1.1 聊天体验迭代产品功能 SPEC](./superpowers/specs/2026-07-14-chat-experience-iteration-product-spec.md) 为准；本文档继续作为 V1 基线范围和整体产品目标参考。
+V1.1 聊天体验迭代以 [V1.1 聊天体验迭代产品功能 SPEC](./specs/2026-07-14-chat-experience-iteration-product-spec.md) 为准；本文档继续作为 V1 基线范围和整体产品目标参考。
 
 ## 2. 产品目标
 

@@ -10,7 +10,6 @@
 
 - `docs/prd-v1.md`
 - `docs/technical-spec-v1.md`
-- `docs/ui-design-prd-google-stitch.md`
 - 用户确认的 Figma 设计稿：<https://www.figma.com/design/ACLI3DRcjPUZ1RzKOIFoCS/%E8%A7%92%E8%89%B2%E6%89%AE%E6%BC%94%E5%B0%8F%E7%A8%8B%E5%BA%8F%E8%AE%BE%E8%AE%A1?t=Sn2XRppnDNQoPotV-0>
 - 用户提供的 Material You 设计系统 prompt
 

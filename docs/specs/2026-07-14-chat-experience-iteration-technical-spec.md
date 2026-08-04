@@ -29,7 +29,7 @@
 
 ### 2.1 产品来源
 
-- docs/superpowers/specs/2026-07-14-chat-experience-iteration-product-spec.md
+- docs/specs/2026-07-14-chat-experience-iteration-product-spec.md
 - docs/prd-v1.md
 
 产品行为以 V1.1 产品 SPEC 当前修订为准，对应基线提交 5b86055；本文档负责选择符合现有系统的技术实现。产品 SPEC 后续如改变冻结行为，必须修订本文档。
@@ -37,16 +37,9 @@
 ### 2.2 既有技术约束
 
 - docs/technical-spec-v1.md
-- docs/technical-spec-v1-implementation-status.md
 - docs/api-v1.md
 - docs/adr/0001-api-owned-chat-context-and-client-message-id.md
 - docs/adr/0002-character-chat-mode-boundary.md
-- docs/superpowers/specs/2026-07-08-chat-experience-closure-design.md
-- docs/superpowers/specs/2026-07-09-chat-turn-lifecycle-service-design.md
-- docs/superpowers/specs/2026-07-09-chat-turn-finalization-atomicity-design.md
-- docs/superpowers/specs/2026-07-10-bond-view-model-design.md
-- docs/superpowers/specs/2026-07-09-role-selection-detail-flow-design.md
-- docs/superpowers/specs/2026-07-05-community-placeholder-design.md
 
 ### 2.3 关键代码入口
 
@@ -1011,7 +1004,6 @@ verify:weapp 必须成功，并明确证明构建产物不存在 api.example.com
 
 - docs/api-v1.md
 - docs/technical-spec-v1.md
-- docs/technical-spec-v1-implementation-status.md
 - 与实际迁移对应的 Drizzle schema 和 migration
 
 CONTEXT.md 和 ADR 0002 已记录模式词汇和边界；只有 canonical 术语或架构决策改变时才需要再次修改，避免重复文档噪音。

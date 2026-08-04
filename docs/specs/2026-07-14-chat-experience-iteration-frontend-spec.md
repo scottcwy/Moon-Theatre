@@ -23,8 +23,8 @@
 
 ### 2.1 关联文档
 
-- `docs/superpowers/specs/2026-07-14-chat-experience-iteration-product-spec.md`
-- `docs/superpowers/specs/2026-07-14-chat-experience-iteration-technical-spec.md`
+- `docs/specs/2026-07-14-chat-experience-iteration-product-spec.md`
+- `docs/specs/2026-07-14-chat-experience-iteration-technical-spec.md`
 - `docs/api-v1.md`
 - `CONTEXT.md`
 - `docs/adr/0001-api-owned-chat-context-and-client-message-id.md`
