@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "generatorVersion": "0.1.0",
+  "adapterChoices": {
+    "runtime": [
+      "node"
+    ],
+    "packageManager": "pnpm",
+    "taskOwner": "package.json",
+    "ci": "unknown",
+    "config": "skipped",
+    "hooks": "skipped",
+    "commands": [
+      {
+        "category": "setup",
+        "command": "pnpm install --frozen-lockfile",
+        "owner": {
+          "path": "pnpm-lock.yaml",
+          "type": "file",
+          "key": null
+        }
+      },
+      {
+        "category": "test",
+        "command": "pnpm run test:dev-script",
+        "owner": {
+          "path": "package.json",
+          "type": "package-script",
+          "key": "test:dev-script"
+        }
+      },
+      {
+        "category": "test",
+        "command": "pnpm run test:deploy-config",
+        "owner": {
+          "path": "package.json",
+          "type": "package-script",
+          "key": "test:deploy-config"
+        }
+      }
+    ],
+    "skippedSurfaces": [
+      "build",
+      "smoke",
+      "deploy",
+      "project-skill"
+    ]
+  },
+  "managedArtifacts": [
+    {
+      "path": "AGENTS.md",
+      "sectionId": "validation",
+      "kind": "block",
+      "fingerprint": "sha256:4163855812f97150ade7db905c01cedd8f3735dca1f29c11665370a1e5b09093"
+    }
+  ]
+}
