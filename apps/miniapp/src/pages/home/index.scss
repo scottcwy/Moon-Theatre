@@ -77,23 +77,35 @@
   margin-top: $space-2;
 }
 
-.theater-home__feature-strip {
+.theater-home__script-scroll {
   width: 100%;
   display: flex;
-  gap: $space-4;
-  overflow-x: auto;
-  padding-bottom: $space-1;
   box-sizing: border-box;
+}
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
+.theater-home__script-dots {
+  margin-top: $space-3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-1;
+}
+
+.theater-home__script-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: $radius-full;
+  background-color: $color-outline-variant;
+}
+
+.theater-home__script-dot--active {
+  background-color: $color-primary;
 }
 
 .theater-home__hero-card {
   position: relative;
-  flex: 0 0 100%;
-  height: 668rpx;
+  flex: 0 0 88%;
+  height: 520rpx;
   border-radius: $radius-lg;
   overflow: hidden;
   background: #1c1117;
@@ -153,21 +165,27 @@
 }
 
 .theater-home__hero-title {
-  display: block;
+  display: -webkit-box;
   margin-top: $space-3;
   color: $color-on-primary;
   font-size: 50rpx;
   font-weight: 800;
   line-height: 1.18;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .theater-home__hero-desc {
-  display: block;
+  display: -webkit-box;
   margin-top: $space-2;
   max-width: 552rpx;
   color: $color-on-primary;
   font-size: $font-body-md;
   line-height: 1.58;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .theater-home__primary-action {

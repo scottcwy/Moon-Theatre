@@ -31,12 +31,29 @@ const PAGE_CHECKS = [
     required: [
       { label: 'home content', selectors: ['.theater-home__content'] },
       { label: 'home script search', selectors: ['.theater-home__script-search'] },
+      { label: 'home script scroll', selectors: ['.theater-home__script-scroll'] },
       { label: 'home script card', selectors: ['.theater-home__hero-card'] },
+      { label: 'home next section on first screen', selectors: ['.theater-home__character-section'] },
       { label: 'home character grid', selectors: ['.theater-home__grid'] },
       { label: 'home character poster', selectors: ['.theater-home__poster-card'] },
     ],
     nonOverlap: [
       { label: 'home topbar/hero', a: '.theater-home__topbar-shell', b: '.theater-home__hero-section' },
+    ],
+    assertions: [
+      {
+        label: 'multiple script cards with matching page dots',
+        run: async (page) => {
+          const cards = await page.$$('.theater-home__hero-card');
+          const dots = await page.$$('.theater-home__script-dot');
+          if (cards.length < 2) {
+            throw new Error(`expected at least 2 script cards, got ${cards.length}`);
+          }
+          if (dots.length !== cards.length) {
+            throw new Error(`expected ${cards.length} page dots, got ${dots.length}`);
+          }
+        },
+      },
     ],
   },
   {
@@ -538,6 +555,19 @@ async function inspectPage(miniProgram, check) {
 
     for (const pair of check.nonOverlap ?? []) {
       pageResult.failures.push(...await checkNonOverlap(page, pair));
+    }
+
+    for (const assertion of check.assertions ?? []) {
+      try {
+        await assertion.run(page);
+        pageResult.checks.push(`assertion passed: ${assertion.label}`);
+      } catch (error) {
+        pageResult.failures.push({
+          label: assertion.label,
+          selector: check.route,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     const screenshotPath = screenshotPathFor(check.name);

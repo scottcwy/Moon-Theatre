@@ -65,3 +65,15 @@ export function getCharacterAvatarUrl(name: string, avatarUrl?: string | null): 
 export function getCharacterDecisionBadge(name: string): string {
   return CHARACTER_DECISION_BADGES[name] ?? '可选角色';
 }
+
+/**
+ * Maps the horizontal scroll position to the nearest script card index.
+ * Uses the full scroll width divided by card count so the math stays
+ * independent of exact card width and gap values.
+ */
+export function getActiveScriptIndex(scrollLeft: number, scrollWidth: number, scriptCount: number): number {
+  if (scriptCount <= 1) return 0;
+  const step = Math.max(1, scrollWidth / scriptCount);
+  const index = Math.round(scrollLeft / step);
+  return Math.min(scriptCount - 1, Math.max(0, index));
+}

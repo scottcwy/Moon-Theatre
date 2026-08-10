@@ -1,4 +1,5 @@
-import { Image, Text, View } from '@tarojs/components';
+import { Image, ScrollView, Text, View } from '@tarojs/components';
+import type { BaseEventOrig, ScrollViewProps } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,6 +20,7 @@ import {
   buildScriptsUrl,
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
+  getActiveScriptIndex,
   getCharacterDetailUrl,
   getScriptCoverUrl,
   getScriptRoleSelectUrl,
@@ -56,6 +58,8 @@ export default function Home() {
     getTopBarStyle(calculateTopBarMetrics()),
   );
   const scriptRequestIdRef = useRef(0);
+  const [activeScriptIndex, setActiveScriptIndex] = useState(0);
+  const [scriptScrollEpoch, setScriptScrollEpoch] = useState(0);
 
   const loadScripts = useCallback(async (query: string) => {
     const requestId = scriptRequestIdRef.current + 1;
@@ -82,6 +86,16 @@ export default function Home() {
     }, 250);
     return () => clearTimeout(timer);
   }, [loadScripts, scriptQuery]);
+
+  const handleScriptScroll = (event: BaseEventOrig<ScrollViewProps.onScrollDetail>) => {
+    setActiveScriptIndex(getActiveScriptIndex(event.detail.scrollLeft, event.detail.scrollWidth, scripts.length));
+  };
+
+  useEffect(() => {
+    // Search results replace the list: reset dots and glide back to the first card.
+    setActiveScriptIndex(0);
+    setScriptScrollEpoch((epoch) => epoch + 1);
+  }, [scripts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,32 +168,58 @@ export default function Home() {
               onPrimary={() => { void loadScripts(scriptQuery); }}
             />
           ) : scripts.length > 0 ? (
-            <View className="theater-home__feature-strip">
-              {scripts.map((script) => {
-                const coverUrl = getScriptCoverUrl(script);
-                return (
-                  <View key={script.id} className="theater-home__hero-card">
-                    {coverUrl ? (
-                      <Image className="theater-home__hero-image" src={coverUrl} mode="aspectFill" />
-                    ) : (
-                      <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
-                    )}
-                    <View className="theater-home__hero-shade" />
-                    <View className="theater-home__hero-logo">
-                      <Text className="theater-home__hero-logo-text">{script.genre || '角色剧本'}</Text>
+            <>
+              <ScrollView
+                className="theater-home__script-scroll"
+                scrollX
+                enhanced
+                showScrollbar={false}
+                enableFlex
+                scrollIntoView={scriptScrollEpoch > 0 ? `script-0-${scriptScrollEpoch}` : undefined}
+                scrollWithAnimation
+                onScroll={handleScriptScroll}
+              >
+                {scripts.map((script, index) => {
+                  const coverUrl = getScriptCoverUrl(script);
+                  return (
+                    <View
+                      key={script.id}
+                      id={`script-${index}-${scriptScrollEpoch}`}
+                      className="theater-home__hero-card"
+                    >
+                      {coverUrl ? (
+                        <Image className="theater-home__hero-image" src={coverUrl} mode="aspectFill" />
+                      ) : (
+                        <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
+                      )}
+                      <View className="theater-home__hero-shade" />
+                      <View className="theater-home__hero-logo">
+                        <Text className="theater-home__hero-logo-text">{script.genre || '角色剧本'}</Text>
+                      </View>
+                      <View className="theater-home__hero-content">
+                        <Badge tone="secondary" className="theater-home__tag">可进入</Badge>
+                        <Text className="theater-home__hero-title">{script.title}</Text>
+                        <Text className="theater-home__hero-desc">{script.description}</Text>
+                        <PrimaryButton className="theater-home__primary-action" onTap={() => chooseRole(script.id)}>
+                          {homeSections.scriptPrimaryAction}
+                        </PrimaryButton>
+                      </View>
                     </View>
-                    <View className="theater-home__hero-content">
-                      <Badge tone="secondary" className="theater-home__tag">可进入</Badge>
-                      <Text className="theater-home__hero-title">{script.title}</Text>
-                      <Text className="theater-home__hero-desc">{script.description}</Text>
-                      <PrimaryButton className="theater-home__primary-action" onTap={() => chooseRole(script.id)}>
-                        {homeSections.scriptPrimaryAction}
-                      </PrimaryButton>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
+                  );
+                })}
+              </ScrollView>
+              {scripts.length > 1 && (
+                <View className="theater-home__script-dots" aria-label="剧本页码">
+                  {scripts.map((script, index) => (
+                    <View
+                      key={script.id}
+                      className={`theater-home__script-dot${index === activeScriptIndex ? ' theater-home__script-dot--active' : ''}`}
+                      aria-label={`第 ${index + 1} 张剧本`}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
           ) : (
             <EmptyState
               className="theater-home__script-state"
