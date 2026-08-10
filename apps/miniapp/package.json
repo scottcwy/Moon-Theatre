@@ -18,7 +18,9 @@
     "test:e2e:ui": "node e2e/runtime-ui.mjs",
     "test:e2e:ui:auth": "node e2e/runtime-ui-authenticated.mjs",
     "verify:weapp": "node scripts/verify-weapp-build.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:weapp:lan": "node scripts/build-with-host.mjs --mode lan --watch",
+    "build:weapp:prod": "node scripts/clean-dist.mjs && node scripts/build-with-host.mjs --mode prod && pnpm verify:weapp"
   },
   "browserslist": [
     "last 3 versions",

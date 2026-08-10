@@ -76,12 +76,22 @@ rtk curl -fsS https://api.your-domain.com/api/ready
 
 ## 5. 小程序生产构建
 
+域名统一配置在 `apps/miniapp/config/hosts.json`（`dev`/`lan`/`prod` 三档），当前生产域名：`https://api.offergo.xz.cn`。
+
 ```bash
-rtk API_BASE_URL="https://api.your-domain.com" pnpm --filter @juben-sha/miniapp build:weapp
+rtk pnpm build:miniapp:prod
+```
+
+该命令自动读取 `hosts.json` 的 `prod` 地址注入构建，并在构建后自动运行 `verify:weapp` 扫描产物。等价于旧方式：
+```bash
+rtk API_BASE_URL="https://api.offergo.xz.cn" pnpm --filter @juben-sha/miniapp build:weapp
 rtk pnpm --filter @juben-sha/miniapp verify:weapp
 ```
 
-构建前确认 `API_BASE_URL` 是真实 HTTPS API 域名，并且已加入微信 request 合法域名。构建后必须运行 `verify:weapp`，让产物扫描继续挡住占位 API 主机和 localhost。
+- 开发环境用 `rtk pnpm dev:miniapp`（默认 `http://127.0.0.1:3000`，配合微信开发者工具"不校验合法域名"）。
+- 真机预览用 `rtk pnpm dev:miniapp:lan`（先在本机 `hosts.json` 的 `lan` 填入电脑局域网 IP）。
+- 生产域名变更时，只改 `hosts.json` 的 `prod` 后重新构建上传即可；后端镜像域名由服务器 `.env` 的 `CADDY_API_SITE_ADDRESS` 控制，与此无关。
+- 构建前确认该域名已加入微信 request 合法域名；`verify:weapp` 会继续挡住占位 API 主机和 localhost。
 
 ## 6. 回滚
 
