@@ -11,17 +11,19 @@ import (
 
 type captureProvider struct {
 	messages []provider.Message
+	tools    []provider.Tool
 }
 
 func (p *captureProvider) Chat(
 	_ context.Context,
 	messages []provider.Message,
-	_ []provider.Tool,
+	toolDefs []provider.Tool,
 	_ string,
 	_ int,
 	_ float64,
 ) (*provider.Response, error) {
 	p.messages = append([]provider.Message(nil), messages...)
+	p.tools = append([]provider.Tool(nil), toolDefs...)
 	return &provider.Response{Content: "收到"}, nil
 }
 
@@ -63,5 +65,35 @@ func TestHandleMessageUsesRequestSystemPromptOverride(t *testing.T) {
 	}
 	if got := prov.messages[0].Content; got != "你是白藏，必须保持角色。" {
 		t.Fatalf("system prompt = %q, want request override", got)
+	}
+}
+
+func TestHandleMessageWithZeroToolIterationsCallsModelWithoutTools(t *testing.T) {
+	prov := &captureProvider{}
+	ag := NewAgent(config.ResolvedAgent{
+		ID:                "test-agent",
+		Home:              t.TempDir(),
+		Model:             "siliconflow/test-model",
+		MaxTokens:         1024,
+		Temperature:       0.7,
+		MaxToolIterations: 0,
+	}, prov, bus.New(), t.TempDir())
+
+	got := ag.HandleMessage(context.Background(), bus.InboundMessage{
+		Channel:  "api",
+		ChatID:   "no-tools",
+		UserID:   "api-user",
+		Text:     "你好",
+		PeerKind: "dm",
+	})
+
+	if got != "收到" {
+		t.Fatalf("reply = %q, want model content", got)
+	}
+	if len(prov.messages) == 0 {
+		t.Fatal("provider did not receive messages")
+	}
+	if len(prov.tools) != 0 {
+		t.Fatalf("tool count = %d, want 0", len(prov.tools))
 	}
 }

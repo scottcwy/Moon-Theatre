@@ -1,6 +1,9 @@
 export {
   getCharacterWithPrompts,
   getScriptById,
+  getChatSessionScope,
+  ScriptUnavailableError,
+  SessionScopeMismatchError,
   findOrCreateSession,
   findTurnByClientMessageId,
   getCleanHistoryMessages,
@@ -28,6 +31,9 @@ export type {
   FinalizeAssistantTurnInput,
   Script,
   CharacterWithPrompts,
+  ChatMode,
+  ChatSessionScope,
+  FinalizeAssistantTurnResult,
 } from './service.js';
 
 export { buildSystemPrompt } from './prompt-builder.js';

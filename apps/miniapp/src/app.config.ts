@@ -1,6 +1,9 @@
 export default defineAppConfig({
   pages: [
     'pages/home/index',
+    'pages/role-select/moon-garden',
+    'pages/script/select',
+    'pages/script/catalog',
     'pages/chat/index',
     'pages/chat/list',
     'pages/memory/index',
@@ -16,6 +19,7 @@ export default defineAppConfig({
     color: '#5A4A4E',
     selectedColor: '#8B4258',
     backgroundColor: '#FFFBF8',
+    borderStyle: 'white',
     list: [
       { pagePath: 'pages/home/index', text: '首页', iconPath: 'assets/icons/home.png', selectedIconPath: 'assets/icons/home-active.png' },
       { pagePath: 'pages/chat/list', text: '聊天', iconPath: 'assets/icons/chat.png', selectedIconPath: 'assets/icons/chat-active.png' },
@@ -24,7 +28,8 @@ export default defineAppConfig({
     ],
   },
   window: {
-    backgroundTextStyle: 'light',
+    backgroundColor: '#FFFBF8',
+    backgroundTextStyle: 'dark',
     navigationBarBackgroundColor: '#FFFBF8',
     navigationBarTitleText: '剧本杀',
     navigationBarTextStyle: 'black',

@@ -19,10 +19,11 @@ func New(cfg *StorageConfig, homeDir string) (Store, error) {
 	case StoragePostgres, StorageSQLite:
 		dsn := cfg.DSN
 		if cfg.Type == StorageSQLite && dsn == "" {
-			if err := os.MkdirAll(homeDir, 0o755); err != nil {
-				return nil, fmt.Errorf("create %s: %w", homeDir, err)
+			var err error
+			dsn, err = defaultSQLiteDSN(homeDir)
+			if err != nil {
+				return nil, err
 			}
-			dsn = "file:" + filepath.Join(homeDir, "fastclaw.db") + "?_journal=WAL&_fk=1"
 		}
 		slog.Info("using database storage", "dialect", cfg.Type, "dsn", maskDSN(dsn))
 		db, err := NewDBStore(string(cfg.Type), dsn)
@@ -40,6 +41,13 @@ func New(cfg *StorageConfig, homeDir string) (Store, error) {
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s (only sqlite/postgres supported)", cfg.Type)
 	}
+}
+
+func defaultSQLiteDSN(homeDir string) (string, error) {
+	if err := os.MkdirAll(homeDir, 0o755); err != nil {
+		return "", fmt.Errorf("create %s: %w", homeDir, err)
+	}
+	return "file:" + filepath.Join(homeDir, "fastclaw.db") + "?_journal=WAL&_fk=1&_pragma=busy_timeout(5000)", nil
 }
 
 // maskDSN masks passwords in DSN strings for logging.

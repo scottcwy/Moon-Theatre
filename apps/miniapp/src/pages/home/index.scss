@@ -24,6 +24,28 @@
   line-height: 1;
 }
 
+.theater-home__script-mode-entry {
+  display: flex;
+  align-items: center;
+  height: 56rpx;
+  padding: 0 $space-3;
+  border-radius: $radius-full;
+  background: linear-gradient(135deg, $color-primary 0%, #a84f68 100%);
+  box-shadow: 0 8rpx 18rpx rgba(139, 66, 88, 0.22);
+}
+
+.theater-home__script-mode-entry:active {
+  transform: scale(0.96);
+}
+
+.theater-home__script-mode-entry-text {
+  color: $color-on-primary;
+  font-size: $font-label-sm;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .theater-home__brand {
   color: $color-primary;
   font-size: 36rpx;
@@ -52,10 +74,12 @@
 }
 
 .theater-home__content {
+  min-height: 100vh;
   padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-3}) $page-padding-h calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
   background:
     linear-gradient(180deg, rgba(255, 247, 248, 0.72) 0%, rgba(255, 251, 248, 0) 360rpx),
     $color-background;
+  box-sizing: border-box;
 }
 
 .theater-home__hero-section,
@@ -67,33 +91,59 @@
   margin-top: $space-2;
 }
 
-.theater-home__feature-strip {
+.theater-home__script-search {
+  margin-bottom: $space-4;
+}
+
+.theater-home__script-state {
+  margin-top: $space-2;
+}
+
+.theater-home__script-scroll {
   width: 100%;
   display: flex;
-  gap: $space-4;
-  overflow-x: auto;
-  padding-bottom: $space-1;
   box-sizing: border-box;
+}
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
+.theater-home__script-dots {
+  margin-top: $space-3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-1;
+}
+
+.theater-home__script-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: $radius-full;
+  background-color: $color-outline-variant;
+}
+
+.theater-home__script-dot--active {
+  background-color: $color-primary;
 }
 
 .theater-home__hero-card {
   position: relative;
-  flex: 0 0 100%;
-  height: 668rpx;
-  border-radius: $radius-md;
+  flex: 0 0 88%;
+  height: 520rpx;
+  border-radius: $radius-lg;
   overflow: hidden;
   background: #1c1117;
-  box-shadow: 0 20rpx 54rpx rgba(58, 7, 24, 0.14);
+  box-shadow: 0 12rpx 28rpx rgba(58, 7, 24, 0.1);
+  transform: translateZ(0);
 }
 
 .theater-home__hero-image {
   width: 100%;
   height: 100%;
   display: block;
+  border-radius: inherit;
+}
+
+.theater-home__hero-image--placeholder {
+  background-color: $color-primary;
 }
 
 .theater-home__hero-shade {
@@ -137,21 +187,27 @@
 }
 
 .theater-home__hero-title {
-  display: block;
+  display: -webkit-box;
   margin-top: $space-3;
   color: $color-on-primary;
   font-size: 50rpx;
   font-weight: 800;
   line-height: 1.18;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .theater-home__hero-desc {
-  display: block;
+  display: -webkit-box;
   margin-top: $space-2;
   max-width: 552rpx;
   color: $color-on-primary;
   font-size: $font-body-md;
   line-height: 1.58;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .theater-home__primary-action {
@@ -175,7 +231,7 @@
 
 .theater-home__poster-card .character-poster-card__poster {
   aspect-ratio: 1 / 1.28;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
   background-color: $color-surface-container-low;
 }
 

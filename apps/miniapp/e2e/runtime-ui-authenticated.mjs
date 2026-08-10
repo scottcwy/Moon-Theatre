@@ -30,11 +30,44 @@ const PAGE_CHECKS = [
     ready: ['.theater-home__content'],
     required: [
       { label: 'home content', selectors: ['.theater-home__content'] },
+      { label: 'home script search', selectors: ['.theater-home__script-search'] },
+      { label: 'home script scroll', selectors: ['.theater-home__script-scroll'] },
+      { label: 'home script card', selectors: ['.theater-home__hero-card'] },
+      { label: 'home next section on first screen', selectors: ['.theater-home__character-section'] },
       { label: 'home character grid', selectors: ['.theater-home__grid'] },
       { label: 'home character poster', selectors: ['.theater-home__poster-card'] },
     ],
     nonOverlap: [
       { label: 'home topbar/hero', a: '.theater-home__topbar-shell', b: '.theater-home__hero-section' },
+    ],
+    assertions: [
+      {
+        label: 'multiple script cards with matching page dots',
+        run: async (page) => {
+          const cards = await page.$$('.theater-home__hero-card');
+          const dots = await page.$$('.theater-home__script-dot');
+          if (cards.length < 2) {
+            throw new Error(`expected at least 2 script cards, got ${cards.length}`);
+          }
+          if (dots.length !== cards.length) {
+            throw new Error(`expected ${cards.length} page dots, got ${dots.length}`);
+          }
+        },
+      },
+    ],
+  },
+  {
+    name: 'auth-script-select',
+    route: 'pages/script/select?scriptId=script-moon-garden',
+    expectedPath: 'pages/script/select',
+    open: 'reLaunch',
+    ready: ['.script-select__hero'],
+    settleMs: 1200,
+    required: [
+      { label: 'script hero', selectors: ['.script-select__hero'] },
+      { label: 'script world setting', selectors: ['.script-select__world'], allowOutsideViewport: true },
+      { label: 'script character grid', selectors: ['.script-select__grid'], allowOutsideViewport: true },
+      { label: 'script character card', selectors: ['.character-poster-card'], allowOutsideViewport: true },
     ],
   },
   {
@@ -44,11 +77,13 @@ const PAGE_CHECKS = [
     open: 'reLaunch',
     ready: ['.character-detail-hero'],
     settleMs: 1000,
+    resetScrollBeforeAssert: true,
     required: [
       { label: 'character hero', selectors: ['.character-detail-hero'] },
       { label: 'character script section', selectors: ['.detail__section--script'], allowOutsideViewport: true },
       { label: 'character intro section', selectors: ['.detail__section'], allowOutsideViewport: true },
       { label: 'character bottom action', selectors: ['.bottom-action'] },
+      { label: 'character mode actions', selectors: ['.detail__actions'] },
     ],
     optionalBottom: [
       { label: 'character bottom action', selector: '.bottom-action' },
@@ -89,6 +124,8 @@ const PAGE_CHECKS = [
     required: [
       { label: 'profile shell', selectors: ['.profile'] },
       { label: 'profile hero', selectors: ['.profile__hero'] },
+      { label: 'profile preferred name', selectors: ['.profile__name-line'] },
+      { label: 'profile preferred name edit', selectors: ['.profile__name-edit'] },
       { label: 'profile growth card', selectors: ['.profile__growth-card'] },
     ],
   },
@@ -115,6 +152,7 @@ const PAGE_CHECKS = [
     required: [
       { label: 'chat page', selectors: ['.chat-page'] },
       { label: 'chat header', selectors: ['.character-header'] },
+      { label: 'chat scope bar', selectors: ['.chat-page__scope-bar'] },
       { label: 'model tier control', selectors: ['.model-tier-control'] },
       { label: 'insufficient points notice', selectors: ['.chat-page__notice-card'] },
       { label: 'chat input bar', selectors: ['.chat-input-bar'] },
@@ -134,6 +172,7 @@ const PAGE_CHECKS = [
     required: [
       { label: 'chat page', selectors: ['.chat-page'] },
       { label: 'chat header', selectors: ['.character-header'] },
+      { label: 'chat scope bar', selectors: ['.chat-page__scope-bar'] },
       { label: 'chat messages', selectors: ['.chat-page__messages'] },
       { label: 'stream error card', selectors: ['.chat-page__stream-error'] },
       { label: 'chat input bar', selectors: ['.chat-input-bar'] },
@@ -174,6 +213,21 @@ const PAGE_CHECKS = [
 ];
 
 const INTERACTION_CHECKS = [
+  {
+    name: 'auth-chat-free-to-empty-script',
+    route: 'pages/chat/index?sessionId=session-hakuzo-free-only',
+    expectedPath: 'pages/chat/index',
+    open: 'reLaunch',
+    ready: ['.chat-page__mode-control'],
+    settleMs: 800,
+    run: switchFreeHistoryToEmptyScript,
+    required: [
+      { label: 'chat page', selectors: ['.chat-page'] },
+      { label: 'script mode label', selectors: ['.chat-page__scope-label'] },
+      { label: 'empty script starters', selectors: ['.chat-page__starters'] },
+      { label: 'chat input bar', selectors: ['.chat-input-bar'] },
+    ],
+  },
   {
     name: 'auth-quota-checkout',
     route: 'pages/quota/buy',
@@ -395,6 +449,26 @@ async function sendChatMessageAndWaitForError(page) {
   await waitForSelector(page, '.chat-bubble__text', 5000);
 }
 
+async function switchFreeHistoryToEmptyScript(_miniProgram, page) {
+  const modeOptions = await page.$$('.chat-page__mode-option');
+  assert(modeOptions.length === 2, `Expected 2 chat mode options, got ${modeOptions.length}`);
+  await modeOptions[0].tap();
+
+  const deadline = Date.now() + 10000;
+  let scopeLabel = '';
+  while (Date.now() < deadline) {
+    const label = await page.$('.chat-page__scope-label');
+    scopeLabel = label ? await label.text().catch(() => '') : '';
+    if (scopeLabel === '剧本模式') break;
+    await page.waitFor(250);
+  }
+
+  assert(scopeLabel === '剧本模式', `Expected empty Script Mode scope, got ${scopeLabel || 'no label'}`);
+  const messages = await page.$$('.chat-bubble-row');
+  assert(messages.length === 0, `Expected empty Script Mode history, got ${messages.length} messages`);
+  return page;
+}
+
 async function completeMockCheckout(miniProgram, page) {
   const packages = await page.$$('.buy__package');
   assert(packages.length > 0, 'Expected at least one quota package');
@@ -462,6 +536,12 @@ async function inspectPage(miniProgram, check) {
       pageResult.checks.push('interaction completed');
     }
 
+    if (check.resetScrollBeforeAssert) {
+      await miniProgram.pageScrollTo(0);
+      await page.waitFor(250);
+      pageResult.checks.push('scroll reset');
+    }
+
     const viewport = await getViewport(miniProgram, page);
     pageResult.viewport = viewport;
 
@@ -475,6 +555,19 @@ async function inspectPage(miniProgram, check) {
 
     for (const pair of check.nonOverlap ?? []) {
       pageResult.failures.push(...await checkNonOverlap(page, pair));
+    }
+
+    for (const assertion of check.assertions ?? []) {
+      try {
+        await assertion.run(page);
+        pageResult.checks.push(`assertion passed: ${assertion.label}`);
+      } catch (error) {
+        pageResult.failures.push({
+          label: assertion.label,
+          selector: check.route,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     const screenshotPath = screenshotPathFor(check.name);

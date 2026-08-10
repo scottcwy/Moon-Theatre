@@ -14,14 +14,17 @@ describe('chat list tab bar integration', () => {
     expect(source).not.toContain('chat-list-tabbar');
   });
 
-  it('refreshes auth and sessions whenever the cached tab page is shown', () => {
+  it('refreshes auth and character chats whenever the cached tab page is shown', () => {
     expect(source).toContain('useDidShow');
-    expect(source).toContain('loadSessions');
+    expect(source).toContain('loadCharacterChats');
   });
 
-  it('uses an active local search instead of a disabled fake search affordance', () => {
+  it('uses an active debounced server search instead of a disabled fake search affordance', () => {
     expect(source).toContain('searchQuery');
-    expect(source).toContain('filterChatSessions');
+    expect(source).toContain('buildCharacterChatsUrl');
+    expect(source).toContain('setTimeout');
+    expect(source).toContain('250');
+    expect(source).not.toContain('filterChatSessions');
     expect(source).not.toContain('<SearchBar disabled');
   });
 
@@ -42,5 +45,27 @@ describe('chat list tab bar integration', () => {
     expect(styleSource).toContain('padding: 0 $space-2');
     expect(styleSource).toContain('width: 80rpx');
     expect(styleSource).toContain('height: 80rpx');
+  });
+
+  it('drives the unread red dot from return-message metadata and marks read on session open', () => {
+    expect(source).toContain('RETURN_MESSAGES_CHECK_PATH');
+    expect(source).toContain('RETURN_MESSAGES_READ_PATH');
+    expect(source).toContain('characterUnread');
+    expect(source).toContain('unread={(characterUnread[entry.characterId] ?? 0) > 0}');
+    expect(source).not.toContain('ReturnMessageCard');
+    expect(source).not.toContain('角色留言');
+    expect(source).not.toContain('chat-list__return-messages');
+    expect(source).not.toContain('filterChatSessions');
+  });
+
+  it('marks return messages read when opening the chat page from any entry, guarded by login', () => {
+    const chatSource = readFileSync(resolve(__dirname, 'index.tsx'), 'utf8');
+    expect(chatSource).toContain('RETURN_MESSAGES_READ_PATH');
+    expect(chatSource).toContain('buildReturnMessagesReadBody');
+    expect(chatSource).toContain('getReturnMessageReadCharacterId');
+    expect(chatSource).toContain('api.post(RETURN_MESSAGES_READ_PATH, buildReturnMessagesReadBody(characterId))');
+    // 未登录不发必然 401 的已读请求，失败静默
+    expect(chatSource).toContain('if (!isLoggedIn() || !characterId) return;');
+    expect(chatSource).toContain('.catch(() => {})');
   });
 });

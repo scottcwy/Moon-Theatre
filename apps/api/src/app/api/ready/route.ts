@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { config } from '@/server/config/index.js';
 
 const CHAT_AGENT_MAX_TOKENS = 768;
-const CHAT_AGENT_MAX_TOOL_ITERATIONS = 1;
+const CHAT_AGENT_MAX_TOOL_ITERATIONS = 0;
 
 export async function GET() {
   const checks = {
@@ -60,14 +60,14 @@ async function checkFastClaw(): Promise<{
     }
 
     const { maxTokens, maxToolIterations } = agentSpec;
-    if (maxTokens > CHAT_AGENT_MAX_TOKENS || maxToolIterations > CHAT_AGENT_MAX_TOOL_ITERATIONS) {
+    if (maxTokens > CHAT_AGENT_MAX_TOKENS || maxToolIterations !== CHAT_AGENT_MAX_TOOL_ITERATIONS) {
       return {
         ok: false,
         configured: true,
         agentId: config.fastclawAgentId,
         maxTokens,
         maxToolIterations,
-        error: `FastClaw agent exceeds chat speed limits: maxTokens=${maxTokens}, maxToolIterations=${maxToolIterations}`,
+        error: `FastClaw agent exceeds chat runtime limits: maxTokens=${maxTokens}, maxToolIterations=${maxToolIterations}; required maxTokens<=${CHAT_AGENT_MAX_TOKENS} and maxToolIterations=${CHAT_AGENT_MAX_TOOL_ITERATIONS}`,
       };
     }
 

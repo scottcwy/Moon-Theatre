@@ -1,11 +1,30 @@
 import { asc, desc, eq, and, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { config } from '../../config/index.js';
 import { db } from '../../db/index.js';
-import { chatSessions, messages, characters, characterPrompts, scripts, modelUsageLogs } from '../../db/schema';
+import {
+  chatSessions,
+  messages,
+  characters,
+  characterPrompts,
+  scripts,
+  modelUsageLogs,
+  relationshipBondExpEvents,
+  relationships,
+} from '../../db/schema';
 
 export type ChatGenerationStatus = 'generating' | 'completed' | 'failed';
 export type ChatPromptMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 export type ChatModelTier = 'casual' | 'standard' | 'immersive';
+export type ChatMode = 'script' | 'free';
+
+export class ScriptUnavailableError extends Error {
+  public readonly code = 'script_unavailable' as const;
+
+  constructor() {
+    super('script_unavailable');
+    this.name = 'ScriptUnavailableError';
+  }
+}
 
 export interface ChatTurnUserMessage {
   id: string;
@@ -33,6 +52,15 @@ export interface ChatTurnByClientMessageId {
   assistantMessage: null | ChatTurnAssistantMessage;
 }
 
+export interface ChatSessionScope {
+  id: string;
+  userId: string;
+  characterId: string;
+  status: 'active' | 'archived';
+  mode: ChatMode;
+  scriptId: string | null;
+}
+
 export type ResolveClientTurnInput = {
   userId: string;
   characterId: string;
@@ -40,6 +68,8 @@ export type ResolveClientTurnInput = {
   message: string;
   clientMessageId: string;
   sessionId?: string;
+  mode?: ChatMode;
+  scriptId?: string;
 };
 
 export type ResolveClientTurnResult =
@@ -69,6 +99,14 @@ export type ResolveClientTurnResult =
     }
   | {
       status: 'collision';
+    }
+  | {
+      status: 'session_scope_mismatch';
+      sessionId: string;
+      storedMode: string;
+      storedScriptId: string | null;
+      requestedMode: string;
+      requestedScriptId: string | null;
     };
 
 export type SaveAssistantForTurnInput = {
@@ -94,6 +132,14 @@ export type FinalizeAssistantTurnInput = SaveAssistantForTurnInput & {
   };
 };
 
+export interface FinalizeAssistantTurnResult {
+  id: string;
+  bondLevel?: number;
+  bondExp?: number;
+  bondDelta?: number;
+  leveledUp?: boolean;
+}
+
 const BLOCKED_INPUT_FALLBACK = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
 
 export interface Script {
@@ -101,6 +147,7 @@ export interface Script {
   title: string;
   description: string;
   worldSetting: string;
+  status: string;
 }
 
 export interface CharacterWithPrompts {
@@ -139,16 +186,56 @@ export async function getCharacterWithPrompts(characterId: string): Promise<Char
 }
 
 export async function getScriptById(scriptId: string): Promise<Script | null> {
-  const [script] = await db.select().from(scripts).where(eq(scripts.id, scriptId)).limit(1);
+  const [script] = await db
+    .select({
+      id: scripts.id,
+      title: scripts.title,
+      description: scripts.description,
+      worldSetting: scripts.worldSetting,
+      status: scripts.status,
+    })
+    .from(scripts)
+    .where(eq(scripts.id, scriptId))
+    .limit(1);
   return script ?? null;
+}
+
+export async function getChatSessionScope(
+  userId: string,
+  sessionId: string,
+): Promise<ChatSessionScope | null> {
+  const [session] = await db
+    .select({
+      id: chatSessions.id,
+      userId: chatSessions.userId,
+      characterId: chatSessions.characterId,
+      status: chatSessions.status,
+      mode: chatSessions.mode,
+      scriptId: chatSessions.scriptId,
+    })
+    .from(chatSessions)
+    .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)))
+    .limit(1);
+
+  return session ? { ...session, mode: session.mode as ChatMode } : null;
 }
 
 export async function findOrCreateSession(
   userId: string,
   characterId: string,
   modelTier: string,
-  sessionId?: string
-): Promise<{ id: string }> {
+  sessionId?: string,
+  mode?: ChatMode,
+  scriptId?: string | null,
+): Promise<{ id: string; mode: ChatMode; scriptId: string | null }> {
+  const requestedScriptId = scriptId ?? null;
+  if (mode === 'script' && !requestedScriptId) {
+    throw new ScriptUnavailableError();
+  }
+  if (mode === 'free' && requestedScriptId) {
+    throw new Error('scriptId must not be provided for free mode');
+  }
+
   if (sessionId) {
     const [existing] = await db
       .select({
@@ -156,6 +243,8 @@ export async function findOrCreateSession(
         userId: chatSessions.userId,
         characterId: chatSessions.characterId,
         status: chatSessions.status,
+        mode: chatSessions.mode,
+        scriptId: chatSessions.scriptId,
       })
       .from(chatSessions)
       .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.status, 'active')))
@@ -170,23 +259,61 @@ export async function findOrCreateSession(
     if (existing.characterId !== characterId) {
       throw new Error('Session character mismatch');
     }
-    return { id: existing.id };
+    if (mode && (existing.mode !== mode || existing.scriptId !== (scriptId ?? null))) {
+      throw new SessionScopeMismatchError(
+        sessionId,
+        existing.mode,
+        existing.scriptId,
+        mode,
+        scriptId ?? null,
+      );
+    }
+    return { id: existing.id, mode: existing.mode as ChatMode, scriptId: existing.scriptId };
+  }
+
+  // Resolve mode defaults when not provided (backward compat)
+  if (!mode) {
+    const [character] = await db
+      .select({ scriptId: characters.scriptId })
+      .from(characters)
+      .where(eq(characters.id, characterId))
+      .limit(1);
+    mode = 'script';
+    scriptId = character?.scriptId ?? null;
+  }
+
+  const scriptIdValue = scriptId ?? null;
+
+  // Boundary validation: enforce mode/scriptId invariants before any DB access
+  if (mode === 'script' && !scriptIdValue) {
+    throw new ScriptUnavailableError();
+  }
+  if (mode === 'free' && scriptIdValue) {
+    throw new Error('scriptId must not be provided for free mode');
+  }
+
+  // Build active-session query matching the unique index
+  const activeConditions = [
+    eq(chatSessions.userId, userId),
+    eq(chatSessions.characterId, characterId),
+    eq(chatSessions.status, 'active'),
+  ];
+
+  if (mode === 'script') {
+    activeConditions.push(eq(chatSessions.mode, 'script'));
+    activeConditions.push(eq(chatSessions.scriptId, scriptIdValue!));
+  } else {
+    activeConditions.push(eq(chatSessions.mode, 'free'));
   }
 
   const [existing] = await db
-    .select({ id: chatSessions.id })
+    .select({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId })
     .from(chatSessions)
-    .where(
-      and(
-        eq(chatSessions.userId, userId),
-        eq(chatSessions.characterId, characterId),
-        eq(chatSessions.status, 'active')
-      )
-    )
+    .where(and(...activeConditions))
     .limit(1);
 
   if (existing) {
-    return { id: existing.id };
+    return { id: existing.id, mode: existing.mode as ChatMode, scriptId: existing.scriptId };
   }
 
   const [created] = await db
@@ -196,13 +323,31 @@ export async function findOrCreateSession(
       characterId,
       modelTier: modelTier as 'casual' | 'standard' | 'immersive',
       status: 'active',
+      mode: mode as 'script' | 'free',
+      scriptId: scriptIdValue,
     })
-    .returning({ id: chatSessions.id });
+    .returning({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId });
 
   if (!created) {
     throw new Error('Failed to create chat session');
   }
-  return { id: created.id };
+  return { id: created.id, mode: created.mode as ChatMode, scriptId: created.scriptId };
+}
+
+export class SessionScopeMismatchError extends Error {
+  public readonly code = 'session_scope_mismatch' as const;
+  constructor(
+    public readonly sessionId: string,
+    public readonly storedMode: string,
+    public readonly storedScriptId: string | null,
+    public readonly requestedMode: string,
+    public readonly requestedScriptId: string | null,
+  ) {
+    super(
+      `Session ${sessionId} scope mismatch: stored (mode=${storedMode}, scriptId=${storedScriptId}) vs requested (mode=${requestedMode}, scriptId=${requestedScriptId})`,
+    );
+    this.name = 'SessionScopeMismatchError';
+  }
 }
 
 async function touchSession(sessionId: string): Promise<void> {
@@ -493,6 +638,54 @@ async function resolveExistingClientTurn(
 export async function resolveClientTurn(
   input: ResolveClientTurnInput,
 ): Promise<ResolveClientTurnResult> {
+  // --- Resolve mode / scriptId with legacy inference ---
+  let resolvedMode: ChatMode;
+  let resolvedScriptId: string | null;
+  let inferredLegacy = false;
+
+  if (input.mode) {
+    resolvedMode = input.mode;
+    resolvedScriptId = input.scriptId ?? null;
+  } else if (input.sessionId) {
+    // Legacy: no mode + sessionId → read from persisted session
+    const [session] = await db
+      .select({ mode: chatSessions.mode, scriptId: chatSessions.scriptId })
+      .from(chatSessions)
+      .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.status, 'active')))
+      .limit(1);
+    if (!session) {
+      throw new Error('Session not found or no longer active');
+    }
+    resolvedMode = session.mode as ChatMode;
+    resolvedScriptId = session.scriptId;
+    inferredLegacy = true;
+  } else {
+    // Legacy: no mode + no sessionId → infer Script + character.scriptId
+    const [character] = await db
+      .select({ scriptId: characters.scriptId })
+      .from(characters)
+      .where(eq(characters.id, input.characterId))
+      .limit(1);
+    if (!character?.scriptId) {
+      throw new ScriptUnavailableError();
+    }
+    resolvedMode = 'script';
+    resolvedScriptId = character.scriptId;
+    inferredLegacy = true;
+  }
+
+  if (inferredLegacy) {
+    console.info({
+      event: 'chat_mode_inferred_legacy',
+      userId: input.userId,
+      characterId: input.characterId,
+      clientMessageId: input.clientMessageId,
+      resolvedMode,
+      resolvedScriptId,
+    });
+  }
+
+  // --- Existing turn lookup ---
   const existing = await findTurnByClientMessageId(input.userId, input.clientMessageId, input.sessionId);
 
   // Collision: same clientMessageId in multiple sessions, or session mismatch
@@ -511,6 +704,8 @@ export async function resolveClientTurn(
       input.characterId,
       input.modelTier,
       input.sessionId,
+      resolvedMode,
+      resolvedScriptId,
     );
     const userMessage = await saveUserMessage(session.id, input.message, {
       clientMessageId: input.clientMessageId,
@@ -527,6 +722,26 @@ export async function resolveClientTurn(
       generationAttempt: userMessage.generationAttempt,
     };
   } catch (error: unknown) {
+    if (error instanceof SessionScopeMismatchError) {
+      console.warn({
+        event: 'chat_session_scope_mismatch',
+        sessionId: error.sessionId,
+        storedMode: error.storedMode,
+        storedScriptId: error.storedScriptId,
+        requestedMode: error.requestedMode,
+        requestedScriptId: error.requestedScriptId,
+        userId: input.userId,
+        characterId: input.characterId,
+      });
+      return {
+        status: 'session_scope_mismatch',
+        sessionId: error.sessionId,
+        storedMode: error.storedMode,
+        storedScriptId: error.storedScriptId,
+        requestedMode: error.requestedMode,
+        requestedScriptId: error.requestedScriptId,
+      };
+    }
     if (isUniqueConstraintError(error, 'messages_user_client_message_unique')) {
       const reRead = await findTurnByClientMessageId(
         input.userId,
@@ -562,7 +777,7 @@ export async function saveAssistantForTurn(input: SaveAssistantForTurnInput): Pr
   });
 }
 
-export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): Promise<{ id: string }> {
+export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): Promise<FinalizeAssistantTurnResult> {
   return db.transaction(async (tx) => {
     const now = new Date();
     const [assistant] = await tx
@@ -599,6 +814,65 @@ export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): 
       });
     }
 
+    let bondLevel: number | undefined;
+    let bondExp: number | undefined;
+    let bondDelta: number | undefined;
+    let leveledUp: boolean | undefined;
+    if (input.usage?.status === 'success') {
+      const expIncrement = 10;
+      const [bondEvent] = await tx
+        .insert(relationshipBondExpEvents)
+        .values({
+          assistantMessageId: assistant.id,
+          userId: input.usage.userId,
+          characterId: input.usage.characterId,
+          expIncrement,
+        })
+        .onConflictDoNothing({ target: relationshipBondExpEvents.assistantMessageId })
+        .returning({ id: relationshipBondExpEvents.id });
+
+      if (bondEvent) {
+        const [relationship] = await tx
+          .insert(relationships)
+          .values({
+            userId: input.usage.userId,
+            characterId: input.usage.characterId,
+            bondLevel: 1,
+            bondExp: expIncrement,
+          })
+          .onConflictDoUpdate({
+            target: [relationships.userId, relationships.characterId],
+            set: {
+              bondExp: sql`${relationships.bondExp} + ${expIncrement}`,
+              bondLevel: sql`least(floor((${relationships.bondExp} + ${expIncrement}) / 100) + 1, 10)`,
+              updatedAt: now,
+            },
+          })
+          .returning({ bondLevel: relationships.bondLevel, bondExp: relationships.bondExp });
+        bondLevel = relationship?.bondLevel;
+        bondExp = relationship?.bondExp;
+        if (bondExp !== undefined) {
+          bondDelta = expIncrement;
+          const levelBefore = Math.min(Math.floor((bondExp - expIncrement) / 100) + 1, 10);
+          const levelAfter = Math.min(Math.floor(bondExp / 100) + 1, 10);
+          leveledUp = levelAfter > levelBefore;
+        }
+      } else {
+        const [relationship] = await tx
+          .select({ bondLevel: relationships.bondLevel, bondExp: relationships.bondExp })
+          .from(relationships)
+          .where(and(
+            eq(relationships.userId, input.usage.userId),
+            eq(relationships.characterId, input.usage.characterId),
+          ))
+          .limit(1);
+        bondLevel = relationship?.bondLevel;
+        bondExp = relationship?.bondExp;
+        bondDelta = 0;
+        leveledUp = false;
+      }
+    }
+
     await tx
       .update(messages)
       .set({
@@ -617,7 +891,13 @@ export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): 
       })
       .where(eq(chatSessions.id, input.sessionId));
 
-    return { id: assistant.id };
+    return {
+      id: assistant.id,
+      ...(bondLevel !== undefined ? { bondLevel } : {}),
+      ...(bondExp !== undefined ? { bondExp } : {}),
+      ...(bondDelta !== undefined ? { bondDelta } : {}),
+      ...(leveledUp !== undefined ? { leveledUp } : {}),
+    };
   });
 }
 

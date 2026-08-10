@@ -15,6 +15,8 @@ export { CharacterAvatar } from './components/character/CharacterAvatar';
 export { BondProgress } from './components/character/BondProgress';
 export { CharacterHeader } from './components/character/CharacterHeader';
 export { CharacterDetailHero } from './components/character/CharacterDetailHero';
+export type { BondRelationshipInput, BondViewModel } from './components/character/bond.model';
+export { createBondViewModel } from './components/character/bond.model';
 export { CharacterPosterCard } from './components/discovery/CharacterPosterCard';
 export { ChatBubble } from './components/chat/ChatBubble';
 export { ChatInputBar } from './components/chat/ChatInputBar';

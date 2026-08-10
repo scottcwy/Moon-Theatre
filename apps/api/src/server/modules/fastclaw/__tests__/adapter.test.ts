@@ -216,6 +216,21 @@ describe('streamChat FastClaw integration', () => {
       { type: 'error', code: 'upstream_incomplete', message: 'FastClaw stream ended before completion' },
     ]);
   });
+
+  it('honors an explicit timeoutMs override instead of the default timeout', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockSseResponse(['data: [DONE]\n\n']));
+    vi.stubGlobal('fetch', fetchMock);
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+
+    const { streamChat: configuredStreamChat } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+    });
+
+    await collectEvents(configuredStreamChat('system', 'hello', { timeoutMs: 15_000 }));
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 15_000);
+  });
 });
 
 async function collectEvents(generator: AsyncGenerator<StreamEvent>): Promise<StreamEvent[]> {

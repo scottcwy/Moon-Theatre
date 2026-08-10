@@ -13,15 +13,18 @@
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1.36;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
   overflow: hidden;
   background-color: $color-surface-container;
-  box-shadow: $shadow-card;
+  box-shadow: 0 8rpx 18rpx rgba(58, 7, 24, 0.07);
+  transform: translateZ(0);
 }
 
 .character-poster-card--selected .character-poster-card__poster {
   outline: 4rpx solid $color-primary;
-  outline-offset: 4rpx;
+  outline-offset: 6rpx;
+  background-color: $color-primary-container;
+  box-shadow: 0 10rpx 22rpx rgba(139, 66, 88, 0.14);
 }
 
 .character-poster-card__image,
@@ -29,6 +32,7 @@
   width: 100%;
   height: 100%;
   display: block;
+  border-radius: inherit;
 }
 
 .character-poster-card__placeholder {
@@ -87,4 +91,16 @@
   color: $color-on-surface-variant;
   font-size: $font-label-sm;
   line-height: 1.25;
+}
+
+.character-poster-card__description {
+  display: -webkit-box;
+  margin-top: $space-1;
+  overflow: hidden;
+  color: $color-on-surface-variant;
+  font-size: $font-label-sm;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }

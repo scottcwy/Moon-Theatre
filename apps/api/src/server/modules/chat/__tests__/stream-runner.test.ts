@@ -19,6 +19,7 @@ const checkInputMock = vi.fn();
 const checkOutputMock = vi.fn();
 const getCharacterWithPromptsMock = vi.fn();
 const getScriptByIdMock = vi.fn();
+const getChatSessionScopeMock = vi.fn();
 const findOrCreateSessionMock = vi.fn();
 const saveUserMessageMock = vi.fn();
 const getCleanHistoryMessagesMock = vi.fn();
@@ -39,6 +40,10 @@ vi.mock('../../../db/index.js', () => ({
 }));
 
 vi.mock('../../../db/schema.js', () => ({
+  users: {
+    id: 'users.id',
+    preferredName: 'users.preferredName',
+  },
   modelProfiles: {
     tier: 'modelProfiles.tier',
     enabled: 'modelProfiles.enabled',
@@ -92,11 +97,18 @@ vi.mock('../../moderation/index.js', () => ({
 
 vi.mock('../index.js', async () => {
   const { parseMood } = await vi.importActual<typeof import('../mood-parser.js')>('../mood-parser.js');
+  class ScriptUnavailableError extends Error {
+    readonly code = 'script_unavailable';
+  }
+  class SessionScopeMismatchError extends Error {
+    readonly code = 'session_scope_mismatch';
+  }
   return {
     buildSystemPrompt: vi.fn(() => 'system prompt'),
     findOrCreateSession: findOrCreateSessionMock,
     getCharacterWithPrompts: getCharacterWithPromptsMock,
     getScriptById: getScriptByIdMock,
+    getChatSessionScope: getChatSessionScopeMock,
     parseMood,
     saveUserMessage: saveUserMessageMock,
     getCleanHistoryMessages: getCleanHistoryMessagesMock,
@@ -106,6 +118,8 @@ vi.mock('../index.js', async () => {
     completeTurn: completeTurnMock,
     failTurn: failTurnMock,
     markTurnOutOfScope: markTurnOutOfScopeMock,
+    ScriptUnavailableError,
+    SessionScopeMismatchError,
   };
 });
 
@@ -156,7 +170,7 @@ function streamWith(content: string) {
 }
 
 function setupHappyPath() {
-  limitMock.mockResolvedValue([{ modelName: 'Qwen/Qwen3.5-9B', pointsPerCall: 3 }]);
+  limitMock.mockResolvedValue([{ modelName: 'deepseek-ai/DeepSeek-V4-Flash', pointsPerCall: 3 }]);
   whereMock.mockReturnValue({ limit: limitMock });
   fromMock.mockReturnValue({ where: whereMock });
   selectMock.mockReturnValue({ from: fromMock });
@@ -174,8 +188,8 @@ function setupHappyPath() {
     status: 'active',
     prompts: null,
   });
-  getScriptByIdMock.mockResolvedValue({ id: 'script-1', title: '月见庭院', description: '', worldSetting: '庭院' });
-  findOrCreateSessionMock.mockResolvedValue({ id: 'session-1' });
+  getScriptByIdMock.mockResolvedValue({ id: 'script-1', title: '月见庭院', description: '', worldSetting: '庭院', status: 'active' });
+  findOrCreateSessionMock.mockResolvedValue({ id: 'session-1', mode: 'script', scriptId: 'script-1' });
   saveUserMessageMock.mockResolvedValue({ id: 'user-message-1', generationAttempt: 1 });
   getCleanHistoryMessagesMock.mockResolvedValue([]);
   classifyChatScopeMock.mockResolvedValue('in_scope');
@@ -197,7 +211,7 @@ function setupHappyPath() {
     generationAttempt: 1,
   });
   saveAssistantForTurnMock.mockResolvedValue({ id: 'assistant-message-1' });
-  finalizeAssistantTurnMock.mockResolvedValue({ id: 'assistant-message-1' });
+  finalizeAssistantTurnMock.mockResolvedValue({ id: 'assistant-message-1', bondLevel: 2, bondExp: 10, bondDelta: 10, leveledUp: false });
   completeTurnMock.mockResolvedValue(undefined);
   failTurnMock.mockResolvedValue(undefined);
   markTurnOutOfScopeMock.mockResolvedValue(undefined);
@@ -213,7 +227,7 @@ describe('runChatStream', () => {
 
   it('keeps chat completion effects synchronous by default', async () => {
     runChatCompletionEffectsMock.mockResolvedValue({
-      bond: { relationship: { bondLevel: 2, bondExp: 30 }, leveledUp: true },
+      bond: null,
       unlockedAchievements: ['first_chat'],
       unlockedTitles: ['入戏者'],
     });
@@ -234,10 +248,123 @@ describe('runChatStream', () => {
       mood: 'happy',
       balanceAfter: 7,
       bondLevel: 2,
-      bondExp: 30,
+      bondExp: 10,
+      bondDelta: 10,
+      leveledUp: false,
       unlockedAchievements: ['first_chat'],
       unlockedTitles: ['入戏者'],
     });
+  });
+
+  it('returns the transactional bond state in the success done event', async () => {
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      mode: 'script',
+      scriptId: 'script-1',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+    expect(events.find((event) => event.type === 'done')).toMatchObject({
+      bondLevel: 2,
+      bondExp: 10,
+      bondDelta: 10,
+      leveledUp: false,
+    });
+  });
+
+  it('surfaces leveledUp and the server delta in the success done event', async () => {
+    finalizeAssistantTurnMock.mockResolvedValue({ id: 'assistant-message-1', bondLevel: 4, bondExp: 305, bondDelta: 10, leveledUp: true });
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+    });
+    const done = (await readEvents(response)).find((event) => event.type === 'done');
+
+    expect(done).toMatchObject({
+      bondLevel: 4,
+      bondExp: 305,
+      bondDelta: 10,
+      leveledUp: true,
+    });
+  });
+
+  it('skips scope classification in free mode', async () => {
+    resolveClientTurnMock.mockResolvedValue({
+      status: 'created',
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      userMessage: '今天过得怎么样',
+      generationAttempt: 1,
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '今天过得怎么样',
+      modelTier: 'standard',
+      mode: 'free',
+      clientMessageId: 'client-1',
+    });
+    await readEvents(response);
+
+    expect(classifyChatScopeMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a retired script before resolving a turn or consuming points', async () => {
+    getScriptByIdMock.mockResolvedValue({ id: 'script-1', title: '旧剧本', description: '', worldSetting: '旧世界', status: 'retired' });
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '继续',
+      modelTier: 'standard',
+      mode: 'free',
+      clientMessageId: 'client-1',
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: 'script_unavailable' });
+    expect(resolveClientTurnMock).not.toHaveBeenCalled();
+    expect(consumePointsMock).not.toHaveBeenCalled();
+  });
+
+  it('returns session scope mismatch without saving or consuming points', async () => {
+    resolveClientTurnMock.mockResolvedValue({
+      status: 'session_scope_mismatch',
+      sessionId: 'session-1',
+      storedMode: 'free',
+      storedScriptId: null,
+      requestedMode: 'script',
+      requestedScriptId: 'script-1',
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '继续',
+      modelTier: 'standard',
+      mode: 'script',
+      scriptId: 'script-1',
+      clientMessageId: 'client-1',
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: 'session_scope_mismatch' });
+    expect(consumePointsMock).not.toHaveBeenCalled();
+    expect(finalizeAssistantTurnMock).not.toHaveBeenCalled();
   });
 
   it('finalizes successful generated turns through the lifecycle service', async () => {
@@ -268,7 +395,7 @@ describe('runChatStream', () => {
         userId: 'user-1',
         characterId: 'character-1',
         modelTier: 'standard',
-        modelName: 'Qwen/Qwen3.5-9B',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
         walletTransactionId: 'wallet-tx-1',
         status: 'success',
         pointsConsumed: 3,
@@ -303,8 +430,7 @@ describe('runChatStream', () => {
       mood: 'happy',
       balanceAfter: 7,
     });
-    expect(done).not.toHaveProperty('bondLevel');
-    expect(done).not.toHaveProperty('bondExp');
+    expect(done).toMatchObject({ bondLevel: 2, bondExp: 10 });
     expect(done).not.toHaveProperty('unlockedAchievements');
     expect(done).not.toHaveProperty('unlockedTitles');
     expect(runChatCompletionEffectsMock).toHaveBeenCalledWith({
@@ -315,6 +441,8 @@ describe('runChatStream', () => {
       userMessageId: 'user-message-1',
       assistantMessageId: 'assistant-message-1',
       sessionId: 'session-1',
+      mode: 'script',
+      scriptId: 'script-1',
     });
 
     effects.resolve({ bond: null, unlockedAchievements: [], unlockedTitles: [] });
@@ -335,13 +463,13 @@ describe('runChatStream', () => {
     });
     const events = await readEvents(response);
 
-    expect(events).toContainEqual({ type: 'error', code: 'upstream_error', message: 'FastClaw timed out' });
+    expect(events).toContainEqual({ type: 'error', code: 'upstream_error' });
     expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
       characterId: 'character-1',
       sessionId: 'session-1',
       modelTier: 'standard',
-      modelName: 'Qwen/Qwen3.5-9B',
+      modelName: 'deepseek-ai/DeepSeek-V4-Flash',
       pointsConsumed: 0,
       walletTransactionId: null,
       status: 'failed',
@@ -384,6 +512,7 @@ describe('runChatStream', () => {
         excludedFromContext: false,
       },
     });
+    getRelationshipMock.mockResolvedValue({ bondLevel: 2, bondExp: 10 });
 
     const { runChatStream } = await import('../stream-runner.js');
 
@@ -402,9 +531,14 @@ describe('runChatStream', () => {
         type: 'done',
         messageId: 'assistant-message-1',
         sessionId: 'session-1',
+        mode: 'script',
         mood: 'neutral',
         clientMessageId: 'client-1',
         replayed: true,
+        bondLevel: 2,
+        bondExp: 10,
+        bondDelta: 0,
+        leveledUp: false,
       },
     ]);
     expect(saveUserMessageMock).not.toHaveBeenCalled();
@@ -494,7 +628,10 @@ describe('runChatStream', () => {
     });
     const events = await readEvents(response);
 
-    expect(events).toContainEqual(expect.objectContaining({ type: 'done', outOfScope: true }));
+    const outOfScopeDone = events.find((event) => event.type === 'done');
+    expect(outOfScopeDone).toMatchObject({ type: 'done', outOfScope: true });
+    expect(outOfScopeDone).not.toHaveProperty('bondDelta');
+    expect(outOfScopeDone).not.toHaveProperty('leveledUp');
     expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
       sessionId: 'session-1',
       userMessageId: 'user-message-1',
@@ -507,7 +644,7 @@ describe('runChatStream', () => {
         userId: 'user-1',
         characterId: 'character-1',
         modelTier: 'standard',
-        modelName: 'Qwen/Qwen3.5-9B',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
         walletTransactionId: null,
         status: 'out_of_scope',
         pointsConsumed: 0,
@@ -545,6 +682,7 @@ describe('runChatStream', () => {
       content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。',
       mood: null,
       clientMessageId: 'client-1',
+      excludedFromContext: true,
     });
     expect(completeTurnMock).not.toHaveBeenCalled();
     const done = events.find((event) => event.type === 'done');
@@ -555,6 +693,8 @@ describe('runChatStream', () => {
       blocked: true,
       clientMessageId: 'client-1',
     });
+    expect(done).not.toHaveProperty('bondDelta');
+    expect(done).not.toHaveProperty('leveledUp');
     expect(consumePointsMock).not.toHaveBeenCalled();
     expect(streamChatMock).not.toHaveBeenCalled();
   });
@@ -577,6 +717,7 @@ describe('runChatStream', () => {
       userMessageId: 'user-message-1',
       content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。',
       mood: null,
+      excludedFromContext: true,
     });
     expect(completeTurnMock).not.toHaveBeenCalled();
     const done = events.find((event) => event.type === 'done');
@@ -631,8 +772,11 @@ describe('runChatStream', () => {
         type: 'done',
         messageId: 'assistant-message-1',
         sessionId: 'session-1',
+        mode: 'script',
         clientMessageId: 'client-1',
         replayed: true,
+        bondDelta: 0,
+        leveledUp: false,
       },
     ]);
     expect(saveUserMessageMock).not.toHaveBeenCalled();
@@ -665,7 +809,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'Qwen/Qwen3.5-9B',
+          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,
@@ -698,7 +842,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'Qwen/Qwen3.5-9B',
+          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,
@@ -730,7 +874,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'Qwen/Qwen3.5-9B',
+          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,

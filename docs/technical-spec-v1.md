@@ -314,7 +314,7 @@ ChatStreamRunner
 V1 Chat Speed Fix 只优化小程序业务聊天 `/api/chat/stream`：
 
 - `FASTCLAW_TIMEOUT_MS` 默认 `120000`，避免 FastClaw 生成被 30 秒外层 abort 打断。
-- 聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 1`。这是 FastClaw Agent 运行配置约束，不改变 OpenAI-compatible `/v1/chat/completions` 通用 API 语义。
+- 聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 0`，默认 runtime 模型为 `siliconflow/deepseek-ai/DeepSeek-V4-Flash`。这是 FastClaw Agent 运行配置约束，不改变 OpenAI-compatible `/v1/chat/completions` 通用 API 语义。
 - 业务 prompt 明确要求默认回复 80-180 个中文字符，剧情推进或用户明确要求时最多 300 个中文字符。
 - 输出审核策略、FastClaw ReAct 架构、同步扣点/退款和 `model_usage_logs` 强一致边界不变。
 - 不新增队列服务，不做逐 token 展示。
@@ -333,7 +333,7 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
 - 当前 adapter 支持 `x-fastclaw-agent-id` 与 `x-fastclaw-session-key` 请求头。
 - 当前 FastClaw API 暴露 `GET /v1/agents/{id}/runtime-spec`，只返回 `id`、`model`、`maxTokens`、`temperature`、`maxToolIterations` 等非敏感运行参数。
-- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、`${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations <= 1`；`/api/health` 只表示 API 进程存活。
+- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、`${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations = 0`；`/api/health` 只表示 API 进程存活。
 - 当前 readiness 尚未检查数据库连接和生产关键配置完整性，生产部署验收仍需补强。
 
 ### 7.4 长期记忆
@@ -610,7 +610,7 @@ V1 数据库必须包含支付和点数闭环需要的 6 张核心表：`quota_p
 | Model Usage | `GET /api/admin/model-usage-logs` |
 | Blocked Keywords | `GET /api/admin/blocked-keywords`, `POST /api/admin/blocked-keywords` |
 
-当前代码已经具备 admin stats、订单/支付/会话详情、memory admin、blocked keywords 和 `docs/api-v1.md` 初版。所有 admin API 当前要求用户 JWT 通过 `verifyAdminAuth`，并要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面额外由 Next.js middleware 做 Basic Auth；生产环境要求设置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。仍需持续验收和补强的后端范围包括：achievement/title 最小闭环的产品验收、模型调用日志可观测字段、FastClaw 真实服务联调、生产部署验收文档，以及后续是否补充机器可读 OpenAPI。角色、剧本等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置、关键词配置和模型调用日志属于 V1 admin 必做范围。
+当前代码已经具备 admin stats、订单/支付/会话详情、memory admin、blocked keywords 和 `docs/api-v1.md` 初版。所有 admin API 当前要求用户 JWT 通过 `verifyAdminAuth`，并要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面与 `/api/admin/**` API 均由 Next.js middleware 做 Basic Auth（admin API 需 Basic Auth 与 JWT 白名单双层校验都通过）；生产环境要求设置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。仍需持续验收和补强的后端范围包括：achievement/title 最小闭环的产品验收、模型调用日志可观测字段、FastClaw 真实服务联调、生产部署验收文档，以及后续是否补充机器可读 OpenAPI。角色、剧本等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置、关键词配置和模型调用日志属于 V1 admin 必做范围。
 
 ### 9.3 内网 FastClaw API
 
@@ -711,7 +711,7 @@ OPENROUTER_API_KEY=
 - FastClaw 内网访问
 - FastClaw 生产环境显式超时和错误可观测
 - FastClaw fallback 生产默认关闭或只允许显式受控降级
-- admin API JWT + `ADMIN_USER_IDS` 白名单
+- admin API JWT + `ADMIN_USER_IDS` 白名单 + Basic Auth 二次保护
 - admin 页面 Basic Auth 二次保护
 - 小程序构建产物禁止包含 `api.example.com`
 

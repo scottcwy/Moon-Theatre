@@ -2,11 +2,10 @@ import { and, eq, lte, or } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { chatEffectRuns } from '../../db/schema.js';
 import { extractAndUpsertMemories } from '../memory/index.js';
-import { incrementBondExp } from '../relationships/index.js';
 import { unlockAchievementsForChat } from '../achievements/index.js';
 
 export interface ChatCompletionEffectsResult {
-  bond: Awaited<ReturnType<typeof incrementBondExp>> | null;
+  bond: null;
   unlockedAchievements: string[];
   unlockedTitles: string[];
 }
@@ -19,14 +18,20 @@ export async function runChatCompletionEffects(input: {
   sessionId?: string;
   userMessageId?: string;
   assistantMessageId?: string;
+  mode?: 'script' | 'free';
+  scriptId?: string | null;
 }): Promise<ChatCompletionEffectsResult> {
   const memoryResultPromise = runEffect(
     'memory',
     input,
-    () => extractAndUpsertMemories(input.userId, input.characterId, input.userMessage, input.assistantMessage),
-  );
-  const bondResult = await runEffect('bond', input, () =>
-    incrementBondExp(input.userId, input.characterId, 10, input.assistantMessageId)
+    () => extractAndUpsertMemories(
+      input.userId,
+      input.characterId,
+      input.userMessage,
+      input.assistantMessage,
+      input.mode,
+      input.scriptId,
+    ),
   );
   const [, achievementResult] = await Promise.all([
     memoryResultPromise,
@@ -38,13 +43,13 @@ export async function runChatCompletionEffects(input: {
     : { unlockedAchievements: [], unlockedTitles: [] };
 
   return {
-    bond: bondResult.status === 'fulfilled' ? bondResult.value : null,
+    bond: null,
     unlockedAchievements: achievementValue.unlockedAchievements,
     unlockedTitles: achievementValue.unlockedTitles,
   };
 }
 
-type ChatEffectName = 'memory' | 'bond' | 'achievement';
+type ChatEffectName = 'memory' | 'achievement';
 
 async function runEffect<T>(
   effect: ChatEffectName,

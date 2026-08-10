@@ -49,9 +49,9 @@ describe('model profile seed', () => {
     await seedModelProfiles();
 
     expect(valuesMock).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ tier: 'casual', provider: 'siliconflow' }),
-      expect.objectContaining({ tier: 'standard', provider: 'siliconflow' }),
-      expect.objectContaining({ tier: 'immersive', provider: 'siliconflow' }),
+      expect.objectContaining({ tier: 'casual', provider: 'siliconflow', modelName: 'deepseek-ai/DeepSeek-V4-Flash' }),
+      expect.objectContaining({ tier: 'standard', provider: 'siliconflow', modelName: 'deepseek-ai/DeepSeek-V4-Flash' }),
+      expect.objectContaining({ tier: 'immersive', provider: 'siliconflow', modelName: 'deepseek-ai/DeepSeek-V4-Flash' }),
     ]));
     expect(onConflictDoUpdateMock).toHaveBeenCalledWith({
       target: 'modelProfiles.tier',

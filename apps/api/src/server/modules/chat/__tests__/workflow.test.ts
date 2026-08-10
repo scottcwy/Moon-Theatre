@@ -55,7 +55,7 @@ describe('chat completion workflow', () => {
     insertMock.mockReturnValue({ values: valuesMock });
     valuesMock.mockReturnValue({ onConflictDoUpdate: onConflictDoUpdateMock });
     onConflictDoUpdateMock.mockReturnValue({ returning: returningMock });
-    returningMock.mockImplementation((_shape: unknown) => {
+    returningMock.mockImplementation(() => {
       const values = valuesMock.mock.calls.at(-1)?.[0] as { assistantMessageId?: string; effectName?: string };
       const key = `${values.assistantMessageId}:${values.effectName}`;
       if (effectRunState.get(key) === 'completed' || effectRunState.get(key) === 'running') {
@@ -78,16 +78,11 @@ describe('chat completion workflow', () => {
     });
   });
 
-  it('returns bond and unlock results when all side effects succeed', async () => {
-    const { incrementBondExp } = await import('../../relationships/index.js');
+  it('returns only optional effect results because bond is finalized transactionally', async () => {
     const { extractAndUpsertMemories } = await import('../../memory/index.js');
     const { unlockAchievementsForChat } = await import('../../achievements/index.js');
     const { runChatCompletionEffects } = await import('../workflow.js');
 
-    vi.mocked(incrementBondExp).mockResolvedValue({
-      relationship: { bondLevel: 2, bondExp: 10 },
-      leveledUp: true,
-    } as Awaited<ReturnType<typeof incrementBondExp>>);
     vi.mocked(extractAndUpsertMemories).mockResolvedValue([]);
     vi.mocked(unlockAchievementsForChat).mockResolvedValue({
       unlockedAchievements: ['first_chat'],
@@ -100,31 +95,19 @@ describe('chat completion workflow', () => {
       userMessage: '你好',
       assistantMessage: '你好。',
     })).resolves.toEqual({
-      bond: {
-        relationship: { bondLevel: 2, bondExp: 10 },
-        leveledUp: true,
-      },
+      bond: null,
       unlockedAchievements: ['first_chat'],
       unlockedTitles: ['入戏者'],
     });
   });
 
-  it('evaluates achievements after bond updates complete', async () => {
+  it('evaluates achievements without running a second bond update', async () => {
     const { incrementBondExp } = await import('../../relationships/index.js');
     const { extractAndUpsertMemories } = await import('../../memory/index.js');
     const { unlockAchievementsForChat } = await import('../../achievements/index.js');
     const { runChatCompletionEffects } = await import('../workflow.js');
     const calls: string[] = [];
 
-    vi.mocked(incrementBondExp).mockImplementation(async () => {
-      calls.push('bond:start');
-      await Promise.resolve();
-      calls.push('bond:done');
-      return {
-        relationship: { bondLevel: 2, bondExp: 100 },
-        leveledUp: true,
-      } as Awaited<ReturnType<typeof incrementBondExp>>;
-    });
     vi.mocked(extractAndUpsertMemories).mockResolvedValue([]);
     vi.mocked(unlockAchievementsForChat).mockImplementation(async () => {
       calls.push('achievements:start');
@@ -138,16 +121,15 @@ describe('chat completion workflow', () => {
       assistantMessage: '羁绊加深了。',
     });
 
-    expect(calls).toEqual(['bond:start', 'bond:done', 'achievements:start']);
+    expect(calls).toEqual(['achievements:start']);
+    expect(incrementBondExp).not.toHaveBeenCalled();
   });
 
   it('keeps chat completion resilient when optional side effects fail', async () => {
-    const { incrementBondExp } = await import('../../relationships/index.js');
     const { extractAndUpsertMemories } = await import('../../memory/index.js');
     const { unlockAchievementsForChat } = await import('../../achievements/index.js');
     const { runChatCompletionEffects } = await import('../workflow.js');
 
-    vi.mocked(incrementBondExp).mockRejectedValue(new Error('bond failed'));
     vi.mocked(extractAndUpsertMemories).mockRejectedValue(new Error('memory failed'));
     vi.mocked(unlockAchievementsForChat).mockRejectedValue(new Error('achievement failed'));
 
@@ -192,11 +174,10 @@ describe('chat completion workflow', () => {
     await runChatCompletionEffects(input);
     await runChatCompletionEffects(input);
 
-    expect(incrementBondExp).toHaveBeenCalledTimes(1);
-    expect(incrementBondExp).toHaveBeenCalledWith('user-1', 'character-1', 10, 'assistant-message-1');
+    expect(incrementBondExp).not.toHaveBeenCalled();
     expect(extractAndUpsertMemories).toHaveBeenCalledTimes(1);
     expect(unlockAchievementsForChat).toHaveBeenCalledTimes(1);
-    expect(insertMock).toHaveBeenCalledTimes(6);
+    expect(insertMock).toHaveBeenCalledTimes(4);
   });
 
   it('does not mark failed effects as completed and retries them on the next call', async () => {
@@ -205,12 +186,9 @@ describe('chat completion workflow', () => {
     const { unlockAchievementsForChat } = await import('../../achievements/index.js');
     const { runChatCompletionEffects } = await import('../workflow.js');
 
-    vi.mocked(incrementBondExp)
-      .mockRejectedValueOnce(new Error('bond failed once'))
-      .mockResolvedValueOnce({
-        relationship: { bondLevel: 1, bondExp: 10 },
-        leveledUp: false,
-      } as Awaited<ReturnType<typeof incrementBondExp>>);
+    vi.mocked(extractAndUpsertMemories)
+      .mockRejectedValueOnce(new Error('memory failed once'))
+      .mockResolvedValueOnce([]);
     vi.mocked(extractAndUpsertMemories).mockResolvedValue([]);
     vi.mocked(unlockAchievementsForChat).mockResolvedValue({
       unlockedAchievements: [],
@@ -228,16 +206,10 @@ describe('chat completion workflow', () => {
     };
 
     await expect(runChatCompletionEffects(input)).resolves.toMatchObject({ bond: null });
-    await expect(runChatCompletionEffects(input)).resolves.toMatchObject({
-      bond: {
-        relationship: { bondLevel: 1, bondExp: 10 },
-        leveledUp: false,
-      },
-    });
+    await expect(runChatCompletionEffects(input)).resolves.toMatchObject({ bond: null });
 
-    expect(incrementBondExp).toHaveBeenCalledTimes(2);
-    expect(incrementBondExp).toHaveBeenLastCalledWith('user-1', 'character-1', 10, 'assistant-message-1');
-    expect(extractAndUpsertMemories).toHaveBeenCalledTimes(1);
+    expect(incrementBondExp).not.toHaveBeenCalled();
+    expect(extractAndUpsertMemories).toHaveBeenCalledTimes(2);
     expect(unlockAchievementsForChat).toHaveBeenCalledTimes(1);
   });
 });

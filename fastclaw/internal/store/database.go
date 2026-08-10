@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/lib/pq"          // PostgreSQL driver
-	_ "modernc.org/sqlite"         // SQLite driver (pure Go)
+	_ "github.com/lib/pq"  // PostgreSQL driver
+	_ "modernc.org/sqlite" // SQLite driver (pure Go)
 )
 
 // DBStore implements Store using a SQL database (PostgreSQL or SQLite).
@@ -47,14 +47,15 @@ func driverName(dialect string) string {
 	}
 }
 
-// Migrate creates tables if they don't exist. The schema is the canonical
-// shape — there are no in-place ALTERs because there is no installed base
-// from before this rewrite.
+// Migrate creates missing tables and upgrades legacy schemas in place.
 func (d *DBStore) Migrate(ctx context.Context) error {
 	for _, stmt := range d.migrationSQL() {
 		if _, err := d.db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("migrate: %w\nSQL: %s", err, stmt)
 		}
+	}
+	if err := d.migrateConfigsCredentialKey(ctx); err != nil {
+		return fmt.Errorf("migrate configs.credential_key: %w", err)
 	}
 	if err := d.migrateAgentFilesUserID(ctx); err != nil {
 		return fmt.Errorf("migrate agent_files.user_id: %w", err)
@@ -77,14 +78,35 @@ func (d *DBStore) Migrate(ctx context.Context) error {
 	return nil
 }
 
-// migrateAgentFilesDropTemplate clears the legacy user_id='' template
+func (d *DBStore) migrateConfigsCredentialKey(ctx context.Context) error {
+	hasCredentialKey, err := d.tableHasColumn(ctx, "configs", "credential_key")
+	if err != nil {
+		return err
+	}
+	if !hasCredentialKey {
+		stmt := `ALTER TABLE configs ADD COLUMN credential_key TEXT NOT NULL DEFAULT ''`
+		if d.dialect == "postgres" {
+			stmt = `ALTER TABLE configs ADD COLUMN IF NOT EXISTS credential_key TEXT NOT NULL DEFAULT ''`
+		}
+		if _, err := d.db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("add column: %w", err)
+		}
+	}
+	if _, err := d.db.ExecContext(ctx,
+		`CREATE INDEX IF NOT EXISTS idx_configs_credential ON configs (kind, credential_key)`); err != nil {
+		return fmt.Errorf("create index: %w", err)
+	}
+	return nil
+}
+
+// migrateAgentFilesDropTemplate clears the legacy user_id=” template
 // rows from agent_files. Each row is reparented to the agent's owner
 // when no per-user row already exists for that (agent_id, filename) —
 // preserves existing content as the owner's personal copy. After this
 // pass the table holds (agent_id, real_user_id, filename) tuples only;
 // any "shared SOUL.md across all users" use case should live in a local
 // FS file at <agent_home>/<name>, which the runtime falls back to.
-// Idempotent: re-runs find no user_id='' rows and exit clean.
+// Idempotent: re-runs find no user_id=” rows and exit clean.
 func (d *DBStore) migrateAgentFilesDropTemplate(ctx context.Context) error {
 	rows, err := d.db.QueryContext(ctx,
 		`SELECT agent_files.agent_id, agent_files.filename, agent_files.content, agents.user_id
@@ -549,7 +571,6 @@ func (d *DBStore) migrationSQL() []string {
 			UNIQUE (kind, scope, scope_id, name)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_configs_lookup ON configs (kind, scope, scope_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_configs_credential ON configs (kind, credential_key)`,
 		`CREATE TABLE IF NOT EXISTS cron_jobs (
 			id TEXT PRIMARY KEY,
 			agent_id TEXT NOT NULL,

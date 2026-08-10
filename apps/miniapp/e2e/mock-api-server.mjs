@@ -8,8 +8,58 @@ const user = {
   id: 'dev-user',
   nickname: '开发调试用户',
   avatarUrl: null,
+  preferredName: null,
   status: 'active',
 };
+
+const moonGardenScript = {
+  id: 'script-moon-garden',
+  title: '月见庭院：狐神的新娘',
+  description: '月见庭院被旧约束缚，来访者必须在月落前找出七声铃背后的契约。',
+  worldSetting: '北门、红线与七声铃构成故事核心。每一次选择都会改变庭院里的关系与记忆。',
+  slug: 'moon-garden',
+  genre: '和风幻想',
+  searchKeywords: '狐神,月见,庭院',
+  coverUrl: '/assets/home/moon-garden-cover.jpg',
+  sortOrder: 1,
+  status: 'active',
+};
+
+const snowTeahouseScript = {
+  id: 'script-snow-teahouse',
+  title: '雪落茶寮：守夜人的茶',
+  description: '大雪封山，茶寮只剩一位守夜人。天亮之前，你必须决定那杯茶留给谁。',
+  worldSetting: '大雪、炉火与一杯茶构成故事核心。每一次选择都会改变茶寮里的关系与记忆。',
+  slug: 'snow-teahouse',
+  genre: '现代悬疑',
+  searchKeywords: '雪,茶寮,守夜',
+  coverUrl: null,
+  sortOrder: 2,
+  status: 'active',
+};
+
+const scriptCards = [
+  {
+    id: moonGardenScript.id,
+    title: moonGardenScript.title,
+    description: moonGardenScript.description,
+    slug: moonGardenScript.slug,
+    genre: moonGardenScript.genre,
+    coverUrl: moonGardenScript.coverUrl,
+    sortOrder: moonGardenScript.sortOrder,
+    searchKeywords: moonGardenScript.searchKeywords,
+  },
+  {
+    id: snowTeahouseScript.id,
+    title: snowTeahouseScript.title,
+    description: snowTeahouseScript.description,
+    slug: snowTeahouseScript.slug,
+    genre: snowTeahouseScript.genre,
+    coverUrl: snowTeahouseScript.coverUrl,
+    sortOrder: snowTeahouseScript.sortOrder,
+    searchKeywords: snowTeahouseScript.searchKeywords,
+  },
+];
 
 const characters = [
   {
@@ -19,14 +69,22 @@ const characters = [
     identity: '月见庭院的狐神',
     description: '守着北门与铃声秘密的狐神。只有真正听懂七声铃的人，才能穿过庭院深处的红线。',
     initialRelationship: '信赖',
+    scriptId: moonGardenScript.id,
     script: {
+      id: moonGardenScript.id,
       title: '月见庭院：狐神的新娘',
       description: '月见庭院被旧约束缚，来访者必须在月落前找出七声铃背后的契约。',
       worldSetting: '北门、红线与七声铃构成故事核心。每一次选择都会改变庭院里的关系与记忆。',
     },
     relationship: {
       bondLevel: 4,
-      bondExp: 38,
+      bondExp: 338,
+    },
+    availableModes: ['script', 'free'],
+    lastUsedMode: 'script',
+    starterQuestions: {
+      script: ['七声铃分别代表什么？', '北门外藏着什么线索？'],
+      free: ['今天过得怎么样？', '你平时喜欢安静还是热闹？'],
     },
   },
   {
@@ -36,14 +94,22 @@ const characters = [
     identity: '冷静克制的阴阳师',
     description: '负责看守禁术卷轴的阴阳师，总在关键时刻提醒你别碰那根红线。',
     initialRelationship: '试探',
+    scriptId: moonGardenScript.id,
     script: {
+      id: moonGardenScript.id,
       title: '月见庭院：狐神的新娘',
       description: '红线被重新牵起，清玄怀疑有人篡改了庭院的旧约。',
       worldSetting: '阴阳寮、禁术卷轴与狐神旧约彼此纠缠。',
     },
     relationship: {
       bondLevel: 2,
-      bondExp: 64,
+      bondExp: 164,
+    },
+    availableModes: ['script', 'free'],
+    lastUsedMode: null,
+    starterQuestions: {
+      script: ['那根红线为什么不能碰？'],
+      free: ['你会怎么度过不用值守的一天？'],
     },
   },
 ];
@@ -113,6 +179,13 @@ function getRequestBody(req) {
 }
 
 function findCharacter(id) {
+  if (id === 'hakuzo-free-only') {
+    return {
+      ...characters[0],
+      id,
+      lastUsedMode: 'free',
+    };
+  }
   return characters.find((character) => character.id === id);
 }
 
@@ -143,7 +216,7 @@ function routeRequest({ req, res, url, body, options, orders }) {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
     });
     res.end();
     return;
@@ -154,13 +227,63 @@ function routeRequest({ req, res, url, body, options, orders }) {
     return;
   }
 
+  if (req.method === 'PATCH' && pathname === '/api/me') {
+    const preferredName = typeof body?.preferredName === 'string' ? body.preferredName.trim() : '';
+    if (!preferredName || [...preferredName].length > 20) {
+      json(res, 400, { error: 'invalid_preferred_name' });
+      return;
+    }
+    user.preferredName = preferredName;
+    json(res, 200, user);
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/scripts') {
+    const keyword = (url.searchParams.get('q') || '').trim().toLowerCase();
+    const stripKeywords = ({ searchKeywords, ...card }) => card;
+    const scripts = !keyword
+      ? scriptCards.map(stripKeywords)
+      : scriptCards
+          .filter((card) => [card.title, card.genre, card.searchKeywords].join(' ').toLowerCase().includes(keyword))
+          .map(stripKeywords);
+    json(res, 200, { scripts });
+    return;
+  }
+
+  const scriptMatch = pathname.match(/^\/api\/scripts\/([^/]+)$/);
+  if (req.method === 'GET' && scriptMatch) {
+    const scriptId = decodeURIComponent(scriptMatch[1]);
+    if (scriptId !== moonGardenScript.id) {
+      json(res, 404, { error: 'Script not found' });
+      return;
+    }
+    json(res, 200, {
+      ...moonGardenScript,
+      characters: characters.map((character) => ({
+        id: character.id,
+        name: character.name,
+        avatarUrl: character.avatarUrl,
+        identity: character.identity,
+        description: character.description,
+        scriptId: character.scriptId,
+        initialRelationship: character.initialRelationship,
+        starterQuestions: character.starterQuestions,
+        sortOrder: character.id === 'hakuzo' ? 1 : 2,
+        status: 'active',
+      })),
+    });
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/characters') {
     json(res, 200, {
-      characters: characters.map(({ id, name, identity, avatarUrl }) => ({
+      characters: characters.map(({ id, name, identity, avatarUrl, scriptId, starterQuestions }) => ({
         id,
         name,
         identity,
         avatarUrl,
+        scriptId,
+        starterQuestions,
       })),
     });
     return;
@@ -182,34 +305,126 @@ function routeRequest({ req, res, url, body, options, orders }) {
     return;
   }
 
-  if (req.method === 'GET' && pathname === '/api/chat/sessions') {
+  if (req.method === 'GET' && pathname === '/api/chat/characters') {
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const limit = Number(url.searchParams.get('limit') ?? 20);
+    const keyword = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+    const entries = [
+      {
+        characterId: 'hakuzo',
+        characterName: '白藏',
+        characterAvatarUrl: '',
+        latestSessionId: 'session-hakuzo',
+        lastUsedMode: 'script',
+        lastMessage: '铃声响起时，北门的月光会替你照路。',
+        updatedAt: now,
+        canSend: true,
+      },
+    ].filter((entry) => !keyword || `${entry.characterName} ${entry.lastMessage}`.toLowerCase().includes(keyword));
+
     json(res, 200, {
-      sessions: [
-        {
-          id: 'session-hakuzo',
-          characterId: 'hakuzo',
-          characterName: '白藏',
-          characterAvatarUrl: '',
-          modelTier: 'standard',
-          lastMessage: '铃声响起时，北门的月光会替你照路。',
-          updatedAt: now,
-          level: 4,
-          unreadCount: 1,
-        },
-      ],
+      characters: entries,
+      page,
+      limit,
+      hasMore: false,
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/chat/sessions') {
+    const requestedCharacterId = url.searchParams.get('characterId');
+    const requestedMode = url.searchParams.get('mode');
+    const sessions = requestedCharacterId === 'hakuzo-free-only' || requestedMode === 'free' ? [] : [
+      {
+        id: 'session-hakuzo',
+        characterId: 'hakuzo',
+        characterName: '白藏',
+        characterAvatarUrl: '',
+        modelTier: 'standard',
+        mode: 'script',
+        scriptId: moonGardenScript.id,
+        scriptTitle: moonGardenScript.title,
+        canSend: true,
+        lastMessage: '铃声响起时，北门的月光会替你照路。',
+        updatedAt: now,
+        unreadCount: 1,
+      },
+    ];
+    json(res, 200, {
+      sessions,
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 20),
     });
     return;
   }
 
+  if (req.method === 'GET' && pathname === '/api/chat/sessions/session-hakuzo-free-only/messages') {
+    json(res, 200, {
+      session: {
+        id: 'session-hakuzo-free-only',
+        characterId: 'hakuzo-free-only',
+        characterName: '白藏',
+        characterAvatarUrl: '',
+        characterIdentity: '月见庭院的狐神',
+        mode: 'free',
+        scriptId: null,
+        scriptTitle: null,
+        canSend: true,
+        hasSuccessfulTurn: true,
+      },
+      messages: [
+        { id: 'msg-free-1', role: 'assistant', content: '今晚想聊点什么？', mood: 'neutral', createdAt: now },
+      ],
+      page: Number(url.searchParams.get('page') ?? 1),
+      limit: Number(url.searchParams.get('limit') ?? 50),
+    });
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/chat/sessions/session-hakuzo/messages') {
     json(res, 200, {
+      session: {
+        id: 'session-hakuzo',
+        characterId: 'hakuzo',
+        characterName: '白藏',
+        characterAvatarUrl: '',
+        characterIdentity: '月见庭院的狐神',
+        mode: 'script',
+        scriptId: moonGardenScript.id,
+        scriptTitle: moonGardenScript.title,
+        canSend: true,
+        hasSuccessfulTurn: true,
+      },
       messages: [
         { id: 'msg-1', role: 'assistant', content: '铃音，今夜的月很满。', mood: 'neutral', createdAt: now },
       ],
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 50),
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/achievements') {
+    json(res, 200, {
+      achievements: [
+        {
+          id: 'achievement-first-chat',
+          name: '初次相逢',
+          description: '完成第一轮角色对话',
+          code: 'first_chat',
+          iconUrl: null,
+          unlockedAt: now,
+        },
+      ],
+      titles: [
+        {
+          id: 'title-moon-walker',
+          name: '月下行者',
+          description: '走进月见庭院',
+          iconUrl: null,
+          unlockedAt: now,
+        },
+      ],
     });
     return;
   }
@@ -286,9 +501,11 @@ function routeRequest({ req, res, url, body, options, orders }) {
           type: 'done',
           messageId: 'assistant-mock-1',
           sessionId: 'session-hakuzo',
+          clientMessageId: body?.clientMessageId,
+          mode: body?.mode || 'script',
           mood: 'neutral',
           bondLevel: 4,
-          bondExp: 42,
+          bondExp: 342,
           balanceAfter: Math.max(0, options.balancePoints - 1),
         }),
       ].join('\n') + '\n');
@@ -296,7 +513,7 @@ function routeRequest({ req, res, url, body, options, orders }) {
     }
 
     if (options.chatMode === 'insufficient-points') {
-      json(res, 402, { error: '点数不足' });
+      json(res, 402, { error: 'insufficient_points' });
       return;
     }
 

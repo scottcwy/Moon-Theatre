@@ -21,7 +21,7 @@ export async function GET(
 
   try {
     const [character, relationship] = await Promise.all([
-      getCharacterById(id),
+      getCharacterById(id, { userId: auth.userId }),
       getRelationship(auth.userId, id),
     ]);
 
@@ -29,8 +29,11 @@ export async function GET(
       return errorResponse('Character not found', 404);
     }
 
+    const { prompts, ...publicCharacter } = character;
+    void prompts;
+
     return successResponse({
-      ...character,
+      ...publicCharacter,
       relationship: relationship
         ? { bondLevel: relationship.bondLevel, bondExp: relationship.bondExp }
         : null,

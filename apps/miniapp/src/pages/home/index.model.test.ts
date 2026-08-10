@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
-  featuredScripts,
+  buildFrequentCharactersUrl,
+  buildScriptsUrl,
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
+  getActiveScriptIndex,
   getCharacterDetailUrl,
+  getCharacterSectionTitle,
+  getScriptCatalogUrl,
+  getScriptCoverUrl,
+  getScriptRoleSelectUrl,
   homeSections,
+  shouldApplyScriptResponse,
 } from './index.model';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 
@@ -17,17 +24,50 @@ describe('home navigation helpers', () => {
     expect(() => getCharacterDetailUrl('  ')).toThrow('characterId is required');
   });
 
-  it('features Moon Garden and Rogue Narrative carousel cards with processed cover assets', () => {
-    expect(featuredScripts.map((script) => script.title)).toEqual(['月见庭院：狐神的新娘', '流氓叙事']);
-    expect(featuredScripts[0]?.cover).toBe('/assets/home/moon-garden-cover.jpg');
-    expect(featuredScripts[1]?.cover).toBe('/assets/home/liumang-cover.jpg');
-    expect(featuredScripts[1]?.tag).toBe('沉浸式体验');
-  });
-
   it('keeps the home flow centered on choosing a role from a script', () => {
     expect(homeSections.scriptTitle).toBe('热门剧本');
     expect(homeSections.scriptPrimaryAction).toBe('选择角色');
-    expect(homeSections.characterTitle).toBe('最近角色');
+    expect(homeSections.scriptModeEntry).toBe('剧本模式');
+    expect(homeSections.frequentCharacterTitle).toBe('常聊角色');
+    expect(homeSections.recommendedCharacterTitle).toBe('推荐角色');
+  });
+
+  it('labels the character section by history instead of misleading as "最近角色"', () => {
+    expect(getCharacterSectionTitle(true)).toBe('常聊角色');
+    expect(getCharacterSectionTitle(false)).toBe('推荐角色');
+  });
+
+  it('builds the frequent characters url with turn_count sorting and a fixed limit', () => {
+    expect(buildFrequentCharactersUrl()).toBe('/api/chat/characters?sort=turn_count&limit=4');
+    expect(buildFrequentCharactersUrl(8)).toBe('/api/chat/characters?sort=turn_count&limit=8');
+  });
+
+  it('routes every API script id to the generic role selection page', () => {
+    expect(getScriptRoleSelectUrl('script-uuid')).toBe('/pages/script/select?scriptId=script-uuid');
+  });
+
+  it('routes the script mode entry to the fixed catalog page', () => {
+    expect(getScriptCatalogUrl()).toBe('/pages/script/catalog');
+  });
+
+  it('rejects empty script ids instead of falling through to a local mapping', () => {
+    expect(() => getScriptRoleSelectUrl('  ')).toThrow('scriptId is required');
+  });
+
+  it('builds encoded script searches and restores the full list for blank queries', () => {
+    expect(buildScriptsUrl(' 月见 狐神 ')).toBe('/api/scripts?q=%E6%9C%88%E8%A7%81%20%E7%8B%90%E7%A5%9E');
+    expect(buildScriptsUrl('')).toBe('/api/scripts');
+  });
+
+  it('prevents an older search response from replacing the latest query', () => {
+    expect(shouldApplyScriptResponse(3, 3)).toBe(true);
+    expect(shouldApplyScriptResponse(2, 3)).toBe(false);
+  });
+
+  it('uses API covers first and keeps only an image fallback for known assets', () => {
+    expect(getScriptCoverUrl({ slug: 'moon-garden', coverUrl: 'https://cdn.example.com/moon.webp' })).toBe('https://cdn.example.com/moon.webp');
+    expect(getScriptCoverUrl({ slug: 'moon-garden', coverUrl: '' })).toBe('/assets/home/moon-garden-cover.jpg');
+    expect(getScriptCoverUrl({ slug: 'unknown', coverUrl: null })).toBe('');
   });
 
   it('uses local character portraits when API avatar urls are empty', () => {
@@ -46,17 +86,10 @@ describe('home navigation helpers', () => {
   });
 
   it('calculates top bar space from status bar and WeChat capsule geometry', () => {
-    expect(
-      calculateTopBarMetrics(
-        { windowWidth: 390, statusBarHeight: 47 },
-        { top: 59, left: 287, width: 87, height: 32 },
-      ),
-    ).toEqual({
-      statusBarHeight: 47,
-      contentHeight: 56,
-      totalHeight: 103,
-      menuReserveWidth: 115,
-    });
+    expect(calculateTopBarMetrics(
+      { windowWidth: 390, statusBarHeight: 47 },
+      { top: 59, left: 287, width: 87, height: 32 },
+    )).toEqual({ statusBarHeight: 47, contentHeight: 56, totalHeight: 103, menuReserveWidth: 115 });
   });
 
   it('builds CSS variables for positioning content below the custom top bar', () => {
@@ -66,5 +99,17 @@ describe('home navigation helpers', () => {
       '--topbar-total-height': '103px',
       '--topbar-menu-reserve': '115px',
     });
+  });
+
+  it('maps horizontal scroll position to the nearest script card index', () => {
+    expect(getActiveScriptIndex(0, 1344, 2)).toBe(0);
+    expect(getActiveScriptIndex(684, 1344, 2)).toBe(1);
+    expect(getActiveScriptIndex(400, 2028, 3)).toBe(1);
+    expect(getActiveScriptIndex(1336, 2028, 3)).toBe(2);
+  });
+
+  it('pins a single script to the first dot regardless of scroll values', () => {
+    expect(getActiveScriptIndex(500, 660, 1)).toBe(0);
+    expect(getActiveScriptIndex(500, 0, 0)).toBe(0);
   });
 });

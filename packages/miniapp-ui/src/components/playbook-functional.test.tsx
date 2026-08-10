@@ -21,6 +21,7 @@ import {
   SearchBar,
   SharePreviewCard,
   TopBar,
+  createBondViewModel,
 } from '../index';
 
 interface RenderedNode {
@@ -182,18 +183,38 @@ describe('playbook component functional behavior', () => {
 
   it('preserves card fallback content, selection flags, and tap behavior', () => {
     const onSessionTap = vi.fn();
-    const session = renderElement(<ChatSessionRow characterName="月岛澪" preview="" unread onTap={onSessionTap} />);
+    const session = renderElement(
+      <ChatSessionRow
+        characterName="月岛澪"
+        contextLabel="剧本 · 月见庭院"
+        preview=""
+        unread
+        readOnly
+        onTap={onSessionTap}
+      />,
+    );
     (session.props.onTap as () => void)();
     expect(onSessionTap).toHaveBeenCalledTimes(1);
     expect(session.props.className).toContain('chat-session-row--unread');
     expect(textContent(session)).toContain('还没有聊天内容');
+    expect(textContent(session)).toContain('剧本 · 月见庭院');
+    expect(textContent(session)).toContain('只读');
     expect(textContent(session)).toContain('月');
     expect(findAll(session, (node) => String(node.props.className ?? '').includes('chat-session-row__unread-dot'))).toHaveLength(1);
 
-    const poster = renderElement(<CharacterPosterCard title="贺茂清玄" subtitle="冷面阴阳师" badge="Lv.1" selected />);
+    const poster = renderElement(
+      <CharacterPosterCard
+        title="贺茂清玄"
+        subtitle="冷面阴阳师"
+        description="负责守住庭院契约边界。"
+        badge="Lv.1"
+        selected
+      />,
+    );
     expect(poster.props.className).toContain('character-poster-card--selected');
     expect(textContent(poster)).toContain('贺茂');
     expect(textContent(poster)).toContain('Lv.1');
+    expect(textContent(poster)).toContain('负责守住庭院契约边界。');
 
     const imagePoster = renderElement(<CharacterPosterCard title="白藏" subtitle="庭院狐神" imageUrl="/assets/characters/hakuzo.jpg" />);
     expect(findByType(imagePoster, 'image').props.src).toBe('/assets/characters/hakuzo.jpg');
@@ -283,11 +304,14 @@ describe('playbook component functional behavior', () => {
     expect(bond.props.className).toContain('bond-progress');
     expect(textContent(bond)).toContain('信赖');
 
-    const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bondLevel={2} points={12} onBack={onBack} />);
+    const headerBond = createBondViewModel({ bondLevel: 2, bondExp: 20 });
+    const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bond={headerBond} points={12} onBack={onBack} />);
     expect(header.props.className).toContain('character-header');
+    expect(textContent(header)).toContain('20/100');
     (findByClass(header, 'character-header__back').props.onTap as () => void)();
     expect(onBack).toHaveBeenCalledTimes(1);
 
+    const heroBond = createBondViewModel({ bondLevel: 2, bondExp: 120 });
     const hero = renderElement(
       <CharacterDetailHero
         name="白藏"
@@ -296,13 +320,17 @@ describe('playbook component functional behavior', () => {
         description="守着庭院边界的狐神。"
         mood="happy"
         relationship="信赖"
-        bondLevel={2}
-        bondExp={20}
-        bondMaxExp={100}
+        bond={heroBond}
         onBack={onBack}
       />,
     );
     expect(hero.props.className).toContain('character-detail-hero');
+    expect(textContent(hero)).toContain('守着庭院边界的狐神。');
+    expect(textContent(hero)).not.toContain('角色相册');
+    expect(textContent(hero)).not.toContain('回忆记录');
+    expect(findAll(hero, (node) => String(node.props.className ?? '').includes('character-detail-hero__watermark'))).toHaveLength(0);
+    expect(findAll(hero, (node) => String(node.props.className ?? '').includes('character-detail-hero__tools'))).toHaveLength(0);
+    expect(findAll(hero, (node) => String(node.props.className ?? '').split(' ').includes('ui-icon-button'))).toHaveLength(1);
     (findByClass(hero, 'ui-icon-button').props.onTap as () => void)();
     expect(onBack).toHaveBeenCalledTimes(2);
 

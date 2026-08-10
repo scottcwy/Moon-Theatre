@@ -1,7 +1,9 @@
 import { View, Canvas } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
-import { useState } from 'react';
-import { BottomAction, PrimaryButton, SharePreviewCard, TonalButton, getShareIdentityLabel } from '@juben-sha/miniapp-ui';
+import { useEffect, useState } from 'react';
+import { BottomAction, createBondViewModel, PrimaryButton, SharePreviewCard, TonalButton, getShareIdentityLabel } from '@juben-sha/miniapp-ui';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
+import { api } from '../../services/api';
 import './preview.scss';
 
 const CANVAS_ID = 'shareCanvas';
@@ -9,19 +11,52 @@ const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 840;
 const EXCERPT = '铃声响起时，北门的月光会替你照路。若你仍想知道前世真相，我会陪你走到门前。';
 
+interface ShareCharacter {
+  name: string;
+  relationship?: {
+    bondLevel: number;
+    bondExp: number;
+  } | null;
+}
+
+const CHARACTER_MAP: Record<string, ShareCharacter> = {
+  'char-hakuzo': { name: '白藏' },
+  'char-kiyoharu': { name: '贺茂清玄' },
+  'char-mio': { name: '月岛澪' },
+  'char-kuon': { name: '久远' },
+};
+
 export default function SharePreview() {
   const router = useRouter();
   const characterId = router.params.characterId || 'char-hakuzo';
   const [saving, setSaving] = useState(false);
+  const [character, setCharacter] = useState<ShareCharacter>(CHARACTER_MAP[characterId] || { name: '白藏' });
+  const { verifyAuth, handleAuthError } = useAuthGuard();
 
-  const CHARACTER_MAP: Record<string, { name: string }> = {
-    'char-hakuzo': { name: '白藏' },
-    'char-kiyoharu': { name: '贺茂清玄' },
-    'char-mio': { name: '月岛澪' },
-    'char-kuon': { name: '久远' },
-  };
+  useEffect(() => {
+    let cancelled = false;
+    setCharacter(CHARACTER_MAP[characterId] || { name: '白藏' });
 
-  const character = CHARACTER_MAP[characterId] || { name: '白藏' };
+    async function fetchCharacter() {
+      try {
+        const authenticated = await verifyAuth();
+        if (!authenticated) return;
+        const data = await api.get<ShareCharacter>(`/api/characters/${characterId}`);
+        if (!cancelled) {
+          setCharacter(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          handleAuthError(err);
+        }
+      }
+    }
+
+    fetchCharacter();
+    return () => { cancelled = true; };
+  }, [characterId, handleAuthError, verifyAuth]);
+
+  const bondViewModel = createBondViewModel(character.relationship);
 
   const drawPoster = () => {
     const ctx = Taro.createCanvasContext(CANVAS_ID);
@@ -50,6 +85,10 @@ export default function SharePreview() {
     ctx.setFillStyle('#fff7f8');
     ctx.setFontSize(22);
     ctx.fillText(getShareIdentityLabel(character.name), 275, 618);
+
+    ctx.setFillStyle('#f6e6ea');
+    ctx.setFontSize(22);
+    ctx.fillText(bondViewModel.levelLabel, 64, 670);
 
     ctx.setFillStyle('#f8dfe7');
     ctx.setFontSize(22);
@@ -99,7 +138,7 @@ export default function SharePreview() {
 
   return (
     <View className="share-preview-page">
-      <SharePreviewCard characterName={character.name} excerpt={EXCERPT} />
+      <SharePreviewCard characterName={character.name} excerpt={EXCERPT} bondLevel={bondViewModel.level} />
 
       <BottomAction variant="dark">
         <View className="share-preview-page__actions">

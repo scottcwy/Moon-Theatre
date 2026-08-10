@@ -17,10 +17,10 @@ data:
       },
       "agents": {
         "defaults": {
-          "model": "gpt-4o",
-          "maxTokens": 8192,
+          "model": "siliconflow/deepseek-ai/DeepSeek-V4-Flash",
+          "maxTokens": 768,
           "temperature": 0.7,
-          "maxToolIterations": 20
+          "maxToolIterations": 0
         },
         "list": []
       },

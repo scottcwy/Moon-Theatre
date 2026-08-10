@@ -329,6 +329,56 @@ type AgentDefaults struct {
 	MaxToolIterations int     `json:"maxToolIterations,omitempty"`
 	Thinking          string  `json:"thinking,omitempty"`
 	PolicyPreset      string  `json:"policy,omitempty"`
+
+	maxToolIterationsSet bool
+}
+
+func (d *AgentDefaults) UnmarshalJSON(data []byte) error {
+	type alias AgentDefaults
+	aux := &struct {
+		MaxToolIterations *int `json:"maxToolIterations"`
+		*alias
+	}{
+		alias: (*alias)(d),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	if aux.MaxToolIterations != nil {
+		d.MaxToolIterations = *aux.MaxToolIterations
+		d.maxToolIterationsSet = true
+	}
+	return nil
+}
+
+func (d AgentDefaults) MarshalJSON() ([]byte, error) {
+	m := map[string]interface{}{}
+	if d.Model != "" {
+		m["model"] = d.Model
+	}
+	if d.MaxTokens != 0 {
+		m["maxTokens"] = d.MaxTokens
+	}
+	if d.Temperature != 0 {
+		m["temperature"] = d.Temperature
+	}
+	if d.HasMaxToolIterations() {
+		m["maxToolIterations"] = d.MaxToolIterations
+	}
+	if d.Thinking != "" {
+		m["thinking"] = d.Thinking
+	}
+	if d.PolicyPreset != "" {
+		m["policy"] = d.PolicyPreset
+	}
+	return json.Marshal(m)
+}
+
+// HasMaxToolIterations reports whether maxToolIterations was explicitly
+// configured. A literal non-zero value also counts so tests and internal
+// constructors keep their old ergonomics.
+func (d AgentDefaults) HasMaxToolIterations() bool {
+	return d.maxToolIterationsSet || d.MaxToolIterations != 0
 }
 
 // AgentEntry is the in-memory shape of one agent row, used during
@@ -350,6 +400,30 @@ type AgentEntry struct {
 	Thinking          string                     `json:"thinking,omitempty"`
 	Sandbox           SandboxCfg                 `json:"sandbox,omitempty"`
 	PolicyPreset      string                     `json:"policy,omitempty"`
+
+	maxToolIterationsSet bool
+}
+
+func (e *AgentEntry) UnmarshalJSON(data []byte) error {
+	type alias AgentEntry
+	aux := &struct {
+		MaxToolIterations *int `json:"maxToolIterations"`
+		*alias
+	}{
+		alias: (*alias)(e),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	if aux.MaxToolIterations != nil {
+		e.MaxToolIterations = *aux.MaxToolIterations
+		e.maxToolIterationsSet = true
+	}
+	return nil
+}
+
+func (e AgentEntry) HasMaxToolIterations() bool {
+	return e.maxToolIterationsSet || e.MaxToolIterations != 0
 }
 
 // ChannelConfig holds per-channel runtime configuration. Built by the
@@ -414,6 +488,65 @@ type AgentFileConfig struct {
 	ToolProviders     map[string]ToolProviderCfg `json:"toolProviders,omitempty"`
 	Tools             map[string]ToolCategoryCfg `json:"tools,omitempty"`
 	Providers         map[string]ProviderConfig  `json:"providers,omitempty"`
+
+	maxToolIterationsSet bool
+}
+
+func (c *AgentFileConfig) UnmarshalJSON(data []byte) error {
+	type alias AgentFileConfig
+	aux := &struct {
+		MaxToolIterations *int `json:"maxToolIterations"`
+		*alias
+	}{
+		alias: (*alias)(c),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	if aux.MaxToolIterations != nil {
+		c.MaxToolIterations = *aux.MaxToolIterations
+		c.maxToolIterationsSet = true
+	}
+	return nil
+}
+
+func (c AgentFileConfig) MarshalJSON() ([]byte, error) {
+	m := map[string]interface{}{}
+	if c.Model != "" {
+		m["model"] = c.Model
+	}
+	if c.MaxTokens != 0 {
+		m["maxTokens"] = c.MaxTokens
+	}
+	if c.Temperature != 0 {
+		m["temperature"] = c.Temperature
+	}
+	if c.HasMaxToolIterations() {
+		m["maxToolIterations"] = c.MaxToolIterations
+	}
+	if c.Workspace != "" {
+		m["workspace"] = c.Workspace
+	}
+	if len(c.Skills.Disabled) > 0 || len(c.Skills.AlwaysLoad) > 0 {
+		m["skills"] = c.Skills
+	}
+	if len(c.MCPServers) > 0 {
+		m["mcpServers"] = c.MCPServers
+	}
+	if len(c.ToolProviders) > 0 {
+		m["toolProviders"] = c.ToolProviders
+	}
+	if len(c.Tools) > 0 {
+		m["tools"] = c.Tools
+	}
+	if len(c.Providers) > 0 {
+		m["providers"] = c.Providers
+	}
+	return json.Marshal(m)
+}
+
+func (c AgentFileConfig) HasMaxToolIterations() bool {
+	return c.maxToolIterationsSet || c.MaxToolIterations != 0
 }
 
 type SkillsConfig struct {
@@ -530,13 +663,16 @@ func expandPath(path string) string {
 
 // ApplyDefaults fills in zero-valued knobs on Agents.Defaults.
 func ApplyDefaults(cfg *Config) {
+	if cfg.Agents.Defaults.Model == "" {
+		cfg.Agents.Defaults.Model = "siliconflow/deepseek-ai/DeepSeek-V4-Flash"
+	}
 	if cfg.Agents.Defaults.MaxTokens == 0 {
-		cfg.Agents.Defaults.MaxTokens = 8192
+		cfg.Agents.Defaults.MaxTokens = 768
 	}
 	if cfg.Agents.Defaults.Temperature == 0 {
 		cfg.Agents.Defaults.Temperature = 0.7
 	}
-	if cfg.Agents.Defaults.MaxToolIterations == 0 {
+	if !cfg.Agents.Defaults.HasMaxToolIterations() {
 		cfg.Agents.Defaults.MaxToolIterations = 20
 	}
 }
@@ -570,7 +706,7 @@ func (cfg *Config) MergedAgentConfig(entry AgentEntry) ResolvedAgent {
 	if entry.Temperature > 0 {
 		resolved.Temperature = entry.Temperature
 	}
-	if entry.MaxToolIterations > 0 {
+	if entry.HasMaxToolIterations() {
 		resolved.MaxToolIterations = entry.MaxToolIterations
 	}
 	if entry.Thinking != "" {
@@ -618,7 +754,7 @@ func (cfg *Config) MergedAgentConfig(entry AgentEntry) ResolvedAgent {
 		if fileCfg.Temperature > 0 {
 			resolved.Temperature = fileCfg.Temperature
 		}
-		if fileCfg.MaxToolIterations > 0 {
+		if fileCfg.HasMaxToolIterations() {
 			resolved.MaxToolIterations = fileCfg.MaxToolIterations
 		}
 		resolved.Skills = fileCfg.Skills

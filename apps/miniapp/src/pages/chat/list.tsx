@@ -4,64 +4,39 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
-import { api, isLoggedIn } from '../../services/api';
-import type { ModelTier } from '../../types';
+import { api } from '../../services/api';
+import type { ChatMode } from '../../types';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import { getCharacterAvatarUrl } from '../home/index.model';
-import { filterChatSessions, getChatPreviewText, getSessionLevelLabel, getSessionTimeLabel } from './list.model';
+import {
+  RETURN_MESSAGES_CHECK_PATH,
+  RETURN_MESSAGES_READ_PATH,
+  buildCharacterChatsUrl,
+  buildReturnMessagesReadBody,
+  getChatPreviewText,
+  getCharacterChatUrl,
+  getSessionTimeLabel,
+} from './list.model';
+import type { ReturnMessagesCheckResponse } from './list.model';
 import './list.scss';
 
-interface SessionItem {
-  id: string;
+interface CharacterChatEntry {
   characterId: string;
   characterName: string;
   characterAvatarUrl?: string | null;
-  modelTier: ModelTier;
+  latestSessionId: string;
+  lastUsedMode: ChatMode;
   lastMessage: string | null;
   updatedAt: string;
-  level?: number | string | null;
-  unreadCount?: number;
+  canSend: boolean;
 }
 
-interface SessionsResponse {
-  sessions: SessionItem[];
+interface CharacterChatsResponse {
+  characters: CharacterChatEntry[];
   page: number;
   limit: number;
+  hasMore: boolean;
 }
-
-const DEMO_SESSIONS: SessionItem[] = [
-  {
-    id: 'demo-hakuzo',
-    characterId: 'hakuzo',
-    characterName: '白藏',
-    characterAvatarUrl: '/assets/characters/hakuzo.jpg',
-    modelTier: 'standard',
-    lastMessage: '铃音，今夜的月很满。若你愿意，我会亲自带你穿过第一重鸟居。',
-    updatedAt: '2026-06-14T00:42:00+08:00',
-    level: 3,
-    unreadCount: 1,
-  },
-  {
-    id: 'demo-kiyoharu',
-    characterId: 'kiyoharu',
-    characterName: '贺茂清玄',
-    characterAvatarUrl: '/assets/characters/kiyoharu.jpg',
-    modelTier: 'casual',
-    lastMessage: '别碰那根红线。它不是装饰，是契约留下的咒痕。',
-    updatedAt: '2026-06-13T17:10:00+08:00',
-    level: 1,
-  },
-  {
-    id: 'demo-mio',
-    characterId: 'mio',
-    characterName: '月岛澪',
-    characterAvatarUrl: '/assets/characters/mio.jpg',
-    modelTier: 'immersive',
-    lastMessage: '[图片] 屏风上的桥又出现了，只是这一次，桥那边的人在看你。',
-    updatedAt: '2026-06-09T12:00:00+08:00',
-    level: 5,
-  },
-];
 
 function ChatListTopBackdrop() {
   return <View className="chat-list__topbar-backdrop" />;
@@ -80,7 +55,8 @@ function ChatListHeader() {
 }
 
 export default function ChatList() {
-  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [characterChats, setCharacterChats] = useState<CharacterChatEntry[]>([]);
+  const [characterUnread, setCharacterUnread] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -89,8 +65,9 @@ export default function ChatList() {
   );
   const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
   const loadIdRef = useRef(0);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadSessions = useCallback(async () => {
+  const loadCharacterChats = useCallback(async (query: string) => {
     const loadId = loadIdRef.current + 1;
     loadIdRef.current = loadId;
     setLoading(true);
@@ -100,13 +77,13 @@ export default function ChatList() {
       const authenticated = await verifyAuth();
       if (loadIdRef.current !== loadId) return;
       if (!authenticated) {
-        setSessions([]);
+        setCharacterChats([]);
         setLoading(false);
         return;
       }
-      const data = await api.get<SessionsResponse>('/api/chat/sessions?page=1&limit=20');
+      const data = await api.get<CharacterChatsResponse>(buildCharacterChatsUrl(query));
       if (loadIdRef.current !== loadId) return;
-      setSessions(data.sessions);
+      setCharacterChats(data.characters);
     } catch (err) {
       if (loadIdRef.current !== loadId) return;
       if (!handleAuthError(err)) {
@@ -119,8 +96,24 @@ export default function ChatList() {
     }
   }, [handleAuthError, verifyAuth]);
 
+  const loadCharacterUnread = useCallback(async () => {
+    try {
+      const authenticated = await verifyAuth();
+      if (!authenticated) {
+        setCharacterUnread({});
+        return;
+      }
+      const data = await api.post<ReturnMessagesCheckResponse>(RETURN_MESSAGES_CHECK_PATH);
+      setCharacterUnread(data.characterUnread);
+    } catch (err) {
+      // 未读拉取失败不能阻断聊天列表，只保留登录过期处理。
+      handleAuthError(err);
+    }
+  }, [handleAuthError, verifyAuth]);
+
   useDidShow(() => {
-    void loadSessions();
+    void loadCharacterChats(searchQuery);
+    void loadCharacterUnread();
   });
 
   useEffect(() => {
@@ -140,24 +133,43 @@ export default function ChatList() {
     }
   }, []);
 
-  const handleSessionTap = (session: SessionItem) => {
-    if (session.id.startsWith('demo-')) {
-      Taro.navigateTo({ url: `/pages/chat/index?characterId=${session.characterId}` });
-      return;
-    }
+  useEffect(() => () => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+  }, []);
 
-    Taro.navigateTo({
-      url: `/pages/chat/index?characterId=${session.characterId}&sessionId=${session.id}`,
+  const handleSearchInput = (value: string) => {
+    setSearchQuery(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      void loadCharacterChats(value);
+    }, 250);
+  };
+
+  const handleSearchClear = () => {
+    setSearchQuery('');
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    void loadCharacterChats('');
+  };
+
+  const markReturnMessagesRead = useCallback((characterId: string) => {
+    // fire-and-forget：标记失败不阻断导航，useDidShow 重拉兜底。
+    void api.post(RETURN_MESSAGES_READ_PATH, buildReturnMessagesReadBody(characterId)).catch(() => {});
+    setCharacterUnread((prev) => {
+      const next = { ...prev };
+      delete next[characterId];
+      return next;
     });
+  }, []);
+
+  const handleCharacterTap = (entry: CharacterChatEntry) => {
+    markReturnMessagesRead(entry.characterId);
+    Taro.navigateTo({ url: getCharacterChatUrl(entry.latestSessionId) });
   };
 
   const handleLogin = () => {
     goLogin();
   };
 
-  const showDemoSessions = DEV_AUTH_BYPASS && sessions.length === 0 && isLoggedIn();
-  const visibleSessions = sessions.length > 0 ? sessions : (showDemoSessions ? DEMO_SESSIONS : []);
-  const filteredSessions = filterChatSessions(visibleSessions, searchQuery);
   const hasSearchQuery = searchQuery.trim().length > 0;
 
   if (loading || error || needsLogin) {
@@ -170,7 +182,15 @@ export default function ChatList() {
             {loading ? (
               <StatusStateCard className="chat-list__state" title="正在拉取聊天..." message="正在同步你的角色会话。" icon="…" />
             ) : error ? (
-              <StatusStateCard className="chat-list__state" title={error} message="稍后再试，或回到首页重新进入剧场。" tone="error" icon="!" />
+              <StatusStateCard
+                className="chat-list__state"
+                title="聊天列表暂时不可用"
+                message="稍后重试，已保存的会话不会丢失。"
+                tone="error"
+                icon="!"
+                primaryText="重新加载"
+                onPrimary={() => { void loadCharacterChats(searchQuery); }}
+              />
             ) : (
               <EmptyState
                 className="chat-list__state"
@@ -197,23 +217,23 @@ export default function ChatList() {
               value={searchQuery}
               placeholder="搜索角色或聊天内容"
               className="chat-list__search-control"
-              onInput={setSearchQuery}
-              onClear={() => setSearchQuery('')}
+              onInput={handleSearchInput}
+              onClear={handleSearchClear}
             />
           </View>
-          {filteredSessions.length > 0 ? (
+          {characterChats.length > 0 ? (
             <View className="chat-list__list">
-              {filteredSessions.map((session) => (
+              {characterChats.map((entry) => (
                 <ChatSessionRow
-                  key={session.id}
+                  key={entry.characterId}
                   className="chat-list__item"
-                  characterName={session.characterName}
-                  avatarUrl={getCharacterAvatarUrl(session.characterName, session.characterAvatarUrl)}
-                  levelLabel={getSessionLevelLabel(session.level ?? session.modelTier)}
-                  timeLabel={getSessionTimeLabel(session.updatedAt)}
-                  preview={getChatPreviewText(session.lastMessage)}
-                  unread={Boolean(session.unreadCount)}
-                  onTap={() => handleSessionTap(session)}
+                  characterName={entry.characterName}
+                  avatarUrl={getCharacterAvatarUrl(entry.characterName, entry.characterAvatarUrl)}
+                  readOnly={!entry.canSend}
+                  timeLabel={getSessionTimeLabel(entry.updatedAt)}
+                  preview={getChatPreviewText(entry.lastMessage)}
+                  unread={(characterUnread[entry.characterId] ?? 0) > 0}
+                  onTap={() => handleCharacterTap(entry)}
                 />
               ))}
             </View>

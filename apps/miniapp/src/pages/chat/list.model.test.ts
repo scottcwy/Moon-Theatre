@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { filterChatSessions, getChatPreviewText, getSessionLevelLabel, getSessionTimeLabel } from './list.model';
+import {
+  RETURN_MESSAGES_CHECK_PATH,
+  RETURN_MESSAGES_READ_PATH,
+  buildCharacterChatsUrl,
+  buildReturnMessagesReadBody,
+  getChatPreviewText,
+  getCharacterChatUrl,
+  getSessionTimeLabel,
+} from './list.model';
 
 describe('chat list display helpers', () => {
   it('formats recent, yesterday, weekday, and fallback timestamps like the chat mock', () => {
@@ -14,35 +22,31 @@ describe('chat list display helpers', () => {
     vi.useRealTimers();
   });
 
-  it('uses relationship wording for level chips and a quiet empty preview', () => {
-    expect(getSessionLevelLabel(3)).toBe('羁绊 3');
-    expect(getSessionLevelLabel('immersive')).toBe('羁绊 5');
+  it('uses a quiet empty preview', () => {
     expect(getChatPreviewText('  ')).toBe('还没有新的剧场消息');
     expect(getChatPreviewText('今晚的月色很好，要一起出去走走吗？')).toBe('今晚的月色很好，要一起出去走走吗？');
   });
 
-  it('filters sessions by character name and latest preview text', () => {
-    const sessions = [
-      {
-        id: 's1',
-        characterId: 'hakuzo',
-        characterName: '白藏',
-        modelTier: 'standard' as const,
-        lastMessage: '第一重鸟居外有人等你。',
-        updatedAt: '2026-06-14T00:42:00+08:00',
-      },
-      {
-        id: 's2',
-        characterId: 'mio',
-        characterName: '月岛澪',
-        modelTier: 'immersive' as const,
-        lastMessage: '屏风上的桥又出现了。',
-        updatedAt: '2026-06-09T12:00:00+08:00',
-      },
-    ];
-
-    expect(filterChatSessions(sessions, ' 白 ')).toEqual([sessions[0]]);
-    expect(filterChatSessions(sessions, '屏风')).toEqual([sessions[1]]);
-    expect(filterChatSessions(sessions, '')).toEqual(sessions);
+  it('builds the server-side character search URL', () => {
+    expect(buildCharacterChatsUrl('')).toBe('/api/chat/characters?page=1&limit=20');
+    expect(buildCharacterChatsUrl(' 白藏 ')).toBe('/api/chat/characters?page=1&limit=20&q=%E7%99%BD%E8%97%8F');
+    expect(buildCharacterChatsUrl('月 光', 2, 10)).toBe('/api/chat/characters?page=2&limit=10&q=%E6%9C%88%20%E5%85%89');
   });
+
+  it('opens the latest persisted mode session from a character entry', () => {
+    expect(getCharacterChatUrl('session-free')).toBe('/pages/chat/index?sessionId=session-free');
+    expect(getCharacterChatUrl('session/with space')).toBe('/pages/chat/index?sessionId=session%2Fwith%20space');
+  });
+});
+
+describe('return message helpers', () => {
+  it('exposes the check and read endpoint paths', () => {
+    expect(RETURN_MESSAGES_CHECK_PATH).toBe('/api/return-messages/check');
+    expect(RETURN_MESSAGES_READ_PATH).toBe('/api/return-messages/read');
+  });
+
+  it('builds the read body for a character', () => {
+    expect(buildReturnMessagesReadBody('char-1')).toEqual({ characterId: 'char-1' });
+  });
+
 });

@@ -1,4 +1,5 @@
 import Taro from '@tarojs/taro';
+import type { ChatMode } from '../types';
 
 const BASE_URL = API_BASE_URL;
 const DEV_TOKEN = 'dev-auth-bypass-token';
@@ -11,6 +12,7 @@ const DEV_USER: StoredUser = {
   id: 'dev-user',
   nickname: '开发调试用户',
   avatarUrl: null,
+  preferredName: null,
 };
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -51,6 +53,7 @@ export interface StoredUser {
   id: string;
   nickname: string | null;
   avatarUrl: string | null;
+  preferredName: string | null;
 }
 
 export function getToken(): string {
@@ -68,11 +71,21 @@ export function setToken(token: string): void {
 export function getUser(): StoredUser | null {
   try {
     const raw = Taro.getStorageSync(USER_KEY);
-    if (raw) return JSON.parse(raw) as StoredUser;
+    if (raw) return normalizeStoredUser(JSON.parse(raw));
     return DEV_AUTH_BYPASS ? DEV_USER : null;
   } catch {
     return DEV_AUTH_BYPASS ? DEV_USER : null;
   }
+}
+
+function normalizeStoredUser(value: unknown): StoredUser {
+  const user = value as Partial<StoredUser>;
+  return {
+    id: user.id || '',
+    nickname: user.nickname ?? null,
+    avatarUrl: user.avatarUrl ?? null,
+    preferredName: user.preferredName ?? null,
+  };
 }
 
 export function setUser(user: StoredUser): void {
@@ -108,6 +121,7 @@ export async function verifyStoredAuth(): Promise<boolean> {
       id: user.id,
       nickname: user.nickname,
       avatarUrl: user.avatarUrl,
+      preferredName: user.preferredName,
     });
     return true;
   } catch (error) {
@@ -247,15 +261,37 @@ export interface StreamCallbacks {
   onDone: (result: {
     messageId: string;
     sessionId: string;
+    mode: ChatMode;
+    clientMessageId?: string;
     mood?: string;
     fallback?: boolean;
+    replayed?: boolean;
+    blocked?: boolean;
+    outOfScope?: boolean;
     bondLevel?: number;
     bondExp?: number;
+    bondDelta?: number;
+    leveledUp?: boolean;
+    unlockedAchievements?: unknown[];
+    unlockedTitles?: unknown[];
     balanceAfter?: number;
   }) => void;
   onError: (message: string) => void;
   onAuthExpired?: () => void;
 }
+
+interface StreamChatBasePayload {
+  characterId: string;
+  sessionId?: string;
+  message: string;
+  modelTier: string;
+  clientMessageId?: string;
+}
+
+export type StreamChatPayload = StreamChatBasePayload & (
+  | { mode: 'script'; scriptId: string }
+  | { mode: 'free'; scriptId?: never }
+);
 
 interface ChunkDecoder {
   decode: (data: unknown) => string;
@@ -382,13 +418,7 @@ function decodeChunk(data: unknown, decoder: ChunkDecoder): string {
 }
 
 export function streamChat(
-  payload: {
-    characterId: string;
-    sessionId?: string;
-    message: string;
-    modelTier: string;
-    clientMessageId?: string;
-  },
+  payload: StreamChatPayload,
   callbacks: StreamCallbacks
 ): { abort: () => void } {
   const token = getToken() || '';
@@ -414,10 +444,19 @@ export function streamChat(
           callbacks.onDone({
             messageId: parsed.messageId,
             sessionId: parsed.sessionId,
+            mode: parsed.mode,
+            clientMessageId: parsed.clientMessageId,
             mood: parsed.mood,
             fallback: parsed.fallback,
+            replayed: parsed.replayed,
+            blocked: parsed.blocked,
+            outOfScope: parsed.outOfScope,
             bondLevel: parsed.bondLevel,
             bondExp: parsed.bondExp,
+            bondDelta: parsed.bondDelta,
+            leveledUp: parsed.leveledUp,
+            unlockedAchievements: parsed.unlockedAchievements,
+            unlockedTitles: parsed.unlockedTitles,
             balanceAfter: parsed.balanceAfter,
           });
         } else if (parsed.type === 'error') {
@@ -443,22 +482,16 @@ export function streamChat(
     success(res) {
       if (res.statusCode === 401) {
         clearAuth();
-        callbacks.onAuthExpired?.();
-        callbacks.onError('登录已过期，请重新登录');
+        if (callbacks.onAuthExpired) callbacks.onAuthExpired();
+        else callbacks.onError('auth_expired');
         return;
       }
       if (res.statusCode === 402) {
-        const data = res.data as string;
-        try {
-          const parsed = JSON.parse(data);
-          callbacks.onError(parsed.error || '点数不足');
-        } catch {
-          callbacks.onError('点数不足');
-        }
+        callbacks.onError(getStreamErrorCode(res.data, 'insufficient_points'));
         return;
       }
       if (res.statusCode >= 400) {
-        callbacks.onError(`请求失败 (${res.statusCode})`);
+        callbacks.onError(getStreamErrorCode(res.data, 'unknown'));
         return;
       }
 
@@ -482,6 +515,22 @@ export function streamChat(
   return {
     abort: () => requestTask.abort(),
   };
+}
+
+function getStreamErrorCode(data: unknown, fallback: string): string {
+  if (typeof data === 'string') {
+    try {
+      return getStreamErrorCode(JSON.parse(data), fallback);
+    } catch {
+      return fallback;
+    }
+  }
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    if (typeof record.error === 'string') return record.error;
+    if (typeof record.code === 'string') return record.code;
+  }
+  return fallback;
 }
 
 export const api = {

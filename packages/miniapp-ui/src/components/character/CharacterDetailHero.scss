@@ -31,26 +31,7 @@
   top: calc($status-bar-height + 8px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.character-detail-hero__top-right {
-  display: flex;
-}
-
-.character-detail-hero__top-right .ui-icon-button {
-  margin-left: $space-3;
-}
-
-.character-detail-hero__watermark {
-  position: absolute;
-  right: $space-4;
-  bottom: 34rpx;
-  font-size: 86rpx;
-  line-height: 0.95;
-  font-weight: 800;
-  color: rgba(255, 242, 212, 0.76);
-  writing-mode: vertical-rl;
+  justify-content: flex-start;
 }
 
 .character-detail-hero__sheet {
@@ -94,7 +75,7 @@
   border-radius: 28rpx;
   padding: $space-5;
   background-color: $color-surface-container-low;
-  box-shadow: 0 8rpx 18rpx rgba(58, 7, 24, 0.08);
+  box-sizing: border-box;
 }
 
 .character-detail-hero__intro-icon {
@@ -122,35 +103,4 @@
 
 .character-detail-hero__quick-row + .bond-progress {
   margin-top: $space-5;
-}
-
-.character-detail-hero__tools {
-  margin-top: $space-6;
-}
-
-.character-detail-hero__tool {
-  flex: 1;
-  min-height: 132rpx;
-  border-radius: 28rpx;
-  background-color: $color-surface-container;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.character-detail-hero__tool + .character-detail-hero__tool {
-  margin-left: $space-4;
-}
-
-.character-detail-hero__tool-icon {
-  font-size: 38rpx;
-  color: $color-on-surface-variant;
-}
-
-.character-detail-hero__tool-text {
-  margin-top: $space-2;
-  font-size: $font-body-md;
-  font-weight: 700;
-  color: $color-on-surface;
 }

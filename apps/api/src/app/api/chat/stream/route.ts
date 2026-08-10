@@ -11,6 +11,8 @@ const streamRequestSchema = z.object({
   message: z.string().min(1).max(5000),
   modelTier: z.enum(['casual', 'standard', 'immersive']),
   clientMessageId: z.string().min(1).max(128).regex(/^[\x20-\x7E]+$/).optional(),
+  mode: z.enum(['script', 'free']).optional(),
+  scriptId: z.string().uuid().optional(),
 });
 
 export async function OPTIONS(request: NextRequest) {
@@ -33,6 +35,16 @@ export async function POST(request: NextRequest): Promise<Response> {
   const parsed = streamRequestSchema.safeParse(body);
   if (!parsed.success) {
     return errorResponse('Invalid request: ' + parsed.error.issues.map((i) => i.message).join(', '), 400);
+  }
+
+  if (parsed.data.mode === 'script' && !parsed.data.scriptId) {
+    return errorResponse('script_unavailable', 409);
+  }
+  if (parsed.data.mode === 'free' && parsed.data.scriptId) {
+    return errorResponse('session_scope_mismatch', 409);
+  }
+  if (!parsed.data.mode && parsed.data.scriptId) {
+    return errorResponse('session_scope_mismatch', 409);
   }
 
   try {
