@@ -255,9 +255,9 @@ describe('0008_return_messages_into_sessions.sql', () => {
     expect(fs.existsSync(migrationPath)).toBe(true);
   });
 
-  it('adds nullable message_id column referencing messages.id', () => {
+  it('adds nullable message_id column referencing messages.id (IF NOT EXISTS, idempotent)', () => {
     const sql = readSql();
-    expect(sql).toMatch(/ALTER\s+TABLE\s+"character_return_messages"\s+ADD\s+COLUMN\s+"message_id"\s+uuid/i);
+    expect(sql).toMatch(/ALTER\s+TABLE\s+"character_return_messages"\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+"message_id"\s+uuid/i);
     expect(sql).toMatch(/"character_return_messages_message_id_messages_id_fk"/i);
     expect(sql).toMatch(/FOREIGN\s+KEY\s*\(\s*"message_id"\s*\)\s*REFERENCES\s+"public"\."messages"\("id"\)/is);
   });

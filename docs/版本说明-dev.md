@@ -102,6 +102,7 @@ rtk pnpm build:miniapp:prod   # 小程序生产构建 + verify:weapp
 - `test:dev-script`（6 用例）、`test:deploy-config`（7 用例）通过。
 - `@juben-sha/api` test：54 个文件 / 562 用例通过（接入真实 PG 后共 55 个文件 / 563 用例）；`@juben-sha/miniapp` test：26 个文件 / 157 用例通过；`@juben-sha/miniapp-ui` test：5 个文件 / 29 用例通过。
 - `api` / `miniapp` / `miniapp-ui` / `shared` typecheck（tsc --noEmit）全部通过。
+- `fastclaw` 目录下 `go test ./...`：31 个包全部通过（干净 checkout 可直接编译；`Dockerfile.minimal` 不再被 Go 当源码，`internal/setup/web/index.html` 占位页已提交满足 embed）。
 
 ## 5. 部署现状（v1.1）
 

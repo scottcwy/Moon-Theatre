@@ -45,8 +45,11 @@ function chainable<T>(result: T): Record<string, unknown> & Promise<T> {
 
 function setupDbMock(characterRows: unknown[], messageRows: unknown[] = []) {
   const dbMock = {
-    selectDistinctOn: vi.fn(() => chainable(characterRows)),
-    select: vi.fn(() => chainable(messageRows)),
+    // 第 1 次：每角色最近会话；第 2 次：预览（DISTINCT ON 后每会话一行）。
+    selectDistinctOn: vi.fn()
+      .mockImplementationOnce(() => chainable(characterRows))
+      .mockImplementationOnce(() => chainable(messageRows)),
+    select: vi.fn(() => chainable([])),
   };
 
   vi.doMock('@/server/db/index.js', () => ({ db: dbMock }));
@@ -55,10 +58,11 @@ function setupDbMock(characterRows: unknown[], messageRows: unknown[] = []) {
 
 function setupFrequentDbMock(summaries: unknown[], sessionRows: unknown[], messageRows: unknown[] = []) {
   const dbMock = {
-    select: vi.fn()
-      .mockImplementationOnce(() => chainable(summaries))
+    select: vi.fn().mockImplementationOnce(() => chainable(summaries)),
+    // 第 1 次：每角色最近会话；第 2 次：预览（DISTINCT ON 后每会话一行）。
+    selectDistinctOn: vi.fn()
+      .mockImplementationOnce(() => chainable(sessionRows))
       .mockImplementationOnce(() => chainable(messageRows)),
-    selectDistinctOn: vi.fn(() => chainable(sessionRows)),
   };
 
   vi.doMock('@/server/db/index.js', () => ({ db: dbMock }));

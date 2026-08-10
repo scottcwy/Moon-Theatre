@@ -107,7 +107,7 @@ rtk docker compose up -d api fastclaw caddy
 
 ## 7. FastClaw 说明
 
-当前部署只使用 FastClaw Go 后端能力。`fastclaw/Dockerfile.go` 不执行 Web UI 构建；它只放入最小嵌入页面以满足 Go `embed` 编译约束。FastClaw API key、agent 和模型 provider 仍需要在真实环境中完成初始化和联调。业务 API 调用 FastClaw 的 OpenAI-compatible `/v1/chat/completions` 时，角色上下文通过 `system` message 作为 request-scoped system prompt 传入。
+当前部署只使用 FastClaw Go 后端能力。`fastclaw/Dockerfile.minimal` 不执行 Web UI 构建；它使用仓库内已提交的最小嵌入页（`fastclaw/internal/setup/web/index.html`）以满足 Go `embed` 编译约束（全量 Web UI 构建走 `fastclaw/Dockerfile` / `make build-web`，产物同样落到 `internal/setup/web/`）。FastClaw API key、agent 和模型 provider 仍需要在真实环境中完成初始化和联调。业务 API 调用 FastClaw 的 OpenAI-compatible `/v1/chat/completions` 时，角色上下文通过 `system` message 作为 request-scoped system prompt 传入。
 
 业务聊天 Agent 需要按 V1 速度目标配置：`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`、`maxTokens <= 768`、`maxToolIterations = 0`。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；超过 `maxTokens=768` 或启用任何工具迭代都不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
 

@@ -38,8 +38,9 @@ export function jsonError(error: unknown): NextResponse {
     return NextResponse.json({ error: formatZodIssues(error.issues) }, { status: 400 });
   }
 
-  const message = error instanceof Error ? error.message : 'Internal server error';
-  return NextResponse.json({ error: message }, { status: 500 });
+  // 非业务错误：不向客户端泄漏原始异常，统一稳定错误码；诊断细节只写服务端日志。
+  console.error('[jsonError] unhandled error:', error);
+  return internalErrorResponse();
 }
 
 export function formatZodIssues(issues: z.ZodIssue[]): string {

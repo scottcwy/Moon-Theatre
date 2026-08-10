@@ -47,9 +47,11 @@ function chainable<T>(result: T): Record<string, unknown> & Promise<T> {
 }
 
 let selectCallResults: unknown[][] = [];
+let previewRows: unknown[] = [];
 
 function setupDbMock(sessionRows: unknown[], messageRows: unknown[] = []) {
-  selectCallResults = [sessionRows, messageRows];
+  selectCallResults = [sessionRows];
+  previewRows = messageRows;
   let selectCalls = 0;
 
   const dbMock = {
@@ -58,6 +60,8 @@ function setupDbMock(sessionRows: unknown[], messageRows: unknown[] = []) {
       const result = selectCallResults[idx] ?? [];
       return chainable(result);
     }),
+    // 预览查询走 DISTINCT ON（每会话一行），模拟 SQL 已按 session_id 去重后的结果。
+    selectDistinctOn: vi.fn(() => chainable(previewRows)),
   };
 
   vi.doMock('@/server/db/index.js', () => ({ db: dbMock }));
@@ -99,6 +103,7 @@ describe('GET /api/chat/sessions', () => {
     vi.clearAllMocks();
     vi.resetModules();
     selectCallResults = [];
+    previewRows = [];
   });
 
   // ── Auth ──
@@ -319,6 +324,50 @@ describe('GET /api/chat/sessions', () => {
 
     expect(response.status).toBe(200);
     expect(body.sessions[0]?.lastMessage).toBe('用户消息');
+  });
+
+  it('falls back to default limit when limit is not a number', async () => {
+    setupDbMock([makeSession()]);
+
+    const { GET } = await import('./route.js');
+    const request = authedRequest('http://localhost/api/chat/sessions?limit=abc');
+    const response = await GET(request);
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(body.limit).toBe(20);
+  });
+
+  it('falls back to default page when page is not a number', async () => {
+    setupDbMock([makeSession()]);
+
+    const { GET } = await import('./route.js');
+    const request = authedRequest('http://localhost/api/chat/sessions?page=abc');
+    const response = await GET(request);
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(body.page).toBe(1);
+  });
+
+  it('fetches one preview row per session via DISTINCT ON', async () => {
+    const selectDistinctOnMock = vi.fn(() => chainable([
+      { sessionId: 's1', content: '最新预览', role: 'assistant' },
+    ]));
+    const dbMock = {
+      select: vi.fn(() => chainable([makeSession({ id: 's1' })])),
+      selectDistinctOn: selectDistinctOnMock,
+    };
+    vi.doMock('@/server/db/index.js', () => ({ db: dbMock }));
+
+    const { GET } = await import('./route.js');
+    const response = await GET(authedRequest('http://localhost/api/chat/sessions'));
+    const body = await response.json() as { sessions: Array<{ lastMessage: string | null }> };
+
+    expect(response.status).toBe(200);
+    expect(body.sessions[0]?.lastMessage).toBe('最新预览');
+    // 会话行走 select、预览走 selectDistinctOn，且各只查一次（不拉全量消息）。
+    expect(selectDistinctOnMock).toHaveBeenCalledTimes(1);
   });
 
   // ── OPTIONS handler exists ──

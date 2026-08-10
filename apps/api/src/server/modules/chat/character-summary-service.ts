@@ -87,8 +87,9 @@ async function getLatestMessagePreviewBySession(sessionIds: string[]): Promise<M
   const previews = new Map<string, string>();
   if (sessionIds.length === 0) return previews;
 
+  // DISTINCT ON (session_id)：每会话只取最近一条 user/assistant 消息，避免为预览拉全量消息。
   const messageRows = await db
-    .select({
+    .selectDistinctOn([messages.sessionId], {
       sessionId: messages.sessionId,
       content: messages.content,
       role: messages.role,
@@ -98,10 +99,11 @@ async function getLatestMessagePreviewBySession(sessionIds: string[]): Promise<M
       inArray(messages.sessionId, sessionIds),
       or(eq(messages.role, 'user'), eq(messages.role, 'assistant')),
     ))
-    .orderBy(desc(messages.createdAt));
+    .orderBy(asc(messages.sessionId), desc(messages.createdAt));
 
   for (const message of messageRows) {
     if (message.role !== 'user' && message.role !== 'assistant') continue;
+    // DISTINCT ON 在 PostgreSQL 是权威的；该去重保证测试替身/旧适配器下每会话仅一项。
     if (!previews.has(message.sessionId)) {
       previews.set(message.sessionId, message.content);
     }

@@ -1,4 +1,4 @@
-ALTER TABLE "character_return_messages" ADD COLUMN "message_id" uuid;--> statement-breakpoint
+ALTER TABLE "character_return_messages" ADD COLUMN IF NOT EXISTS "message_id" uuid;--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "character_return_messages" ADD CONSTRAINT "character_return_messages_message_id_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."messages"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION

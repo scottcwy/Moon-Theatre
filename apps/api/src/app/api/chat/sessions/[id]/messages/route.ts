@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { eq, asc, and, or } from 'drizzle-orm';
 import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
 import { internalErrorResponse } from '@/server/http/errors.js';
+import { parsePositiveInteger } from '@/server/http/pagination.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { db } from '@/server/db/index.js';
 import { chatSessions, characters, scripts, messages, modelUsageLogs } from '@/server/db/schema';
@@ -22,8 +23,8 @@ export async function GET(
   const { id: sessionId } = await params;
 
   const url = new URL(request.url);
-  const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10));
-  const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') ?? '50', 10)));
+  const page = parsePositiveInteger(url.searchParams.get('page'), 1);
+  const limit = Math.min(100, parsePositiveInteger(url.searchParams.get('limit'), 50));
   const offset = (page - 1) * limit;
 
   try {

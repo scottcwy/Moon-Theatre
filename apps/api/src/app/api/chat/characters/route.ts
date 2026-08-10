@@ -1,17 +1,13 @@
 import { NextRequest } from 'next/server';
 import { verifyAuth, unauthorizedResponse, successResponse } from '@/server/middleware/auth.js';
 import { internalErrorResponse } from '@/server/http/errors.js';
+import { parsePositiveInteger } from '@/server/http/pagination.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { getCharacterChatEntries, getFrequentCharacterEntries } from '@/server/modules/chat/character-summary-service.js';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-
-function parsePositiveInteger(value: string | null, fallback: number): number {
-  const parsed = Number.parseInt(value ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);

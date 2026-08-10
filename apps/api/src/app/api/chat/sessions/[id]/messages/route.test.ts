@@ -413,6 +413,38 @@ describe('GET /api/chat/sessions/:id/messages', () => {
     expect(body.limit).toBe(10);
   });
 
+  it('falls back to default limit when limit is not a number', async () => {
+    setupDbMock([
+      [makeSessionRow()],
+      [],
+      [makeMessageRow()],
+    ]);
+
+    const { GET } = await import('./route.js');
+    const request = authedRequest('http://localhost/api/chat/sessions/session-1/messages?limit=abc');
+    const response = await GET(request, { params: Promise.resolve({ id: 'session-1' }) });
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(body.limit).toBe(50);
+  });
+
+  it('falls back to default page when page is not a number', async () => {
+    setupDbMock([
+      [makeSessionRow()],
+      [],
+      [makeMessageRow()],
+    ]);
+
+    const { GET } = await import('./route.js');
+    const request = authedRequest('http://localhost/api/chat/sessions/session-1/messages?page=abc');
+    const response = await GET(request, { params: Promise.resolve({ id: 'session-1' }) });
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(body.page).toBe(1);
+  });
+
   // ── OPTIONS handler exists ──
 
   it('has OPTIONS handler', async () => {

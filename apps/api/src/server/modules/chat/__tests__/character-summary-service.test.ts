@@ -320,4 +320,22 @@ describe('getCharacterChatEntries', () => {
     expect(result.entries[0]?.lastMessage).toHaveLength(101);
     expect(result.entries[0]?.lastMessage?.endsWith('\u2026')).toBe(true);
   });
+
+  it('fetches previews via DISTINCT ON (session_id), not the full message list', async () => {
+    const { getCharacterChatEntries } = await import('../character-summary-service.js');
+    orderByMock
+      .mockImplementationOnce(() => queryResult([makeSessionRow({ id: 'session-preview' })]))
+      .mockImplementationOnce(() => queryResult([
+        { sessionId: 'session-preview', content: '最新预览', role: 'assistant' },
+      ]));
+
+    const result = await getCharacterChatEntries('user-1', 1, 20, '');
+
+    expect(result.entries[0]?.lastMessage).toBe('最新预览');
+    // 预览查询必须走 DISTINCT ON (messages.sessionId)，而不是全量 select 后 JS 取首条。
+    expect(selectDistinctOnMock).toHaveBeenCalledWith(
+      ['messages.sessionId'],
+      expect.objectContaining({ sessionId: 'messages.sessionId', content: 'messages.content' }),
+    );
+  });
 });

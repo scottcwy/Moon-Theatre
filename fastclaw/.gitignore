@@ -57,8 +57,9 @@ deploy/docker/instances/
 deploy/docker/.env
 deploy/docker/.state/
 
-# Web build artifacts (embedded at build time)
-internal/setup/web/
+# Web build artifacts (embedded at build time); only the minimal placeholder index.html is tracked
+internal/setup/web/*
+!internal/setup/web/index.html
 web/out/
 web/.next/
 

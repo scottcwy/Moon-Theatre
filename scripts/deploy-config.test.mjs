@@ -84,7 +84,7 @@ test('caddy keeps response compression compatible with Mini Program clients', ()
 });
 
 test('FastClaw Go-only Dockerfile does not build the Web UI', () => {
-  const dockerfile = readRepoFile('fastclaw/Dockerfile.go');
+  const dockerfile = readRepoFile('fastclaw/Dockerfile.minimal');
 
   assert.match(dockerfile, /FROM golang:/);
   assert.match(dockerfile, /go build/);

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
-import { and, eq, desc, inArray, or } from 'drizzle-orm';
+import { and, asc, eq, desc, inArray, or } from 'drizzle-orm';
 import { verifyAuth, unauthorizedResponse, successResponse } from '@/server/middleware/auth.js';
 import { internalErrorResponse } from '@/server/http/errors.js';
+import { parsePositiveInteger } from '@/server/http/pagination.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { db } from '@/server/db/index.js';
 import { chatSessions, characters, scripts, messages } from '@/server/db/schema';
@@ -17,8 +18,8 @@ export async function GET(request: NextRequest) {
   }
 
   const url = new URL(request.url);
-  const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10));
-  const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') ?? '20', 10)));
+  const page = parsePositiveInteger(url.searchParams.get('page'), 1);
+  const limit = Math.min(50, parsePositiveInteger(url.searchParams.get('limit'), 20));
   const offset = (page - 1) * limit;
   const characterId = url.searchParams.get('characterId') ?? undefined;
   const mode = url.searchParams.get('mode') ?? undefined;
@@ -63,8 +64,9 @@ export async function GET(request: NextRequest) {
     const latestBySession = new Map<string, string>();
 
     if (sessionIds.length > 0) {
-      const allMsgs = await db
-        .select({
+      // DISTINCT ON (session_id)：每会话只取最近一条 user/assistant 消息，避免为预览拉全量消息。
+      const latestRows = await db
+        .selectDistinctOn([messages.sessionId], {
           sessionId: messages.sessionId,
           content: messages.content,
           role: messages.role,
@@ -74,11 +76,12 @@ export async function GET(request: NextRequest) {
           inArray(messages.sessionId, sessionIds),
           or(eq(messages.role, 'user'), eq(messages.role, 'assistant')),
         ))
-        .orderBy(desc(messages.createdAt));
+        .orderBy(asc(messages.sessionId), desc(messages.createdAt));
 
-      for (const msg of allMsgs) {
+      for (const msg of latestRows) {
         // Keep the preview safe even when a test adapter or legacy query omits SQL filtering.
         if (msg.role !== 'user' && msg.role !== 'assistant') continue;
+        // DISTINCT ON 在 PostgreSQL 是权威的；该去重保证测试替身/旧适配器下每会话仅一项。
         if (!latestBySession.has(msg.sessionId)) {
           latestBySession.set(msg.sessionId, msg.content);
         }
