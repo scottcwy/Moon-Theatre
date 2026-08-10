@@ -308,3 +308,94 @@ describe('Migration journal 0008', () => {
     expect(entry.breakpoints).toBe(true);
   });
 });
+
+// ============================================================
+// Migration SQL Contract Tests — 0009 messages session index
+// ============================================================
+describe('0009_chief_wallflower.sql', () => {
+  const migrationPath = path.resolve(
+    __dirname,
+    '../../../../drizzle/0009_chief_wallflower.sql',
+  );
+
+  function readSql(): string {
+    return fs.readFileSync(migrationPath, 'utf-8');
+  }
+
+  it('migration file exists', () => {
+    expect(fs.existsSync(migrationPath)).toBe(true);
+  });
+
+  it('creates plain index messages_session_id_created_at_idx on (session_id, created_at)', () => {
+    const sql = readSql();
+    expect(sql).toMatch(
+      /CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+"messages_session_id_created_at_idx"\s+ON\s+"messages"\s+USING\s+btree\s*\(\s*"session_id","created_at"\s*\)/i,
+    );
+  });
+
+  it('is a pure additive migration', () => {
+    const sql = readSql();
+    expect(sql).not.toMatch(/ALTER\s+TABLE/i);
+    expect(sql).not.toMatch(/DROP\s+COLUMN/i);
+    expect(sql).not.toMatch(/DELETE\s+FROM/i);
+  });
+});
+
+// ============================================================
+// Drizzle schema 0009 changes
+// ============================================================
+describe('Drizzle schema 0009 changes', () => {
+  it('messages has plain index messages_session_id_created_at_idx on (session_id, created_at)', async () => {
+    const { getTableConfig } = await import('drizzle-orm/pg-core');
+    const schema = await import('../schema.js');
+    const indexes = getTableConfig(schema.messages).indexes;
+    const idx = indexes.find((i) => i.config.name === 'messages_session_id_created_at_idx');
+    expect(idx).toBeDefined();
+    expect(idx!.config.unique).toBe(false);
+    const colNames = idx!.config.columns.map((col) => ('name' in col ? col.name : ''));
+    expect(colNames).toEqual(['session_id', 'created_at']);
+  });
+});
+
+// ============================================================
+// Migration journal 0009
+// ============================================================
+describe('Migration journal 0009', () => {
+  const journalPath = path.resolve(
+    __dirname,
+    '../../../../drizzle/meta/_journal.json',
+  );
+
+  it('journal has entry for 0009_chief_wallflower with correct tag', () => {
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf-8'));
+    const entry = journal.entries.find(
+      (e: { tag: string }) => e.tag === '0009_chief_wallflower',
+    );
+    expect(entry).toBeDefined();
+    expect(entry.idx).toBe(9);
+    expect(entry.breakpoints).toBe(true);
+  });
+});
+
+// ============================================================
+// Snapshot integrity — 0009
+// ============================================================
+describe('0009 snapshot integrity', () => {
+  const snapshotPath = path.resolve(
+    __dirname,
+    '../../../../drizzle/meta/0009_snapshot.json',
+  );
+
+  it('snapshot file exists', () => {
+    expect(fs.existsSync(snapshotPath)).toBe(true);
+  });
+
+  it('snapshot has messages_session_id_created_at_idx and keeps the unique client-message index', () => {
+    const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf-8'));
+    const indexes = snap.tables['public.messages'].indexes;
+    expect(indexes.messages_session_id_created_at_idx).toBeDefined();
+    expect(indexes.messages_session_id_created_at_idx.isUnique).toBe(false);
+    expect(indexes.messages_user_client_message_unique).toBeDefined();
+    expect(indexes.messages_user_client_message_unique.isUnique).toBe(true);
+  });
+});

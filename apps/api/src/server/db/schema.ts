@@ -150,6 +150,7 @@ export const messages = pgTable('messages', {
   userClientMessageUnique: uniqueIndex('messages_user_client_message_unique')
     .on(table.sessionId, table.role, table.clientMessageId)
     .where(sql`${table.role} = 'user' and ${table.clientMessageId} is not null`),
+  sessionCreatedAtIdx: index('messages_session_id_created_at_idx').on(table.sessionId, table.createdAt),
 }));
 
 export const memories = pgTable('memories', {
