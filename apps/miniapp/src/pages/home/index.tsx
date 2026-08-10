@@ -20,6 +20,7 @@ import {
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
   getCharacterDetailUrl,
+  getScriptCatalogUrl,
   getScriptCoverUrl,
   getScriptRoleSelectUrl,
   homeSections,
@@ -118,6 +119,10 @@ export default function Home() {
     Taro.navigateTo({ url: getScriptRoleSelectUrl(scriptId) });
   };
 
+  const openScriptCatalog = () => {
+    Taro.navigateTo({ url: getScriptCatalogUrl() });
+  };
+
   const hasScriptQuery = scriptQuery.trim().length > 0;
 
   return (
@@ -127,6 +132,11 @@ export default function Home() {
           className="theater-home__topbar"
           titleClassName="theater-home__topbar-title"
           left={<View className="theater-home__settings-button"><Text className="theater-home__settings">⚙</Text></View>}
+          right={(
+            <View className="theater-home__script-mode-entry" onTap={openScriptCatalog}>
+              <Text className="theater-home__script-mode-entry-text">{homeSections.scriptModeEntry}</Text>
+            </View>
+          )}
           title={<Text className="theater-home__brand">灵犀剧场</Text>}
         />
       </View>

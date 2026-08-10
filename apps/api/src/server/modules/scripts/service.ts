@@ -1,8 +1,22 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { characters, scripts } from '../../db/schema';
 
-export async function listScripts(query?: string) {
+export type ScriptAvailability = 'available' | 'preview';
+
+export interface ScriptCatalogItem {
+  id: string;
+  title: string;
+  description: string;
+  slug: string;
+  genre: string;
+  coverUrl: string | null;
+  sortOrder: number;
+  supportsScriptMode: boolean;
+  availability: ScriptAvailability;
+}
+
+export async function listScripts(query?: string): Promise<ScriptCatalogItem[]> {
   const conditions = [eq(scripts.status, 'active')];
 
   if (query && query.trim().length > 0) {
@@ -26,7 +40,23 @@ export async function listScripts(query?: string) {
     .where(and(...conditions))
     .orderBy(asc(scripts.sortOrder), asc(scripts.title));
 
-  return results;
+  if (results.length === 0) {
+    return [];
+  }
+
+  const scriptIds = results.map((script) => script.id);
+  const bindings = await db
+    .select({ scriptId: characters.scriptId })
+    .from(characters)
+    .where(and(inArray(characters.scriptId, scriptIds), eq(characters.status, 'active')));
+
+  const scriptModeScriptIds = new Set(bindings.map((row) => row.scriptId));
+
+  return results.map((script) => ({
+    ...script,
+    supportsScriptMode: scriptModeScriptIds.has(script.id),
+    availability: 'available' as const,
+  }));
 }
 
 export async function getScriptById(id: string) {

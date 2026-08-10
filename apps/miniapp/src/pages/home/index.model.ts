@@ -7,6 +7,7 @@ export const homeSections = {
   scriptKicker: '今日开演',
   scriptTitle: '热门剧本',
   scriptPrimaryAction: '选择角色',
+  scriptModeEntry: '剧本模式',
   characterKicker: '选择一位角色开始',
   characterTitle: '最近角色',
 } as const;
@@ -39,6 +40,10 @@ export function getScriptRoleSelectUrl(scriptId: string): string {
   const id = scriptId.trim();
   if (!id) throw new Error('scriptId is required');
   return `/pages/script/select?scriptId=${encodeURIComponent(id)}`;
+}
+
+export function getScriptCatalogUrl(): string {
+  return '/pages/script/catalog';
 }
 
 export function buildScriptsUrl(query: string): string {

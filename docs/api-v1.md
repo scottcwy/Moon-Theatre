@@ -36,6 +36,8 @@
 
 （无需认证）按排序返回所有上架剧本，支持可选搜索关键词 `q`。
 
+`supportsScriptMode` 表示该剧本是否存在至少一个 `active` 状态且绑定该剧本的角色，只有为 `true` 时前端才允许进入该剧本的选角/聊天流程。`availability` 为预留字段，本期仅返回 `available`。
+
 请求：
 
 ```http
@@ -54,7 +56,9 @@ GET /api/scripts?q=月见
       "slug": "moon-garden",
       "genre": "日式",
       "coverUrl": "/covers/moon.jpg",
-      "sortOrder": 1
+      "sortOrder": 1,
+      "supportsScriptMode": true,
+      "availability": "available"
     }
   ]
 }

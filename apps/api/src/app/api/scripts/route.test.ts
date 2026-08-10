@@ -9,6 +9,8 @@ interface ScriptListResponse {
     genre: string;
     coverUrl: string;
     sortOrder: number;
+    supportsScriptMode: boolean;
+    availability: 'available' | 'preview';
   }>;
 }
 
@@ -33,6 +35,8 @@ describe('GET /api/scripts', () => {
           genre: '日式',
           coverUrl: '/covers/moon.jpg',
           sortOrder: 1,
+          supportsScriptMode: true,
+          availability: 'available',
         },
       ]),
       getScriptById: vi.fn(),
@@ -46,6 +50,8 @@ describe('GET /api/scripts', () => {
     expect(response.status).toBe(200);
     expect(body.scripts).toHaveLength(1);
     expect(body.scripts[0]?.title).toBe('月见庭院');
+    expect(body.scripts[0]?.supportsScriptMode).toBe(true);
+    expect(body.scripts[0]?.availability).toBe('available');
   });
 
   it('returns empty scripts array when no active scripts', async () => {

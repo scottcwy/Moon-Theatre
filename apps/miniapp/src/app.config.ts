@@ -3,6 +3,7 @@ export default defineAppConfig({
     'pages/home/index',
     'pages/role-select/moon-garden',
     'pages/script/select',
+    'pages/script/catalog',
     'pages/chat/index',
     'pages/chat/list',
     'pages/memory/index',

@@ -24,6 +24,28 @@
   line-height: 1;
 }
 
+.theater-home__script-mode-entry {
+  display: flex;
+  align-items: center;
+  height: 56rpx;
+  padding: 0 $space-3;
+  border-radius: $radius-full;
+  background: linear-gradient(135deg, $color-primary 0%, #a84f68 100%);
+  box-shadow: 0 8rpx 18rpx rgba(139, 66, 88, 0.22);
+}
+
+.theater-home__script-mode-entry:active {
+  transform: scale(0.96);
+}
+
+.theater-home__script-mode-entry-text {
+  color: $color-on-primary;
+  font-size: $font-label-sm;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .theater-home__brand {
   color: $color-primary;
   font-size: 36rpx;
