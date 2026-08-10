@@ -11,6 +11,7 @@ import {
   users,
 } from '../../db/schema';
 import { generateReturnMessageContent } from './generator.js';
+import { latestUserMessageAtSql } from '../chat/character-summary-service.js';
 
 const DAY_MS = 86_400_000;
 /** UTC+8 与 UTC 的固定时差（毫秒），用于计算北京时间自然日零点。 */
@@ -21,6 +22,9 @@ const SWEEP_WINDOW_COUNT = 3;
 
 /** 用户消息（role='user'）自连接别名：用于「用户最后一条消息时间」口径。 */
 const userMessages = alias(messages, 'user_messages');
+
+/** drizzle 事务回调中的查询客户端（与 db 同构）。 */
+type TransactionClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type CandidateReason = 'recent' | 'bond';
 
@@ -74,7 +78,7 @@ export async function getRecentChatCharacterId(userId: string): Promise<string |
       eq(userMessages.role, 'user'),
     ))
     .where(eq(chatSessions.userId, userId))
-    .orderBy(desc(userMessages.createdAt))
+    .orderBy(desc(latestUserMessageAtSql()))
     .limit(1);
 
   return row?.characterId ?? null;
@@ -167,8 +171,9 @@ export async function insertReturnMessage(
   reason: CandidateReason,
   windowStart: Date,
   messageId: string | null,
+  client: TransactionClient = db,
 ): Promise<boolean> {
-  const [row] = await db
+  const [row] = await client
     .insert(characterReturnMessages)
     .values({ userId, characterId, content, reason, windowStart, messageId })
     .onConflictDoNothing({
@@ -191,28 +196,29 @@ export async function insertReturnMessage(
 async function getActiveFreeSessionId(
   userId: string,
   characterId: string,
+  client: TransactionClient,
 ): Promise<string | null> {
-  const [row] = await db
+  const [row] = await client
     .select({ id: chatSessions.id })
     .from(chatSessions)
-    .leftJoin(userMessages, and(
-      eq(userMessages.sessionId, chatSessions.id),
-      eq(userMessages.role, 'user'),
-    ))
     .where(and(
       eq(chatSessions.userId, userId),
       eq(chatSessions.characterId, characterId),
       eq(chatSessions.status, 'active'),
       eq(chatSessions.mode, 'free'),
     ))
-    .orderBy(sql`${userMessages.createdAt} desc nulls last`);
+    .orderBy(sql`${latestUserMessageAtSql()} desc nulls last`);
 
   return row?.id ?? null;
 }
 
 /** 为该角色新建一个自由模式会话（status='active'、mode='free'）。 */
-async function createFreeSession(userId: string, characterId: string): Promise<string> {
-  const [created] = await db
+async function createFreeSession(
+  userId: string,
+  characterId: string,
+  client: TransactionClient,
+): Promise<string> {
+  const [created] = await client
     .insert(chatSessions)
     .values({ userId, characterId, status: 'active', mode: 'free' })
     .returning({ id: chatSessions.id });
@@ -224,9 +230,10 @@ async function createFreeSession(userId: string, characterId: string): Promise<s
 }
 
 /**
- * 投递一条留言：先写真实 assistant 消息（可见但 excludedFromContext=true，不计费），
- * 再写投递元数据并回填 messageId。落点是该角色最近活跃自由会话，无则新建。
- * 窗口冲突（并发）时元数据插入静默跳过并返回 false。
+ * 投递一条留言（整体原子）：先在事务内插入投递元数据（messageId 为空），
+ * 命中窗口唯一索引冲突即返回 false、不写消息；随后查/建自由会话、写真实
+ * assistant 消息（可见但 excludedFromContext=true，不计费），最后回填 message_id。
+ * 并发同窗口只会落 1 条消息 + 1 条元数据，不残留孤儿消息。
  */
 async function deliverReturnMessage(
   userId: string,
@@ -235,26 +242,50 @@ async function deliverReturnMessage(
   reason: CandidateReason,
   windowStart: Date,
 ): Promise<boolean> {
-  const existingSessionId = await getActiveFreeSessionId(userId, characterId);
-  const sessionId = existingSessionId ?? await createFreeSession(userId, characterId);
-
-  const [message] = await db
-    .insert(messages)
-    .values({
-      sessionId,
-      role: 'assistant',
+  return db.transaction(async (tx) => {
+    const created = await insertReturnMessage(
+      userId,
+      characterId,
       content,
-      outOfScope: false,
-      excludedFromContext: true,
-      generationStatus: 'completed',
-    })
-    .returning({ id: messages.id });
+      reason,
+      windowStart,
+      null,
+      tx,
+    );
+    if (!created) {
+      return false;
+    }
 
-  if (!message) {
-    throw new Error('Failed to write return message');
-  }
+    const existingSessionId = await getActiveFreeSessionId(userId, characterId, tx);
+    const sessionId = existingSessionId ?? await createFreeSession(userId, characterId, tx);
 
-  return insertReturnMessage(userId, characterId, content, reason, windowStart, message.id);
+    const [message] = await tx
+      .insert(messages)
+      .values({
+        sessionId,
+        role: 'assistant',
+        content,
+        outOfScope: false,
+        excludedFromContext: true,
+        generationStatus: 'completed',
+      })
+      .returning({ id: messages.id });
+
+    if (!message) {
+      throw new Error('Failed to write return message');
+    }
+
+    await tx
+      .update(characterReturnMessages)
+      .set({ messageId: message.id })
+      .where(and(
+        eq(characterReturnMessages.userId, userId),
+        eq(characterReturnMessages.characterId, characterId),
+        eq(characterReturnMessages.windowStart, windowStart),
+      ));
+
+    return true;
+  });
 }
 
 /** 为一个窗口生成并投递留言；角色不存在返回 false；冲突时静默返回未新建。 */
