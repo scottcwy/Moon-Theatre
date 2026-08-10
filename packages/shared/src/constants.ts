@@ -14,6 +14,13 @@ export const MODEL_TIER_LABELS: Record<ModelTier, string> = {
   immersive: '沉浸',
 };
 
+/** 每轮对话点数消耗，与 apps/api 的 model_profiles.pointsPerCall seed 保持一致（有测试防漂移）。 */
+export const MODEL_TIER_COSTS: Record<ModelTier, number> = {
+  casual: 1,
+  standard: 3,
+  immersive: 6,
+};
+
 export const MOOD_TYPES = {
   NEUTRAL: 'neutral',
   HAPPY: 'happy',
