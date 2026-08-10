@@ -5,6 +5,7 @@ import {
   getCharacterDecisionBadge,
   getActiveScriptIndex,
   getCharacterDetailUrl,
+  getScriptCatalogUrl,
   getScriptCoverUrl,
   getScriptRoleSelectUrl,
   homeSections,
@@ -24,11 +25,16 @@ describe('home navigation helpers', () => {
   it('keeps the home flow centered on choosing a role from a script', () => {
     expect(homeSections.scriptTitle).toBe('热门剧本');
     expect(homeSections.scriptPrimaryAction).toBe('选择角色');
+    expect(homeSections.scriptModeEntry).toBe('剧本模式');
     expect(homeSections.characterTitle).toBe('最近角色');
   });
 
   it('routes every API script id to the generic role selection page', () => {
     expect(getScriptRoleSelectUrl('script-uuid')).toBe('/pages/script/select?scriptId=script-uuid');
+  });
+
+  it('routes the script mode entry to the fixed catalog page', () => {
+    expect(getScriptCatalogUrl()).toBe('/pages/script/catalog');
   });
 
   it('rejects empty script ids instead of falling through to a local mapping', () => {

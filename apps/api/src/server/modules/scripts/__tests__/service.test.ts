@@ -56,6 +56,7 @@ vi.mock('drizzle-orm', () => {
       return { type: 'or', conditions };
     },
     eq: (left: unknown, right: unknown) => ({ type: 'eq', left, right }),
+    inArray: (left: unknown, right: unknown) => ({ type: 'inArray', left, right }),
     sql: () => {
       // sql template tag for ILIKE — we capture its presence
       const marker = { type: 'sql_ilike_marker' };
@@ -105,8 +106,18 @@ describe('scripts service — listScripts', () => {
     vi.clearAllMocks();
   });
 
+  function mockListQueries(scriptRows: unknown[], activeScriptIds: string[]) {
+    const bindingRows = activeScriptIds.map((scriptId) => ({ scriptId }));
+    let callCount = 0;
+    selectMock.mockImplementation(() => {
+      const chain = makeChain();
+      chain.returns(callCount++ === 0 ? scriptRows : bindingRows);
+      return chain;
+    });
+  }
+
   it('SELECTs only active scripts', async () => {
-    selectMock.mockReturnValue(makeChain().returns([]));
+    mockListQueries([], []);
     const { listScripts } = await import('../service.js');
     await listScripts();
 
@@ -117,13 +128,13 @@ describe('scripts service — listScripts', () => {
   });
 
   it('returns empty array when no active scripts exist', async () => {
-    selectMock.mockReturnValue(makeChain().returns([]));
+    mockListQueries([], []);
     const { listScripts } = await import('../service.js');
     const result = await listScripts();
     expect(result).toEqual([]);
   });
 
-  it('returns active scripts', async () => {
+  it('returns active scripts without script mode when no active character is bound', async () => {
     const script = {
       id: 's1',
       title: '月见庭院',
@@ -133,15 +144,53 @@ describe('scripts service — listScripts', () => {
       coverUrl: '/covers/moon.jpg',
       sortOrder: 1,
     };
-    selectMock.mockReturnValue(makeChain().returns([script]));
+    mockListQueries([script], []);
     const { listScripts } = await import('../service.js');
     const result = await listScripts();
-    expect(result).toEqual([script]);
+
+    expect(result).toHaveLength(1);
     expect(result[0]!.title).toBe('月见庭院');
+    expect(result[0]!.supportsScriptMode).toBe(false);
+    expect(result[0]!.availability).toBe('available');
+  });
+
+  it('marks scripts as supportsScriptMode when an active character is bound', async () => {
+    const script = {
+      id: 's1',
+      title: '月见庭院',
+      description: '狐狸神的新娘',
+      slug: 'moon-garden',
+      genre: '日式',
+      coverUrl: '/covers/moon.jpg',
+      sortOrder: 1,
+    };
+    mockListQueries([script], ['s1']);
+    const { listScripts } = await import('../service.js');
+    const result = await listScripts();
+
+    expect(result[0]!.supportsScriptMode).toBe(true);
+    expect(result[0]!.availability).toBe('available');
+  });
+
+  it('only counts active characters for script mode', async () => {
+    const script = {
+      id: 's1',
+      title: '月见庭院',
+      description: '狐狸神的新娘',
+      slug: 'moon-garden',
+      genre: '日式',
+      coverUrl: '/covers/moon.jpg',
+      sortOrder: 1,
+    };
+    mockListQueries([script], ['other-script']);
+    const { listScripts } = await import('../service.js');
+    const result = await listScripts();
+
+    expect(result[0]!.supportsScriptMode).toBe(false);
   });
 
   it('filters by query on title (case-insensitive)', async () => {
-    selectMock.mockReturnValue(makeChain().returns([]));
+    mockListQueries([], []);
     const { listScripts } = await import('../service.js');
 
     await listScripts('月见');
@@ -162,7 +211,7 @@ describe('scripts service — listScripts', () => {
       coverUrl: '',
       sortOrder: 0,
     };
-    selectMock.mockReturnValue(makeChain().returns([script]));
+    mockListQueries([script], []);
     const { listScripts } = await import('../service.js');
 
     const result = await listScripts('科幻');
@@ -180,7 +229,7 @@ describe('scripts service — listScripts', () => {
       coverUrl: '',
       sortOrder: 0,
     };
-    selectMock.mockReturnValue(makeChain().returns([script]));
+    mockListQueries([script], []);
     const { listScripts } = await import('../service.js');
 
     const result = await listScripts('克苏鲁');
@@ -188,7 +237,7 @@ describe('scripts service — listScripts', () => {
   });
 
   it('returns [] when query matches nothing', async () => {
-    selectMock.mockReturnValue(makeChain().returns([]));
+    mockListQueries([], []);
     const { listScripts } = await import('../service.js');
 
     const result = await listScripts('不存在');
@@ -200,7 +249,7 @@ describe('scripts service — listScripts', () => {
       { id: 's1', title: 'A', description: '', slug: 'a', genre: 'G', coverUrl: '', sortOrder: 0 },
       { id: 's2', title: 'B', description: '', slug: 'b', genre: 'G', coverUrl: '', sortOrder: 0 },
     ];
-    selectMock.mockReturnValue(makeChain().returns(scripts));
+    mockListQueries(scripts, []);
     const { listScripts } = await import('../service.js');
 
     const result = await listScripts('');
@@ -210,7 +259,7 @@ describe('scripts service — listScripts', () => {
   it('does NOT return retired scripts', async () => {
     // even if DB had retired scripts, the WHERE status='active' should exclude them
     // The mock returns [] meaning no active matches
-    selectMock.mockReturnValue(makeChain().returns([]));
+    mockListQueries([], []);
     const { listScripts } = await import('../service.js');
 
     const result = await listScripts();
@@ -218,7 +267,7 @@ describe('scripts service — listScripts', () => {
   });
 
   it('orders by sortOrder then title', async () => {
-    selectMock.mockReturnValue(makeChain().returns([]));
+    mockListQueries([], []);
     const { listScripts } = await import('../service.js');
 
     await listScripts();
