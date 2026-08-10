@@ -29,7 +29,7 @@ export function BondProgress({ relationship, level, exp, maxExp, bond }: BondPro
       <View className="bond-progress__track">
         <View className="bond-progress__bar" style={{ width: `${percent}%` }} />
       </View>
-      <Text className="bond-progress__hint">{bond?.remainingLabel ?? `距下一等级还需 ${remaining} 默契度`}</Text>
+      <Text className="bond-progress__hint">{bond?.remainingLabel ?? `距下一级羁绊还需 ${remaining}`}</Text>
     </View>
   );
 }

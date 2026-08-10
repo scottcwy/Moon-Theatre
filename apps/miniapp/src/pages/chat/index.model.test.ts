@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyStarterQuestion,
   createClientMessageId,
+  getBondFeedback,
   getDefaultChatMode,
   getFriendlyStreamErrorMessage,
   getInitialModelTier,
@@ -136,5 +137,33 @@ describe('chat message rendering helpers', () => {
     expect(shouldReconcileStreamError('script_unavailable')).toBe(false);
     expect(shouldReconcileStreamError('session_scope_mismatch')).toBe(false);
     expect(shouldReconcileStreamError('client_message_id_collision')).toBe(false);
+  });
+});
+
+describe('getBondFeedback', () => {
+  it('reports a level-up with the server-provided level', () => {
+    expect(getBondFeedback({ bondLevel: 4, bondDelta: 10, leveledUp: true })).toEqual({
+      kind: 'leveledUp',
+      level: 4,
+    });
+  });
+
+  it('reports a normal gain from the server delta', () => {
+    expect(getBondFeedback({ bondLevel: 1, bondDelta: 10, leveledUp: false })).toEqual({
+      kind: 'gained',
+      delta: 10,
+    });
+  });
+
+  it('returns null for idempotent replays with delta 0', () => {
+    expect(getBondFeedback({ bondLevel: 3, bondDelta: 0, leveledUp: false })).toBeNull();
+  });
+
+  it('returns null when bond fields are absent (async effects / filtered turns)', () => {
+    expect(getBondFeedback({})).toBeNull();
+  });
+
+  it('falls back to a gain when leveledUp lacks a level', () => {
+    expect(getBondFeedback({ bondDelta: 10, leveledUp: true })).toEqual({ kind: 'gained', delta: 10 });
   });
 });

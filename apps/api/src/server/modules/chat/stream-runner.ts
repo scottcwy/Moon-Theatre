@@ -439,6 +439,8 @@ function createReplayResponse(
         ...(assistantMessage.mood ? { mood: assistantMessage.mood } : {}),
         clientMessageId,
         replayed: true,
+        bondDelta: 0,
+        leveledUp: false,
         ...(relationship ? {
           bondLevel: relationship.bondLevel,
           bondExp: relationship.bondExp,
@@ -710,6 +712,8 @@ function createGenerationResponse(input: {
           ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
           ...(saved.bondLevel !== undefined ? { bondLevel: saved.bondLevel } : {}),
           ...(saved.bondExp !== undefined ? { bondExp: saved.bondExp } : {}),
+          ...(saved.bondDelta !== undefined ? { bondDelta: saved.bondDelta } : {}),
+          ...(saved.leveledUp !== undefined ? { leveledUp: saved.leveledUp } : {}),
           ...(!config.chatEffectsAsyncEnabled && safeEffects.unlockedAchievements.length > 0 ? { unlockedAchievements: safeEffects.unlockedAchievements } : {}),
           ...(!config.chatEffectsAsyncEnabled && safeEffects.unlockedTitles.length > 0 ? { unlockedTitles: safeEffects.unlockedTitles } : {}),
           balanceAfter,

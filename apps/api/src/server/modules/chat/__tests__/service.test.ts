@@ -982,3 +982,159 @@ describe('findOrCreateSession boundary validation', () => {
     expect(result.scriptId).toBeNull();
   });
 });
+
+describe('finalizeAssistantTurn bond feedback', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    setupTransactionMocks();
+  });
+
+  it('reports bondDelta 10 and leveledUp false for a gain within the same level', async () => {
+    txReturningMock
+      .mockResolvedValueOnce([{ id: 'assistant-message-1' }])
+      .mockResolvedValueOnce([{ id: 'bond-event-1' }])
+      .mockResolvedValueOnce([{ bondLevel: 1, bondExp: 15 }]);
+
+    const { finalizeAssistantTurn } = await import('../service.js');
+    const result = await finalizeAssistantTurn({
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      content: 'final answer',
+      mood: null,
+      usage: {
+        userId: 'user-1',
+        characterId: 'character-1',
+        modelTier: 'standard',
+        modelName: 'Qwen/Qwen3.5-32B',
+        walletTransactionId: 'wallet-tx-1',
+        status: 'success',
+        pointsConsumed: 3,
+      },
+    });
+
+    expect(result).toEqual({
+      id: 'assistant-message-1',
+      bondLevel: 1,
+      bondExp: 15,
+      bondDelta: 10,
+      leveledUp: false,
+    });
+  });
+
+  it('reports leveledUp true when the turn crosses a level boundary', async () => {
+    txReturningMock
+      .mockResolvedValueOnce([{ id: 'assistant-message-1' }])
+      .mockResolvedValueOnce([{ id: 'bond-event-1' }])
+      .mockResolvedValueOnce([{ bondLevel: 2, bondExp: 105 }]);
+
+    const { finalizeAssistantTurn } = await import('../service.js');
+    const result = await finalizeAssistantTurn({
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      content: 'final answer',
+      mood: null,
+      usage: {
+        userId: 'user-1',
+        characterId: 'character-1',
+        modelTier: 'standard',
+        modelName: 'Qwen/Qwen3.5-32B',
+        walletTransactionId: 'wallet-tx-1',
+        status: 'success',
+        pointsConsumed: 3,
+      },
+    });
+
+    expect(result.leveledUp).toBe(true);
+    expect(result.bondDelta).toBe(10);
+    expect(result.bondLevel).toBe(2);
+  });
+
+  it('keeps leveledUp false once the cap level 10 is reached', async () => {
+    txReturningMock
+      .mockResolvedValueOnce([{ id: 'assistant-message-1' }])
+      .mockResolvedValueOnce([{ id: 'bond-event-1' }])
+      .mockResolvedValueOnce([{ bondLevel: 10, bondExp: 1050 }]);
+
+    const { finalizeAssistantTurn } = await import('../service.js');
+    const result = await finalizeAssistantTurn({
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      content: 'final answer',
+      mood: null,
+      usage: {
+        userId: 'user-1',
+        characterId: 'character-1',
+        modelTier: 'standard',
+        modelName: 'Qwen/Qwen3.5-32B',
+        walletTransactionId: 'wallet-tx-1',
+        status: 'success',
+        pointsConsumed: 3,
+      },
+    });
+
+    expect(result).toEqual({
+      id: 'assistant-message-1',
+      bondLevel: 10,
+      bondExp: 1050,
+      bondDelta: 10,
+      leveledUp: false,
+    });
+  });
+
+  it('returns the current relationship with bondDelta 0 on idempotent replay', async () => {
+    txReturningMock
+      .mockResolvedValueOnce([{ id: 'assistant-message-1' }])
+      .mockResolvedValueOnce([]);
+    selectMock.mockReturnValue({ from: fromMock });
+    fromMock.mockReturnValue({ where: selectWhereMock });
+    selectWhereMock.mockReturnValue({ limit: selectLimitMock });
+    selectLimitMock.mockResolvedValue([{ bondLevel: 3, bondExp: 250 }]);
+
+    const { finalizeAssistantTurn } = await import('../service.js');
+    const result = await finalizeAssistantTurn({
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      content: 'final answer',
+      mood: null,
+      usage: {
+        userId: 'user-1',
+        characterId: 'character-1',
+        modelTier: 'standard',
+        modelName: 'Qwen/Qwen3.5-32B',
+        walletTransactionId: 'wallet-tx-1',
+        status: 'success',
+        pointsConsumed: 3,
+      },
+    });
+
+    expect(result).toEqual({
+      id: 'assistant-message-1',
+      bondLevel: 3,
+      bondExp: 250,
+      bondDelta: 0,
+      leveledUp: false,
+    });
+  });
+
+  it('does not report bond fields for filtered turns', async () => {
+    const { finalizeAssistantTurn } = await import('../service.js');
+    const result = await finalizeAssistantTurn({
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      content: 'replaced',
+      mood: null,
+      usage: {
+        userId: 'user-1',
+        characterId: 'character-1',
+        modelTier: 'standard',
+        modelName: 'Qwen/Qwen3.5-32B',
+        walletTransactionId: null,
+        status: 'filtered',
+        pointsConsumed: 0,
+      },
+    });
+
+    expect(result).toEqual({ id: 'assistant-message-1' });
+  });
+});

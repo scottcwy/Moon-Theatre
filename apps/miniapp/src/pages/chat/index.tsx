@@ -19,6 +19,7 @@ import { getCharacterAvatarUrl } from '../home/index.model';
 import {
   applyStarterQuestion,
   createClientMessageId,
+  getBondFeedback,
   getDefaultChatMode,
   getEmptyModeScope,
   getFriendlyStreamErrorMessage,
@@ -540,6 +541,15 @@ export default function Chat() {
         }
         if (typeof result.balanceAfter === 'number') setPointsBalance(result.balanceAfter);
         else void loadBalance();
+        const bondFeedback = getBondFeedback(result);
+        if (bondFeedback) {
+          Taro.showToast({
+            title: bondFeedback.kind === 'leveledUp'
+              ? `羁绊提升至 Lv.${bondFeedback.level}`
+              : `羁绊 +${bondFeedback.delta}`,
+            icon: 'none',
+          });
+        }
         const unlockedCount = (result.unlockedAchievements?.length || 0) + (result.unlockedTitles?.length || 0);
         if (unlockedCount > 0) Taro.showToast({ title: `解锁了 ${unlockedCount} 项新记录`, icon: 'none' });
         activeStreamRef.current = null;
