@@ -131,3 +131,42 @@ describe('miniapp config auth constants', () => {
     await expect(import('./prod')).rejects.toThrow(placeholderError);
   });
 });
+
+describe('miniapp hosts.json single config point', () => {
+  const originalEnv = { ...process.env };
+  const originalArgv = [...process.argv];
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    process.argv = [...originalArgv];
+    vi.resetModules();
+  });
+
+  it('uses the hosts.json prod host for production builds without API_BASE_URL', async () => {
+    delete process.env.API_BASE_URL;
+    process.env.NODE_ENV = 'production';
+    process.argv = ['node', 'taro', 'build'];
+
+    const config = await import('./prod');
+
+    expect(config.default.defineConstants?.API_BASE_URL).toBe('"https://api.offergo.xz.cn"');
+  });
+
+  it('uses the hosts.json dev host for development builds without API_BASE_URL', async () => {
+    delete process.env.API_BASE_URL;
+    process.env.NODE_ENV = 'development';
+    process.argv = ['node', 'taro', '--watch'];
+
+    const config = await import('./dev');
+
+    expect(config.default.defineConstants?.API_BASE_URL).toBe('"http://127.0.0.1:3000"');
+  });
+
+  it('lets API_BASE_URL override the hosts.json prod host', async () => {
+    process.env.API_BASE_URL = 'https://api.override.example';
+
+    const config = await import('./prod');
+
+    expect(config.default.defineConstants?.API_BASE_URL).toBe('"https://api.override.example"');
+  });
+});

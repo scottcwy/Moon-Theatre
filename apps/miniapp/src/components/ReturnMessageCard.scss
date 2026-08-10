@@ -1,0 +1,109 @@
+@use '../styles/tokens.scss' as *;
+
+.return-message-card {
+  min-height: 124rpx;
+  display: flex;
+  align-items: flex-start;
+  padding: $space-2 $space-2;
+  border-radius: $radius-md;
+  background-color: $color-surface-container-low;
+  box-sizing: border-box;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.return-message-card--unread {
+  background-color: rgba(255, 217, 225, 0.42);
+}
+
+.return-message-card:active {
+  transform: scale(0.98);
+}
+
+.return-message-card__avatar {
+  position: relative;
+  width: 80rpx;
+  height: 80rpx;
+  margin-right: $space-3;
+  flex-shrink: 0;
+  border-radius: $radius-full;
+}
+
+.return-message-card__avatar-image,
+.return-message-card__avatar-placeholder {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: $radius-full;
+  display: block;
+  overflow: hidden;
+  background-color: $color-surface-container-high;
+}
+
+.return-message-card__avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.return-message-card__avatar-text {
+  color: $color-primary;
+  font-size: $font-title-md;
+  font-weight: 800;
+}
+
+.return-message-card__unread-dot {
+  position: absolute;
+  top: -2rpx;
+  right: -2rpx;
+  width: 20rpx;
+  height: 20rpx;
+  border: 4rpx solid $color-background;
+  border-radius: $radius-full;
+  background-color: $color-error;
+  box-sizing: border-box;
+}
+
+.return-message-card__content {
+  flex: 1;
+  min-width: 0;
+  padding-top: 6rpx;
+}
+
+.return-message-card__header {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.return-message-card__name {
+  min-width: 0;
+  max-width: 260rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: $color-on-surface;
+  font-size: $font-title-md;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.return-message-card__time {
+  width: 92rpx;
+  color: rgba(90, 74, 78, 0.58);
+  font-size: 22rpx;
+  line-height: 1.3;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.return-message-card__content-text {
+  display: -webkit-box;
+  margin-top: 8rpx;
+  overflow: hidden;
+  color: $color-on-surface-variant;
+  font-size: $font-label-md;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

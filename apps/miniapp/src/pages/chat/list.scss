@@ -87,3 +87,29 @@
 .chat-list__item:active {
   transform: scale(0.98);
 }
+
+/* Return messages */
+.chat-list__return-messages {
+  margin-top: $space-4;
+  padding: $space-2 $space-2 $space-3;
+  border-radius: $radius-md;
+  background: rgba($color-surface-container-low, 0.82);
+  box-sizing: border-box;
+}
+
+.chat-list__return-messages-title {
+  display: block;
+  padding: 0 $space-2 $space-1;
+  color: $color-primary;
+  font-size: $font-label-sm;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.chat-list__return-message-item {
+  margin-bottom: $space-2;
+}
+
+.chat-list__return-message-item:last-child {
+  margin-bottom: 0;
+}

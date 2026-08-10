@@ -1,6 +1,6 @@
 # API v1 初版
 
-本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面另有 Basic Auth middleware 保护，生产环境必须配置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
+本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内；同时 `/api/admin/**` 与 `/admin/**` 页面均由 Basic Auth middleware 保护，admin API 需 Basic Auth 与 JWT 白名单双层校验都通过。生产环境必须配置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
 
 聊天接口当前是 `moderated-buffered`：响应为 NDJSON streaming 形态，但服务端会先完成模型回复缓冲、内部语言净化和输出审核，再发送最终内容。
 
@@ -29,6 +29,8 @@
 | Orders | GET | `/api/orders/:id` | 当前用户订单详情 |
 | Payments | POST | `/api/orders/:id/prepay` | 创建预支付参数 |
 | Payments | POST | `/api/orders/:id/mock-confirm` | 本地 mock 支付确认，仅 mock provider 使用 |
+| Return Messages | POST | `/api/return-messages/check` | 检查并补齐当前用户的回访留言，返回未读留言与各角色未读数（需登录） |
+| Return Messages | POST | `/api/return-messages/read` | 将指定角色全部未读回访留言标记为已读（需登录） |
 
 ### `GET /api/scripts`
 
@@ -412,6 +414,64 @@ V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语�
 
 异步 effects 是最终一致性：记忆、羁绊、成就/称号可能晚于当前响应落库；V1 不自动重试，失败只写结构化日志。
 
+### `POST /api/return-messages/check`
+
+（需登录）检查并补齐当前用户的回访留言，无请求体。先按候选规则为每个候选角色补齐当前 UTC 24h 窗口的留言（该角色未读 < 3 且当前窗口尚无留言时），再返回全部未读留言与各角色未读数。
+
+请求：
+
+```http
+POST /api/return-messages/check
+Authorization: Bearer <jwt>
+```
+
+响应：
+
+```json
+{
+  "messages": [
+    {
+      "id": "uuid",
+      "characterId": "uuid",
+      "characterName": "白藏",
+      "characterAvatarUrl": "/avatars/baizang.jpg",
+      "content": "小新娘，庭院的月色又圆了，红线铃铛在风里响了一夜。回来吧，我还在廊下等你。",
+      "reason": "recent",
+      "createdAt": "2026-08-04T00:00:00.000Z",
+      "readAt": null
+    }
+  ],
+  "characterUnread": {
+    "uuid": 1
+  }
+}
+```
+
+- `reason`: `"recent"`（最近成功聊天候选）或 `"bond"`（羁绊最高候选）。
+- `readAt`: `null` 表示未读；返回的 `messages` 均为未读留言。
+- `characterUnread`: 以 `characterId` 为 key 的未读条数统计，仅包含当前有未读留言的角色。
+
+### `POST /api/return-messages/read`
+
+（需登录）将当前用户指定角色的全部未读回访留言标记为已读，返回本次更新的条数。重复调用幂等：无未读可更新时返回 `updated: 0`。
+
+请求：
+
+```http
+POST /api/return-messages/read
+Authorization: Bearer <jwt>
+
+{ "characterId": "uuid" }
+```
+
+响应：
+
+```json
+{ "updated": 1 }
+```
+
+请求体不是合法 JSON、缺失，或 `characterId` 为空/超过 64 字符时返回 `400`，`error: "Invalid characterId"`。
+
 ## 运维 API
 
 | 模块 | 方法 | 路径 | 说明 |
@@ -429,7 +489,7 @@ V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语�
 
 ## Admin API
 
-所有 admin API 必须使用 `verifyAdminAuth`。
+所有 admin API 必须使用 `verifyAdminAuth`，且 `/api/admin/**` 请求须先通过 Basic Auth middleware 校验。
 
 | 模块 | 方法 | 路径 | 说明 |
 | --- | --- | --- | --- |
@@ -453,6 +513,7 @@ V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语�
 | Memories | PATCH | `/api/admin/memories/:id` | 禁用/启用或覆盖记忆内容 |
 | Blocked Keywords | GET | `/api/admin/blocked-keywords` | 敏感词列表 |
 | Blocked Keywords | POST | `/api/admin/blocked-keywords` | 新增敏感词 |
+| Return Messages | POST | `/api/admin/return-messages/sweep` | 触发回访留言补发清扫（需 admin） |
 
 ### `GET /api/admin/stats`
 
@@ -484,3 +545,52 @@ V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语�
 ```
 
 `content` 会 trim 并限制为 500 字符；空内容会返回错误。
+
+### `POST /api/admin/return-messages/sweep`
+
+（需 admin）触发一次回访留言补发清扫，无请求体。遍历所有 active 用户，对每个候选角色补齐最近 3 个缺失窗口（当前窗口、now-1d、now-2d）的留言；未读 >= 3 的角色跳过；AI 生成并发上限 4；单用户/单角色/单窗口失败只记日志，不中断整体。
+
+请求：
+
+```http
+POST /api/admin/return-messages/sweep
+Authorization: Bearer <jwt>
+```
+
+响应：
+
+```json
+{ "swept": true }
+```
+
+另有进程内调度器自动执行：Node.js runtime 启动时立即执行一次，之后每 60 分钟执行一次（timer 已 `unref()`，不阻止进程退出）。
+
+## 回访留言数据模型与规则
+
+表 `character_return_messages`：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | uuid | 主键 |
+| `userId` | uuid | 所属用户，外键 `users.id` |
+| `characterId` | uuid | 所属角色，外键 `characters.id` |
+| `content` | text | 留言内容 |
+| `reason` | varchar(16) | 生成原因：`recent`（最近成功聊天）或 `bond`（羁绊最高） |
+| `windowStart` | timestamp with timezone | UTC 24h 桶起点（UTC 零点），参与去重 |
+| `createdAt` | timestamp with timezone | 创建时间 |
+| `readAt` | timestamp with timezone | 已读时间，`null` 表示未读 |
+
+索引：
+
+- 唯一索引 `character_return_messages_window_unique`（`userId`, `characterId`, `windowStart`）：同一角色同一 24h 窗口最多 1 条留言；插入命中冲突时静默跳过（幂等）。
+- 普通索引 `character_return_messages_unread_idx`（`userId`, `readAt`）：支撑未读查询。
+
+规则：
+
+- `windowStart` 是 UTC 24h 桶：`floor(now / 86400000) * 86400000`，即所在 UTC 日的零点。
+- 候选角色：① 最近成功聊过的 active 角色（存在成功 assistant 消息的会话，按会话 `updatedAt` 倒序取第一个）；② 羁绊最高的 active 角色（按 `bondLevel`、`bondExp`、`updatedAt` 倒序取第一个）。两个候选合并时同一角色只保留一条，`recent` 优先。
+- 未读上限 3：某角色未读（`readAt IS NULL`）达到 3 条时不再生成，直到已读后才可能继续生成。
+- 窗口去重：`check` 只补当前窗口；`sweep` 补齐最近 3 个缺失窗口。窗口已有留言时不重复生成。
+- AI 生成：复用 FastClaw `streamChat` 非流式收集，专用短超时 15 秒，内容按 Unicode 码点截断至 200 字符。失败、超时、空内容，或 adapter 兜底流（FastClaw 未配置/fallbackEnabled 产出通用聊天文本，不表达惦记/邀请）均视为失败，改用运营模板兜底（角色模板优先，无则用通用兜底模板）。生成永不抛错、永不返回空字符串。
+- 留言与聊天完全分离：不进入聊天可见历史（**Visible History**），不进入模型生成上下文（**Generation Context**），不影响点数、羁绊或成就。
+- 已读幂等：只更新 `readAt IS NULL` 的行，重复调用返回 `updated: 0`。

@@ -64,6 +64,10 @@ _Avoid_: global memory, cross-mode history
 Plot knowledge bound to one user, one character, and one script.
 _Avoid_: shared memory, character memory, mode memory
 
+**Return Message (回访留言)**:
+A standalone unread message for a user who has been away from one character for a long time; it is not part of chat history. Each character gets at most one per UTC 24h window, and a user accumulates at most 3 unread per character; generation stops at 3 unread until the user reads them.
+_Avoid_: 聊天消息, 离线消息, 微信推送
+
 ## Relationships · 关系
 
 - One **Client Message ID** identifies exactly one client send attempt.
@@ -81,6 +85,9 @@ _Avoid_: shared memory, character memory, mode memory
 - A **Free Conversation Mode** session does not require plot progression but remains bound to one selected character.
 - One **User Character Agent Instance** can have zero or more **Shared Memories** available in both modes.
 - One user, one **Character Template**, and one script can have zero or more **Script Memories** available only to that script's Script Mode.
+- One user and one **Character Template** can have zero or more **Return Messages**.
+- One **Return Message** belongs to exactly one user and one **Character Template**.
+- **Return Messages** never appear in **Visible History** or **Generation Context**.
 - **User Preferred Name**, **Shared Memory**, and relationship state may be shared across modes; **Visible History**, **Generation Context**, and **Script Memory** must not be shared across modes.
 
 ## Flagged Ambiguities · 已澄清歧义
@@ -91,3 +98,4 @@ _Avoid_: shared memory, character memory, mode memory
 - "副本" and "剧本" were used interchangeably for the chat boundary; resolved: product language uses **Script Mode** and **Free Conversation Mode**, not 副本模式.
 - "会话列表" previously meant a list of **Chat Sessions**; resolved: the user-facing list contains one **Character Chat Entry** per character, while mode-specific **Chat Sessions** remain separate underneath.
 - "全局共享且可见" means both modes are reachable through one **Character Chat Entry**; it does not mean a combined **Visible History** or mixed **Generation Context**.
+- "回访留言" is a separate unread message type, not a chat message: it never appears in **Visible History** or **Generation Context**.

@@ -1,8 +1,18 @@
+import hostsJson from './hosts.json';
+
 export const LOCAL_API_BASE_URL = 'http://127.0.0.1:3000';
 export const PLACEHOLDER_API_HOST = ['api', 'example', 'com'].join('.');
 const INVALID_TEST_DOMAIN_SUFFIX = '.invalid';
 
 type BuildMode = 'development' | 'production';
+
+interface HostsConfig {
+  dev: string;
+  lan: string;
+  prod: string;
+}
+
+const hosts = hostsJson as HostsConfig;
 
 function parseApiBaseUrl(apiBaseUrl: string): URL {
   try {
@@ -25,8 +35,16 @@ function isInvalidTestDomain(apiBaseUrl: string): boolean {
   return parseApiBaseUrl(apiBaseUrl).hostname.endsWith(INVALID_TEST_DOMAIN_SUFFIX);
 }
 
+// hosts.json is the single configuration point. The API_BASE_URL env var
+// still wins when present so CI can override the committed host temporarily.
+function resolveApiBaseUrl(mode: BuildMode, rawApiBaseUrl: string | undefined): string {
+  const envUrl = rawApiBaseUrl?.trim();
+  if (envUrl) return envUrl;
+  return mode === 'development' ? hosts.dev : hosts.prod;
+}
+
 export function getApiBaseUrlForMode(mode: BuildMode, rawApiBaseUrl = process.env.API_BASE_URL): string {
-  const apiBaseUrl = rawApiBaseUrl?.trim();
+  const apiBaseUrl = resolveApiBaseUrl(mode, rawApiBaseUrl);
 
   if (mode === 'development') {
     if (!apiBaseUrl || isPlaceholderApiUrl(apiBaseUrl) || isInvalidTestDomain(apiBaseUrl)) {

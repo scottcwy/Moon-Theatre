@@ -43,6 +43,20 @@
       "when": 1784025990271,
       "tag": "0005_scripts_catalog_and_starter_questions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785827200149,
+      "tag": "0006_character_return_messages",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785847504017,
+      "tag": "0007_rename_truncated_fk_constraints",
+      "breakpoints": true
     }
   ]
 }

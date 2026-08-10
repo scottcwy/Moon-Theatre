@@ -46,4 +46,15 @@ describe('chat list tab bar integration', () => {
     expect(styleSource).toContain('width: 80rpx');
     expect(styleSource).toContain('height: 80rpx');
   });
+
+  it('shows unread return messages with read-on-tap handling', () => {
+    expect(source).toContain('RETURN_MESSAGES_CHECK_PATH');
+    expect(source).toContain('RETURN_MESSAGES_READ_PATH');
+    expect(source).toContain('ReturnMessageCard');
+    expect(source).toContain('characterUnread');
+    expect(source).toContain('unread={(characterUnread[entry.characterId] ?? 0) > 0}');
+    expect(source).toContain('角色留言');
+    expect(source).toContain('chat-list__return-messages');
+    expect(source).not.toContain('filterChatSessions');
+  });
 });

@@ -1,6 +1,6 @@
 # 部署手册
 
-本文记录服务器部署所需的最小闭环：服务器从腾讯云 CCR 拉取 Postgres、API、API tools、FastClaw Go 后端和 Caddy 镜像，由 Docker Compose 启动服务；小程序构建时把真实 HTTPS API 域名写入 `API_BASE_URL`。
+本文记录服务器部署所需的最小闭环：服务器从腾讯云 CCR 拉取 Postgres、API、API tools、FastClaw Go 后端和 Caddy 镜像，由 Docker Compose 启动服务；小程序 API 域名统一配置在 `apps/miniapp/config/hosts.json`，生产构建自动读取。
 
 ## 1. 域名和服务器前置条件
 
@@ -76,22 +76,21 @@ rtk curl -fsS https://api.your-domain.com/api/ready
 
 ## 5. 小程序生产构建
 
-域名统一配置在 `apps/miniapp/config/hosts.json`（`dev`/`lan`/`prod` 三档），当前生产域名：`https://api.offergo.xz.cn`。
+域名统一配置在 `apps/miniapp/config/hosts.json`（`dev` 本地调试 / `lan` 真机预览 / `prod` 生产域名），当前生产域名：`https://api.offergo.xz.cn`。
+
+推荐入口：
 
 ```bash
 rtk pnpm build:miniapp:prod
 ```
 
-该命令自动读取 `hosts.json` 的 `prod` 地址注入构建，并在构建后自动运行 `verify:weapp` 扫描产物。等价于旧方式：
-```bash
-rtk API_BASE_URL="https://api.offergo.xz.cn" pnpm --filter @juben-sha/miniapp build:weapp
-rtk pnpm --filter @juben-sha/miniapp verify:weapp
-```
+该命令读取 `hosts.json` 的 `prod` 注入构建，并在构建后自动运行 `verify:weapp` 扫描产物。
 
 - 开发环境用 `rtk pnpm dev:miniapp`（默认 `http://127.0.0.1:3000`，配合微信开发者工具"不校验合法域名"）。
 - 真机预览用 `rtk pnpm dev:miniapp:lan`（先在本机 `hosts.json` 的 `lan` 填入电脑局域网 IP）。
+- 等价旧方式：`rtk API_BASE_URL="https://api.offergo.xz.cn" pnpm --filter @juben-sha/miniapp build:weapp` + `verify:weapp`；`API_BASE_URL` 环境变量仍可临时覆盖 `hosts.json`（供 CI 或紧急切换使用），优先级高于配置文件。
 - 生产域名变更时，只改 `hosts.json` 的 `prod` 后重新构建上传即可；后端镜像域名由服务器 `.env` 的 `CADDY_API_SITE_ADDRESS` 控制，与此无关。
-- 构建前确认该域名已加入微信 request 合法域名；`verify:weapp` 会继续挡住占位 API 主机和 localhost。
+- 构建前确认域名已加入微信 request 合法域名；`verify:weapp` 会继续挡住占位 API 主机和 localhost。
 
 ## 6. 回滚
 

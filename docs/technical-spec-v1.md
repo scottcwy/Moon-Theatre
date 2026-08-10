@@ -610,7 +610,7 @@ V1 数据库必须包含支付和点数闭环需要的 6 张核心表：`quota_p
 | Model Usage | `GET /api/admin/model-usage-logs` |
 | Blocked Keywords | `GET /api/admin/blocked-keywords`, `POST /api/admin/blocked-keywords` |
 
-当前代码已经具备 admin stats、订单/支付/会话详情、memory admin、blocked keywords 和 `docs/api-v1.md` 初版。所有 admin API 当前要求用户 JWT 通过 `verifyAdminAuth`，并要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面额外由 Next.js middleware 做 Basic Auth；生产环境要求设置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。仍需持续验收和补强的后端范围包括：achievement/title 最小闭环的产品验收、模型调用日志可观测字段、FastClaw 真实服务联调、生产部署验收文档，以及后续是否补充机器可读 OpenAPI。角色、剧本等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置、关键词配置和模型调用日志属于 V1 admin 必做范围。
+当前代码已经具备 admin stats、订单/支付/会话详情、memory admin、blocked keywords 和 `docs/api-v1.md` 初版。所有 admin API 当前要求用户 JWT 通过 `verifyAdminAuth`，并要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面与 `/api/admin/**` API 均由 Next.js middleware 做 Basic Auth（admin API 需 Basic Auth 与 JWT 白名单双层校验都通过）；生产环境要求设置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。仍需持续验收和补强的后端范围包括：achievement/title 最小闭环的产品验收、模型调用日志可观测字段、FastClaw 真实服务联调、生产部署验收文档，以及后续是否补充机器可读 OpenAPI。角色、剧本等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置、关键词配置和模型调用日志属于 V1 admin 必做范围。
 
 ### 9.3 内网 FastClaw API
 
@@ -711,7 +711,7 @@ OPENROUTER_API_KEY=
 - FastClaw 内网访问
 - FastClaw 生产环境显式超时和错误可观测
 - FastClaw fallback 生产默认关闭或只允许显式受控降级
-- admin API JWT + `ADMIN_USER_IDS` 白名单
+- admin API JWT + `ADMIN_USER_IDS` 白名单 + Basic Auth 二次保护
 - admin 页面 Basic Auth 二次保护
 - 小程序构建产物禁止包含 `api.example.com`
 
