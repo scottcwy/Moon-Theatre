@@ -1,6 +1,6 @@
 # API v1 初版
 
-本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内；同时 `/api/admin/**` 与 `/admin/**` 页面均由 Basic Auth middleware 保护，admin API 需 Basic Auth 与 JWT 白名单双层校验都通过。生产环境必须配置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
+本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；其中 `GET /api/characters`、`GET /api/scripts`、`GET /api/models`、`GET /api/quota/packages` 为公开只读接口，无需认证；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内；同时 `/api/admin/**` 与 `/admin/**` 页面均由 Basic Auth middleware 保护，admin API 需 Basic Auth 与 JWT 白名单双层校验都通过。生产环境必须配置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
 
 聊天接口当前是 `moderated-buffered`：响应为 NDJSON streaming 形态，但服务端会先完成模型回复缓冲、内部语言净化和输出审核，再发送最终内容。
 
@@ -22,8 +22,8 @@
 | Sessions | GET | `/api/chat/sessions/:id/messages` | 当前用户会话消息，含 session 元数据（canSend/hasSuccessfulTurn） |
 | Memory | GET | `/api/memory` | 当前用户启用记忆分组（按角色分组，scope 隔离） |
 | Achievements | GET | `/api/achievements` | 当前用户已解锁成就和称号 |
-| Models | GET | `/api/models` | 可用模型档位，含 modelName 和 provider |
-| Quota | GET | `/api/quota/packages` | 上架额度包 |
+| Models | GET | `/api/models` | 可用模型档位，含 modelName 和 provider（无需认证） |
+| Quota | GET | `/api/quota/packages` | 上架额度包（无需认证） |
 | Quota | GET | `/api/quota/balance` | 当前用户点数余额 |
 | Orders | POST | `/api/orders` | 创建额度包订单 |
 | Orders | GET | `/api/orders/:id` | 当前用户订单详情 |
@@ -382,7 +382,7 @@ unknown
 
 ### `GET /api/models`
 
-响应字段包含 `tier`、`displayName`、`pointsPerCall`、`description`、`modelName`（底层模型标识，如 `DeepSeek-V4-Flash`）和 `provider`（模型供应商，如 `siliconflow`）。
+（无需认证）响应字段包含 `tier`、`displayName`、`pointsPerCall`、`description`、`modelName`（底层模型标识，如 `DeepSeek-V4-Flash`）和 `provider`（模型供应商，如 `siliconflow`）。
 
 ### `GET /api/chat/messages/by-client-id`
 

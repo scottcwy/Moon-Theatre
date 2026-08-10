@@ -83,9 +83,12 @@
 执行 shell 命令时，默认使用 rtk 前缀：
 
 rtk git status
-rtk npm test
-rtk npm run build
-rtk pytest -q
+rtk pnpm run test:dev-script
+rtk pnpm run test:deploy-config
+rtk pnpm run typecheck
+rtk pnpm test
+
+注意：本仓库是 pnpm monorepo（Node >= 20 + pnpm），没有 npm/pytest 脚本；rtk 对 `pnpm --filter` 的透传支持有限，需要按包执行时请直接使用 pnpm（例如 `pnpm --filter @juben-sha/api test`），根 package.json 已提供 dev/build/test/typecheck 等常用入口。
 </commands>
 
 <forbidden>

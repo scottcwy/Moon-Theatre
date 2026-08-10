@@ -104,4 +104,4 @@ _Avoid_: 系统消息, 站内信, 通知
 - "会话列表" previously meant a list of **Chat Sessions**; resolved: the user-facing list contains one **Character Chat Entry** per character, while mode-specific **Chat Sessions** remain separate underneath.
 - "全局共享且可见" means both modes are reachable through one **Character Chat Entry**; it does not mean a combined **Visible History** or mixed **Generation Context**.
 - "回访留言" is an API-written assistant message in a free-mode **Chat Session**'s **Visible History**, marked **Excluded From Context**: it never enters **Generation Context**, never counts as a successful turn, never consumes points, and never changes bond.
-- "亲密度"、"好感度"、"默契度" were used interchangeably for the relationship metric; resolved: product language is 羁绊 (**Bond**), displayed as 羁绊 Lv.N.
+- "亲密度"、"好感度"、"默契度" were used interchangeably for the relationship metric; resolved: product language is 羁绊 (**Bond**). Data model keeps `bondLevel` (1–10) / `bondExp`; display copy uses 6-level names 檐下 → 灯前 → 杯沿 → 留盏 → 不言 → 入念 (P0 七模块 Module 3, confirmed 2026-08-10).
