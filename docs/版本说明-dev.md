@@ -70,7 +70,7 @@
 - E2E mock 升级：月之花园剧本、模式、剧本搜索进入 mock 数据。
 - `apps/miniapp/config/hosts.json` 已纳入版本管理（dev / lan / prod 三档域名）。
 
-## 3. 数据模型与迁移（0000–0008 一览）
+## 3. 数据模型与迁移（0000–0009 一览）
 
 | 迁移 | 内容 |
 |---|---|
@@ -83,6 +83,7 @@
 | `0006_character_return_messages` | 回访留言投递元数据表（唯一索引防重复 + 未读索引） |
 | `0007_rename_truncated_fk_constraints` | 重命名两个超长 FK 约束（IF EXISTS 保护，幂等安全） |
 | `0008_return_messages_into_sessions` | 回访留言进会话流：`character_return_messages.message_id` 外键接回 `messages`，清空旧卡片式元数据 |
+| `0009_chief_wallflower` | `messages` 增加 `(session_id, created_at)` 会话内时间序索引（CREATE INDEX IF NOT EXISTS，幂等可重放） |
 
 ## 4. 验证命令与当前状态
 
@@ -96,27 +97,20 @@ rtk go test ./...   # fastclaw 目录下
 rtk pnpm build:miniapp:prod   # 小程序生产构建 + verify:weapp
 ```
 
-当前实测状态（2026-08-10，origin/main `c2fb863` 干净工作树）：
+当前实测状态（2026-08-10，`codex/audit-merge-batches` 合并工作树：origin/main `c2fb863` + 审计批次 A–E）：
 
 - `test:dev-script`（6 用例）、`test:deploy-config`（7 用例）通过。
-- `@juben-sha/api` test：54 个文件 / 550 用例通过；`@juben-sha/miniapp` test：26 个文件 / 155 用例通过。
-- `packages/shared`、`packages/miniapp-ui` typecheck 通过；**`@juben-sha/api` typecheck 当前仍有 4 个已知错误**（3 处，v1.1 发布前需修复，见下）。
-
-`@juben-sha/api` typecheck 已知错误（tsc --noEmit）：
-
-1. `src/app/api/chat/characters/route.test.ts:346-347`：测试把响应体强转为不含 `page` / `limit` 的字面量类型，随后断言 `body.page` / `body.limit` 报 TS2339（路由实际返回 `page` / `limit`）。
-2. `src/server/modules/chat/__tests__/character-summary-service.test.ts:148`：`SQL<unknown>` 直接强转 `{ type, vals }` 报 TS2352，需先转 `unknown`。
-3. `src/server/modules/return-messages/service.ts:174`：`client: TransactionClient = db` 中 `PostgresJsDatabase` 与 `PgTransaction` 类型不兼容，报 TS2739。
+- `@juben-sha/api` test：54 个文件 / 562 用例通过（接入真实 PG 后共 55 个文件 / 563 用例）；`@juben-sha/miniapp` test：26 个文件 / 157 用例通过；`@juben-sha/miniapp-ui` test：5 个文件 / 29 用例通过。
+- `api` / `miniapp` / `miniapp-ui` / `shared` typecheck（tsc --noEmit）全部通过。
 
 ## 5. 部署现状（v1.1）
 
 - **镜像仍为 07-06 快照**：具体 tag 以 `docs/deployment.md` 第 3 节为单一事实源，此处只引用不复制。
-- 服务器当前跑的既不是 v1.1 代码：v1.1 上线需要**构建并推送 api / api-tools / fastclaw 新镜像**（tag 由发布负责人填写），服务器 `.env` 更新镜像 tag 后 `rtk docker compose pull && up -d`，并**确认迁移 0004–0008 已应用**。
+- 服务器当前跑的既不是 v1.1 代码：v1.1 上线需要**构建并推送 api / api-tools / fastclaw 新镜像**（tag 由发布负责人填写），服务器 `.env` 更新镜像 tag 后 `rtk docker compose pull && up -d`，并**确认迁移 0004–0009 已应用**。
 - 上线检查清单见 `docs/deployment.md` 新增的「v1.1 上线检查清单」一节。
 - 小程序生产域名 `https://api.offergo.xz.cn`（`apps/miniapp/config/hosts.json` 已跟踪）。
 
 ## 6. 已知边界
 
 - 仓库无 CI（无 `.github`），git push 不会触发部署；上线需人工执行构建、推送、服务器更新与小程序重新构建上传。
-- 线上数据库迁移执行情况需在服务器确认（`0004`–`0008` 是否已应用）。
-- `@juben-sha/api` typecheck 4 个已知错误未修复，见第 4 节。
+- 线上数据库迁移执行情况需在服务器确认（`0004`–`0009` 是否已应用）。

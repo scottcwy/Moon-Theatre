@@ -124,7 +124,7 @@ rtk docker compose pull
 rtk docker compose up -d
 ```
 
-4. 确认数据库迁移 `0004`–`0008` 已应用（`api-migrate` 执行后核对迁移记录；`0007` / `0008` 幂等可重放）。
+4. 确认数据库迁移 `0004`–`0009` 已应用（`api-migrate` 执行后核对迁移记录；`0007` / `0008` / `0009` 幂等可重放）。
 5. 小程序生产构建 + 产物校验：
 
 ```bash
@@ -134,4 +134,4 @@ rtk pnpm build:miniapp:prod
    `build:miniapp:prod` 内部执行 `build:weapp:prod` 并自动运行 `verify:weapp`；等价旧方式为 `rtk pnpm --filter @juben-sha/miniapp build:weapp:prod`（同样含 verify）。
 6. 上线后执行第 4 节健康检查（`/api/health`、`/api/ready`）与小程序关键链路联调。
 
-> 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0008`；当前已推送镜像仍为 07-06 快照（见第 3 节）。`docs/版本说明-dev.md` 只引用本节与第 3 节，不复制镜像信息。
+> 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0009`；当前已推送镜像仍为 07-06 快照（见第 3 节）。`docs/版本说明-dev.md` 只引用本节与第 3 节，不复制镜像信息。
