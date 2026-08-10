@@ -1,5 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { and, desc, eq, exists, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import {
   characters,
@@ -20,11 +19,8 @@ const UNREAD_CAP = 3;
 const SWEEP_AI_CONCURRENCY = 4;
 const SWEEP_WINDOW_COUNT = 3;
 
-/** 用户消息（role='user'）自连接别名：用于「用户最后一条消息时间」口径。 */
-const userMessages = alias(messages, 'user_messages');
-
-/** drizzle 事务回调中的查询客户端（与 db 同构）。 */
-type TransactionClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** 查询客户端最小契约：裸 db 与事务回调均满足，只声明本模块实际用到的方法。 */
+type TransactionClient = Pick<typeof db, 'insert' | 'update' | 'select' | 'execute'>;
 
 export type CandidateReason = 'recent' | 'bond';
 
@@ -67,17 +63,29 @@ export async function getRecentChatCharacterId(userId: string): Promise<string |
       characters,
       and(eq(characters.id, chatSessions.characterId), eq(characters.status, 'active')),
     )
-    .innerJoin(messages, and(
-      eq(messages.sessionId, chatSessions.id),
-      eq(messages.role, 'assistant'),
-      eq(messages.outOfScope, false),
-      eq(messages.excludedFromContext, false),
+    .where(and(
+      eq(chatSessions.userId, userId),
+      exists(
+        db
+          .select({ id: messages.id })
+          .from(messages)
+          .where(and(
+            eq(messages.sessionId, chatSessions.id),
+            eq(messages.role, 'assistant'),
+            eq(messages.outOfScope, false),
+            eq(messages.excludedFromContext, false),
+          )),
+      ),
+      exists(
+        db
+          .select({ id: messages.id })
+          .from(messages)
+          .where(and(
+            eq(messages.sessionId, chatSessions.id),
+            eq(messages.role, 'user'),
+          )),
+      ),
     ))
-    .innerJoin(userMessages, and(
-      eq(userMessages.sessionId, chatSessions.id),
-      eq(userMessages.role, 'user'),
-    ))
-    .where(eq(chatSessions.userId, userId))
     .orderBy(desc(latestUserMessageAtSql()))
     .limit(1);
 
@@ -123,9 +131,13 @@ export async function selectCandidateCharacters(
   return candidates;
 }
 
-/** 该角色未读（readAt IS NULL）留言条数。 */
-export async function getUnreadCount(userId: string, characterId: string): Promise<number> {
-  const [row] = await db
+/** 该角色未读（readAt IS NULL）留言条数；传入 client 时在事务内统计。 */
+export async function getUnreadCount(
+  userId: string,
+  characterId: string,
+  client: TransactionClient = db,
+): Promise<number> {
+  const [row] = await client
     .select({ count: sql<number>`count(*)::int` })
     .from(characterReturnMessages)
     .where(
@@ -230,10 +242,26 @@ async function createFreeSession(
 }
 
 /**
- * 投递一条留言（整体原子）：先在事务内插入投递元数据（messageId 为空），
- * 命中窗口唯一索引冲突即返回 false、不写消息；随后查/建自由会话、写真实
- * assistant 消息（可见但 excludedFromContext=true，不计费），最后回填 message_id。
- * 并发同窗口只会落 1 条消息 + 1 条元数据，不残留孤儿消息。
+ * 按 (userId, characterId) 串行化回访投递：事务级 advisory lock，
+ * 保证「未读 < UNREAD_CAP」的 count 校验与插入之间不会被并发投递穿插
+ * （含该角色尚无任何留言的零行场景）。锁随事务提交/回滚自动释放。
+ */
+async function lockReturnMessagesForCharacter(
+  client: TransactionClient,
+  userId: string,
+  characterId: string,
+): Promise<void> {
+  await client.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${userId}), hashtext(${characterId}))`,
+  );
+}
+
+/**
+ * 投递一条留言（整体原子）：先按 (userId, characterId) 加 advisory lock，
+ * 在事务内统计未读数，未达上限且未命中窗口唯一索引冲突才写投递元数据（messageId 为空）；
+ * 随后查/建自由会话、写真实 assistant 消息（可见但 excludedFromContext=true，不计费），
+ * 最后回填 message_id。并发同窗口只会落 1 条消息 + 1 条元数据，不残留孤儿消息；
+ * 任何路径都不会把未读推到 UNREAD_CAP 以上。
  */
 async function deliverReturnMessage(
   userId: string,
@@ -243,6 +271,12 @@ async function deliverReturnMessage(
   windowStart: Date,
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
+    await lockReturnMessagesForCharacter(tx, userId, characterId);
+    const unread = await getUnreadCount(userId, characterId, tx);
+    if (unread >= UNREAD_CAP) {
+      return false;
+    }
+
     const created = await insertReturnMessage(
       userId,
       characterId,
@@ -426,8 +460,9 @@ async function runWithConcurrency(tasks: Array<() => Promise<boolean>>, concurre
 }
 
 /**
- * 每小时回访补发：遍历 active 用户，对每个候选角色补齐最近 3 个缺失窗口
- * （当前窗口、now-1d、now-2d），AI 生成并发上限 4，插入幂等。
+ * 每小时回访补发：遍历 active 用户，对每个候选角色按「未读 < UNREAD_CAP」预算，
+ * 在最近 3 个缺失窗口（当前窗口、now-1d、now-2d）中最多补 UNREAD_CAP - 当前未读 条，
+ * AI 生成并发上限 4，插入幂等；投递事务内再次原子校验未读上限。
  * 单用户/单窗口失败不中断整体。
  */
 export async function sweepReturnMessages(): Promise<void> {
@@ -445,14 +480,18 @@ export async function sweepReturnMessages(): Promise<void> {
       for (const candidate of candidates) {
         try {
           const unread = await getUnreadCount(user.id, candidate.characterId);
-          if (unread >= UNREAD_CAP) continue;
+          const budget = UNREAD_CAP - unread;
+          if (budget <= 0) continue;
+          let added = 0;
           for (const windowStart of windows) {
+            if (added >= budget) break;
             if (await hasMessageInWindow(user.id, candidate.characterId, windowStart)) {
               continue;
             }
             tasks.push(() =>
               generateForWindow(user.id, candidate.characterId, candidate.reason, windowStart),
             );
+            added += 1;
           }
         } catch (error) {
           console.warn({
