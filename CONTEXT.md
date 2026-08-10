@@ -65,8 +65,8 @@ Plot knowledge bound to one user, one character, and one script.
 _Avoid_: shared memory, character memory, mode memory
 
 **Return Message (回访留言)**:
-A standalone unread message for a user who has been away from one character for a long time; it is not part of chat history. Each character gets at most one per UTC 24h window, and a user accumulates at most 3 unread per character; generation stops at 3 unread until the user reads them.
-_Avoid_: 聊天消息, 离线消息, 微信推送
+An API-written proactive assistant message delivered into a free-mode Chat Session's Visible History and marked **Excluded From Context**; unread/read state is tracked in separate delivery metadata (`character_return_messages`). Each character gets at most one per UTC+8 natural day, and a user accumulates at most 3 unread per character; generation stops at 3 unread until the user reads them.
+_Avoid_: 系统消息, 站内信, 通知
 
 ## Relationships · 关系
 
@@ -86,8 +86,8 @@ _Avoid_: 聊天消息, 离线消息, 微信推送
 - One **User Character Agent Instance** can have zero or more **Shared Memories** available in both modes.
 - One user, one **Character Template**, and one script can have zero or more **Script Memories** available only to that script's Script Mode.
 - One user and one **Character Template** can have zero or more **Return Messages**.
-- One **Return Message** belongs to exactly one user and one **Character Template**.
-- **Return Messages** never appear in **Visible History** or **Generation Context**.
+- One **Return Message** belongs to exactly one user and one **Character Template**, and is delivered into exactly one free-mode **Chat Session**.
+- A **Return Message** appears in **Visible History** but is marked **Excluded From Context**, so it never enters **Generation Context**; it never counts as a successful turn, never consumes points, and never changes bond.
 - **User Preferred Name**, **Shared Memory**, and relationship state may be shared across modes; **Visible History**, **Generation Context**, and **Script Memory** must not be shared across modes.
 
 ## Flagged Ambiguities · 已澄清歧义
