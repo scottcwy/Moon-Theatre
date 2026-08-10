@@ -130,10 +130,12 @@
 
 ## 7. 前端表现
 
-- 聊天列表页消费 `POST /api/return-messages/check`，展示未读留言卡片（`ReturnMessageCard`：角色名、头像、正文、时间标签）。
-- 用户进入某角色聊天入口或点击留言后，调用 `POST /api/return-messages/read` 置为已读，红点消失。
-- 留言卡片只作展示入口，不替代聊天列表的角色唯一入口语义；点击后仍进入 `latestSessionId` 对应的最近会话。
-- 不引入新的全局状态管理；沿用 `PageShell`、`Card` 等既有组件体系。
+回访留言在用户侧的呈现遵循「**消息流 + 未读红点**」语义，**不渲染独立留言卡片**（早期卡片式留言展示为已废弃设计，见迁移 0008 注释）：
+
+- 聊天列表页消费 `POST /api/return-messages/check`，在各角色聊天入口（Character Chat Entry）上以未读红点提示该角色存在未读留言；红点只表达"有未读留言"，不展示正文摘要。
+- 用户点击该角色聊天入口时，先调用 `POST /api/return-messages/read` 将该角色全部未读留言置为已读（fire-and-forget，失败不阻断导航，`useDidShow` 重拉兜底），红点消失。
+- 留言正文已作为普通 assistant 消息写入该角色自由模式会话（`excludedFromContext=true`），用户进入会话后可在消息历史中直接看到留言；无需在列表层额外展示正文。
+- 不引入新的全局状态管理；沿用 `PageShell`、`ChatSessionRow` 等既有组件体系。
 
 ## 8. 验证矩阵
 
@@ -144,7 +146,7 @@
 | 生成兜底 | generator | 失败/超时/空/兜底流走模板、永不抛错测试 |
 | 已读幂等 | route | `markCharacterMessagesRead` 重复调用测试 |
 | sweep 预算与并发 | service | `sweepReturnMessages` 预算 `3 - 未读`、并发上限 4 测试 |
-| 前端卡片与红点 | miniapp | `ReturnMessageCard` 渲染/交互测试、chat/list 集成测试 |
+| 前端红点与已读闭环 | miniapp | chat/list 未读红点渲染、点击已读、进会话可见留言的集成测试 |
 
 ## 9. 文档同步
 
