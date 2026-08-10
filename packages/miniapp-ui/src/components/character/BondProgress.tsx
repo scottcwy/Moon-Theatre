@@ -24,7 +24,7 @@ export function BondProgress({ relationship, level, exp, maxExp, bond }: BondPro
           <Text className="bond-progress__label">当前关系</Text>
           <Text className="bond-progress__relationship">{relationship} ♥</Text>
         </View>
-        <Badge tone="primary">等级 {displayLevel}</Badge>
+        <Badge tone="primary">羁绊 Lv.{displayLevel}</Badge>
       </View>
       <View className="bond-progress__track">
         <View className="bond-progress__bar" style={{ width: `${percent}%` }} />
