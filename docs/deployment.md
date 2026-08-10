@@ -110,3 +110,28 @@ rtk docker compose up -d api fastclaw caddy
 当前部署只使用 FastClaw Go 后端能力。`fastclaw/Dockerfile.go` 不执行 Web UI 构建；它只放入最小嵌入页面以满足 Go `embed` 编译约束。FastClaw API key、agent 和模型 provider 仍需要在真实环境中完成初始化和联调。业务 API 调用 FastClaw 的 OpenAI-compatible `/v1/chat/completions` 时，角色上下文通过 `system` message 作为 request-scoped system prompt 传入。
 
 业务聊天 Agent 需要按 V1 速度目标配置：`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`、`maxTokens <= 768`、`maxToolIterations = 0`。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；超过 `maxTokens=768` 或启用任何工具迭代都不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
+
+## 8. v1.1 上线检查清单
+
+v1.1（聊天体验：剧本/自由模式、剧本目录、记忆作用域、回访留言）上线时按序执行。镜像 tag **由发布负责人填写**，仓库不预设具体值。
+
+1. 构建并推送 `api` / `api-tools` / `fastclaw` 新镜像（`linux/amd64`）：登录腾讯云 CCR 后，按仓库构建流程产出三个新镜像并推送（tag 由发布负责人填写，例如日期 + 提交短哈希，但不得沿用 07-06 快照 tag）。
+2. 在服务器根 `.env` 更新 `API_IMAGE` / `API_TOOLS_IMAGE` / `FASTCLAW_IMAGE` 为步骤 1 的新 tag。
+3. 拉取并启动：
+
+```bash
+rtk docker compose pull
+rtk docker compose up -d
+```
+
+4. 确认数据库迁移 `0004`–`0008` 已应用（`api-migrate` 执行后核对迁移记录；`0007` / `0008` 幂等可重放）。
+5. 小程序生产构建 + 产物校验：
+
+```bash
+rtk pnpm build:miniapp:prod
+```
+
+   `build:miniapp:prod` 内部执行 `build:weapp:prod` 并自动运行 `verify:weapp`；等价旧方式为 `rtk pnpm --filter @juben-sha/miniapp build:weapp:prod`（同样含 verify）。
+6. 上线后执行第 4 节健康检查（`/api/health`、`/api/ready`）与小程序关键链路联调。
+
+> 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0008`；当前已推送镜像仍为 07-06 快照（见第 3 节）。`docs/版本说明-dev.md` 只引用本节与第 3 节，不复制镜像信息。
