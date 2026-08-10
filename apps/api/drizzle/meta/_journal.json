@@ -57,6 +57,13 @@
       "when": 1785847504017,
       "tag": "0007_rename_truncated_fk_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786348422492,
+      "tag": "0008_return_messages_into_sessions",
+      "breakpoints": true
     }
   ]
 }

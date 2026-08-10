@@ -1,4 +1,4 @@
-# P0 七模块需求对齐与实施 Plan（讨论稿 · 模块 7 已冻结）
+# P0 七模块需求对齐与实施 Plan（已确认 · 模块 7 已重新冻结）
 
 > **For agentic workers:** 本文档尚未冻结，不得直接开始实施。待“需要双方拍板的问题”全部确认后，再转为可执行任务。执行时 REQUIRED SUB-SKILL: Use `minipowers:subagent-driven-development` (recommended) or `minipowers:executing-plans` task-by-task.
 >
@@ -6,7 +6,7 @@
 > - 模块 1（预告角色）：**暂缓**，待与客户确认后再做新角色。
 > - 模块 2（内测基线）：**已完成**，由负责人搞定，不再展开。
 > - 模块 3（羁绊）：等级名已定 6 级（檐下/灯前/杯沿/留盏/不言/入念），数值规则待重想并与客户 check。
-> - 模块 7（回访留言）：**Spec 已冻结**（见下方模块 7），可进入实施拆分。
+> - 模块 7（回访留言）：**Spec 已重新冻结（2026-08-10）**——留言改为写入自由会话消息流（`excludedFromContext=true`），投递元数据 + 红点已读，窗口 UTC+8，「最近」按用户最后消息时间。
 > - 模块 7 开发基线（2026-08-04 确认）：commit `caa414c`（含 drizzle/0005 与全部前置文件）；工作树 `.worktrees/return-messages`，分支 `codex/return-messages`。
 > - 模块 4/5/6：仍为讨论稿，待拍板后冻结。
 
@@ -396,137 +396,66 @@ interface FrequentCharacterEntry extends CharacterChatEntry {
 
 ---
 
-## 模块 7：角色回访留言（Spec 已冻结）
+## 模块 7：角色回访留言（Spec 已重新冻结）
 
-**工作量：XL**（新数据模型 + 后台定时生成 + 返回时补发 + 已读状态 + 聊天列表 UI 打通 + 幂等/防打扰）
+**工作量：XL**（数据落点改造 + 投递元数据 + 窗口口径 + 排序口径）
 
-> **冻结范围（2026-08-04 已确认，落档后不再讨论）**
-> 1. 采用“提前写好存着”+“返回时补当前窗口”双机制（C+）。
-> 2. 候选角色两个：最近成功聊过的 active 角色 + 羁绊最高角色；同一角色只发 1 条，不找替补。
-> 3. 点留言 → 直接进入该角色的聊天页。
-> 4. 进入该角色（点留言或点聊天列表行）即视为已读，红点消失。
-> 5. AI 失败/超时用运营预置模板兜底，功能永不空白。
+> **冻结范围（2026-08-10 重开并重新冻结）**
+> 1. 留言 = **真实 assistant 消息**写入 `messages`（`role='assistant'`、`outOfScope=false`、`excludedFromContext=true`）：在会话可见历史中显示，但**不进入生成上下文**；刷新/换设备后仍存在，复用现有消息展示与排序。
+> 2. 落点：该角色最近活跃的**自由模式会话**；不存在（或只有剧本模式会话）则**新建自由会话**写入；不复用已关闭会话。剧本模式会话不插入。
+> 3. **零副作用**：不计点数、不加羁绊、不触发记忆/成就、不计入模块 6 成功轮数（`excludedFromContext=true` 天然排除）。
+> 4. `character_return_messages` 改为**投递元数据**：新增可空 `message_id`（外键 `messages.id`），保留 `readAt`；聊天列表该角色行显示红点，用户打开该角色会话时**幂等标记已读**。
+> 5. 窗口：**UTC+8 自然日**（`date_trunc('day', now() AT TIME ZONE 'Asia/Shanghai')`），每角色每自然日最多 1 条；未读累计上限 3 条，满 3 停止生成直到已读。
+> 6. 「最近成功聊过」候选按**用户最后一条消息时间**（该会话 `role='user'` 消息的最大 `createdAt`）倒序取第一个；不再用会话 `updatedAt`。模块 6 排序的 `latestUpdatedAt` tiebreaker 同步改为此口径。
+> 7. 其余机制全保留：候选 2 角色（最近成功聊过 + 羁绊最高，同一角色只发 1 条，`recent` 优先）、每小时 sweep + 打开聊天列表补当前窗口、AI 生成 15s 短超时 / 200 字符截断 / 失败模板兜底。
+> 8. 存量：清空开发数据 + 加可空 `message_id` 列；**不写数据迁移转换**（生产无 module 7 存量数据）。
 
-### 7.1 目前的实现情况
+### 7.1 与旧冻结版（2026-08-04）的差异
 
-- 项目只有聊天 `messages`，没有角色留言、收件箱、通知、未读或用户最后访问时间数据模型。
-- 小程序 `App` 目前没有 `onShow` 业务逻辑，也没有全局留言检查。
-- 聊天列表中的 `unread` 只是 UI 组件演示能力（`ChatSessionRow` 已支持 `unread` prop），业务 API 没有未读数据。
-- 微信订阅消息/站外推送尚未实现，客户原话只要求“重新上线之后看到”，不等于要求微信推送。
+| 维度 | 旧冻结版 | 新冻结版（2026-08-10） |
+| --- | --- | --- |
+| 展示位置 | 聊天列表页顶部「角色留言」卡片区 | 写入自由会话消息流（真实 assistant 消息） |
+| 上下文 | 不进 Visible History、不进 Generation Context | 进 Visible History，但 `excludedFromContext=true` 不进 Generation Context |
+| 未读/已读 | 表 `readAt` + 列表卡片 + 角色行红点 | 表 `readAt` + 聊天列表角色行红点；打开该角色会话即已读 |
+| 窗口口径 | UTC 24h 桶（UTC 零点） | UTC+8 自然日（北京时间零点） |
+| 「最近」排序 | 会话 `updatedAt` | 用户最后一条消息时间 |
+| 存量数据 | — | 清空开发数据，不加迁移 |
 
-### 7.2 需要新增的功能
+### 7.2 数据模型变更
 
-- 每个用户每 24h 窗口最多收到 1 条留言/角色；未读最多累计 3 条/角色，满 3 条后停止生成，直到用户已读。
-- 留言角色固定两个：最近成功聊过的 active 角色 + 羁绊最高角色；同一角色只发 1 条。
-- 留言由 AI 生成（服务器后台定时预写 + 用户返回时补当前窗口），失败用运营预置模板兜底。
-- 留言显示在聊天列表页（顶部“角色留言”区 + 对应角色行未读红点），点击后直接进入该角色聊天页。
-- 进入该角色（点留言或点聊天列表行）即视为已读；已读幂等。
-- 留言与 `messages` 完全分离：不进可见历史、不进模型上下文、不改变点数/羁绊/成就。
+- `messages`：新增一行（`role='assistant'`、`outOfScope=false`、`excludedFromContext=true`、`generationStatus='completed'`，不计费字段）。
+- `character_return_messages`（投递元数据）：
+  - 新增可空 `message_id` uuid，外键 `messages.id`；
+  - 保留 `userId`、`characterId`、`content`、`reason`、`windowStart`、`readAt`；
+  - `windowStart` 改为 UTC+8 自然日零点；唯一索引 `(userId, characterId, windowStart)` 保持窗口去重。
+- 新增 drizzle 迁移（如 `0008_return_messages_into_sessions.sql`）。
 
-### 7.3 具体的改动方案（已冻结）
+### 7.3 投递流程（拟）
 
-**数据模型（仅一张表，`user_return_states` 不需要）**
+1. `check` / `sweep` 触发时：按候选规则选 2 个角色；对每个候选校验「UTC+8 当日无记录 && 未读 < 3」。
+2. 生成留言内容（AI 15s 超时 / 模板兜底）。
+3. 落点：查该角色最近活跃自由会话（`status='active'`、`mode='free'`，按用户最后消息时间倒序）；无则创建自由会话。
+4. 写 `messages`（`excludedFromContext=true`）+ 写 `character_return_messages`（`message_id` 回填、`readAt=null`）。
+5. 打开该角色会话：幂等更新 `readAt`；聊天列表红点随未读消失。
 
-```ts
-export const characterReturnMessages = pgTable('character_return_messages', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').references(() => users.id).notNull(),
-  characterId: uuid('character_id').references(() => characters.id).notNull(),
-  content: text('content').notNull(),
-  reason: varchar('reason', { length: 16 }).notNull(),   // 'recent' | 'bond'
-  windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  readAt: timestamp('read_at', { withTimezone: true }),
-}, (table) => ({
-  // 每用户每角色每 24h 窗口最多 1 条 → 幂等核心
-  windowUnique: uniqueIndex('character_return_messages_window_unique')
-    .on(table.userId, table.characterId, table.windowStart),
-  // 查未读列表 / 数未读数量
-  unreadIdx: index('character_return_messages_unread_idx').on(table.userId, table.readAt),
-}));
-```
+### 7.4 预计文件
 
-- `windowStart = floor(now / 86400000) * 86400000`（UTC 24h 桶）。节流、幂等、补发窗口全部由它承担，不需要 `user_return_states` 表。
-- 3 条未读上限：查询 `count(readAt is null) >= 3` 即跳过该角色，无需额外字段。
+- Modify: `apps/api/src/server/modules/return-messages/service.ts`（落点、窗口、最近口径）
+- Modify: `apps/api/src/server/modules/return-messages/scheduler.ts`
+- Modify: `apps/api/src/server/db/schema.ts` + drizzle 迁移（`message_id`、窗口口径）
+- Modify: `apps/api/src/app/api/return-messages/check/route.ts`、`read/route.ts`、`admin/return-messages/sweep/route.ts`
+- Modify: `apps/api/src/server/modules/chat/character-summary-service.ts`（模块 6 同口径）
+- Modify: `apps/miniapp/src/pages/chat/list.tsx` / `list.model.ts`（红点改为元数据驱动，去掉硬编码 unread）
+- Test: 对应 service/route/model 测试
+- Modify: `docs/api-v1.md`、`CONTEXT.md`
 
-**候选角色选择（两个都发，同一角色只发 1 条）**
+### 7.5 验收与测试
 
-- ① 最近聊过：`characters.status='active'` 的角色中，按 `chatSessions.updatedAt` 倒序取第一个，且该角色至少存在一条成功回复（`role='assistant'`、`outOfScope=false`、`excludedFromContext=false`——与模块 6 常聊聚合定义一致，不另造标准）。
-- ② 羁绊最高：`relationships` 按 `bondLevel DESC, bondExp DESC, updatedAt DESC` 取第一个；角色必须 active。
-- ①②为同一角色 → 只保留 1 条（不找替补）。无成功聊天/无羁绊 → 不生成、不报错。
-
-**生成机制（提前写好 + 返回时补当前窗口）**
-
-1. **后台定时生成（sweep）**：
-   - `sweepReturnMessages()` 补齐“用户 × 候选角色 × 最近 3 个缺失窗口”且未读 < 3 的组合；AI 并发上限 4；插入走窗口唯一索引，幂等（重复运行/多实例最多浪费几次调用，不产生重复留言）。
-   - 调度：API 进程内 `setInterval`（每 1 小时，`unref()`），启动时先跑一次兜底；不引入外部 cron/调度器。
-   - 管理员手动触发：`POST /api/admin/return-messages/sweep`（复用现有 admin 鉴权）。
-   - 从不回来的用户：未读满 3 条后永久跳过，成本封顶（每人最多 6 条）。
-2. **返回时补当前窗口（check）**：
-   - 聊天列表页 `useDidShow` 调 `POST /api/return-messages/check`（需登录）。
-   - 对每个候选角色：未读已满 3 条或当前窗口已有留言 → 跳过；否则现场并行生成 1 条（最多 2 次调用，短超时 10–15s，失败模板兜底）。
-   - 保证“重新上线一定会看到一条新的”，同时不等待历史窗口（历史由 sweep 提前写好）。
-3. **AI 生成（generator）**：
-   - 复用 FastClaw `streamChat`，非流式收集；prompt 用角色 `systemPrompt/personalityPrompt` + 固定指令（以角色口吻写 1–2 句话的回访留言，表达惦记/邀请回来，不提及具体剧情、不剧透、不用表情符号/Markdown）。
-   - 内容截断 200 字符；超时 10–15s（聊天是 120s，留言绝不能拖住列表加载）。
-   - 兜底：每个角色 seed 1–2 句运营审核过的模板，AI 失败/超时/空内容时使用。
-
-**已读（幂等）**
-
-- `POST /api/return-messages/read`，body `{ characterId }` → 将该用户该角色全部未读留言 `readAt=now`。
-- 触发时机：点留言卡（导航到聊天页前）或点聊天列表该角色行，任一即已读；失败不阻断导航。
-
-**客户端**
-
-- 聊天列表页顶部新增“角色留言”区（展示全部未读，未读卡片带红点）；对应角色行 `ChatSessionRow` 传 `unread`（组件已支持）。
-- 点留言卡 → `POST read` → 直接 `navigateTo` 该角色聊天页（`getCharacterChatUrl(latestSessionId)`，冻结决策 3B）。
-- 数据流：`useDidShow` → `POST /api/return-messages/check` → 返回 `{ messages, characterUnread }`，与列表并行渲染；不改 `/api/chat/characters` 接口。
-
-**推荐 API**
-
-```http
-POST /api/return-messages/check            # 用户返回时：返回未读 + 补当前窗口
-POST /api/return-messages/read             # 按角色标记已读（幂等）
-POST /api/admin/return-messages/sweep      # 管理员手动触发后台补发
-```
-
-**预计文件**
-
-- Modify: `apps/api/src/server/db/schema.ts`
-- Create: `apps/api/drizzle/0006_character_return_messages.sql`（编号按实际实施顺序分配；若模块 1 先实施则顺延）
-- Create: `apps/api/src/server/modules/return-messages/service.ts`
-- Create: `apps/api/src/server/modules/return-messages/generator.ts`
-- Create: `apps/api/src/server/modules/return-messages/index.ts`
-- Create: `apps/api/src/server/modules/return-messages/__tests__/service.test.ts`
-- Create: `apps/api/src/server/modules/return-messages/__tests__/generator.test.ts`
-- Create: `apps/api/src/app/api/return-messages/check/route.ts`
-- Create: `apps/api/src/app/api/return-messages/check/route.test.ts`
-- Create: `apps/api/src/app/api/return-messages/read/route.ts`
-- Create: `apps/api/src/app/api/return-messages/read/route.test.ts`
-- Create: `apps/api/src/app/api/admin/return-messages/sweep/route.ts`
-- Create: `apps/api/src/app/api/admin/return-messages/sweep/route.test.ts`
-- Modify: `apps/api/src/server/seed/story-data.ts`（或创建独立的留言模板 seed 文件）
-- Create: `apps/miniapp/src/components/ReturnMessageCard.tsx`
-- Create: `apps/miniapp/src/components/ReturnMessageCard.scss`
-- Create: `apps/miniapp/src/components/ReturnMessageCard.test.tsx`
-- Modify: `apps/miniapp/src/pages/chat/list.tsx`
-- Modify: `apps/miniapp/src/pages/chat/list.model.ts`
-- Test: `apps/miniapp/src/pages/chat/list.model.test.ts`
-- Modify: `docs/api-v1.md`
-- Modify: `CONTEXT.md`（词汇确认后）
-
-**验收与测试**
-
-- 同一角色同一 24h 窗口并发请求只创建一条留言（唯一索引幂等）。
-- 用户离开 3 天回来：聊天列表秒开显示历史留言 + 今天的 1 条（若未满 3 条未读），红点正确。
-- 未读满 3 条后不再生成；已读后恢复生成。
-- 点留言 → 直接进该角色聊天页；点角色行 → 恢复会话且该角色留言全部已读；重复已读幂等。
-- AI 失败/超时 → 模板兜底，接口仍成功；两个角色都失败 → 本次不新增，下次 check/sweep 重试。
-- 留言不出现在聊天历史、不进入生成上下文、不改变点数/羁绊/成就。
-- 无成功聊天、无羁绊、未登录、角色下架/预告 → 不生成、不报错、不阻断列表。
-- sweep 重复运行/多实例 → 无重复留言，最多浪费几次 AI 调用。
-
----
+- 用户打开自由会话能看到角色主动发的一条消息；该消息不出现在生成上下文中（对话后可验证角色不会引用它）。
+- 聊天列表该角色行红点出现，打开会话后消失；重复打开幂等。
+- 每角色每北京时间自然日最多 1 条；未读达到 3 条后停止生成，已读后恢复。
+- 注入留言后，「最近成功聊过」候选与模块 6 排序**不**因注入消息而前移（按用户最后消息时间）。
+- 不产生点数/羁绊/成就变化；不增加成功轮数。
 
 ## 模块依赖与推荐执行顺序
 
@@ -554,7 +483,7 @@ POST /api/admin/return-messages/sweep      # 管理员手动触发后台补发
 **推荐批次（更新 2026-08-04）**
 
 1. 批次 A：旧内测基线（模块 2）— ✅ 已完成
-2. 批次 B：回访留言（模块 7）— Spec 已冻结，优先实施
+2. 批次 B：回访留言重开修复（模块 7）— ✅ Spec 已重新冻结（2026-08-10），独立验收
 3. 批次 C：首页视觉结构 + 剧本目录/入口（模块 4、5）
 4. 批次 D：常聊角色聚合（模块 6）
 5. 批次 E：羁绊更新（模块 3）
@@ -596,14 +525,15 @@ POST /api/admin/return-messages/sweep      # 管理员手动触发后台补发
 12. 常聊区展示前 2 个、前 4 个，还是可横向滑动全部？ — 🧭（默认：前 4 个网格）
 13. 点击常聊角色后进角色详情，还是直接恢复最近聊天？ — 🧭（默认：进角色详情）
 
-### F. 回访留言（✅ Spec 已冻结，2026-08-04）
+### F. 回访留言（✅ Spec 已重新冻结，2026-08-10）
 
-14. 用户离开多久后才触发 — ✅ 不设“离开多久”阈值；采用“提前写好存着 + 返回时补当前窗口”，每 24h 窗口每角色最多 1 条
-15. 留言用哪个角色 — ✅ 最近成功聊过的 active 角色 + 羁绊最高角色；同一角色只发 1 条
-16. 留言内容怎么生成 — ✅ AI 生成（后台预写 + 返回时补当前窗口），失败用运营预置模板兜底
-17. 留言显示在哪 — ✅ 聊天列表页顶部“角色留言”区 + 对应角色行未读红点
-18. 点击留言后去哪 — ✅ 直接进入该角色聊天页
-19. 留言频率上限 — ✅ 每角色每 24h 最多 1 条；未读最多累计 3 条，满 3 停止生成直到已读
+16. 留言形态？ — ✅ 真实 assistant 消息写入自由会话消息流（`excludedFromContext=true`），可见但不进生成上下文
+17. 落点？ — ✅ 最近活跃自由会话，无则新建；不复用已关闭会话；不插入剧本模式会话
+18. 副作用？ — ✅ 不计点数/羁绊/成就/成功轮数
+19. 未读/已读？ — ✅ 聊天列表角色行红点，打开该角色会话幂等已读（`character_return_messages` 投递元数据）
+20. 窗口？ — ✅ UTC+8 自然日，每角色每日 1 条；未读累计上限 3 条
+21. 其余机制？ — ✅ 全保留：候选 2 角色、每小时 sweep + 打开列表补窗口、AI 15s / 200 字符 / 模板兜底
+22. 存量？ — ✅ 清空开发数据 + 可空 `message_id` 列，不加迁移
 
 ---
 

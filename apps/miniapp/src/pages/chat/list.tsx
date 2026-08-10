@@ -3,7 +3,6 @@ import Taro, { useDidShow } from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard } from '@juben-sha/miniapp-ui';
-import { ReturnMessageCard } from '../../components/ReturnMessageCard';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import type { ChatMode } from '../../types';
@@ -16,10 +15,9 @@ import {
   buildReturnMessagesReadBody,
   getChatPreviewText,
   getCharacterChatUrl,
-  getReturnMessageTimeLabel,
   getSessionTimeLabel,
 } from './list.model';
-import type { ReturnMessage, ReturnMessagesCheckResponse } from './list.model';
+import type { ReturnMessagesCheckResponse } from './list.model';
 import './list.scss';
 
 interface CharacterChatEntry {
@@ -58,7 +56,6 @@ function ChatListHeader() {
 
 export default function ChatList() {
   const [characterChats, setCharacterChats] = useState<CharacterChatEntry[]>([]);
-  const [returnMessages, setReturnMessages] = useState<ReturnMessage[]>([]);
   const [characterUnread, setCharacterUnread] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -99,26 +96,24 @@ export default function ChatList() {
     }
   }, [handleAuthError, verifyAuth]);
 
-  const loadReturnMessages = useCallback(async () => {
+  const loadCharacterUnread = useCallback(async () => {
     try {
       const authenticated = await verifyAuth();
       if (!authenticated) {
-        setReturnMessages([]);
         setCharacterUnread({});
         return;
       }
       const data = await api.post<ReturnMessagesCheckResponse>(RETURN_MESSAGES_CHECK_PATH);
-      setReturnMessages(data.messages);
       setCharacterUnread(data.characterUnread);
     } catch (err) {
-      // 留言拉取失败不能阻断聊天列表，只保留登录过期处理。
+      // 未读拉取失败不能阻断聊天列表，只保留登录过期处理。
       handleAuthError(err);
     }
   }, [handleAuthError, verifyAuth]);
 
   useDidShow(() => {
     void loadCharacterChats(searchQuery);
-    void loadReturnMessages();
+    void loadCharacterUnread();
   });
 
   useEffect(() => {
@@ -159,7 +154,6 @@ export default function ChatList() {
   const markReturnMessagesRead = useCallback((characterId: string) => {
     // fire-and-forget：标记失败不阻断导航，useDidShow 重拉兜底。
     void api.post(RETURN_MESSAGES_READ_PATH, buildReturnMessagesReadBody(characterId)).catch(() => {});
-    setReturnMessages((prev) => prev.filter((message) => message.characterId !== characterId));
     setCharacterUnread((prev) => {
       const next = { ...prev };
       delete next[characterId];
@@ -170,14 +164,6 @@ export default function ChatList() {
   const handleCharacterTap = (entry: CharacterChatEntry) => {
     markReturnMessagesRead(entry.characterId);
     Taro.navigateTo({ url: getCharacterChatUrl(entry.latestSessionId) });
-  };
-
-  const handleReturnMessageTap = (message: ReturnMessage) => {
-    markReturnMessagesRead(message.characterId);
-    const entry = characterChats.find((candidate) => candidate.characterId === message.characterId);
-    if (entry) {
-      Taro.navigateTo({ url: getCharacterChatUrl(entry.latestSessionId) });
-    }
   };
 
   const handleLogin = () => {
@@ -226,23 +212,6 @@ export default function ChatList() {
         <ChatListTopBackdrop />
         <View className="chat-list__body">
           <ChatListHeader />
-          {returnMessages.length > 0 && (
-            <View className="chat-list__return-messages">
-              <Text className="chat-list__return-messages-title">角色留言</Text>
-              {returnMessages.map((message) => (
-                <ReturnMessageCard
-                  key={message.id}
-                  className="chat-list__return-message-item"
-                  characterName={message.characterName}
-                  avatarUrl={getCharacterAvatarUrl(message.characterName, message.characterAvatarUrl)}
-                  content={message.content}
-                  timeLabel={getReturnMessageTimeLabel(message.createdAt)}
-                  unread={true}
-                  onTap={() => handleReturnMessageTap(message)}
-                />
-              ))}
-            </View>
-          )}
           <View className="chat-list__search-row">
             <SearchBar
               value={searchQuery}

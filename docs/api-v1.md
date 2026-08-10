@@ -416,7 +416,7 @@ V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语�
 
 ### `POST /api/return-messages/check`
 
-（需登录）检查并补齐当前用户的回访留言，无请求体。先按候选规则为每个候选角色补齐当前 UTC 24h 窗口的留言（该角色未读 < 3 且当前窗口尚无留言时），再返回全部未读留言与各角色未读数。
+（需登录）检查并补齐当前用户的回访留言，无请求体。先按候选规则（最近成功聊过 + 羁绊最高）为每个候选角色补齐当前 UTC+8 自然日窗口的留言（该角色未读 < 3 且当日尚无留言时）；留言作为 `excludedFromContext=true` 的 assistant 消息写入该角色自由模式会话（无则新建），并写入投递元数据。再返回未读留言与各角色未读数。
 
 请求：
 
@@ -453,7 +453,7 @@ Authorization: Bearer <jwt>
 
 ### `POST /api/return-messages/read`
 
-（需登录）将当前用户指定角色的全部未读回访留言标记为已读，返回本次更新的条数。重复调用幂等：无未读可更新时返回 `updated: 0`。
+（需登录）将当前用户指定角色的全部未读回访留言标记为已读（用户在聊天列表进入该角色会话时自动调用），返回本次更新的条数。重复调用幂等：无未读可更新时返回 `updated: 0`。
 
 请求：
 
@@ -548,7 +548,7 @@ Authorization: Bearer <jwt>
 
 ### `POST /api/admin/return-messages/sweep`
 
-（需 admin）触发一次回访留言补发清扫，无请求体。遍历所有 active 用户，对每个候选角色补齐最近 3 个缺失窗口（当前窗口、now-1d、now-2d）的留言；未读 >= 3 的角色跳过；AI 生成并发上限 4；单用户/单角色/单窗口失败只记日志，不中断整体。
+（需 admin）触发一次回访留言补发清扫，无请求体。遍历所有 active 用户，对每个候选角色补齐最近 3 个缺失的 UTC+8 自然日窗口（当前日、昨日、前日）的留言；未读 >= 3 的角色跳过；AI 生成并发上限 4；单用户/单角色/单窗口失败只记日志，不中断整体。
 
 请求：
 
@@ -567,30 +567,40 @@ Authorization: Bearer <jwt>
 
 ## 回访留言数据模型与规则
 
-表 `character_return_messages`：
+留言本体是写入消息流的 assistant 消息；`character_return_messages` 只作为**投递元数据**记录未读/已读与窗口去重。
+
+表 `messages`（留言本体，复用聊天消息表）：
+
+- 新增一行：`role='assistant'`、`outOfScope=false`、`excludedFromContext=true`、`generationStatus='completed'`；不计费字段（model tier / tokens 为空）。
+- 该行属于该角色最近活跃的**自由模式**会话；无自由会话时先创建再写入。
+- 在可见历史（**Visible History**）中显示，但不进入生成上下文（**Generation Context**），不触发任何聊天完成副作用。
+
+表 `character_return_messages`（投递元数据）：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | uuid | 主键 |
 | `userId` | uuid | 所属用户，外键 `users.id` |
 | `characterId` | uuid | 所属角色，外键 `characters.id` |
-| `content` | text | 留言内容 |
+| `messageId` | uuid | 可空，外键 `messages.id`，指向写入消息流的留言本体 |
+| `content` | text | 留言内容（冗余，便于列表页直接展示） |
 | `reason` | varchar(16) | 生成原因：`recent`（最近成功聊天）或 `bond`（羁绊最高） |
-| `windowStart` | timestamp with timezone | UTC 24h 桶起点（UTC 零点），参与去重 |
+| `windowStart` | timestamp with timezone | UTC+8 自然日零点，参与去重 |
 | `createdAt` | timestamp with timezone | 创建时间 |
 | `readAt` | timestamp with timezone | 已读时间，`null` 表示未读 |
 
 索引：
 
-- 唯一索引 `character_return_messages_window_unique`（`userId`, `characterId`, `windowStart`）：同一角色同一 24h 窗口最多 1 条留言；插入命中冲突时静默跳过（幂等）。
+- 唯一索引 `character_return_messages_window_unique`（`userId`, `characterId`, `windowStart`）：同一角色同一 UTC+8 自然日最多 1 条留言；插入命中冲突时静默跳过（幂等）。
 - 普通索引 `character_return_messages_unread_idx`（`userId`, `readAt`）：支撑未读查询。
 
 规则：
 
-- `windowStart` 是 UTC 24h 桶：`floor(now / 86400000) * 86400000`，即所在 UTC 日的零点。
-- 候选角色：① 最近成功聊过的 active 角色（存在成功 assistant 消息的会话，按会话 `updatedAt` 倒序取第一个）；② 羁绊最高的 active 角色（按 `bondLevel`、`bondExp`、`updatedAt` 倒序取第一个）。两个候选合并时同一角色只保留一条，`recent` 优先。
+- `windowStart` 是 UTC+8 自然日零点：`date_trunc('day', now() AT TIME ZONE 'Asia/Shanghai')`，即北京时间所在日的零点。
+- 候选角色：① 最近成功聊过的 active 角色（存在成功 assistant 消息的会话，按该会话**用户最后一条消息时间**倒序取第一个）；② 羁绊最高的 active 角色（按 `bondLevel`、`bondExp`、`updatedAt` 倒序取第一个）。两个候选合并时同一角色只保留一条，`recent` 优先。
 - 未读上限 3：某角色未读（`readAt IS NULL`）达到 3 条时不再生成，直到已读后才可能继续生成。
-- 窗口去重：`check` 只补当前窗口；`sweep` 补齐最近 3 个缺失窗口。窗口已有留言时不重复生成。
-- AI 生成：复用 FastClaw `streamChat` 非流式收集，专用短超时 15 秒，内容按 Unicode 码点截断至 200 字符。失败、超时、空内容，或 adapter 兜底流（FastClaw 未配置/fallbackEnabled 产出通用聊天文本，不表达惦记/邀请）均视为失败，改用运营模板兜底（角色模板优先，无则用通用兜底模板）。生成永不抛错、永不返回空字符串。
-- 留言与聊天完全分离：不进入聊天可见历史（**Visible History**），不进入模型生成上下文（**Generation Context**），不影响点数、羁绊或成就。
+- 窗口去重：`check` 只补当前 UTC+8 自然日窗口；`sweep` 补齐最近 3 个缺失窗口。窗口已有留言时不重复生成。
+- 投递：生成留言内容后，先写 `messages`（自由会话，`excludedFromContext=true`），再写投递元数据并回填 `messageId`。
+- AI 生成：复用 FastClaw `streamChat` 非流式收集，专用短超时 15 秒，内容按 Unicode 码点截断至 200 字符。失败、超时、空内容，或 adapter 兜底流均视为失败，改用运营模板兜底（角色模板优先，无则用通用兜底模板）。生成永不抛错、永不返回空字符串。
+- 副作用边界：留言不进入 Generation Context，不影响点数、羁绊、成就，不计入模块 6 成功轮数；「最近」排序按用户最后一条消息时间，不因注入留言前移。
 - 已读幂等：只更新 `readAt IS NULL` 的行，重复调用返回 `updated: 0`。

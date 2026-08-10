@@ -1,4 +1,5 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db } from '../../db/index.js';
 import {
   characters,
@@ -12,9 +13,14 @@ import {
 import { generateReturnMessageContent } from './generator.js';
 
 const DAY_MS = 86_400_000;
+/** UTC+8 与 UTC 的固定时差（毫秒），用于计算北京时间自然日零点。 */
+const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 const UNREAD_CAP = 3;
 const SWEEP_AI_CONCURRENCY = 4;
 const SWEEP_WINDOW_COUNT = 3;
+
+/** 用户消息（role='user'）自连接别名：用于「用户最后一条消息时间」口径。 */
+const userMessages = alias(messages, 'user_messages');
 
 export type CandidateReason = 'recent' | 'bond';
 
@@ -34,13 +40,21 @@ export interface ReturnMessageRecord {
   readAt: Date | null;
 }
 
-/** UTC 24h 桶：floor(now / 86400000) * 86400000，返回 UTC 零点。 */
+/**
+ * UTC+8 自然日零点（北京时间所在日的零点，返回对应 UTC 时刻）：
+ * date_trunc('day', now() AT TIME ZONE 'Asia/Shanghai') 的 JS 等价实现。
+ */
 export function getWindowStart(now: Date | number): Date {
   const time = typeof now === 'number' ? now : now.getTime();
-  return new Date(Math.floor(time / DAY_MS) * DAY_MS);
+  const beijingDayStart = Math.floor((time + BEIJING_OFFSET_MS) / DAY_MS) * DAY_MS;
+  return new Date(beijingDayStart - BEIJING_OFFSET_MS);
 }
 
-/** 候选①：最近成功聊过的 active 角色（有成功 assistant 消息的会话，按会话 updatedAt 倒序取第一个）。 */
+/**
+ * 候选①：最近成功聊过的 active 角色。
+ * 存在成功 assistant 消息（role='assistant'、outOfScope=false、excludedFromContext=false）的会话中，
+ * 按该会话用户最后一条消息时间（role='user' 消息最大 createdAt）倒序取第一个角色。
+ */
 export async function getRecentChatCharacterId(userId: string): Promise<string | null> {
   const [row] = await db
     .select({ characterId: chatSessions.characterId })
@@ -49,16 +63,18 @@ export async function getRecentChatCharacterId(userId: string): Promise<string |
       characters,
       and(eq(characters.id, chatSessions.characterId), eq(characters.status, 'active')),
     )
-    .innerJoin(messages, eq(messages.sessionId, chatSessions.id))
-    .where(
-      and(
-        eq(chatSessions.userId, userId),
-        eq(messages.role, 'assistant'),
-        eq(messages.outOfScope, false),
-        eq(messages.excludedFromContext, false),
-      ),
-    )
-    .orderBy(desc(chatSessions.updatedAt))
+    .innerJoin(messages, and(
+      eq(messages.sessionId, chatSessions.id),
+      eq(messages.role, 'assistant'),
+      eq(messages.outOfScope, false),
+      eq(messages.excludedFromContext, false),
+    ))
+    .innerJoin(userMessages, and(
+      eq(userMessages.sessionId, chatSessions.id),
+      eq(userMessages.role, 'user'),
+    ))
+    .where(eq(chatSessions.userId, userId))
+    .orderBy(desc(userMessages.createdAt))
     .limit(1);
 
   return row?.characterId ?? null;
@@ -141,7 +157,7 @@ export async function hasMessageInWindow(
 }
 
 /**
- * 插入留言，命中窗口唯一索引（userId, characterId, windowStart）时静默跳过，
+ * 插入投递元数据，命中窗口唯一索引（userId, characterId, windowStart）时静默跳过，
  * 返回是否新建（幂等）。
  */
 export async function insertReturnMessage(
@@ -150,10 +166,11 @@ export async function insertReturnMessage(
   content: string,
   reason: CandidateReason,
   windowStart: Date,
+  messageId: string | null,
 ): Promise<boolean> {
   const [row] = await db
     .insert(characterReturnMessages)
-    .values({ userId, characterId, content, reason, windowStart })
+    .values({ userId, characterId, content, reason, windowStart, messageId })
     .onConflictDoNothing({
       target: [
         characterReturnMessages.userId,
@@ -166,7 +183,81 @@ export async function insertReturnMessage(
   return Boolean(row);
 }
 
-/** 为一个窗口生成并插入留言；角色不存在返回 false；冲突时静默返回未新建。 */
+/**
+ * 该角色最近活跃的自由会话（status='active'、mode='free'），
+ * 按用户最后一条消息时间（role='user' 消息最大 createdAt）倒序取第一个；
+ * 无用户消息的会话排在最后（NULLS LAST）。
+ */
+async function getActiveFreeSessionId(
+  userId: string,
+  characterId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: chatSessions.id })
+    .from(chatSessions)
+    .leftJoin(userMessages, and(
+      eq(userMessages.sessionId, chatSessions.id),
+      eq(userMessages.role, 'user'),
+    ))
+    .where(and(
+      eq(chatSessions.userId, userId),
+      eq(chatSessions.characterId, characterId),
+      eq(chatSessions.status, 'active'),
+      eq(chatSessions.mode, 'free'),
+    ))
+    .orderBy(sql`${userMessages.createdAt} desc nulls last`);
+
+  return row?.id ?? null;
+}
+
+/** 为该角色新建一个自由模式会话（status='active'、mode='free'）。 */
+async function createFreeSession(userId: string, characterId: string): Promise<string> {
+  const [created] = await db
+    .insert(chatSessions)
+    .values({ userId, characterId, status: 'active', mode: 'free' })
+    .returning({ id: chatSessions.id });
+
+  if (!created) {
+    throw new Error('Failed to create free chat session');
+  }
+  return created.id;
+}
+
+/**
+ * 投递一条留言：先写真实 assistant 消息（可见但 excludedFromContext=true，不计费），
+ * 再写投递元数据并回填 messageId。落点是该角色最近活跃自由会话，无则新建。
+ * 窗口冲突（并发）时元数据插入静默跳过并返回 false。
+ */
+async function deliverReturnMessage(
+  userId: string,
+  characterId: string,
+  content: string,
+  reason: CandidateReason,
+  windowStart: Date,
+): Promise<boolean> {
+  const existingSessionId = await getActiveFreeSessionId(userId, characterId);
+  const sessionId = existingSessionId ?? await createFreeSession(userId, characterId);
+
+  const [message] = await db
+    .insert(messages)
+    .values({
+      sessionId,
+      role: 'assistant',
+      content,
+      outOfScope: false,
+      excludedFromContext: true,
+      generationStatus: 'completed',
+    })
+    .returning({ id: messages.id });
+
+  if (!message) {
+    throw new Error('Failed to write return message');
+  }
+
+  return insertReturnMessage(userId, characterId, content, reason, windowStart, message.id);
+}
+
+/** 为一个窗口生成并投递留言；角色不存在返回 false；冲突时静默返回未新建。 */
 export async function generateForWindow(
   userId: string,
   characterId: string,
@@ -194,7 +285,7 @@ export async function generateForWindow(
     personalityPrompt: character.personalityPrompt,
   });
 
-  return insertReturnMessage(userId, characterId, content, reason, windowStart);
+  return deliverReturnMessage(userId, characterId, content, reason, windowStart);
 }
 
 /**
