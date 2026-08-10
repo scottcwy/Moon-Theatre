@@ -56,7 +56,3 @@ export const RETURN_MESSAGES_READ_PATH = '/api/return-messages/read';
 export function buildReturnMessagesReadBody(characterId: string): { characterId: string } {
   return { characterId };
 }
-
-export function getReturnMessageTimeLabel(createdAt: string): string {
-  return getSessionTimeLabel(createdAt);
-}

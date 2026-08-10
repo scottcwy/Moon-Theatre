@@ -46,6 +46,7 @@ vi.mock('../../../db/schema', () => ({
     userId: 'chatSessions.userId',
     characterId: 'chatSessions.characterId',
     status: 'chatSessions.status',
+    mode: 'chatSessions.mode',
     updatedAt: 'chatSessions.updatedAt',
   },
   messages: {
@@ -54,6 +55,7 @@ vi.mock('../../../db/schema', () => ({
     sessionId: 'messages.sessionId',
     outOfScope: 'messages.outOfScope',
     excludedFromContext: 'messages.excludedFromContext',
+    createdAt: 'messages.createdAt',
   },
   relationships: {
     id: 'relationships.id',
@@ -83,12 +85,18 @@ vi.mock('../generator.js', () => ({
   generateReturnMessageContent: mockGenerateReturnMessageContent,
 }));
 
+vi.mock('drizzle-orm/pg-core', () => ({
+  alias: (table: unknown) => table,
+}));
+
 vi.mock('drizzle-orm', () => ({
   and: (...conditions: unknown[]) => ({ type: 'and', conditions }),
   eq: (left: unknown, right: unknown) => ({ type: 'eq', left, right }),
   isNull: (val: unknown) => ({ type: 'isNull', val }),
   desc: (col: unknown) => ({ type: 'desc', col }),
   sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ type: 'sql', strings, vals }),
+  // 测试用 schema 列是字符串常量，别名等价于原表即可
+  alias: (table: unknown) => table,
 }));
 
 type Condition = { type: string; left?: unknown; right?: unknown; val?: unknown; conditions?: Condition[] };
@@ -145,7 +153,10 @@ beforeEach(() => {
   selectLimitMock.mockResolvedValue([]);
 
   insertMock.mockReturnValue({ values: valuesMock });
-  valuesMock.mockReturnValue({ onConflictDoNothing: onConflictDoNothingMock });
+  valuesMock.mockReturnValue({
+    onConflictDoNothing: onConflictDoNothingMock,
+    returning: insertReturningMock,
+  });
   onConflictDoNothingMock.mockReturnValue({ returning: insertReturningMock });
   insertReturningMock.mockResolvedValue([]);
 
@@ -156,30 +167,33 @@ beforeEach(() => {
 });
 
 describe('getWindowStart', () => {
-  it('floors a Date to the UTC 24h bucket (UTC midnight)', async () => {
+  it('returns Beijing midnight (UTC+8) for a time after 16:00Z', async () => {
     const { getWindowStart } = await import('../service.js');
+    // 2026-08-04T18:45Z = 北京 2026-08-05 02:45 → 北京 8 月 5 日零点
     expect(getWindowStart(new Date('2026-08-04T18:45:30.123Z'))).toEqual(
-      new Date('2026-08-04T00:00:00.000Z'),
+      new Date('2026-08-04T16:00:00.000Z'),
     );
   });
 
-  it('floors a numeric timestamp to the UTC 24h bucket', async () => {
+  it('floors a numeric timestamp to the UTC+8 natural day', async () => {
     const { getWindowStart } = await import('../service.js');
+    // 2026-08-04T07:00Z = 北京 2026-08-04 15:00 → 北京 8 月 4 日零点
     expect(getWindowStart(Date.UTC(2026, 7, 4, 7, 0, 0))).toEqual(
-      new Date('2026-08-04T00:00:00.000Z'),
+      new Date('2026-08-03T16:00:00.000Z'),
     );
   });
 
-  it('keeps an exact UTC midnight unchanged', async () => {
+  it('keeps an exact Beijing midnight unchanged', async () => {
     const { getWindowStart } = await import('../service.js');
-    expect(getWindowStart(new Date('2026-08-04T00:00:00.000Z'))).toEqual(
-      new Date('2026-08-04T00:00:00.000Z'),
+    // 2026-08-03T16:00Z = 北京 2026-08-04 00:00
+    expect(getWindowStart(new Date('2026-08-03T16:00:00.000Z'))).toEqual(
+      new Date('2026-08-03T16:00:00.000Z'),
     );
   });
 });
 
 describe('selectCandidateCharacters', () => {
-  it('recent: active character with a successful assistant message, session updatedAt desc', async () => {
+  it('recent: active character with successful chat, ordered by user last message time desc', async () => {
     const { selectCandidateCharacters } = await import('../service.js');
     limitOnce([{ characterId: 'char-recent' }]); // recent
     limitOnce([]); // bond
@@ -201,18 +215,35 @@ describe('selectCandidateCharacters', () => {
       },
     );
     // 存在成功 assistant 消息：role/outOfScope/excludedFromContext
+    expect(innerJoinMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: 'messages.id' }),
+      {
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: 'messages.sessionId', right: 'chatSessions.id' },
+          { type: 'eq', left: 'messages.role', right: 'assistant' },
+          { type: 'eq', left: 'messages.outOfScope', right: false },
+          { type: 'eq', left: 'messages.excludedFromContext', right: false },
+        ],
+      },
+    );
+    // 用户最后一条消息时间：role='user' 自连接，不再用会话 updatedAt
+    expect(innerJoinMock).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ id: 'messages.id' }),
+      {
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: 'messages.sessionId', right: 'chatSessions.id' },
+          { type: 'eq', left: 'messages.role', right: 'user' },
+        ],
+      },
+    );
     const recentWhere = selectWhereMock.mock.calls[0]?.[0] as Condition;
-    expect(recentWhere).toEqual({
-      type: 'and',
-      conditions: [
-        { type: 'eq', left: 'chatSessions.userId', right: 'user-1' },
-        { type: 'eq', left: 'messages.role', right: 'assistant' },
-        { type: 'eq', left: 'messages.outOfScope', right: false },
-        { type: 'eq', left: 'messages.excludedFromContext', right: false },
-      ],
-    });
-    // 按会话 updatedAt 倒序取第一个
-    expect(orderByMock).toHaveBeenNthCalledWith(1, { type: 'desc', col: 'chatSessions.updatedAt' });
+    expect(recentWhere).toEqual({ type: 'eq', left: 'chatSessions.userId', right: 'user-1' });
+    // 按用户最后一条消息时间倒序取第一个
+    expect(orderByMock).toHaveBeenNthCalledWith(1, { type: 'desc', col: 'messages.createdAt' });
     expect(selectLimitMock).toHaveBeenNthCalledWith(1, 1);
   });
 
@@ -226,7 +257,7 @@ describe('selectCandidateCharacters', () => {
     expect(result).toEqual([{ characterId: 'char-bond', reason: 'bond' }]);
 
     expect(innerJoinMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       expect.objectContaining({ id: 'characters.id' }),
       {
         type: 'and',
@@ -284,11 +315,18 @@ describe('selectCandidateCharacters', () => {
 describe('insertReturnMessage', () => {
   const windowStart = new Date('2026-08-04T00:00:00.000Z');
 
-  it('inserts and returns true when a row is created', async () => {
+  it('inserts with messageId and returns true when a row is created', async () => {
     const { insertReturnMessage } = await import('../service.js');
     insertReturningMock.mockResolvedValueOnce([{ id: 'msg-1' }]);
 
-    const created = await insertReturnMessage('user-1', 'char-1', 'content', 'recent', windowStart);
+    const created = await insertReturnMessage(
+      'user-1',
+      'char-1',
+      'content',
+      'recent',
+      windowStart,
+      'message-1',
+    );
 
     expect(created).toBe(true);
     expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'characterReturnMessages.id' }));
@@ -298,6 +336,7 @@ describe('insertReturnMessage', () => {
       content: 'content',
       reason: 'recent',
       windowStart,
+      messageId: 'message-1',
     });
     expect(onConflictDoNothingMock).toHaveBeenCalledWith({
       target: [
@@ -312,7 +351,14 @@ describe('insertReturnMessage', () => {
     const { insertReturnMessage } = await import('../service.js');
     insertReturningMock.mockResolvedValueOnce([]);
 
-    const created = await insertReturnMessage('user-1', 'char-1', 'content', 'recent', windowStart);
+    const created = await insertReturnMessage(
+      'user-1',
+      'char-1',
+      'content',
+      'recent',
+      windowStart,
+      'message-1',
+    );
 
     expect(created).toBe(false);
     expect(valuesMock).toHaveBeenCalledTimes(1);
@@ -322,15 +368,45 @@ describe('insertReturnMessage', () => {
 describe('generateForWindow', () => {
   const windowStart = new Date('2026-08-04T00:00:00.000Z');
 
-  it('loads prompts, generates content and inserts with reason', async () => {
+  it('writes message + delivery metadata and creates a free session when none exists', async () => {
     const { generateForWindow } = await import('../service.js');
-    limitOnce([characterRow]);
-    insertReturningMock.mockResolvedValueOnce([{ id: 'msg-1' }]);
+    limitOnce([characterRow]); // character prompt lookup
+    insertReturningMock
+      .mockResolvedValueOnce([{ id: 'session-1' }]) // create free session
+      .mockResolvedValueOnce([{ id: 'message-1' }]) // write message
+      .mockResolvedValueOnce([{ id: 'crm-1' }]); // delivery metadata
     mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
 
     const created = await generateForWindow('user-1', 'char-1', 'recent', windowStart);
 
     expect(created).toBe(true);
+    // 无活跃自由会话 → 新建（status='active'、mode='free'）
+    expect(insertMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 'chatSessions.id' }));
+    expect(valuesMock).toHaveBeenNthCalledWith(1, {
+      userId: 'user-1',
+      characterId: 'char-1',
+      status: 'active',
+      mode: 'free',
+    });
+    // 真实 assistant 消息：可见但排除出生成上下文、completed、不计费
+    expect(insertMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: 'messages.id' }));
+    expect(valuesMock).toHaveBeenNthCalledWith(2, {
+      sessionId: 'session-1',
+      role: 'assistant',
+      content: '回来吧。',
+      outOfScope: false,
+      excludedFromContext: true,
+      generationStatus: 'completed',
+    });
+    // 投递元数据回填 messageId
+    expect(valuesMock).toHaveBeenNthCalledWith(3, {
+      userId: 'user-1',
+      characterId: 'char-1',
+      content: '回来吧。',
+      reason: 'recent',
+      windowStart,
+      messageId: 'message-1',
+    });
     expect(leftJoinMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'characterPrompts.id' }),
       { type: 'eq', left: 'characterPrompts.characterId', right: 'characters.id' },
@@ -340,13 +416,31 @@ describe('generateForWindow', () => {
       systemPrompt: 'system prompt',
       personalityPrompt: 'personality prompt',
     });
-    expect(valuesMock).toHaveBeenCalledWith({
-      userId: 'user-1',
-      characterId: 'char-1',
-      content: '回来吧。',
-      reason: 'recent',
+  });
+
+  it('delivers into the existing active free session without creating a new one', async () => {
+    const { generateForWindow } = await import('../service.js');
+    limitOnce([characterRow]); // character prompt lookup
+    orderByMock.mockImplementationOnce(() => queryResult([{ id: 'session-1' }])); // active free session
+    insertReturningMock
+      .mockResolvedValueOnce([{ id: 'message-1' }])
+      .mockResolvedValueOnce([{ id: 'crm-1' }]);
+    mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
+
+    const created = await generateForWindow('user-1', 'char-1', 'recent', windowStart);
+
+    expect(created).toBe(true);
+    // 命中现有会话 → 只写 message + metadata，不新建会话
+    expect(insertMock).toHaveBeenCalledTimes(2);
+    expect(insertMock).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'chatSessions.id' }));
+    expect(valuesMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      sessionId: 'session-1',
+      excludedFromContext: true,
+    }));
+    expect(valuesMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      messageId: 'message-1',
       windowStart,
-    });
+    }));
   });
 
   it('returns false without generating when the character is missing', async () => {
@@ -359,12 +453,16 @@ describe('generateForWindow', () => {
     expect(mockGenerateReturnMessageContent).not.toHaveBeenCalled();
   });
 
-  it('concurrent duplicate window generation only inserts once (onConflictDoNothing)', async () => {
+  it('concurrent duplicate window generation only inserts one delivery row (onConflictDoNothing)', async () => {
     const { generateForWindow } = await import('../service.js');
     limitOnce([characterRow]);
     limitOnce([characterRow]);
     insertReturningMock
-      .mockResolvedValueOnce([{ id: 'msg-1' }])
+      .mockResolvedValueOnce([{ id: 'session-1' }])
+      .mockResolvedValueOnce([{ id: 'message-1' }])
+      .mockResolvedValueOnce([{ id: 'crm-1' }])
+      .mockResolvedValueOnce([{ id: 'session-2' }])
+      .mockResolvedValueOnce([{ id: 'message-2' }])
       .mockResolvedValueOnce([]);
     mockGenerateReturnMessageContent.mockResolvedValue('same window');
 
@@ -373,14 +471,33 @@ describe('generateForWindow', () => {
       generateForWindow('user-1', 'char-1', 'recent', windowStart),
     ]);
 
-    expect(first).toBe(true);
-    expect(second).toBe(false);
-    expect(insertMock).toHaveBeenCalledTimes(2);
-    expect(valuesMock).toHaveBeenCalledTimes(2);
+    // 窗口唯一索引保证只落一条投递元数据
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+    // 2 会话 + 2 消息 + 2 元数据
+    expect(insertMock).toHaveBeenCalledTimes(6);
+    expect(valuesMock).toHaveBeenCalledTimes(6);
     expect(onConflictDoNothingMock).toHaveBeenCalledTimes(2);
     for (const call of onConflictDoNothingMock.mock.calls) {
       const target = (call[0] as { target?: unknown[] }).target ?? [];
       expect(target).toContain('characterReturnMessages.windowStart');
+    }
+    // 消息体都写入自由会话且排除出上下文
+    const messageValues = valuesMock.mock.calls
+      .map((call) => call[0] as Record<string, unknown>)
+      .filter((values) => values.excludedFromContext === true);
+    expect(messageValues).toHaveLength(2);
+    for (const values of messageValues) {
+      expect(values.role).toBe('assistant');
+      expect(values.generationStatus).toBe('completed');
+    }
+    // 投递元数据都回填 messageId
+    const metadataValues = valuesMock.mock.calls
+      .map((call) => call[0] as Record<string, unknown>)
+      .filter((values) => values.reason !== undefined);
+    expect(metadataValues).toHaveLength(2);
+    for (const values of metadataValues) {
+      expect(typeof values.messageId).toBe('string');
+      expect(values.windowStart).toEqual(windowStart);
     }
   });
 });
@@ -434,19 +551,27 @@ describe('checkReturnMessages', () => {
     whereOnce([{ count: 0 }]); // unread count
     limitOnce([]); // hasMessageInWindow → missing
     limitOnce([characterRow]); // character prompt lookup
-    insertReturningMock.mockResolvedValueOnce([{ id: 'msg-1' }]);
+    insertReturningMock
+      .mockResolvedValueOnce([{ id: 'session-1' }])
+      .mockResolvedValueOnce([{ id: 'message-1' }])
+      .mockResolvedValueOnce([{ id: 'crm-1' }]);
     mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
 
     const result = await checkReturnMessages('user-1');
 
     expect(mockGenerateReturnMessageContent).toHaveBeenCalledTimes(1);
-    expect(valuesMock).toHaveBeenCalledWith(
+    // 2026-08-04T10:00Z = 北京 2026-08-04 18:00 → UTC+8 自然日零点 = 2026-08-03T16:00Z
+    const metadataCall = valuesMock.mock.calls.find(
+      (call) => (call[0] as { reason?: string }).reason !== undefined,
+    );
+    expect(metadataCall?.[0]).toEqual(
       expect.objectContaining({
         userId: 'user-1',
         characterId: 'char-1',
         content: '回来吧。',
         reason: 'recent',
-        windowStart: new Date('2026-08-04T00:00:00.000Z'),
+        windowStart: new Date('2026-08-03T16:00:00.000Z'),
+        messageId: 'message-1',
       }),
     );
     expect(result).toEqual({ messages: [], characterUnread: {} });
@@ -465,7 +590,11 @@ describe('checkReturnMessages', () => {
     limitOnce([{ ...characterRow, name: '角色A' }]); // char query a
     limitOnce([{ ...characterRow, name: '角色B' }]); // char query b
     mockGenerateReturnMessageContent.mockResolvedValueOnce('留言A').mockResolvedValueOnce('留言B');
-    insertReturningMock.mockResolvedValueOnce([{ id: 'new-a' }]).mockResolvedValueOnce([{ id: 'new-b' }]);
+    const insertResults = [
+      [{ id: 'session-a' }], [{ id: 'message-a' }], [{ id: 'crm-a' }],
+      [{ id: 'session-b' }], [{ id: 'message-b' }], [{ id: 'crm-b' }],
+    ];
+    insertReturningMock.mockImplementation(() => insertResults.shift() ?? []);
 
     const rows = [
       {
@@ -498,9 +627,15 @@ describe('checkReturnMessages', () => {
     expect(result.characterUnread).toEqual({ 'char-a': 1, 'char-b': 1 });
     // messages 查询：只查未读，按 createdAt 倒序
     expect(orderByMock).toHaveBeenLastCalledWith({ type: 'desc', col: 'characterReturnMessages.createdAt' });
-    const messagesWhere = selectWhereMock.mock.calls[8]?.[0] as Condition;
-    expect(findCondition(messagesWhere, 'characterReturnMessages.userId')?.right).toBe('user-1');
-    expect(findCondition(messagesWhere, 'characterReturnMessages.readAt')).toEqual({
+    const messagesWhere = selectWhereMock.mock.calls.find((call) => {
+      const condition = call[0] as Condition;
+      return (
+        findCondition(condition, 'characterReturnMessages.readAt') !== undefined &&
+        findCondition(condition, 'characterReturnMessages.userId')?.right === 'user-1'
+      );
+    })?.[0] as Condition | undefined;
+    expect(messagesWhere).toBeDefined();
+    expect(findCondition(messagesWhere!, 'characterReturnMessages.readAt')).toEqual({
       type: 'isNull',
       val: 'characterReturnMessages.readAt',
     });
@@ -545,42 +680,51 @@ describe('sweepReturnMessages', () => {
     whereOnce([{ count: 0 }]); // unread
   }
 
-  it('backfills exactly the last 3 missing windows with correct UTC buckets', async () => {
+  it('backfills exactly the last 3 missing UTC+8 natural-day windows', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-04T10:00:00.000Z'));
     const { sweepReturnMessages } = await import('../service.js');
     setupSweepBase();
-    limitOnce([]); // hasWindow 2026-08-04
-    limitOnce([]); // hasWindow 2026-08-03
-    limitOnce([]); // hasWindow 2026-08-02
+    limitOnce([]); // hasWindow 当前日
+    limitOnce([]); // hasWindow 昨日
+    limitOnce([]); // hasWindow 前日
     limitOnce([characterRow]); // char query (3 tasks, 3 lookups)
     limitOnce([characterRow]);
     limitOnce([characterRow]);
-    insertReturningMock.mockResolvedValue([{ id: 'msg' }]);
+    const insertResults = [
+      [{ id: 'session-1' }], [{ id: 'message-1' }], [{ id: 'crm-1' }],
+      [{ id: 'session-2' }], [{ id: 'message-2' }], [{ id: 'crm-2' }],
+      [{ id: 'session-3' }], [{ id: 'message-3' }], [{ id: 'crm-3' }],
+    ];
+    insertReturningMock.mockImplementation(() => insertResults.shift() ?? []);
 
     await sweepReturnMessages();
 
     expect(mockGenerateReturnMessageContent).toHaveBeenCalledTimes(3);
-    expect(valuesMock).toHaveBeenCalledTimes(3);
-    const windowStarts = valuesMock.mock.calls.map(
-      (call) => (call[0] as { windowStart: Date }).windowStart,
-    );
+    // 每个窗口：新建会话 + 消息 + 投递元数据
+    expect(insertMock).toHaveBeenCalledTimes(9);
+    const windowStarts = valuesMock.mock.calls
+      .map((call) => (call[0] as { windowStart?: Date }).windowStart)
+      .filter((value): value is Date => value instanceof Date);
     expect([...windowStarts].sort((a, b) => a.getTime() - b.getTime())).toEqual([
-      new Date('2026-08-02T00:00:00.000Z'),
-      new Date('2026-08-03T00:00:00.000Z'),
-      new Date('2026-08-04T00:00:00.000Z'),
+      new Date('2026-08-01T16:00:00.000Z'),
+      new Date('2026-08-02T16:00:00.000Z'),
+      new Date('2026-08-03T16:00:00.000Z'),
     ]);
 
     // hasWindow 查询按 userId/characterId/windowStart 精确匹配 3 个窗口
-    const hasWindowCalls = selectWhereMock.mock.calls.slice(4, 7).map((call) => call[0] as Condition);
+    const hasWindowCalls = selectWhereMock.mock.calls
+      .map((call) => call[0] as Condition)
+      .filter((condition) => findCondition(condition, 'characterReturnMessages.windowStart') !== undefined);
+    expect(hasWindowCalls).toHaveLength(3);
     const queriedWindows = hasWindowCalls.map(
       (condition) => findCondition(condition, 'characterReturnMessages.windowStart')?.right as Date,
     );
     expect(new Set(queriedWindows)).toEqual(
       new Set([
-        new Date('2026-08-04T00:00:00.000Z'),
-        new Date('2026-08-03T00:00:00.000Z'),
-        new Date('2026-08-02T00:00:00.000Z'),
+        new Date('2026-08-03T16:00:00.000Z'),
+        new Date('2026-08-02T16:00:00.000Z'),
+        new Date('2026-08-01T16:00:00.000Z'),
       ]),
     );
     for (const condition of hasWindowCalls) {
@@ -617,9 +761,10 @@ describe('sweepReturnMessages', () => {
     limitOnce([characterRow]);
     limitOnce([characterRow]);
     limitOnce([characterRow]);
-    insertReturningMock.mockResolvedValue([{ id: 'msg' }]);
+    const firstRunInserts = Array.from({ length: 9 }, (_, i) => [{ id: `r1-${i}` }]);
+    insertReturningMock.mockImplementation(() => firstRunInserts.shift() ?? []);
     await sweepReturnMessages();
-    expect(valuesMock).toHaveBeenCalledTimes(3);
+    expect(valuesMock).toHaveBeenCalledTimes(9);
     mockGenerateReturnMessageContent.mockClear();
     insertMock.mockClear();
     valuesMock.mockClear();
@@ -666,7 +811,8 @@ describe('sweepReturnMessages', () => {
     limitOnce([characterRow]); // char query ×3
     limitOnce([characterRow]);
     limitOnce([characterRow]);
-    insertReturningMock.mockResolvedValue([{ id: 'msg' }]);
+    const user2Inserts = Array.from({ length: 9 }, (_, i) => [{ id: `u2-${i}` }]);
+    insertReturningMock.mockImplementation(() => user2Inserts.shift() ?? []);
 
     await expect(sweepReturnMessages()).resolves.toBeUndefined();
 
@@ -688,7 +834,8 @@ describe('sweepReturnMessages', () => {
     limitOnce([]);
     limitOnce([]);
     for (let i = 0; i < 6; i += 1) limitOnce([characterRow]); // char query ×6
-    insertReturningMock.mockResolvedValue([{ id: 'msg' }]);
+    const concurrencyInserts = Array.from({ length: 18 }, (_, i) => [{ id: `c-${i}` }]);
+    insertReturningMock.mockImplementation(() => concurrencyInserts.shift() ?? []);
 
     let active = 0;
     let maxActive = 0;

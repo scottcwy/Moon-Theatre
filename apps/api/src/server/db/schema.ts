@@ -377,6 +377,7 @@ export const characterReturnMessages = pgTable('character_return_messages', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').references(() => users.id).notNull(),
   characterId: uuid('character_id').references(() => characters.id).notNull(),
+  messageId: uuid('message_id').references(() => messages.id),
   content: text('content').notNull(),
   reason: varchar('reason', { length: 16 }).notNull(),
   windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
@@ -453,6 +454,7 @@ export const relationshipsRelations = relations(relationships, ({ one }) => ({
 export const characterReturnMessagesRelations = relations(characterReturnMessages, ({ one }) => ({
   user: one(users, { fields: [characterReturnMessages.userId], references: [users.id] }),
   character: one(characters, { fields: [characterReturnMessages.characterId], references: [characters.id] }),
+  message: one(messages, { fields: [characterReturnMessages.messageId], references: [messages.id] }),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({

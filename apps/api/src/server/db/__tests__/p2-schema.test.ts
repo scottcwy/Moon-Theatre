@@ -237,3 +237,74 @@ describe('0006 snapshot integrity', () => {
     expect(fks['character_return_messages_character_id_characters_id_fk']).toBeDefined();
   });
 });
+
+// ============================================================
+// Migration SQL Contract Tests — 0008 return messages into sessions
+// ============================================================
+describe('0008_return_messages_into_sessions.sql', () => {
+  const migrationPath = path.resolve(
+    __dirname,
+    '../../../../drizzle/0008_return_messages_into_sessions.sql',
+  );
+
+  function readSql(): string {
+    return fs.readFileSync(migrationPath, 'utf-8');
+  }
+
+  it('migration file exists', () => {
+    expect(fs.existsSync(migrationPath)).toBe(true);
+  });
+
+  it('adds nullable message_id column referencing messages.id', () => {
+    const sql = readSql();
+    expect(sql).toMatch(/ALTER\s+TABLE\s+"character_return_messages"\s+ADD\s+COLUMN\s+"message_id"\s+uuid/i);
+    expect(sql).toMatch(/"character_return_messages_message_id_messages_id_fk"/i);
+    expect(sql).toMatch(/FOREIGN\s+KEY\s*\(\s*"message_id"\s*\)\s*REFERENCES\s+"public"\."messages"\("id"\)/is);
+  });
+
+  it('clears legacy card rows without writing a data conversion', () => {
+    const sql = readSql();
+    expect(sql).toMatch(/DELETE\s+FROM\s+"character_return_messages"/i);
+    expect(sql).not.toMatch(/UPDATE\s+"character_return_messages"/i);
+    expect(sql).not.toMatch(/DROP\s+COLUMN/i);
+  });
+});
+
+// ============================================================
+// Drizzle schema 0008 changes
+// ============================================================
+describe('Drizzle schema 0008 changes', () => {
+  it('characterReturnMessages has messageId uuid nullable', async () => {
+    const schema = await import('../schema.js');
+    const col = schema.characterReturnMessages.messageId;
+    expect(col).toBeDefined();
+    expect(col.name).toBe('message_id');
+    expect(col.dataType).toBe('string');
+    expect(col.notNull).toBe(false);
+  });
+
+  it('characterReturnMessagesRelations includes message relation', async () => {
+    const schema = await import('../schema.js');
+    expect(schema.characterReturnMessagesRelations).toBeDefined();
+  });
+});
+
+// ============================================================
+// Migration journal 0008
+// ============================================================
+describe('Migration journal 0008', () => {
+  const journalPath = path.resolve(
+    __dirname,
+    '../../../../drizzle/meta/_journal.json',
+  );
+
+  it('journal has entry for 0008_return_messages_into_sessions with correct tag', () => {
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf-8'));
+    const entry = journal.entries.find(
+      (e: { tag: string }) => e.tag === '0008_return_messages_into_sessions',
+    );
+    expect(entry).toBeDefined();
+    expect(entry.idx).toBe(8);
+    expect(entry.breakpoints).toBe(true);
+  });
+});
