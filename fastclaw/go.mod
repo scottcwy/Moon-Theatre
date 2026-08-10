@@ -8,9 +8,11 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/lib/pq v1.12.3
 	github.com/slack-go/slack v0.19.0
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
+	modernc.org/sqlite v1.48.2
 )
 
 require (
@@ -22,7 +24,6 @@ require (
 	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
-	github.com/lib/pq v1.12.3 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
@@ -41,5 +42,4 @@ require (
 	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.48.2 // indirect
 )
