@@ -24,7 +24,7 @@ const SWEEP_WINDOW_COUNT = 3;
 const userMessages = alias(messages, 'user_messages');
 
 /** drizzle 事务回调中的查询客户端（与 db 同构）。 */
-type TransactionClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type TransactionClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type CandidateReason = 'recent' | 'bond';
 
