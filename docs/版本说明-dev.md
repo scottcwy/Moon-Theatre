@@ -1,112 +1,122 @@
-# 版本说明：dev（v1.1 聊天体验）
+# 版本说明：v1.1 聊天体验（origin/main 合并后现状）
 
-> 生成日期：2026-08-10 · 依据：`git log` / `git diff` / `git merge-tree` 实测，非愿景文档。
-> 关联分支：`origin/dev`（HEAD `9f73cf6`） vs `origin/main`（HEAD `47bcbd5`）。
+> 生成日期：2026-08-10 · 依据：`git log` / `rg` 对照代码实测 + 全量测试结果，非愿景文档。
+> 主线：`origin/main`（HEAD `c2fb863`，2026-08-10），已含 dev 与 module 3~7 合入。
 
 ## 1. 分支关系与定位
 
-- 共同祖先：`65b15a6`（2026-07-08，fix chat timeout fallback handling）。
-- `dev` 领先 `main`：31 个提交（2026-07-09 ~ 2026-08-04），176 个文件差异（76 新增 / 100 修改 / 0 删除），即 **dev 的文件树是 main 的超集**。
-- `main` 独有 1 个提交：`47bcbd5`（PR #3「Codex/miniapp UI source consolidation」，2026-07-09），**不是 dev 的祖先**。
-- 结论：两条线各自独立实现了「聊天回合生命周期」；dev 在其上叠加了完整 v1.1 聊天体验，是当前产品的**功能主线**。
+- `origin/main` 当前 HEAD：`c2fb863`（fix: align main tree to dev after merge sync，2026-08-10）；其父提交 `123940c`（merge: sync dev into main，P0 modules 3-7 + spec re-freeze）把 dev 线合入 main。
+- `47bcbd5`（PR #3「Codex/miniapp UI source consolidation」，2026-07-09）仍在 main 历史中，是 `123940c` 的第一父分支，不再是 dev 线外的平行提交。
+- 原 dev 分支 HEAD `9f73cf6`（2026-08-05）与 module 3~7 合入提交（`0f53c7f`/`0793713`/`0764891`/`cbbf1e2`，2026-08-10）均为 main 祖先；dev 不再作为独立功能主线维护。
+- 结论：合并后主线的文件树 = dev（含 module 3-7）+ PR #3，v1.1 聊天体验是当前产品的功能主线。
 
-## 2. dev 的核心能力（相对 main 的增量）
+## 2. v1.1 核心能力（合并后落地形态）
 
 ### 2.1 聊天模式：剧本模式 / 自由模式
 
-- 新增 `chat_mode` 枚举（`script` / `free`），`chat_sessions` 增加 `mode` + `scriptId`。
-- 数据库级 CHECK：剧本模式必须绑定剧本，自由模式必须不绑定剧本。
+- `chat_mode` 枚举（`script` / `free`），`chat_sessions` 带 `mode` + `scriptId`，数据库级 CHECK：剧本模式必须绑定剧本，自由模式必须不绑定剧本。
 - 部分唯一索引：每个用户/角色在每种模式下最多一个 active 会话（自由模式按 user+character+mode；剧本模式额外按 scriptId）。
 - 前端聊天页支持模式选择、`availableModes` / `lastUsedMode` / 开场问题（`starterQuestions` 按模式区分）。
 - 会话作用域防护：`getChatSessionScope` + `SessionScopeMismatchError` + `ScriptUnavailableError`，stream 层 `resolveRequestScope` 防止跨会话串扰。
 
-### 2.2 剧本目录
+### 2.2 剧本目录（module 5）
 
-- 新增 `scripts` 表与 `apps/api/src/server/modules/scripts` 模块：`slug`、`genre`、`searchKeywords`、`coverUrl`、`sortOrder`、`starterQuestions`。
+- `scripts` 表与 `apps/api/src/server/modules/scripts` 模块：`slug`、`genre`、`searchKeywords`、`coverUrl`、`sortOrder`、`starterQuestions`（角色侧）。
 - 种子数据：第一个剧本《月见庭院：狐神的新娘》（slug `moon-garden`），含四位角色（狐神白藏、阴阳师贺茂清玄、画师月岛澪、武士久远）。
-- API：`GET /api/scripts`（支持关键词搜索）、`GET /api/scripts/:id`。
+- API：`GET /api/scripts`（支持关键词搜索，无需认证）、`GET /api/scripts/:id`（需认证，含角色列表）。
 - 小程序：`pages/script/select`（剧本列表 + 搜索）、`pages/role-select/moon-garden`（月之花园选角流程）。
 
 ### 2.3 记忆作用域
 
-- 新增 `memory_scope` 枚举（`shared` / `script`），`memories` 增加 `scope` + `scriptId`，带 CHECK 约束。
+- `memory_scope` 枚举（`shared` / `script`），`memories` 带 `scope` + `scriptId` 与 CHECK 约束。
 - 记忆分「共享记忆」（两种模式都可用）与「剧本记忆」（仅对应剧本的剧本模式可用）。
 - `workflow.ts`：聊天完成副作用中移除 bond 即时加分（`bond: null`），记忆抽取按 `mode`/`scriptId` 作用域执行。
 
 ### 2.4 聊天回合生命周期（协议层）
 
 - `by-client-id` 查询路由扩展：返回 `mode` / `scriptId`，并加 userId 防御性校验。
-- `shared/types.ts` 的 `Message` 增加：`clientMessageId`、`outOfScope`、`excludedFromContext`、`generationStatus`、`generationLeaseExpiresAt`、`generationAttempt`（main 上没有）。
+- `shared/types.ts` 的 `Message` 增加：`clientMessageId`、`outOfScope`、`excludedFromContext`、`generationStatus`、`generationLeaseExpiresAt`、`generationAttempt`。
 - 错误码闭环（前端有中文文案）：`session_scope_mismatch` / `script_unavailable` / `client_message_id_collision` / `input_blocked` / `output_filtered` / `generation_failed`。
 
-### 2.5 回访留言（module 7，PR #4）
+### 2.5 回访留言（module 7，最终口径）
 
-- 新表 `character_return_messages`（user + character + 内容 + 原因 + 时间窗，唯一索引防重复）。
-- 新模块 `apps/api/src/server/modules/return-messages`：`generator` / `scheduler` / `service`（+354 行），模板种子。
-- API：`POST /api/return-messages/check`、`POST /api/return-messages/read`、`POST /api/admin/return-messages/sweep`。
-- 小程序：`ReturnMessageCard` 组件。
+- 新表 `character_return_messages` 只作**投递元数据**（user + character + 内容 + 原因 + 时间窗，唯一索引防重复）；迁移 `0008` 增加 `message_id` 把留言本体接回 `messages` 表（free 模式会话 Visible History，`excludedFromContext=true`），旧卡片式留言元数据已清空（生产无 module 7 存量数据）。
+- 新模块 `apps/api/src/server/modules/return-messages`：`generator` / `scheduler` / `service`，模板种子；API：`POST /api/return-messages/check`、`POST /api/return-messages/read`、`POST /api/admin/return-messages/sweep`。
+- 小程序不再有 `ReturnMessageCard` 卡片组件：聊天列表按 `characterUnread` 显示未读红点，点击聊天列表项或进入会话时自动调用 `read` 标记已读。
+- 未读上限 3 对 `check` 与 `sweep` 均生效（`UNREAD_CAP = 3`，代码 `unread >= UNREAD_CAP` 即跳过生成）。
 
-### 2.6 安全与运维
+### 2.6 模块 3 / 4 / 6 落地形态
+
+- **module 3（羁绊封顶）**：`done` 事件透传 `bondLevel` / `bondExp` / `bondDelta` / `leveledUp`；成功轮 `+10` 经验、每 `100` 经验升 1 级、服务端等级封顶 `10`（经验继续累计）；前端以服务端透传为准展示「羁绊 +10 / 羁绊提升至 Lv.N」，满级（`MAX_BOND_LEVEL = 10`）后提示改为「羁绊已满级」，不再显示「距下一级」；进度条满格，经验继续累计。
+- **module 4（首页横滑）**：首页「热门剧本」横向 ScrollView 展示 `GET /api/scripts` 结果，随滚动同步圆点指示（`getActiveScriptIndex`），支持关键词搜索。
+- **module 6（常聊角色）**：`GET /api/chat/characters?sort=turn_count` 按成功对话轮数倒序返回常聊角色，首页 `limit=4` 卡片使用；默认语义仍是按角色聚合的聊天列表（每个 `characterId` 最多一项）。
+
+### 2.7 安全与运维
 
 - Admin Basic Auth 强制：middleware matcher 覆盖 `/admin/:path*` 与 `/api/admin/:path*`；401 返回 JSON、未配置返回 503、OPTIONS 预检放行；`auth.ts` 支持逗号分隔多认证头。
 - FK 约束名缩短：`0007_rename_truncated_fk_constraints.sql`（带 IF EXISTS 保护），另修正 `0000` / `0003` 历史迁移中的两处长名。
-- `docs/api-v1.md` 相对 main +440 行（全部新端点与回访留言数据模型/规则）。
 
-### 2.7 fastclaw（Go 运行时）
+### 2.8 fastclaw（Go 运行时）
 
 - `config.go`：`maxToolIterations` 显式配置追踪（自定义 JSON 序列化，保留「未设置」与「0」的语义区别）。
 - `agent/loop.go`：新增 `handleMessageWithoutTools`（支持 no-tool agent）与 AfterModelCall hook。
 - `store/factory.go`：sqlite 默认 DSN 增加 `busy_timeout(5000)`。
 - 新增 `config_test.go`、`factory_test.go`，扩展 `loop_stream_test` / `system_override_test` / `runtime_spec_test`。
 
-### 2.8 工程
+### 2.9 工程
 
 - 根 `package.json`：新增 `test:e2e:miniapp` / `test:e2e:miniapp:ui` / `test:e2e:miniapp:ui:auth`。
 - `scripts/dev.mjs`：支持 `apps/api/.env.local` 覆盖 + 测试性入口判断修复。
 - E2E mock 升级：月之花园剧本、模式、剧本搜索进入 mock 数据。
+- `apps/miniapp/config/hosts.json` 已纳入版本管理（dev / lan / prod 三档域名）。
 
-## 3. 数据模型与迁移
+## 3. 数据模型与迁移（0000–0008 一览）
 
 | 迁移 | 内容 |
 |---|---|
-| `0000`–`0003` | 与 main 共有基线（`0000`/`0003` 各有 1 行 FK 名差异，dev 已缩短） |
-| `0004_chat_modes_and_memory_scopes` | `chat_mode` / `memory_scope` 枚举、会话/记忆作用域字段与 CHECK、部分唯一索引 |
-| `0005_scripts_catalog_and_starter_questions` | `scripts` 目录字段 + slug 回填（`moon-garden`） |
-| `0006_character_return_messages` | 回访留言表 |
+| `0000_blushing_silverclaw` | 初始 schema（角色/会话/消息/记忆/羁绊/订单/支付/模型档位等，含 `character_status`、`memory_type`、`model_tier` 等枚举） |
+| `0001_dazzling_satana` | 去重归一：`achievements`/`titles` 按 `name`、`user_achievements`/`user_titles` 按 user+id、`relationships` 按 user+character 去重（羁绊取最大值），并补唯一索引 |
+| `0002_lowly_microchip` | 聊天回合生命周期：`messages` 增加 `clientMessageId` / `outOfScope` / `excludedFromContext` / `generationStatus` / `generationLeaseExpiresAt` / `generationAttempt`，`model_usage_logs` 增加 `clientMessageId` / `errorCode`，`model_usage_status` 增加 `out_of_scope`，`messages` 用户消息按 (session, role, clientMessageId) 唯一索引 |
+| `0003_chat_effect_runs` | `chat_effect_runs` 表（记忆/羁绊/成就/称号 effects 幂等与租约） |
+| `0004_chat_modes_and_memory_scopes` | `chat_mode` / `memory_scope` 枚举、`chat_sessions.mode`/`scriptId`、`memories.scope`/`scriptId`、CHECK 与部分唯一索引、存量回填 |
+| `0005_scripts_catalog_and_starter_questions` | `scripts` 目录字段（slug/genre/searchKeywords/coverUrl/sortOrder）+ 角色 `starterQuestions`，slug 回填（`moon-garden`） |
+| `0006_character_return_messages` | 回访留言投递元数据表（唯一索引防重复 + 未读索引） |
 | `0007_rename_truncated_fk_constraints` | 重命名两个超长 FK 约束（IF EXISTS 保护，幂等安全） |
+| `0008_return_messages_into_sessions` | 回访留言进会话流：`character_return_messages.message_id` 外键接回 `messages`，清空旧卡片式元数据 |
 
-## 4. 与 main 的差异与合入冲突清单
-
-`git merge-tree --write-tree origin/main origin/dev` 实测：**26 个冲突文件**（14 content + 12 add/add），全部集中在：
-
-- 聊天核心：`chat/service.ts`、`stream-runner.ts`、`workflow.ts`、`index.ts`、`by-client-id/route.ts`、`stream/route.ts`、chat 三份测试
-- 数据层：`db/schema.ts`、`drizzle/0000`、`0003`、`meta/_journal.json`
-- 前端：`pages/chat/index.tsx`、`index.model.ts`、`index.model.test.ts`、`services/api.ts`、E2E mock 三份
-- 文档：`CONTEXT.md`、`docs/api-v1.md`
-
-其余（fastclaw、middleware、return-messages、scripts、miniapp 新页面、ADR、规格文档）为 dev 独有，取 dev 即可。
-
-## 5. 部署现状（重要）
-
-- 仓库部署文档记录的当前镜像：`api:20260706-58cf7ce-deployfix`、`api-tools:20260706-58cf7ce-deployfix`、`fastclaw:20260706-58cf7ce-dirty`。
-- `58cf7ce`（2026-07-05）是 main 与 dev 的共同祖先之前的提交 → **服务器跑的是 07-06 快照，既不是当前 main 也不是 dev**。
-- 小程序生产构建域名 `https://api.offergo.xz.cn`（`apps/miniapp/config/hosts.json`，当前未跟踪/未提交）。
-- 仓库无 CI（无 `.github`），git push 不会触发部署；上线需要：构建并推送新镜像 → 服务器 `.env` 更新镜像 tag → `docker compose pull && up -d` → 小程序重新构建上传。
-
-## 6. 验证命令
+## 4. 验证命令与当前状态
 
 ```bash
 rtk pnpm run test:dev-script
 rtk pnpm run test:deploy-config
-rtk pnpm run test:e2e:miniapp
-rtk pnpm run typecheck
+rtk pnpm --filter @juben-sha/api test
 rtk pnpm --filter @juben-sha/miniapp test
+rtk pnpm -r typecheck
 rtk go test ./...   # fastclaw 目录下
-rtk pnpm build:miniapp:prod
+rtk pnpm build:miniapp:prod   # 小程序生产构建 + verify:weapp
 ```
 
-## 7. 已知边界
+当前实测状态（2026-08-10，origin/main `c2fb863` 干净工作树）：
 
-- `main` 的 PR #3 与 dev 的聊天实现是平行开发，合入必须逐文件对账，不能依赖自动 merge。
-- 工作区仍有大量未提交改动（`build-with-host.mjs`、`hosts.json`、`database_test.go` 等未跟踪），dev 合入前需先收口。
-- 线上数据库迁移执行情况需在服务器确认（`0004`–`0007` 是否已应用）。
+- `test:dev-script`（6 用例）、`test:deploy-config`（7 用例）通过。
+- `@juben-sha/api` test：54 个文件 / 550 用例通过；`@juben-sha/miniapp` test：26 个文件 / 155 用例通过。
+- `packages/shared`、`packages/miniapp-ui` typecheck 通过；**`@juben-sha/api` typecheck 当前仍有 4 个已知错误**（3 处，v1.1 发布前需修复，见下）。
+
+`@juben-sha/api` typecheck 已知错误（tsc --noEmit）：
+
+1. `src/app/api/chat/characters/route.test.ts:346-347`：测试把响应体强转为不含 `page` / `limit` 的字面量类型，随后断言 `body.page` / `body.limit` 报 TS2339（路由实际返回 `page` / `limit`）。
+2. `src/server/modules/chat/__tests__/character-summary-service.test.ts:148`：`SQL<unknown>` 直接强转 `{ type, vals }` 报 TS2352，需先转 `unknown`。
+3. `src/server/modules/return-messages/service.ts:174`：`client: TransactionClient = db` 中 `PostgresJsDatabase` 与 `PgTransaction` 类型不兼容，报 TS2739。
+
+## 5. 部署现状（v1.1）
+
+- **镜像仍为 07-06 快照**：具体 tag 以 `docs/deployment.md` 第 3 节为单一事实源，此处只引用不复制。
+- 服务器当前跑的既不是 v1.1 代码：v1.1 上线需要**构建并推送 api / api-tools / fastclaw 新镜像**（tag 由发布负责人填写），服务器 `.env` 更新镜像 tag 后 `rtk docker compose pull && up -d`，并**确认迁移 0004–0008 已应用**。
+- 上线检查清单见 `docs/deployment.md` 新增的「v1.1 上线检查清单」一节。
+- 小程序生产域名 `https://api.offergo.xz.cn`（`apps/miniapp/config/hosts.json` 已跟踪）。
+
+## 6. 已知边界
+
+- 仓库无 CI（无 `.github`），git push 不会触发部署；上线需人工执行构建、推送、服务器更新与小程序重新构建上传。
+- 线上数据库迁移执行情况需在服务器确认（`0004`–`0008` 是否已应用）。
+- `@juben-sha/api` typecheck 4 个已知错误未修复，见第 4 节。
