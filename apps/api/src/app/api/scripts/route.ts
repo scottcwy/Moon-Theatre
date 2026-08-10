@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { listScripts } from '@/server/modules/scripts/index.js';
-import { errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { successResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 
 export async function OPTIONS(request: NextRequest) {
@@ -13,8 +14,7 @@ export async function GET(request: NextRequest) {
     const q = searchParams.get('q') ?? undefined;
     const scripts = await listScripts(q);
     return successResponse({ scripts });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

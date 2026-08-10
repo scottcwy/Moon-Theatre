@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { verifyAuth, unauthorizedResponse, successResponse, errorResponse } from '@/server/middleware/auth.js';
+import { verifyAuth, unauthorizedResponse, successResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { getBalance } from '@/server/modules/wallet/index.js';
 
@@ -16,8 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     const balance = await getBalance(auth.userId);
     return successResponse({ balancePoints: balance });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

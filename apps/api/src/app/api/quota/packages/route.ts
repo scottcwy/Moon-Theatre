@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { eq, asc } from 'drizzle-orm';
 import { db } from '@/server/db/index.js';
 import { quotaPackages } from '@/server/db/schema.js';
-import { successResponse, errorResponse } from '@/server/middleware/auth.js';
+import { successResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 
 export async function OPTIONS(request: NextRequest) {
@@ -18,8 +19,7 @@ export async function GET() {
       .orderBy(asc(quotaPackages.sortOrder));
 
     return successResponse({ packages: rows });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

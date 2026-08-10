@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/server/db/index.js';
 import { orders, quotaPackages, payments } from '@/server/db/schema.js';
 import { verifyAuth, unauthorizedResponse, successResponse, errorResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { createPaymentProvider } from '@/server/modules/payments/index.js';
 import { config } from '@/server/config/index.js';
@@ -86,8 +87,7 @@ export async function POST(
       providerOrderId: prepayResult.providerOrderId,
       prepayParams: prepayResult.prepayParams,
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { markCharacterMessagesRead } from '@/server/modules/return-messages/index.js';
 
@@ -33,8 +34,7 @@ export async function POST(request: NextRequest) {
   try {
     const updated = await markCharacterMessagesRead(auth.userId, parsed.data.characterId);
     return successResponse({ updated });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

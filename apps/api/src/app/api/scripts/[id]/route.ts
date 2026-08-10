@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getScriptById } from '@/server/modules/scripts/index.js';
 import { verifyAuth, errorResponse, successResponse, unauthorizedResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 
 export async function OPTIONS(request: NextRequest) {
@@ -26,8 +27,7 @@ export async function GET(
     }
 
     return successResponse(script);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

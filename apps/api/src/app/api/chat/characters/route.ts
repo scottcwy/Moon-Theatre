@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAuth, unauthorizedResponse, successResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { getCharacterChatEntries, getFrequentCharacterEntries } from '@/server/modules/chat/character-summary-service.js';
 
@@ -41,8 +42,7 @@ export async function GET(request: NextRequest) {
     // 默认：按角色聚合的聊天列表（模块 7 依赖该语义与字段，保持不变）。
     const { entries, hasMore } = await getCharacterChatEntries(auth.userId, page, limit, keyword);
     return successResponse({ characters: entries, page, limit, hasMore });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }
