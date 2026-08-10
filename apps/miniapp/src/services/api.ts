@@ -270,6 +270,8 @@ export interface StreamCallbacks {
     outOfScope?: boolean;
     bondLevel?: number;
     bondExp?: number;
+    bondDelta?: number;
+    leveledUp?: boolean;
     unlockedAchievements?: unknown[];
     unlockedTitles?: unknown[];
     balanceAfter?: number;
@@ -451,6 +453,8 @@ export function streamChat(
             outOfScope: parsed.outOfScope,
             bondLevel: parsed.bondLevel,
             bondExp: parsed.bondExp,
+            bondDelta: parsed.bondDelta,
+            leveledUp: parsed.leveledUp,
             unlockedAchievements: parsed.unlockedAchievements,
             unlockedTitles: parsed.unlockedTitles,
             balanceAfter: parsed.balanceAfter,

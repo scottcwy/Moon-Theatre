@@ -136,6 +136,8 @@ export interface FinalizeAssistantTurnResult {
   id: string;
   bondLevel?: number;
   bondExp?: number;
+  bondDelta?: number;
+  leveledUp?: boolean;
 }
 
 const BLOCKED_INPUT_FALLBACK = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
@@ -814,6 +816,8 @@ export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): 
 
     let bondLevel: number | undefined;
     let bondExp: number | undefined;
+    let bondDelta: number | undefined;
+    let leveledUp: boolean | undefined;
     if (input.usage?.status === 'success') {
       const expIncrement = 10;
       const [bondEvent] = await tx
@@ -847,6 +851,12 @@ export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): 
           .returning({ bondLevel: relationships.bondLevel, bondExp: relationships.bondExp });
         bondLevel = relationship?.bondLevel;
         bondExp = relationship?.bondExp;
+        if (bondExp !== undefined) {
+          bondDelta = expIncrement;
+          const levelBefore = Math.min(Math.floor((bondExp - expIncrement) / 100) + 1, 10);
+          const levelAfter = Math.min(Math.floor(bondExp / 100) + 1, 10);
+          leveledUp = levelAfter > levelBefore;
+        }
       } else {
         const [relationship] = await tx
           .select({ bondLevel: relationships.bondLevel, bondExp: relationships.bondExp })
@@ -858,6 +868,8 @@ export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): 
           .limit(1);
         bondLevel = relationship?.bondLevel;
         bondExp = relationship?.bondExp;
+        bondDelta = 0;
+        leveledUp = false;
       }
     }
 
@@ -883,6 +895,8 @@ export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): 
       id: assistant.id,
       ...(bondLevel !== undefined ? { bondLevel } : {}),
       ...(bondExp !== undefined ? { bondExp } : {}),
+      ...(bondDelta !== undefined ? { bondDelta } : {}),
+      ...(leveledUp !== undefined ? { leveledUp } : {}),
     };
   });
 }

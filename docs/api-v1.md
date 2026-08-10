@@ -166,7 +166,7 @@ Authorization: Bearer <jwt>
 ```json
 {"type":"status","mode":"moderated_buffered","stage":"generating"}
 {"type":"delta","content":"最终审核后的 AI 回复"}
-{"type":"done","messageId":"uuid","sessionId":"uuid","mode":"script","mood":"neutral","bondLevel":1,"bondExp":10,"balanceAfter":97,"clientMessageId":"miniapp-generated-id"}
+{"type":"done","messageId":"uuid","sessionId":"uuid","mode":"script","mood":"neutral","bondLevel":1,"bondExp":10,"bondDelta":10,"leveledUp":false,"balanceAfter":97,"clientMessageId":"miniapp-generated-id"}
 {"type":"error","code":"upstream_error","message":"diagnostic only"}
 ```
 
@@ -174,9 +174,18 @@ Authorization: Bearer <jwt>
 
 `clientMessageId` 由小程序每次发送生成，服务端写入同一轮 user/assistant 消息，用于失败对账、幂等重试和分析。相同 `clientMessageId` 的已完成重试会重放已保存 assistant；仍在生成且 lease 未过期时返回 `error.code="in_progress"`；失败或 lease 过期后允许同 ID 重新获取生成 lease。
 
-`done` 事件同步保证 `messageId`、`sessionId`、`mode`、`mood`（如可解析）、`balanceAfter` 和 `clientMessageId`（如请求提供）。还可能包含 `fallback`、`blocked`、`outOfScope`、`replayed`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `error.code="insufficient_points"` 或 `402`。输入安全拦截不会预扣点数。模型失败、输出过滤、越界兜底会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化"作为 AI 模型"式拒答会被替换为角色内兜底回复。
+`done` 事件同步保证 `messageId`、`sessionId`、`mode`、`mood`（如可解析）、`balanceAfter` 和 `clientMessageId`（如请求提供）。还可能包含 `fallback`、`blocked`、`outOfScope`、`replayed`、`bondLevel`、`bondExp`、`bondDelta`、`leveledUp`、`unlockedAchievements`、`unlockedTitles`。点数不足返回 `error.code="insufficient_points"` 或 `402`。输入安全拦截不会预扣点数。模型失败、输出过滤、越界兜底会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化"作为 AI 模型"式拒答会被替换为角色内兜底回复。
 
 当角色绑定的剧本已下架（`script.status != 'active'`）时，禁止在该角色上创建新对话；已有 session 的 `canSend` 字段会变为 `false`；stream 请求返回 `error.code="script_unavailable"`（`409`）。
+
+#### 羁绊反馈（bondDelta / leveledUp）
+
+产品端统一使用「羁绊」，数值规则：成功轮 `+10` 经验、每 `100` 经验升 1 级、服务端等级上限 `10` 级（经验继续累计，等级与展示封顶）。
+
+- **成功轮**：`done` 事件携带最新 `bondLevel`/`bondExp`，并携带 `bondDelta: 10`；该轮跨过 100 经验阈值时 `leveledUp: true`，否则 `false`。
+- **幂等重放**：相同 `clientMessageId` 的已完成重试返回 `replayed: true`，同时返回当前关系值与 `bondDelta: 0`、`leveledUp: false`，不伪造再次增长。
+- **输出过滤（`blocked: true`）**、**越界（`outOfScope: true`）**、**模型失败/发送失败**：不增加羁绊；`done` 事件不包含 `bondLevel`、`bondExp`、`bondDelta`、`leveledUp`（失败轮返回 `error` 事件）。
+- **前端约定**：聊天页以服务端 `bondDelta`/`leveledUp` 为准展示「羁绊 +10」或「羁绊提升至 Lv.N」，不本地猜测增量；满级（Lv.10）不再显示「距下一级」。
 
 流式错误事件使用稳定 `code`，`message` 只用于诊断，客户端不得直接展示未知 raw message。V1 code：
 
@@ -410,7 +419,7 @@ V1 业务聊天只优化 `/api/chat/stream`，不改变 FastClaw 通用 API 语�
 `FASTCLAW_TIMEOUT_MS` 默认 `120000`，用于避免 30 秒外层 abort 打断长回复。`CHAT_EFFECTS_ASYNC_ENABLED` 默认 `false`：
 
 - `false`：记忆、羁绊、成就/称号 effects 同步完成后再返回 `delta/done`，保持完整效果字段。
-- `true`：`runChatCompletionEffects` 使用 `sessionId`、`userMessageId`、`assistantMessageId` 作为幂等上下文在后台执行，不阻塞 `delta/done` 返回。此时 `bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 允许缺省，小程序端必须容忍字段不存在。
+- `true`：`runChatCompletionEffects` 使用 `sessionId`、`userMessageId`、`assistantMessageId` 作为幂等上下文在后台执行，不阻塞 `delta/done` 返回。此时 `bondLevel`、`bondExp`、`bondDelta`、`leveledUp`、`unlockedAchievements`、`unlockedTitles` 允许缺省，小程序端必须容忍字段不存在。
 
 异步 effects 是最终一致性：记忆、羁绊、成就/称号可能晚于当前响应落库；V1 不自动重试，失败只写结构化日志。
 

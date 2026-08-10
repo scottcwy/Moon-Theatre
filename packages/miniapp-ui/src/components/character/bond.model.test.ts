@@ -26,7 +26,7 @@ describe('createBondViewModel', () => {
     expect(vm.currentLevelMaxExp).toBe(100);
     expect(vm.progressLabel).toBe('38/100');
     expect(vm.remainingExp).toBe(62);
-    expect(vm.remainingLabel).toBe('距下一等级还需 62 默契度');
+    expect(vm.remainingLabel).toBe('距下一级羁绊还需 62');
     expect(vm.percent).toBe(38);
   });
 
@@ -79,7 +79,7 @@ describe('createBondViewModel', () => {
     expect(vm.levelLabel).toBe('羁绊 Lv.3');
     expect(vm.compactLevelLabel).toBe('♥ Lv.3');
     expect(vm.progressLabel).toBe('50/100');
-    expect(vm.remainingLabel).toBe('距下一等级还需 50 默契度');
+    expect(vm.remainingLabel).toBe('距下一级羁绊还需 50');
   });
 
   it('ignores inconsistent supplied levels because totalExp is the display source of truth', () => {
@@ -100,5 +100,33 @@ describe('createBondViewModel', () => {
     expect(vm.level).toBe(3);
     expect(vm.currentLevelExp).toBe(0);
     expect(vm.percent).toBe(0);
+  });
+
+  it('caps display level at 10 and shows 满级 without a next-level hint', () => {
+    const vm = createBondViewModel({ bondLevel: 10, bondExp: 1050 });
+    expect(vm.level).toBe(10);
+    expect(vm.totalExp).toBe(1050);
+    expect(vm.currentLevelExp).toBe(100);
+    expect(vm.currentLevelMaxExp).toBe(100);
+    expect(vm.percent).toBe(100);
+    expect(vm.remainingExp).toBe(0);
+    expect(vm.progressLabel).toBe('100/100');
+    expect(vm.remainingLabel).toBe('羁绊已满级');
+  });
+
+  it('caps display level at 10 exactly at the 1000 exp boundary', () => {
+    const vm = createBondViewModel({ bondExp: 1000 });
+    expect(vm.level).toBe(10);
+    expect(vm.remainingExp).toBe(0);
+    expect(vm.remainingLabel).toBe('羁绊已满级');
+    expect(vm.progressLabel).toBe('100/100');
+  });
+
+  it('treats the last level as max even before the next threshold', () => {
+    const vm = createBondViewModel({ bondExp: 999 });
+    expect(vm.level).toBe(10);
+    expect(vm.remainingExp).toBe(0);
+    expect(vm.remainingLabel).toBe('羁绊已满级');
+    expect(vm.percent).toBe(100);
   });
 });

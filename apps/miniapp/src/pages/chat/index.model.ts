@@ -122,6 +122,25 @@ export function applyStarterQuestion(inputValue: string, question: string): { ap
   return { applied: true, value: question };
 }
 
+export type BondFeedback =
+  | { kind: 'leveledUp'; level: number }
+  | { kind: 'gained'; delta: number }
+  | null;
+
+export function getBondFeedback(result: {
+  bondLevel?: number;
+  bondDelta?: number;
+  leveledUp?: boolean;
+}): BondFeedback {
+  if (result.leveledUp && typeof result.bondLevel === 'number') {
+    return { kind: 'leveledUp', level: result.bondLevel };
+  }
+  if (typeof result.bondDelta === 'number' && result.bondDelta > 0) {
+    return { kind: 'gained', delta: result.bondDelta };
+  }
+  return null;
+}
+
 export function isSuccessfulDoneEvent(result: { blocked?: boolean; outOfScope?: boolean; fallback?: boolean }): boolean {
   return !result.blocked && !result.outOfScope && !result.fallback;
 }

@@ -211,7 +211,7 @@ function setupHappyPath() {
     generationAttempt: 1,
   });
   saveAssistantForTurnMock.mockResolvedValue({ id: 'assistant-message-1' });
-  finalizeAssistantTurnMock.mockResolvedValue({ id: 'assistant-message-1', bondLevel: 2, bondExp: 10 });
+  finalizeAssistantTurnMock.mockResolvedValue({ id: 'assistant-message-1', bondLevel: 2, bondExp: 10, bondDelta: 10, leveledUp: false });
   completeTurnMock.mockResolvedValue(undefined);
   failTurnMock.mockResolvedValue(undefined);
   markTurnOutOfScopeMock.mockResolvedValue(undefined);
@@ -249,6 +249,8 @@ describe('runChatStream', () => {
       balanceAfter: 7,
       bondLevel: 2,
       bondExp: 10,
+      bondDelta: 10,
+      leveledUp: false,
       unlockedAchievements: ['first_chat'],
       unlockedTitles: ['入戏者'],
     });
@@ -270,6 +272,29 @@ describe('runChatStream', () => {
     expect(events.find((event) => event.type === 'done')).toMatchObject({
       bondLevel: 2,
       bondExp: 10,
+      bondDelta: 10,
+      leveledUp: false,
+    });
+  });
+
+  it('surfaces leveledUp and the server delta in the success done event', async () => {
+    finalizeAssistantTurnMock.mockResolvedValue({ id: 'assistant-message-1', bondLevel: 4, bondExp: 305, bondDelta: 10, leveledUp: true });
+
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+    });
+    const done = (await readEvents(response)).find((event) => event.type === 'done');
+
+    expect(done).toMatchObject({
+      bondLevel: 4,
+      bondExp: 305,
+      bondDelta: 10,
+      leveledUp: true,
     });
   });
 
@@ -487,6 +512,7 @@ describe('runChatStream', () => {
         excludedFromContext: false,
       },
     });
+    getRelationshipMock.mockResolvedValue({ bondLevel: 2, bondExp: 10 });
 
     const { runChatStream } = await import('../stream-runner.js');
 
@@ -509,6 +535,10 @@ describe('runChatStream', () => {
         mood: 'neutral',
         clientMessageId: 'client-1',
         replayed: true,
+        bondLevel: 2,
+        bondExp: 10,
+        bondDelta: 0,
+        leveledUp: false,
       },
     ]);
     expect(saveUserMessageMock).not.toHaveBeenCalled();
@@ -598,7 +628,10 @@ describe('runChatStream', () => {
     });
     const events = await readEvents(response);
 
-    expect(events).toContainEqual(expect.objectContaining({ type: 'done', outOfScope: true }));
+    const outOfScopeDone = events.find((event) => event.type === 'done');
+    expect(outOfScopeDone).toMatchObject({ type: 'done', outOfScope: true });
+    expect(outOfScopeDone).not.toHaveProperty('bondDelta');
+    expect(outOfScopeDone).not.toHaveProperty('leveledUp');
     expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
       sessionId: 'session-1',
       userMessageId: 'user-message-1',
@@ -660,6 +693,8 @@ describe('runChatStream', () => {
       blocked: true,
       clientMessageId: 'client-1',
     });
+    expect(done).not.toHaveProperty('bondDelta');
+    expect(done).not.toHaveProperty('leveledUp');
     expect(consumePointsMock).not.toHaveBeenCalled();
     expect(streamChatMock).not.toHaveBeenCalled();
   });
@@ -740,6 +775,8 @@ describe('runChatStream', () => {
         mode: 'script',
         clientMessageId: 'client-1',
         replayed: true,
+        bondDelta: 0,
+        leveledUp: false,
       },
     ]);
     expect(saveUserMessageMock).not.toHaveBeenCalled();
