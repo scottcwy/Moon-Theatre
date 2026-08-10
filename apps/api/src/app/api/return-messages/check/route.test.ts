@@ -89,7 +89,7 @@ describe('POST /api/return-messages/check', () => {
     const response = await POST(postRequest());
 
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: 'generator failed' });
+    await expect(response.json()).resolves.toEqual({ error: 'internal_error' });
   });
 
   it('exports an OPTIONS handler', async () => {

@@ -172,7 +172,7 @@ describe('dev auth bypass', () => {
     expect(creditWallet).toHaveBeenCalledWith(
       '00000000-0000-4000-8000-000000000001',
       1000,
-      'dev-auth-bypass-initial-points',
+      'dev-auth-bypass-initial-points:00000000-0000-4000-8000-000000000001',
     );
   });
 

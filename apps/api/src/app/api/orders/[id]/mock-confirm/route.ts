@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/server/db/index.js';
 import { orders } from '@/server/db/schema.js';
 import { verifyAuth, unauthorizedResponse, successResponse, errorResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { PaymentNotifyError, processPaymentNotify } from '@/server/modules/payments/notify-service.js';
 import { config } from '@/server/config/index.js';
@@ -58,7 +59,6 @@ export async function POST(
     if (err instanceof PaymentNotifyError) {
       return errorResponse(err.message, err.status);
     }
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+    return internalErrorResponse();
   }
 }

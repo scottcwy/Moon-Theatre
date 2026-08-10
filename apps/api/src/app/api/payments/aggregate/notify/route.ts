@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { createPaymentProvider } from '@/server/modules/payments/index.js';
 import { PaymentNotifyError, processPaymentNotify } from '@/server/modules/payments/notify-service.js';
@@ -54,8 +55,7 @@ export async function POST(request: NextRequest) {
       if (err instanceof PaymentNotifyError) {
         return errorResponse(err.message, err.status);
       }
-      const message = err instanceof Error ? err.message : 'Payment processing failed';
-      return errorResponse(message, 500);
+      return internalErrorResponse();
     }
   } else {
     try {
@@ -64,8 +64,7 @@ export async function POST(request: NextRequest) {
       if (err instanceof PaymentNotifyError) {
         return errorResponse(err.message, err.status);
       }
-      const message = err instanceof Error ? err.message : 'Payment processing failed';
-      return errorResponse(message, 500);
+      return internalErrorResponse();
     }
   }
 

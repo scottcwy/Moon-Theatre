@@ -25,6 +25,10 @@ export class ValidationError extends HttpError {
   }
 }
 
+export function internalErrorResponse(): NextResponse {
+  return NextResponse.json({ error: 'internal_error' }, { status: 500 });
+}
+
 export function jsonError(error: unknown): NextResponse {
   if (error instanceof HttpError) {
     return NextResponse.json({ error: error.message }, { status: error.status });

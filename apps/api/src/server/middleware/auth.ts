@@ -37,7 +37,11 @@ export async function verifyAuth(request: NextRequest): Promise<{ userId: string
     const { findOrCreateUser } = await import('../modules/auth/index.js');
     const user = await findOrCreateUser(DEV_AUTH_BYPASS_OPENID);
     const { creditWallet } = await import('../modules/wallet/index.js');
-    await creditWallet(user.id, DEV_AUTH_BYPASS_INITIAL_POINTS, DEV_AUTH_BYPASS_POINTS_KEY);
+    await creditWallet(
+      user.id,
+      DEV_AUTH_BYPASS_INITIAL_POINTS,
+      `${DEV_AUTH_BYPASS_POINTS_KEY}:${user.id}`,
+    );
     return { userId: user.id };
   }
 

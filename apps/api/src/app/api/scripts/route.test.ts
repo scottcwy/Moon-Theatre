@@ -68,7 +68,7 @@ describe('GET /api/scripts', () => {
     expect(body.scripts).toEqual([]);
   });
 
-  it('returns 500 on unexpected error', async () => {
+  it('returns 500 with a stable error code on unexpected error', async () => {
     vi.doMock('@/server/modules/scripts/index.js', () => ({
       listScripts: vi.fn(async () => { throw new Error('DB error'); }),
       getScriptById: vi.fn(),
@@ -79,6 +79,21 @@ describe('GET /api/scripts', () => {
     const body = await response.json() as { error: string };
 
     expect(response.status).toBe(500);
-    expect(body.error).toBe('DB error');
+    expect(body.error).toBe('internal_error');
+  });
+
+  it('does not leak the internal error message on 500', async () => {
+    vi.doMock('@/server/modules/scripts/index.js', () => ({
+      listScripts: vi.fn(async () => { throw new Error('DB error'); }),
+      getScriptById: vi.fn(),
+    }));
+
+    const { GET } = await import('./route.js');
+    const response = await GET(makeReq());
+    const body = await response.json() as { error: string };
+
+    expect(response.status).toBe(500);
+    expect(body.error).not.toContain('DB error');
+    expect(JSON.stringify(body)).not.toContain('DB error');
   });
 });

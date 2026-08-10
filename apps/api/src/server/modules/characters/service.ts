@@ -27,6 +27,8 @@ export async function listCharacters() {
 
 export interface GetCharacterByIdOptions {
   userId?: string;
+  /** Set false to skip loading character prompts (e.g. public character detail). */
+  includePrompts?: boolean;
 }
 
 export async function getCharacterById(id: string, options?: GetCharacterByIdOptions) {
@@ -40,10 +42,13 @@ export async function getCharacterById(id: string, options?: GetCharacterByIdOpt
     return null;
   }
 
-  const prompts = await db
-    .select()
-    .from(characterPrompts)
-    .where(eq(characterPrompts.characterId, id));
+  const includePrompts = options?.includePrompts ?? true;
+  const prompts = includePrompts
+    ? await db
+        .select()
+        .from(characterPrompts)
+        .where(eq(characterPrompts.characterId, id))
+    : [];
 
   const [script] = character.scriptId
     ? await db.select().from(scripts).where(eq(scripts.id, character.scriptId)).limit(1)
