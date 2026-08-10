@@ -8,6 +8,7 @@ import {
   getInitialModelTier,
   getEmptyModeScope,
   getModeLabel,
+  getReturnMessageReadCharacterId,
   getVisibleStarterQuestions,
   isSuccessfulDoneEvent,
   resolveCharacterScriptMetadata,
@@ -137,6 +138,22 @@ describe('chat message rendering helpers', () => {
     expect(shouldReconcileStreamError('script_unavailable')).toBe(false);
     expect(shouldReconcileStreamError('session_scope_mismatch')).toBe(false);
     expect(shouldReconcileStreamError('client_message_id_collision')).toBe(false);
+  });
+});
+
+describe('getReturnMessageReadCharacterId', () => {
+  it('uses the session character when entering via a session (any entry)', () => {
+    expect(getReturnMessageReadCharacterId('route-char', 'session-char')).toBe('session-char');
+  });
+
+  it('falls back to the route character when entering without a session', () => {
+    expect(getReturnMessageReadCharacterId('route-char', undefined)).toBe('route-char');
+    expect(getReturnMessageReadCharacterId('route-char', '')).toBe('route-char');
+  });
+
+  it('returns null when no character is available so no read request is fired', () => {
+    expect(getReturnMessageReadCharacterId('', undefined)).toBeNull();
+    expect(getReturnMessageReadCharacterId('  ', '')).toBeNull();
   });
 });
 

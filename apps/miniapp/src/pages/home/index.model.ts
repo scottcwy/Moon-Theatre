@@ -9,8 +9,24 @@ export const homeSections = {
   scriptPrimaryAction: '选择角色',
   scriptModeEntry: '剧本模式',
   characterKicker: '选择一位角色开始',
-  characterTitle: '最近角色',
+  frequentCharacterTitle: '常聊角色',
+  recommendedCharacterTitle: '推荐角色',
 } as const;
+
+/** 常聊角色区域固定取前 4 个（2 列网格 × 2 行）。 */
+export const FREQUENT_CHARACTERS_LIMIT = 4;
+
+/** 区域标题：有常聊历史时叫「常聊角色」，否则叫「推荐角色」，不误导。 */
+export function getCharacterSectionTitle(hasFrequentCharacters: boolean): string {
+  return hasFrequentCharacters
+    ? homeSections.frequentCharacterTitle
+    : homeSections.recommendedCharacterTitle;
+}
+
+/** 常聊角色聚合接口：按成功对话轮数倒序取前 N 个。 */
+export function buildFrequentCharactersUrl(limit = FREQUENT_CHARACTERS_LIMIT): string {
+  return `/api/chat/characters?sort=turn_count&limit=${limit}`;
+}
 
 const LOCAL_SCRIPT_COVERS: Record<string, string> = {
   'moon-garden': '/assets/home/moon-garden-cover.jpg',

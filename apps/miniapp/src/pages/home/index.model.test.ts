@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildFrequentCharactersUrl,
   buildScriptsUrl,
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
   getActiveScriptIndex,
   getCharacterDetailUrl,
+  getCharacterSectionTitle,
   getScriptCatalogUrl,
   getScriptCoverUrl,
   getScriptRoleSelectUrl,
@@ -26,7 +28,18 @@ describe('home navigation helpers', () => {
     expect(homeSections.scriptTitle).toBe('热门剧本');
     expect(homeSections.scriptPrimaryAction).toBe('选择角色');
     expect(homeSections.scriptModeEntry).toBe('剧本模式');
-    expect(homeSections.characterTitle).toBe('最近角色');
+    expect(homeSections.frequentCharacterTitle).toBe('常聊角色');
+    expect(homeSections.recommendedCharacterTitle).toBe('推荐角色');
+  });
+
+  it('labels the character section by history instead of misleading as "最近角色"', () => {
+    expect(getCharacterSectionTitle(true)).toBe('常聊角色');
+    expect(getCharacterSectionTitle(false)).toBe('推荐角色');
+  });
+
+  it('builds the frequent characters url with turn_count sorting and a fixed limit', () => {
+    expect(buildFrequentCharactersUrl()).toBe('/api/chat/characters?sort=turn_count&limit=4');
+    expect(buildFrequentCharactersUrl(8)).toBe('/api/chat/characters?sort=turn_count&limit=8');
   });
 
   it('routes every API script id to the generic role selection page', () => {

@@ -27,6 +27,18 @@ const STREAM_CLIENT_ID_COLLISION_MESSAGE = '这次发送状态发生冲突，请
 const STREAM_INPUT_BLOCKED_MESSAGE = '这条内容无法发送，请换一种表达后再试。';
 const STREAM_OUTPUT_FILTERED_MESSAGE = '这次回复未通过安全检查，请换个问题再试。';
 
+/**
+ * 打开会话时应标记已读的角色：有 session 历史时以历史所属角色为准（列表/详情等
+ * 任意入口都可能带 sessionId 进来），否则用路由 characterId；都没有返回 null。
+ */
+export function getReturnMessageReadCharacterId(
+  routeCharacterId: string,
+  sessionCharacterId?: string,
+): string | null {
+  const characterId = (sessionCharacterId || routeCharacterId).trim();
+  return characterId || null;
+}
+
 export function getFriendlyStreamErrorMessage(message: string): string {
   const normalized = message.toLowerCase();
   if (normalized === 'out_of_scope' || normalized.includes('out_of_scope')) {
