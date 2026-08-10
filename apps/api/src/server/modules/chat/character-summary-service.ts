@@ -228,7 +228,7 @@ export async function getFrequentCharacterSummaries(
     .having(sql`count(distinct ${messages.id}) > 0`)
     .orderBy(
       desc(sql`count(distinct ${messages.id})`),
-      sql`${latestUserMessageAtSql()} desc nulls last`,
+      sql`max(${latestUserMessageAtSql()}) desc nulls last`,
       asc(characters.sortOrder),
     )
     .limit(limit + 1)

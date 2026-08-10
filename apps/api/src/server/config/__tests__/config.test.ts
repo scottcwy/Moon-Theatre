@@ -62,6 +62,8 @@ describe('server config production validation', () => {
   it('skips production runtime validation during the Next build lifecycle', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('npm_lifecycle_event', 'build');
+    // 与外部环境解耦：build 阶段应回退默认配置，不受外层 DATABASE_URL 影响。
+    vi.stubEnv('DATABASE_URL', '');
 
     const { config } = await loadConfig();
 

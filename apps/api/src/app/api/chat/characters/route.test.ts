@@ -324,6 +324,8 @@ it('returns frequent characters with successfulTurnCount and identity in aggrega
     const body = await response.json() as {
       characters: Array<{ characterId: string; successfulTurnCount: number; identity: string; latestSessionId: string }>;
       hasMore: boolean;
+      page: number;
+      limit: number;
     };
 
     expect(body.characters).toEqual([
