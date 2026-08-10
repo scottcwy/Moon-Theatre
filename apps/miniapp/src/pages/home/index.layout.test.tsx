@@ -36,4 +36,23 @@ describe('home hot scripts layout', () => {
     expect(source).not.toContain('setInterval');
     expect(source).not.toContain('autoplay');
   });
+
+  it('loads frequent characters only when logged in and falls back to recommended characters', () => {
+    expect(source).toContain('isLoggedIn()');
+    expect(source).toContain('buildFrequentCharactersUrl');
+    expect(source).toContain("get<{ characters: CharacterCard[] }>('/api/characters')");
+    // 常聊聚合请求只出现在 isLoggedIn() 通过之后，未登录不会发起必然 401 的请求。
+    expect(source.indexOf('buildFrequentCharactersUrl()')).toBeGreaterThan(source.indexOf('if (!isLoggedIn())'));
+  });
+
+  it('labels the section 常聊角色 with history and 推荐角色 otherwise', () => {
+    expect(source).toContain('getCharacterSectionTitle(hasFrequentCharacters)');
+    expect(source).not.toContain('最近角色');
+  });
+
+  it('keeps frequent character cards clickable to the detail page without showing turn counts', () => {
+    expect(source).toContain('openCharacter(character.id)');
+    expect(source).not.toContain('successfulTurnCount');
+    expect(source).not.toContain('聊天次数');
+  });
 });

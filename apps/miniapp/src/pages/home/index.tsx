@@ -14,14 +14,16 @@ import {
   StatusStateCard,
   TopBar,
 } from '@juben-sha/miniapp-ui';
-import { api } from '../../services/api';
+import { api, isLoggedIn } from '../../services/api';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import {
+  buildFrequentCharactersUrl,
   buildScriptsUrl,
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
   getActiveScriptIndex,
   getCharacterDetailUrl,
+  getCharacterSectionTitle,
   getScriptCatalogUrl,
   getScriptCoverUrl,
   getScriptRoleSelectUrl,
@@ -47,8 +49,17 @@ interface ScriptCard {
   sortOrder: number;
 }
 
+/** 常聊角色接口条目：只取首页卡片需要的字段（成功轮数仅用于服务端排序，不在卡片展示）。 */
+interface FrequentCharacterEntry {
+  characterId: string;
+  characterName: string;
+  characterAvatarUrl: string | null;
+  identity: string;
+}
+
 export default function Home() {
   const [characters, setCharacters] = useState<CharacterCard[]>([]);
+  const [hasFrequentCharacters, setHasFrequentCharacters] = useState(false);
   const [characterError, setCharacterError] = useState('');
   const [scripts, setScripts] = useState<ScriptCard[]>([]);
   const [scriptQuery, setScriptQuery] = useState('');
@@ -100,13 +111,46 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
+
+    const loadRecommendedCharacters = () => {
+      api
+        .get<{ characters: CharacterCard[] }>('/api/characters')
+        .then((data) => {
+          if (cancelled) return;
+          setCharacters(data.characters);
+          setHasFrequentCharacters(false);
+        })
+        .catch(() => {
+          if (!cancelled) setCharacterError('角色列表暂时不可用，请稍后重试');
+        });
+    };
+
+    // 未登录：不发起必然 401 的常聊聚合请求，直接用公共推荐。
+    if (!isLoggedIn()) {
+      loadRecommendedCharacters();
+      return () => { cancelled = true; };
+    }
+
     api
-      .get<{ characters: CharacterCard[] }>('/api/characters')
+      .get<{ characters: FrequentCharacterEntry[] }>(buildFrequentCharactersUrl())
       .then((data) => {
-        if (!cancelled) setCharacters(data.characters);
+        if (cancelled) return;
+        if (data.characters.length === 0) {
+          // 已登录但无历史：回退公共推荐角色。
+          loadRecommendedCharacters();
+          return;
+        }
+        setCharacters(data.characters.map((entry) => ({
+          id: entry.characterId,
+          name: entry.characterName,
+          identity: entry.identity,
+          avatarUrl: entry.characterAvatarUrl,
+        })));
+        setHasFrequentCharacters(true);
       })
       .catch(() => {
-        if (!cancelled) setCharacterError('角色列表暂时不可用，请稍后重试');
+        if (cancelled) return;
+        loadRecommendedCharacters();
       });
     return () => { cancelled = true; };
   }, []);
@@ -171,7 +215,7 @@ export default function Home() {
             <StatusStateCard
               className="theater-home__script-state"
               title="剧本目录暂时不可用"
-              message="稍后重试，或先从最近角色进入详情。"
+              message="稍后重试，或先从角色卡片进入详情。"
               tone="error"
               icon="!"
               primaryText="重新加载"
@@ -241,7 +285,7 @@ export default function Home() {
           )}
         </PageSection>
 
-        <PageSection title={homeSections.characterTitle} kicker={homeSections.characterKicker} className="theater-home__character-section">
+        <PageSection title={getCharacterSectionTitle(hasFrequentCharacters)} kicker={homeSections.characterKicker} className="theater-home__character-section">
           {characters.length > 0 ? (
             <View className="theater-home__grid">
               {characters.map((character) => (

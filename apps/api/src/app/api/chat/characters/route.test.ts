@@ -53,6 +53,18 @@ function setupDbMock(characterRows: unknown[], messageRows: unknown[] = []) {
   return dbMock;
 }
 
+function setupFrequentDbMock(summaries: unknown[], sessionRows: unknown[], messageRows: unknown[] = []) {
+  const dbMock = {
+    select: vi.fn()
+      .mockImplementationOnce(() => chainable(summaries))
+      .mockImplementationOnce(() => chainable(messageRows)),
+    selectDistinctOn: vi.fn(() => chainable(sessionRows)),
+  };
+
+  vi.doMock('@/server/db/index.js', () => ({ db: dbMock }));
+  return dbMock;
+}
+
 function authedRequest(url: string, userId = 'user-1') {
   verifyAuthMock.mockResolvedValue({ userId });
   return new NextRequest(url);
@@ -265,6 +277,122 @@ describe('GET /api/chat/characters', () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: 'database unavailable' });
+  });
+
+it('returns frequent characters with successfulTurnCount and identity in aggregate order', async () => {
+    // 聚合返回顺序（count desc / user last message time desc / sortOrder asc）即为最终顺序。
+    setupFrequentDbMock(
+      [
+        {
+          characterId: 'char-hot',
+          characterName: '白藏',
+          characterAvatarUrl: '/avatar.jpg',
+          identity: '月见庭院的狐神',
+          successfulTurnCount: 12,
+        },
+        {
+          characterId: 'char-quiet',
+          characterName: '清春',
+          characterAvatarUrl: '/avatar-2.jpg',
+          identity: '月见庭院的巫女',
+          successfulTurnCount: 3,
+        },
+      ],
+      [
+        makeCharacterRow({
+          id: 'session-quiet',
+          characterId: 'char-quiet',
+          characterName: '清春',
+          mode: 'free',
+          scriptId: null,
+          updatedAt: new Date('2026-07-15T02:00:00.000Z'),
+        }),
+        makeCharacterRow({
+          id: 'session-hot',
+          characterId: 'char-hot',
+          updatedAt: new Date('2026-07-15T01:00:00.000Z'),
+        }),
+      ],
+      [
+        { sessionId: 'session-quiet', content: '最近消息', role: 'assistant' },
+        { sessionId: 'session-hot', content: '北门有月光', role: 'user' },
+      ],
+    );
+
+    const { GET } = await import('./route.js');
+    const response = await GET(authedRequest('http://localhost/api/chat/characters?sort=turn_count&page=1&limit=4'));
+    const body = await response.json() as {
+      characters: Array<{ characterId: string; successfulTurnCount: number; identity: string; latestSessionId: string }>;
+      hasMore: boolean;
+    };
+
+    expect(body.characters).toEqual([
+      expect.objectContaining({
+        characterId: 'char-hot',
+        successfulTurnCount: 12,
+        identity: '月见庭院的狐神',
+        latestSessionId: 'session-hot',
+        lastUsedMode: 'script',
+        canSend: true,
+      }),
+      expect.objectContaining({
+        characterId: 'char-quiet',
+        successfulTurnCount: 3,
+        identity: '月见庭院的巫女',
+        latestSessionId: 'session-quiet',
+        lastUsedMode: 'free',
+      }),
+    ]);
+    expect(body.page).toBe(1);
+    expect(body.limit).toBe(4);
+    expect(body.hasMore).toBe(false);
+  });
+
+  it('returns an empty frequent list without querying latest sessions when there is no history', async () => {
+    const dbMock = setupFrequentDbMock([], []);
+
+    const { GET } = await import('./route.js');
+    const response = await GET(authedRequest('http://localhost/api/chat/characters?sort=turn_count&limit=4'));
+    const body = await response.json() as { characters: unknown[]; hasMore: boolean };
+
+    expect(body.characters).toEqual([]);
+    expect(body.hasMore).toBe(false);
+    expect(dbMock.selectDistinctOn).not.toHaveBeenCalled();
+  });
+
+  it('reports hasMore for frequent characters when the aggregate exceeds the page', async () => {
+    setupFrequentDbMock(
+      [
+        { characterId: 'char-1', characterName: '白藏', characterAvatarUrl: '/a.jpg', identity: '狐神', successfulTurnCount: 1 },
+        { characterId: 'char-2', characterName: '清春', characterAvatarUrl: '/b.jpg', identity: '巫女', successfulTurnCount: 1 },
+      ],
+      [
+        makeCharacterRow({ id: 's1', characterId: 'char-1' }),
+        makeCharacterRow({ id: 's2', characterId: 'char-2' }),
+      ],
+      [
+        { sessionId: 's1', content: '你好', role: 'user' },
+        { sessionId: 's2', content: '你好', role: 'user' },
+      ],
+    );
+
+    const { GET } = await import('./route.js');
+    const response = await GET(authedRequest('http://localhost/api/chat/characters?sort=turn_count&page=1&limit=1'));
+    const body = await response.json() as { characters: unknown[]; hasMore: boolean };
+
+    expect(body.characters).toHaveLength(1);
+    expect(body.hasMore).toBe(true);
+  });
+
+  it('ignores an unknown sort value and keeps the default chat list semantics', async () => {
+    setupDbMock([makeCharacterRow()], [{ sessionId: 'session-script', content: '你好', role: 'user' }]);
+
+    const { GET } = await import('./route.js');
+    const response = await GET(authedRequest('http://localhost/api/chat/characters?sort=updated_at'));
+    const body = await response.json() as { characters: Array<{ characterId: string; successfulTurnCount?: number }> };
+
+    expect(body.characters).toEqual([expect.objectContaining({ characterId: 'char-1' })]);
+    expect(body.characters[0]?.successfulTurnCount).toBeUndefined();
   });
 
   it('exports an OPTIONS handler', async () => {

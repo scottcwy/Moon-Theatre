@@ -12,10 +12,11 @@ import {
 } from '@juben-sha/miniapp-ui';
 import type { ChatMode, ModelTier, MoodType, StarterQuestions } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
-import { api, streamChat } from '../../services/api';
+import { api, isLoggedIn, streamChat } from '../../services/api';
 import type { StreamCallbacks } from '../../services/api';
 import { navigateBackOrHome } from '../../utils/navigation';
 import { getCharacterAvatarUrl } from '../home/index.model';
+import { buildReturnMessagesReadBody, RETURN_MESSAGES_READ_PATH } from './list.model';
 import {
   applyStarterQuestion,
   createClientMessageId,
@@ -25,6 +26,7 @@ import {
   getFriendlyStreamErrorMessage,
   getInitialModelTier,
   getModeLabel,
+  getReturnMessageReadCharacterId,
   getVisibleStarterQuestions,
   isSuccessfulDoneEvent,
   resolveCharacterScriptMetadata,
@@ -177,6 +179,12 @@ export default function Chat() {
     setMessages((current) => current.map((message) => message.id === tempId ? updater(message) : message));
   }, []);
 
+  const markReturnMessagesRead = useCallback((characterId: string) => {
+    if (!isLoggedIn() || !characterId) return;
+    // fire-and-forget：任意入口打开该角色会话即幂等标记已读，失败静默不阻断页面。
+    void api.post(RETURN_MESSAGES_READ_PATH, buildReturnMessagesReadBody(characterId)).catch(() => {});
+  }, []);
+
   const loadBalance = useCallback(async () => {
     if (!requireAuth()) {
       setPointsBalance(null);
@@ -323,6 +331,7 @@ export default function Chat() {
             setPageError('历史对话加载失败，请重试');
             return;
           }
+          markReturnMessagesRead(getReturnMessageReadCharacterId(routeCharacterId, history.session.characterId) ?? '');
           void loadBalance();
           if (history.session.canSend) {
             await loadCharacterDetail(history.session.characterId, false);
@@ -334,6 +343,7 @@ export default function Chat() {
           setPageError('缺少角色信息');
           return;
         }
+        markReturnMessagesRead(routeCharacterId);
         await loadCharacterDetail(routeCharacterId, true);
         if (!cancelled) void loadBalance();
       } catch (err) {
@@ -346,7 +356,7 @@ export default function Chat() {
     }
     void boot();
     return () => { cancelled = true; };
-  }, [handleAuthError, loadBalance, loadCharacterDetail, loadSessionHistory, routeCharacterId, routeSessionId, verifyAuth]);
+  }, [handleAuthError, loadBalance, loadCharacterDetail, loadSessionHistory, markReturnMessagesRead, routeCharacterId, routeSessionId, verifyAuth]);
 
   const handleBuyPoints = () => {
     if (!requireAuth()) {
@@ -421,6 +431,7 @@ export default function Chat() {
           setPageError('历史对话加载失败，请重试');
           return;
         }
+        markReturnMessagesRead(getReturnMessageReadCharacterId(routeCharacterId, history.session.characterId) ?? '');
         void loadBalance();
         if (history.session.canSend) {
           await loadCharacterDetail(history.session.characterId, false);
@@ -431,6 +442,7 @@ export default function Chat() {
         setPageError('缺少角色信息');
         return;
       }
+      markReturnMessagesRead(routeCharacterId);
       await loadCharacterDetail(routeCharacterId, true);
       void loadBalance();
     } catch (err) {

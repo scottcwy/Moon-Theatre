@@ -211,10 +211,11 @@ unknown
 
 查询参数：
 
-- `q`：可选，匹配角色名和该角色最近一条 user/assistant 消息。
+- `sort`：可选；`turn_count` 时返回常聊角色（按成功对话轮数倒序，模块 6）；缺省或其它值时保持默认聊天列表语义。
+- `q`：可选，匹配角色名和该角色最近一条 user/assistant 消息（仅在默认聊天列表语义下生效）。
 - `page` / `limit`：聚合后分页（默认 `page=1, limit=20`，`limit` 上限 50）。
 
-响应：
+默认响应：
 
 ```json
 {
@@ -235,6 +236,13 @@ unknown
   "hasMore": false
 }
 ```
+
+`sort=turn_count` 时（常聊角色，首页使用 `limit=4`），每条额外返回：
+
+- `successfulTurnCount`：该用户与该角色的成功对话轮数，数据库内按角色聚合计数，只计 `role='assistant'`、`outOfScope=false`、`excludedFromContext=false` 的消息；失败、过滤、越界、system 与预告角色不计。
+- `identity`：角色身份（首页卡片副标题）。
+- 排序：`successfulTurnCount DESC` → 用户最后一条消息时间（该角色所有会话 `role='user'` 消息的最大 `createdAt`）`DESC` → `character.sortOrder ASC`，保证相同轮数时结果稳定。排序口径与模块 7「最近成功聊过」候选共用，不因注入留言前移。
+- 剧本模式与自由对话轮数合计，但只用于排序；点击进入角色详情，不合并两种模式历史。
 
 - `latestSessionId`：该角色最近更新的底层模式会话；列表点击后用它恢复默认模式和历史。
 - `lastMessage`：最近一条 user/assistant 消息预览，最大 100 字符 + 省略号 `…`（U+2026），不暴露 system 消息。
@@ -466,7 +474,7 @@ Authorization: Bearer <jwt>
 
 ### `POST /api/return-messages/read`
 
-（需登录）将当前用户指定角色的全部未读回访留言标记为已读（用户在聊天列表进入该角色会话时自动调用），返回本次更新的条数。重复调用幂等：无未读可更新时返回 `updated: 0`。
+（需登录）将当前用户指定角色的全部未读回访留言标记为已读（用户打开该角色会话时自动调用，聊天列表、首页/详情等任意入口均触发），返回本次更新的条数。重复调用幂等：无未读可更新时返回 `updated: 0`。
 
 请求：
 
@@ -613,7 +621,7 @@ Authorization: Bearer <jwt>
 - 候选角色：① 最近成功聊过的 active 角色（存在成功 assistant 消息的会话，按该会话**用户最后一条消息时间**倒序取第一个）；② 羁绊最高的 active 角色（按 `bondLevel`、`bondExp`、`updatedAt` 倒序取第一个）。两个候选合并时同一角色只保留一条，`recent` 优先。
 - 未读上限 3：某角色未读（`readAt IS NULL`）达到 3 条时不再生成，直到已读后才可能继续生成。
 - 窗口去重：`check` 只补当前 UTC+8 自然日窗口；`sweep` 补齐最近 3 个缺失窗口。窗口已有留言时不重复生成。
-- 投递：生成留言内容后，先写 `messages`（自由会话，`excludedFromContext=true`），再写投递元数据并回填 `messageId`。
+- 投递：生成留言内容后，在单个事务内先插入投递元数据（`messageId` 为空；命中 `(userId, characterId, windowStart)` 唯一索引冲突即中止且不写消息），再查/建自由会话、写 `messages`（`excludedFromContext=true`），最后回填 `messageId`。并发同窗口只会落 1 条消息 + 1 条元数据，不残留孤儿消息。
 - AI 生成：复用 FastClaw `streamChat` 非流式收集，专用短超时 15 秒，内容按 Unicode 码点截断至 200 字符。失败、超时、空内容，或 adapter 兜底流均视为失败，改用运营模板兜底（角色模板优先，无则用通用兜底模板）。生成永不抛错、永不返回空字符串。
 - 副作用边界：留言不进入 Generation Context，不影响点数、羁绊、成就，不计入模块 6 成功轮数；「最近」排序按用户最后一条消息时间，不因注入留言前移。
 - 已读幂等：只更新 `readAt IS NULL` 的行，重复调用返回 `updated: 0`。

@@ -15,6 +15,7 @@ const updateMock = vi.fn();
 const setMock = vi.fn();
 const updateWhereMock = vi.fn();
 const returningMock = vi.fn();
+const transactionMock = vi.fn();
 
 const { mockGenerateReturnMessageContent } = vi.hoisted(() => ({
   mockGenerateReturnMessageContent: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('../../../db/index.js', () => ({
     select: selectMock,
     insert: insertMock,
     update: updateMock,
+    transaction: transactionMock,
   },
 }));
 
@@ -153,6 +155,9 @@ beforeEach(() => {
   selectLimitMock.mockResolvedValue([]);
 
   insertMock.mockReturnValue({ values: valuesMock });
+  transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+    callback({ select: selectMock, insert: insertMock, update: updateMock }),
+  );
   valuesMock.mockReturnValue({
     onConflictDoNothing: onConflictDoNothingMock,
     returning: insertReturningMock,
@@ -242,8 +247,11 @@ describe('selectCandidateCharacters', () => {
     );
     const recentWhere = selectWhereMock.mock.calls[0]?.[0] as Condition;
     expect(recentWhere).toEqual({ type: 'eq', left: 'chatSessions.userId', right: 'user-1' });
-    // 按用户最后一条消息时间倒序取第一个
-    expect(orderByMock).toHaveBeenNthCalledWith(1, { type: 'desc', col: 'messages.createdAt' });
+    // 按用户最后一条消息时间倒序取第一个（与模块 6 共用 latestUserMessageAtSql 口径）
+    expect(orderByMock).toHaveBeenNthCalledWith(
+      1,
+      { type: 'desc', col: expect.objectContaining({ type: 'sql' }) },
+    );
     expect(selectLimitMock).toHaveBeenNthCalledWith(1, 1);
   });
 
@@ -368,29 +376,39 @@ describe('insertReturnMessage', () => {
 describe('generateForWindow', () => {
   const windowStart = new Date('2026-08-04T00:00:00.000Z');
 
-  it('writes message + delivery metadata and creates a free session when none exists', async () => {
+  it('writes delivery metadata first, creates a free session, writes the message, and backfills messageId', async () => {
     const { generateForWindow } = await import('../service.js');
     limitOnce([characterRow]); // character prompt lookup
     insertReturningMock
+      .mockResolvedValueOnce([{ id: 'crm-1' }]) // delivery metadata（先占位，messageId 为空）
       .mockResolvedValueOnce([{ id: 'session-1' }]) // create free session
-      .mockResolvedValueOnce([{ id: 'message-1' }]) // write message
-      .mockResolvedValueOnce([{ id: 'crm-1' }]); // delivery metadata
+      .mockResolvedValueOnce([{ id: 'message-1' }]); // write message
     mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
 
     const created = await generateForWindow('user-1', 'char-1', 'recent', windowStart);
 
     expect(created).toBe(true);
-    // 无活跃自由会话 → 新建（status='active'、mode='free'）
-    expect(insertMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 'chatSessions.id' }));
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    // 事务内先插投递元数据（冲突即止），再新建自由会话（status='active'、mode='free'）
+    expect(insertMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 'characterReturnMessages.id' }));
     expect(valuesMock).toHaveBeenNthCalledWith(1, {
+      userId: 'user-1',
+      characterId: 'char-1',
+      content: '回来吧。',
+      reason: 'recent',
+      windowStart,
+      messageId: null,
+    });
+    expect(insertMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: 'chatSessions.id' }));
+    expect(valuesMock).toHaveBeenNthCalledWith(2, {
       userId: 'user-1',
       characterId: 'char-1',
       status: 'active',
       mode: 'free',
     });
     // 真实 assistant 消息：可见但排除出生成上下文、completed、不计费
-    expect(insertMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: 'messages.id' }));
-    expect(valuesMock).toHaveBeenNthCalledWith(2, {
+    expect(insertMock).toHaveBeenNthCalledWith(3, expect.objectContaining({ id: 'messages.id' }));
+    expect(valuesMock).toHaveBeenNthCalledWith(3, {
       sessionId: 'session-1',
       role: 'assistant',
       content: '回来吧。',
@@ -398,15 +416,9 @@ describe('generateForWindow', () => {
       excludedFromContext: true,
       generationStatus: 'completed',
     });
-    // 投递元数据回填 messageId
-    expect(valuesMock).toHaveBeenNthCalledWith(3, {
-      userId: 'user-1',
-      characterId: 'char-1',
-      content: '回来吧。',
-      reason: 'recent',
-      windowStart,
-      messageId: 'message-1',
-    });
+    // 回填 message_id（事务内 update，不新增孤儿消息）
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'characterReturnMessages.id' }));
+    expect(setMock).toHaveBeenCalledWith({ messageId: 'message-1' });
     expect(leftJoinMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'characterPrompts.id' }),
       { type: 'eq', left: 'characterPrompts.characterId', right: 'characters.id' },
@@ -423,24 +435,25 @@ describe('generateForWindow', () => {
     limitOnce([characterRow]); // character prompt lookup
     orderByMock.mockImplementationOnce(() => queryResult([{ id: 'session-1' }])); // active free session
     insertReturningMock
-      .mockResolvedValueOnce([{ id: 'message-1' }])
-      .mockResolvedValueOnce([{ id: 'crm-1' }]);
+      .mockResolvedValueOnce([{ id: 'crm-1' }]) // delivery metadata（先占位）
+      .mockResolvedValueOnce([{ id: 'message-1' }]); // write message
     mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
 
     const created = await generateForWindow('user-1', 'char-1', 'recent', windowStart);
 
     expect(created).toBe(true);
-    // 命中现有会话 → 只写 message + metadata，不新建会话
+    // 命中现有会话 → 只写 metadata + message，不新建会话
     expect(insertMock).toHaveBeenCalledTimes(2);
     expect(insertMock).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'chatSessions.id' }));
     expect(valuesMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      messageId: null,
+      windowStart,
+    }));
+    expect(valuesMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       sessionId: 'session-1',
       excludedFromContext: true,
     }));
-    expect(valuesMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      messageId: 'message-1',
-      windowStart,
-    }));
+    expect(setMock).toHaveBeenCalledWith({ messageId: 'message-1' });
   });
 
   it('returns false without generating when the character is missing', async () => {
@@ -453,17 +466,30 @@ describe('generateForWindow', () => {
     expect(mockGenerateReturnMessageContent).not.toHaveBeenCalled();
   });
 
-  it('concurrent duplicate window generation only inserts one delivery row (onConflictDoNothing)', async () => {
+  it('concurrent duplicate window generation leaves no orphan message (one message + one delivery row)', async () => {
     const { generateForWindow } = await import('../service.js');
     limitOnce([characterRow]);
     limitOnce([characterRow]);
-    insertReturningMock
-      .mockResolvedValueOnce([{ id: 'session-1' }])
-      .mockResolvedValueOnce([{ id: 'message-1' }])
-      .mockResolvedValueOnce([{ id: 'crm-1' }])
-      .mockResolvedValueOnce([{ id: 'session-2' }])
-      .mockResolvedValueOnce([{ id: 'message-2' }])
-      .mockResolvedValueOnce([]);
+
+    // 确定性模拟窗口唯一索引仲裁：两个事务并发插入元数据时，
+    // 先插入者得行、后到者冲突返回空（不写消息/会话）。
+    let metadataInsertCount = 0;
+    insertReturningMock.mockImplementation(() => {
+      const current = valuesMock.mock.calls[valuesMock.mock.calls.length - 1]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      if (current?.reason !== undefined) {
+        metadataInsertCount += 1;
+        return metadataInsertCount === 1 ? Promise.resolve([{ id: 'crm-1' }]) : Promise.resolve([]);
+      }
+      if (current?.excludedFromContext === true) {
+        return Promise.resolve([{ id: 'message-1' }]);
+      }
+      if (current?.status === 'active' && current?.mode === 'free') {
+        return Promise.resolve([{ id: 'session-1' }]);
+      }
+      return Promise.resolve([]);
+    });
     mockGenerateReturnMessageContent.mockResolvedValue('same window');
 
     const [first, second] = await Promise.all([
@@ -471,34 +497,37 @@ describe('generateForWindow', () => {
       generateForWindow('user-1', 'char-1', 'recent', windowStart),
     ]);
 
-    // 窗口唯一索引保证只落一条投递元数据
+    // 窗口唯一索引保证只有一个投递成功
     expect([first, second].filter(Boolean)).toHaveLength(1);
-    // 2 会话 + 2 消息 + 2 元数据
-    expect(insertMock).toHaveBeenCalledTimes(6);
-    expect(valuesMock).toHaveBeenCalledTimes(6);
+    expect(transactionMock).toHaveBeenCalledTimes(2);
+    // 2 次元数据插入（第二次冲突无行）+ 1 会话 + 1 消息 = 4 次 insert
+    expect(insertMock).toHaveBeenCalledTimes(4);
+    expect(valuesMock).toHaveBeenCalledTimes(4);
     expect(onConflictDoNothingMock).toHaveBeenCalledTimes(2);
     for (const call of onConflictDoNothingMock.mock.calls) {
       const target = (call[0] as { target?: unknown[] }).target ?? [];
       expect(target).toContain('characterReturnMessages.windowStart');
     }
-    // 消息体都写入自由会话且排除出上下文
+    // 并发同窗口只落 1 条消息（不再有孤儿 assistant 消息）
     const messageValues = valuesMock.mock.calls
       .map((call) => call[0] as Record<string, unknown>)
       .filter((values) => values.excludedFromContext === true);
-    expect(messageValues).toHaveLength(2);
+    expect(messageValues).toHaveLength(1);
     for (const values of messageValues) {
       expect(values.role).toBe('assistant');
       expect(values.generationStatus).toBe('completed');
     }
-    // 投递元数据都回填 messageId
+    // 元数据占位 messageId 为空，回填通过事务内 update 完成
     const metadataValues = valuesMock.mock.calls
       .map((call) => call[0] as Record<string, unknown>)
       .filter((values) => values.reason !== undefined);
     expect(metadataValues).toHaveLength(2);
     for (const values of metadataValues) {
-      expect(typeof values.messageId).toBe('string');
+      expect(values.messageId).toBeNull();
       expect(values.windowStart).toEqual(windowStart);
     }
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(setMock).toHaveBeenCalledWith({ messageId: 'message-1' });
   });
 });
 
@@ -552,9 +581,9 @@ describe('checkReturnMessages', () => {
     limitOnce([]); // hasMessageInWindow → missing
     limitOnce([characterRow]); // character prompt lookup
     insertReturningMock
-      .mockResolvedValueOnce([{ id: 'session-1' }])
-      .mockResolvedValueOnce([{ id: 'message-1' }])
-      .mockResolvedValueOnce([{ id: 'crm-1' }]);
+      .mockResolvedValueOnce([{ id: 'crm-1' }]) // delivery metadata（先占位）
+      .mockResolvedValueOnce([{ id: 'session-1' }]) // create free session
+      .mockResolvedValueOnce([{ id: 'message-1' }]); // write message
     mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
 
     const result = await checkReturnMessages('user-1');
@@ -571,9 +600,11 @@ describe('checkReturnMessages', () => {
         content: '回来吧。',
         reason: 'recent',
         windowStart: new Date('2026-08-03T16:00:00.000Z'),
-        messageId: 'message-1',
+        messageId: null,
       }),
     );
+    // 消息写入后事务内回填 message_id
+    expect(setMock).toHaveBeenCalledWith({ messageId: 'message-1' });
     expect(result).toEqual({ messages: [], characterUnread: {} });
   });
 
@@ -591,8 +622,8 @@ describe('checkReturnMessages', () => {
     limitOnce([{ ...characterRow, name: '角色B' }]); // char query b
     mockGenerateReturnMessageContent.mockResolvedValueOnce('留言A').mockResolvedValueOnce('留言B');
     const insertResults = [
-      [{ id: 'session-a' }], [{ id: 'message-a' }], [{ id: 'crm-a' }],
-      [{ id: 'session-b' }], [{ id: 'message-b' }], [{ id: 'crm-b' }],
+      [{ id: 'crm-a' }], [{ id: 'session-a' }], [{ id: 'message-a' }],
+      [{ id: 'crm-b' }], [{ id: 'session-b' }], [{ id: 'message-b' }],
     ];
     insertReturningMock.mockImplementation(() => insertResults.shift() ?? []);
 

@@ -57,4 +57,15 @@ describe('chat list tab bar integration', () => {
     expect(source).not.toContain('chat-list__return-messages');
     expect(source).not.toContain('filterChatSessions');
   });
+
+  it('marks return messages read when opening the chat page from any entry, guarded by login', () => {
+    const chatSource = readFileSync(resolve(__dirname, 'index.tsx'), 'utf8');
+    expect(chatSource).toContain('RETURN_MESSAGES_READ_PATH');
+    expect(chatSource).toContain('buildReturnMessagesReadBody');
+    expect(chatSource).toContain('getReturnMessageReadCharacterId');
+    expect(chatSource).toContain('api.post(RETURN_MESSAGES_READ_PATH, buildReturnMessagesReadBody(characterId))');
+    // 未登录不发必然 401 的已读请求，失败静默
+    expect(chatSource).toContain('if (!isLoggedIn() || !characterId) return;');
+    expect(chatSource).toContain('.catch(() => {})');
+  });
 });
