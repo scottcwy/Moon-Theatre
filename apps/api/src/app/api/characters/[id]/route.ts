@@ -22,7 +22,7 @@ export async function GET(
 
   try {
     const [character, relationship] = await Promise.all([
-      getCharacterById(id, { userId: auth.userId }),
+      getCharacterById(id, { userId: auth.userId, includePrompts: false }),
       getRelationship(auth.userId, id),
     ]);
 
