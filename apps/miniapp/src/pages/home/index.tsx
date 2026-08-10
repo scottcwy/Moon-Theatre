@@ -36,7 +36,7 @@ interface CharacterCard {
   id: string;
   name: string;
   identity: string;
-  avatarUrl: string;
+  avatarUrl: string | null;
 }
 
 interface ScriptCard {
