@@ -59,7 +59,7 @@ function buildViewModel(level: number, totalExp: number): BondViewModel {
     percent,
     remainingExp,
     levelLabel: `羁绊 Lv.${level}`,
-    compactLevelLabel: `♥ Lv.${level}`,
+    compactLevelLabel: `羁绊 Lv.${level}`,
     progressLabel: `${currentLevelExp}/100`,
     remainingLabel: isMaxLevel ? '羁绊已满级' : `距下一级羁绊还需 ${remainingExp}`,
   };

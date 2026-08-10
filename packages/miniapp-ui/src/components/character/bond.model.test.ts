@@ -77,7 +77,7 @@ describe('createBondViewModel', () => {
   it('produces labels correctly', () => {
     const vm = createBondViewModel({ bondLevel: 3, bondExp: 250 });
     expect(vm.levelLabel).toBe('羁绊 Lv.3');
-    expect(vm.compactLevelLabel).toBe('♥ Lv.3');
+    expect(vm.compactLevelLabel).toBe('羁绊 Lv.3');
     expect(vm.progressLabel).toBe('50/100');
     expect(vm.remainingLabel).toBe('距下一级羁绊还需 50');
   });

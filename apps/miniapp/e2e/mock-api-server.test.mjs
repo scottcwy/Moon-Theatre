@@ -145,4 +145,61 @@ describe('authenticated miniapp mock API server', () => {
       await server.close();
     }
   });
+
+  it('serves frequent characters with identity and successfulTurnCount when sort=turn_count', async () => {
+    const server = await startMockApiServer({ port: 0 });
+
+    try {
+      const [frequent, defaultList] = await Promise.all([
+        fetch(`${server.baseUrl}/api/chat/characters?sort=turn_count&limit=4`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20`).then(readJson),
+      ]);
+
+      expect(frequent.characters).toEqual([
+        expect.objectContaining({
+          characterId: 'hakuzo',
+          characterName: '白藏',
+          identity: '月见庭院的狐神',
+          successfulTurnCount: 12,
+        }),
+      ]);
+      expect(defaultList.characters[0]).not.toHaveProperty('identity');
+      expect(defaultList.characters[0]).not.toHaveProperty('successfulTurnCount');
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('serves return-messages check and read endpoints for chat list unread state', async () => {
+    const server = await startMockApiServer({ port: 0 });
+
+    try {
+      const check = await fetch(`${server.baseUrl}/api/return-messages/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).then(readJson);
+      expect(check).toMatchObject({ messages: [], characterUnread: { hakuzo: 1 } });
+
+      const read = await fetch(`${server.baseUrl}/api/return-messages/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: 'hakuzo' }),
+      }).then(readJson);
+      expect(read).toEqual({ updated: 1 });
+
+      expect(server.requests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ method: 'POST', pathname: '/api/return-messages/check' }),
+          expect.objectContaining({
+            method: 'POST',
+            pathname: '/api/return-messages/read',
+            body: { characterId: 'hakuzo' },
+          }),
+        ]),
+      );
+    } finally {
+      await server.close();
+    }
+  });
 });

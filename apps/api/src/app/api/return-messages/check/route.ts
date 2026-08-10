@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { verifyAuth, unauthorizedResponse, successResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { checkReturnMessages } from '@/server/modules/return-messages/index.js';
 
@@ -16,8 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const result = await checkReturnMessages(auth.userId);
     return successResponse(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

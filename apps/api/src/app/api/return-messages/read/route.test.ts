@@ -100,7 +100,7 @@ describe('POST /api/return-messages/read', () => {
     const response = await POST(postRequest({ characterId: 'char-1' }));
 
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: 'database unavailable' });
+    await expect(response.json()).resolves.toEqual({ error: 'internal_error' });
   });
 
   it('exports an OPTIONS handler', async () => {

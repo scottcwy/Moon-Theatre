@@ -276,7 +276,7 @@ describe('GET /api/chat/characters', () => {
     const response = await GET(new NextRequest('http://localhost/api/chat/characters'));
 
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: 'database unavailable' });
+    await expect(response.json()).resolves.toEqual({ error: 'internal_error' });
   });
 
 it('returns frequent characters with successfulTurnCount and identity in aggregate order', async () => {
@@ -324,6 +324,8 @@ it('returns frequent characters with successfulTurnCount and identity in aggrega
     const body = await response.json() as {
       characters: Array<{ characterId: string; successfulTurnCount: number; identity: string; latestSessionId: string }>;
       hasMore: boolean;
+      page: number;
+      limit: number;
     };
 
     expect(body.characters).toEqual([

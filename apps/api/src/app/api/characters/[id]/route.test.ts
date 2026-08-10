@@ -135,6 +135,6 @@ describe('GET /api/characters/[id]', () => {
     const body = await response.json() as { error: string };
 
     expect(response.status).toBe(500);
-    expect(body.error).toBe('DB connection failed');
+    expect(body.error).toBe('internal_error');
   });
 });

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { eq, asc, and, or } from 'drizzle-orm';
 import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { db } from '@/server/db/index.js';
 import { chatSessions, characters, scripts, messages, modelUsageLogs } from '@/server/db/schema';
@@ -123,8 +124,7 @@ export async function GET(
       page,
       limit,
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

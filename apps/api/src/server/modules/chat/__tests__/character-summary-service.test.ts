@@ -145,7 +145,7 @@ beforeEach(() => {
 describe('latestUserMessageAtSql', () => {
   it('defines the user last message time as max role=user createdAt for the outer session', async () => {
     const { latestUserMessageAtSql } = await import('../character-summary-service.js');
-    const fragment = latestUserMessageAtSql() as { type: string; vals: unknown[] };
+    const fragment = latestUserMessageAtSql() as unknown as { type: string; vals: unknown[] };
 
     expect(fragment.type).toBe('sql');
     expect(fragment.vals).toEqual(expect.arrayContaining([

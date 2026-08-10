@@ -16,6 +16,8 @@ const setMock = vi.fn();
 const updateWhereMock = vi.fn();
 const returningMock = vi.fn();
 const transactionMock = vi.fn();
+const executeMock = vi.fn();
+const existsMock = vi.fn();
 
 const { mockGenerateReturnMessageContent } = vi.hoisted(() => ({
   mockGenerateReturnMessageContent: vi.fn(),
@@ -97,6 +99,10 @@ vi.mock('drizzle-orm', () => ({
   isNull: (val: unknown) => ({ type: 'isNull', val }),
   desc: (col: unknown) => ({ type: 'desc', col }),
   sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ type: 'sql', strings, vals }),
+  exists: (subquery: unknown) => {
+    existsMock(subquery);
+    return { type: 'exists', subquery };
+  },
   // 测试用 schema 列是字符串常量，别名等价于原表即可
   alias: (table: unknown) => table,
 }));
@@ -156,8 +162,9 @@ beforeEach(() => {
 
   insertMock.mockReturnValue({ values: valuesMock });
   transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
-    callback({ select: selectMock, insert: insertMock, update: updateMock }),
+    callback({ select: selectMock, insert: insertMock, update: updateMock, execute: executeMock }),
   );
+  executeMock.mockResolvedValue(undefined);
   valuesMock.mockReturnValue({
     onConflictDoNothing: onConflictDoNothingMock,
     returning: insertReturningMock,
@@ -207,9 +214,9 @@ describe('selectCandidateCharacters', () => {
 
     expect(result).toEqual([{ characterId: 'char-recent', reason: 'recent' }]);
 
-    // 角色必须 active（join 条件）
-    expect(innerJoinMock).toHaveBeenNthCalledWith(
-      1,
+    // 角色必须 active（join 条件）；assistant/user 消息改为 EXISTS 子查询，避免 N×M 交叉连接
+    expect(innerJoinMock).toHaveBeenCalledTimes(2); // recent + bond 各一次 characters join
+    expect(innerJoinMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'characters.id' }),
       {
         type: 'and',
@@ -219,34 +226,31 @@ describe('selectCandidateCharacters', () => {
         ],
       },
     );
+    expect(existsMock).toHaveBeenCalledTimes(2);
     // 存在成功 assistant 消息：role/outOfScope/excludedFromContext
-    expect(innerJoinMock).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ id: 'messages.id' }),
-      {
-        type: 'and',
-        conditions: [
-          { type: 'eq', left: 'messages.sessionId', right: 'chatSessions.id' },
-          { type: 'eq', left: 'messages.role', right: 'assistant' },
-          { type: 'eq', left: 'messages.outOfScope', right: false },
-          { type: 'eq', left: 'messages.excludedFromContext', right: false },
-        ],
-      },
-    );
-    // 用户最后一条消息时间：role='user' 自连接，不再用会话 updatedAt
-    expect(innerJoinMock).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({ id: 'messages.id' }),
-      {
-        type: 'and',
-        conditions: [
-          { type: 'eq', left: 'messages.sessionId', right: 'chatSessions.id' },
-          { type: 'eq', left: 'messages.role', right: 'user' },
-        ],
-      },
-    );
-    const recentWhere = selectWhereMock.mock.calls[0]?.[0] as Condition;
-    expect(recentWhere).toEqual({ type: 'eq', left: 'chatSessions.userId', right: 'user-1' });
+    expect(selectWhereMock.mock.calls[0]?.[0]).toEqual({
+      type: 'and',
+      conditions: [
+        { type: 'eq', left: 'messages.sessionId', right: 'chatSessions.id' },
+        { type: 'eq', left: 'messages.role', right: 'assistant' },
+        { type: 'eq', left: 'messages.outOfScope', right: false },
+        { type: 'eq', left: 'messages.excludedFromContext', right: false },
+      ],
+    });
+    // 存在用户消息：role='user'
+    expect(selectWhereMock.mock.calls[1]?.[0]).toEqual({
+      type: 'and',
+      conditions: [
+        { type: 'eq', left: 'messages.sessionId', right: 'chatSessions.id' },
+        { type: 'eq', left: 'messages.role', right: 'user' },
+      ],
+    });
+    const recentWhere = selectWhereMock.mock.calls[2]?.[0] as Condition;
+    expect(findCondition(recentWhere, 'chatSessions.userId')).toEqual({
+      type: 'eq',
+      left: 'chatSessions.userId',
+      right: 'user-1',
+    });
     // 按用户最后一条消息时间倒序取第一个（与模块 6 共用 latestUserMessageAtSql 口径）
     expect(orderByMock).toHaveBeenNthCalledWith(
       1,
@@ -265,7 +269,7 @@ describe('selectCandidateCharacters', () => {
     expect(result).toEqual([{ characterId: 'char-bond', reason: 'bond' }]);
 
     expect(innerJoinMock).toHaveBeenNthCalledWith(
-      4,
+      2,
       expect.objectContaining({ id: 'characters.id' }),
       {
         type: 'and',
@@ -275,7 +279,7 @@ describe('selectCandidateCharacters', () => {
         ],
       },
     );
-    const bondWhere = selectWhereMock.mock.calls[1]?.[0] as Condition;
+    const bondWhere = selectWhereMock.mock.calls[3]?.[0] as Condition; // 0-2 为 recent 的 EXISTS×2 + 主查询
     expect(bondWhere).toEqual({ type: 'eq', left: 'relationships.userId', right: 'user-1' });
     expect(orderByMock).toHaveBeenNthCalledWith(
       2,
@@ -529,6 +533,74 @@ describe('generateForWindow', () => {
     expect(updateMock).toHaveBeenCalledTimes(1);
     expect(setMock).toHaveBeenCalledWith({ messageId: 'message-1' });
   });
+
+  it('concurrent deliveries never push unread above the cap (atomic in-transaction count)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-04T10:00:00.000Z'));
+    const { generateForWindow } = await import('../service.js');
+    const windowStart = new Date('2026-08-03T16:00:00.000Z');
+
+    // 两个投递并发进入（check×check / check×sweep 最终都汇入同一投递事务）。
+    // 预检均已通过，本用例聚焦投递事务内的原子上限校验。
+    limitOnce([characterRow]); // char query 1
+    limitOnce([characterRow]); // char query 2
+
+    // 事务串行化：模拟 advisory lock 效果；锁内 count 看到前一个事务已提交的结果
+    const queue: Array<() => void> = [];
+    let locked = false;
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => {
+      await new Promise<void>((resolve) => {
+        if (!locked) {
+          locked = true;
+          resolve();
+        } else {
+          queue.push(resolve);
+        }
+      });
+      try {
+        return await callback({
+          select: selectMock,
+          insert: insertMock,
+          update: updateMock,
+          execute: executeMock,
+        });
+      } finally {
+        const next = queue.shift();
+        if (next) next();
+        else locked = false;
+      }
+    });
+
+    // 共享的“已提交未读数”：第一个事务在锁内看到 2，插入后变为 3；
+    // 第二个事务在锁内看到 3，直接放弃投递。
+    // （generateForWindow 的 where 调用只有 char query 与事务内 count；
+    //   char query 的行来自 limit，统一返回未读数即可。）
+    let committedUnread = 2;
+    selectWhereMock.mockImplementation(() => queryResult([{ count: committedUnread }]));
+    insertReturningMock.mockImplementation(() => {
+      const values = valuesMock.mock.calls.at(-1)?.[0] as Record<string, unknown> | undefined;
+      if (values && typeof values.windowStart !== 'undefined') {
+        if (committedUnread >= 3) return Promise.resolve([]);
+        committedUnread += 1;
+        return Promise.resolve([{ id: `crm-${committedUnread}` }]);
+      }
+      return Promise.resolve([{ id: 'row' }]);
+    });
+    orderByMock.mockImplementation(() => queryResult([{ id: 'session-1' }])); // 复用已有会话
+
+    const results = await Promise.all([
+      generateForWindow('user-1', 'char-1', 'recent', windowStart),
+      generateForWindow('user-1', 'char-1', 'recent', windowStart),
+    ]);
+
+    expect([...results].sort()).toEqual([false, true]);
+    expect(executeMock).toHaveBeenCalledTimes(2); // 每个投递都先取 advisory lock
+    // 只有 1 条投递元数据真正插入（第二笔在锁内看到未读 3 后放弃）
+    const metadataValues = valuesMock.mock.calls
+      .map((call) => call[0] as Record<string, unknown>)
+      .filter((values) => values.reason !== undefined);
+    expect(metadataValues).toHaveLength(1);
+  });
 });
 
 describe('checkReturnMessages', () => {
@@ -671,6 +743,37 @@ describe('checkReturnMessages', () => {
       val: 'characterReturnMessages.readAt',
     });
   });
+
+  it('does not deliver when the in-transaction count hits the cap (stale pre-check)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-04T10:00:00.000Z'));
+    const { checkReturnMessages } = await import('../service.js');
+    // where 调用顺序（单候选、顺序执行，确定性）：
+    // 1-4 候选查询（recent EXISTS ×2 + 主查询 + bond），5 预检未读，6 hasWindow，7 char，8 事务内 count
+    whereOnce([]); // 1 recent: EXISTS assistant
+    whereOnce([]); // 2 recent: EXISTS user
+    whereOnce([]); // 3 recent: 主查询
+    whereOnce([]); // 4 bond
+    whereOnce([{ count: 2 }]); // 5 unread pre-check（快照已过期：另一路径已插入 1 条）
+    whereOnce([]); // 6 hasMessageInWindow → 当前窗口缺失
+    whereOnce([]); // 7 char query（行来自 limit）
+    whereOnce([{ count: 3 }]); // 8 事务内 count → 3，投递事务拒绝
+    limitOnce([{ characterId: 'char-1' }]); // recent
+    limitOnce([]); // bond
+    limitOnce([]); // hasMessageInWindow → 缺失
+    limitOnce([characterRow]); // char query
+
+    const result = await checkReturnMessages('user-1');
+
+    expect(mockGenerateReturnMessageContent).toHaveBeenCalledTimes(1); // AI 生成已发生
+    expect(executeMock).toHaveBeenCalledTimes(1); // 投递事务先取 advisory lock
+    const metadataValues = valuesMock.mock.calls
+      .map((call) => call[0] as Record<string, unknown>)
+      .filter((values) => values.reason !== undefined);
+    expect(metadataValues).toHaveLength(0); // 上限校验拒绝投递
+    expect(insertMock).toHaveBeenCalledTimes(0);
+    expect(result).toEqual({ messages: [], characterUnread: {} });
+  });
 });
 
 describe('markCharacterMessagesRead', () => {
@@ -809,6 +912,57 @@ describe('sweepReturnMessages', () => {
 
     expect(mockGenerateReturnMessageContent).not.toHaveBeenCalled();
     expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  // where 调用顺序（1 用户 × 1 候选，顺序执行，确定性）：
+  // 1 active users，2-4 recent 候选（EXISTS ×2 + 主查询），5 bond，6 未读预检
+  function setupSweepBudgetBase(unread: number): void {
+    whereOnce([{ id: 'user-1' }]); // 1 active users
+    whereOnce([]); // 2 recent: EXISTS assistant
+    whereOnce([]); // 3 recent: EXISTS user
+    whereOnce([]); // 4 recent: 主查询
+    whereOnce([]); // 5 bond
+    whereOnce([{ count: unread }]); // 6 未读预检
+    limitOnce([{ characterId: 'char-1' }]); // recent
+    limitOnce([]); // bond
+  }
+
+  it('fills at most UNREAD_CAP - 1 missing windows when unread is 1', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-04T10:00:00.000Z'));
+    const { sweepReturnMessages } = await import('../service.js');
+    setupSweepBudgetBase(1);
+    limitOnce([]); // hasWindow 当前日
+    limitOnce([]); // hasWindow 昨日（预算 2 已用尽，前日不再查询）
+    limitOnce([characterRow]); // char query ×2
+    limitOnce([characterRow]);
+    insertReturningMock.mockResolvedValue([{ id: 'x' }]);
+
+    await sweepReturnMessages();
+
+    expect(mockGenerateReturnMessageContent).toHaveBeenCalledTimes(2);
+    const hasWindowCalls = selectWhereMock.mock.calls
+      .map((call) => call[0] as Condition)
+      .filter((condition) => findCondition(condition, 'characterReturnMessages.windowStart') !== undefined);
+    expect(hasWindowCalls).toHaveLength(2);
+  });
+
+  it('fills at most 1 missing window when unread is 2', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-04T10:00:00.000Z'));
+    const { sweepReturnMessages } = await import('../service.js');
+    setupSweepBudgetBase(2);
+    limitOnce([]); // hasWindow 当前日（预算 1，推 1 个任务后停止）
+    limitOnce([characterRow]); // char query
+    insertReturningMock.mockResolvedValue([{ id: 'x' }]);
+
+    await sweepReturnMessages();
+
+    expect(mockGenerateReturnMessageContent).toHaveBeenCalledTimes(1);
+    const hasWindowCalls = selectWhereMock.mock.calls
+      .map((call) => call[0] as Condition)
+      .filter((condition) => findCondition(condition, 'characterReturnMessages.windowStart') !== undefined);
+    expect(hasWindowCalls).toHaveLength(1);
   });
 
   it('skips a character when unread >= 3', async () => {

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getCharacterById } from '@/server/modules/characters/index.js';
 import { getRelationship } from '@/server/modules/relationships/index.js';
 import { verifyAuth, errorResponse, successResponse, unauthorizedResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 
 export async function OPTIONS(request: NextRequest) {
@@ -21,7 +22,7 @@ export async function GET(
 
   try {
     const [character, relationship] = await Promise.all([
-      getCharacterById(id, { userId: auth.userId }),
+      getCharacterById(id, { userId: auth.userId, includePrompts: false }),
       getRelationship(auth.userId, id),
     ]);
 
@@ -38,8 +39,7 @@ export async function GET(
         ? { bondLevel: relationship.bondLevel, bondExp: relationship.bondExp }
         : null,
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }

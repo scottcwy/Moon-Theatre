@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/server/db/index.js';
 import { orders, quotaPackages } from '@/server/db/schema.js';
 import { verifyAuth, unauthorizedResponse, successResponse, errorResponse } from '@/server/middleware/auth.js';
+import { internalErrorResponse } from '@/server/http/errors.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { randomUUID } from 'crypto';
 
@@ -79,8 +80,7 @@ export async function POST(request: NextRequest) {
       },
       201,
     );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return errorResponse(message, 500);
+  } catch {
+    return internalErrorResponse();
   }
 }
