@@ -10,6 +10,7 @@ import {
   ModelTierSegmentedControl,
   StatusStateCard,
 } from '@juben-sha/miniapp-ui';
+import { MODEL_TIER_COSTS } from '@juben-sha/shared';
 import type { ChatMode, ModelTier, MoodType, StarterQuestions } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn, streamChat } from '../../services/api';
@@ -115,7 +116,6 @@ interface ClientMessageLookupResponse {
 
 const EMPTY_STARTER_QUESTIONS: StarterQuestions = { script: [], free: [] };
 const MODEL_TIERS: ModelTier[] = ['casual', 'standard', 'immersive'];
-const MODEL_TIER_COSTS: Record<ModelTier, number> = { casual: 1, standard: 3, immersive: 6 };
 
 function readRouteMode(value?: string): ChatMode | undefined {
   return value === 'script' || value === 'free' ? value : undefined;

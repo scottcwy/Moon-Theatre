@@ -309,11 +309,14 @@ function routeRequest({ req, res, url, body, options, orders }) {
     const page = Number(url.searchParams.get('page') ?? 1);
     const limit = Number(url.searchParams.get('limit') ?? 20);
     const keyword = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+    const sort = (url.searchParams.get('sort') ?? '').trim().toLowerCase();
     const entries = [
       {
         characterId: 'hakuzo',
         characterName: '白藏',
         characterAvatarUrl: '',
+        identity: '月见庭院的狐神',
+        successfulTurnCount: 12,
         latestSessionId: 'session-hakuzo',
         lastUsedMode: 'script',
         lastMessage: '铃声响起时，北门的月光会替你照路。',
@@ -322,12 +325,31 @@ function routeRequest({ req, res, url, body, options, orders }) {
       },
     ].filter((entry) => !keyword || `${entry.characterName} ${entry.lastMessage}`.toLowerCase().includes(keyword));
 
+    // 常聊聚合（home 页）走 sort=turn_count：保留 identity 与 successfulTurnCount；
+    // 默认聊天列表不带这两个字段，与真实接口语义一致。
+    const characters = sort === 'turn_count'
+      ? entries
+      : entries.map(({ identity, successfulTurnCount, ...entry }) => entry);
+
     json(res, 200, {
-      characters: entries,
+      characters,
       page,
       limit,
       hasMore: false,
     });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/return-messages/check') {
+    json(res, 200, {
+      messages: [],
+      characterUnread: { hakuzo: 1 },
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/return-messages/read') {
+    json(res, 200, { updated: 1 });
     return;
   }
 

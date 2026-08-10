@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MODEL_TIER_COSTS } from '@juben-sha/shared';
 
 const insertMock = vi.fn();
 const valuesMock = vi.fn();
@@ -49,9 +50,24 @@ describe('model profile seed', () => {
     await seedModelProfiles();
 
     expect(valuesMock).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ tier: 'casual', provider: 'siliconflow', modelName: 'deepseek-ai/DeepSeek-V4-Flash' }),
-      expect.objectContaining({ tier: 'standard', provider: 'siliconflow', modelName: 'deepseek-ai/DeepSeek-V4-Flash' }),
-      expect.objectContaining({ tier: 'immersive', provider: 'siliconflow', modelName: 'deepseek-ai/DeepSeek-V4-Flash' }),
+      expect.objectContaining({
+        tier: 'casual',
+        provider: 'siliconflow',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+        pointsPerCall: MODEL_TIER_COSTS.casual,
+      }),
+      expect.objectContaining({
+        tier: 'standard',
+        provider: 'siliconflow',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+        pointsPerCall: MODEL_TIER_COSTS.standard,
+      }),
+      expect.objectContaining({
+        tier: 'immersive',
+        provider: 'siliconflow',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+        pointsPerCall: MODEL_TIER_COSTS.immersive,
+      }),
     ]));
     expect(onConflictDoUpdateMock).toHaveBeenCalledWith({
       target: 'modelProfiles.tier',

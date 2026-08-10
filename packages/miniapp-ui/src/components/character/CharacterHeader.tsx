@@ -30,7 +30,7 @@ export function CharacterHeader({
   onPointsTap,
   onBack,
 }: CharacterHeaderProps) {
-  const displayLabel = bond?.compactLevelLabel ?? `♥ Lv.${bondLevel}`;
+  const displayLabel = bond?.compactLevelLabel ?? `羁绊 Lv.${bondLevel}`;
   const progressText = bond?.progressLabel
     ?? (typeof bondExp === 'number' && bondMaxExp !== undefined ? `${bondExp}/${bondMaxExp}` : undefined);
 
