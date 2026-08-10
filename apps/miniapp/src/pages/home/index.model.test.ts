@@ -3,6 +3,7 @@ import {
   buildScriptsUrl,
   getCharacterAvatarUrl,
   getCharacterDecisionBadge,
+  getActiveScriptIndex,
   getCharacterDetailUrl,
   getScriptCoverUrl,
   getScriptRoleSelectUrl,
@@ -79,5 +80,17 @@ describe('home navigation helpers', () => {
       '--topbar-total-height': '103px',
       '--topbar-menu-reserve': '115px',
     });
+  });
+
+  it('maps horizontal scroll position to the nearest script card index', () => {
+    expect(getActiveScriptIndex(0, 1344, 2)).toBe(0);
+    expect(getActiveScriptIndex(684, 1344, 2)).toBe(1);
+    expect(getActiveScriptIndex(400, 2028, 3)).toBe(1);
+    expect(getActiveScriptIndex(1336, 2028, 3)).toBe(2);
+  });
+
+  it('pins a single script to the first dot regardless of scroll values', () => {
+    expect(getActiveScriptIndex(500, 660, 1)).toBe(0);
+    expect(getActiveScriptIndex(500, 0, 0)).toBe(0);
   });
 });

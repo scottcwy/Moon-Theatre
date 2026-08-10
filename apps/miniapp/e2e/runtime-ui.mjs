@@ -36,6 +36,8 @@ const PAGE_CHECKS = [
     required: [
       { label: 'home content', selectors: ['.theater-home__content'] },
       { label: 'home hero section', selectors: ['.theater-home__hero-section'] },
+      { label: 'home script strip or empty state', selectors: ['.theater-home__script-scroll', '.theater-home__empty'] },
+      { label: 'home next section on first screen', selectors: ['.theater-home__character-section'] },
       { label: 'home primary action or empty state', selectors: ['.theater-home__primary-action', '.theater-home__empty'] },
     ],
     nonOverlap: [
