@@ -252,13 +252,13 @@ describe('authenticated miniapp mock API server', () => {
 
       expect(scripts.scripts).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: 'script-moon-tower', slug: 'moon-tower', title: '月满楼' }),
+          expect.objectContaining({ id: 'script-moon-tower', slug: 'moon-tower', title: '流氓叙事' }),
         ]),
       );
       expect(detail).toMatchObject({
         id: 'script-moon-tower',
         slug: 'moon-tower',
-        title: '月满楼',
+        title: '流氓叙事',
         genre: '现代情感',
       });
       expect(detail.characters).toHaveLength(9);
@@ -291,7 +291,7 @@ describe('authenticated miniapp mock API server', () => {
         scriptId: 'script-moon-tower',
         availableModes: ['script', 'free'],
       });
-      expect(chengyuhuai.script).toMatchObject({ id: 'script-moon-tower', title: '月满楼' });
+      expect(chengyuhuai.script).toMatchObject({ id: 'script-moon-tower', title: '流氓叙事' });
       expect(chengyuhuai.starterQuestions.script.length).toBeGreaterThanOrEqual(1);
       expect(chengyuhuai.starterQuestions.free.length).toBeGreaterThanOrEqual(1);
     } finally {
@@ -327,7 +327,7 @@ describe('authenticated miniapp mock API server', () => {
         characterName: '程聿怀',
         mode: 'script',
         scriptId: 'script-moon-tower',
-        scriptTitle: '月满楼',
+        scriptTitle: '流氓叙事',
         canSend: true,
       });
       expect(history.session).toMatchObject({

@@ -40,12 +40,12 @@ const snowTeahouseScript = {
 
 const moonTowerScript = {
   id: 'script-moon-tower',
-  title: '月满楼',
+  title: '流氓叙事',
   description: '一座只在梦的边界营业的酒楼。你来过这里，却想不起什么时候；楼里的每个人都像认识你很久了。',
   worldSetting: '月满楼是一座只在梦的边界营业的酒楼，灯火隔着雾也看得见。来自布雷诺的来客们各自带着未说完的心事在此停驻。',
   slug: 'moon-tower',
   genre: '现代情感',
-  searchKeywords: '月满楼,布雷诺,现代,情感,梦的边界',
+  searchKeywords: '流氓叙事,月满楼,布雷诺,现代,情感,梦的边界',
   coverUrl: '/assets/home/moon-tower-cover.jpg',
   sortOrder: 2,
   status: 'active',

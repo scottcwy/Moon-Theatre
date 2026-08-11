@@ -7,7 +7,7 @@ const moonTower = seedScripts.find((script) => script.slug === 'moon-tower')!;
 describe('seed story data', () => {
   it('defines two scripts and thirteen prompt-driven agents', () => {
     expect(seedScripts.map((script) => script.slug)).toEqual(['moon-garden', 'moon-tower']);
-    expect(seedScripts.map((script) => script.title)).toEqual(['月见庭院：狐神的新娘', '月满楼']);
+    expect(seedScripts.map((script) => script.title)).toEqual(['月见庭院：狐神的新娘', '流氓叙事']);
 
     expect(seedCharacters.map((character) => character.name)).toEqual([
       '白藏',
@@ -37,10 +37,11 @@ describe('seed story data', () => {
   });
 
   it('defines the Moon Tower script', () => {
-    expect(moonTower.title).toBe('月满楼');
+    expect(moonTower.title).toBe('流氓叙事');
     expect(moonTower.slug).toBe('moon-tower');
     expect(moonTower.genre).toBe('现代情感');
     expect(moonTower.searchKeywords).toContain('月满楼');
+    expect(moonTower.searchKeywords).toContain('流氓叙事');
     expect(moonTower.coverUrl).toBeNull();
     expect(moonTower.sortOrder).toBe(1);
     expect(moonTower.status).toBe('active');

@@ -188,8 +188,8 @@ const PAGE_CHECKS = [
         run: async (page) => {
           const titleBox = await getElementBox(page, '.script-select__title');
           const title = titleBox?.text ?? '';
-          if (!title.includes('月满楼')) {
-            throw new Error(`expected 月满楼 script title, got ${title || 'none'}`);
+          if (!title.includes('流氓叙事')) {
+            throw new Error(`expected 流氓叙事 script title, got ${title || 'none'}`);
           }
           const cards = await page.$('.character-poster-card');
           if (cards.length !== 9) {
@@ -227,8 +227,8 @@ const PAGE_CHECKS = [
             throw new Error(`expected 程聿怀 in character hero, got ${heroBox?.text || 'none'}`);
           }
           const scriptSection = await getElementBox(page, '.detail__section--script');
-          if (!scriptSection?.text.includes('月满楼')) {
-            throw new Error(`expected 月满楼 in script section, got ${scriptSection?.text || 'none'}`);
+          if (!scriptSection?.text.includes('流氓叙事')) {
+            throw new Error(`expected 流氓叙事 in script section, got ${scriptSection?.text || 'none'}`);
           }
         },
       },
