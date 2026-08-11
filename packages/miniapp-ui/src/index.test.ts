@@ -14,7 +14,6 @@ describe('@juben-sha/miniapp-ui exports', () => {
       MemoryCard: expect.any(Function),
       MoodChip: expect.any(Function),
       NoticeBlock: expect.any(Function),
-      PageContainer: expect.any(Function),
       PageSection: expect.any(Function),
       PageShell: expect.any(Function),
       PointsBadge: expect.any(Function),
@@ -23,8 +22,6 @@ describe('@juben-sha/miniapp-ui exports', () => {
       SearchBar: expect.any(Function),
       TonalButton: expect.any(Function),
       getPaymentResultCopy: expect.any(Function),
-      getShareIdentityLabel: expect.any(Function),
-      getTierMeta: expect.any(Function),
     }));
   });
 });

@@ -114,9 +114,9 @@ export default function QuotaBuy() {
       const isMock = !params.appId || params.appId === '';
 
       if (isMock) {
-        await api.post(`/api/orders/${order.id}/mock-confirm`);
+        await api.post(`/api/orders/${encodeURIComponent(order.id)}/mock-confirm`);
         Taro.navigateTo({
-          url: `/pages/quota/result?orderId=${order.id}`,
+          url: `/pages/quota/result?orderId=${encodeURIComponent(order.id)}`,
         });
         return;
       }
@@ -135,10 +135,9 @@ export default function QuotaBuy() {
         });
       } catch (payErr) {
         const errMsg = (payErr as { errMsg?: string })?.errMsg ?? '';
+        // 用户主动取消：留在购买页可重新选择额度包；支付失败才跳结果页看订单状态。
         if (errMsg.includes('cancel')) {
-          Taro.navigateTo({
-            url: `/pages/quota/result?orderId=${order.id}`,
-          });
+          Taro.navigateBack();
         } else {
           Taro.navigateTo({
             url: `/pages/quota/result?orderId=${order.id}`,

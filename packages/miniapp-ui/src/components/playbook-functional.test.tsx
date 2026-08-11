@@ -12,7 +12,6 @@ import {
   ChatInputBar,
   ChatSessionRow,
   IconButton,
-  ModelTierSegmentedControl,
   NoticeBlock,
   PageShell,
   PageSection,
@@ -187,7 +186,7 @@ describe('playbook component functional behavior', () => {
       <ChatSessionRow
         characterName="月岛澪"
         contextLabel="剧本 · 月见庭院"
-        preview=""
+        preview="还没有新的剧场消息"
         unreadCount={3}
         readOnly
         onTap={onSessionTap}
@@ -196,7 +195,7 @@ describe('playbook component functional behavior', () => {
     (session.props.onTap as () => void)();
     expect(onSessionTap).toHaveBeenCalledTimes(1);
     expect(session.props.className).toContain('chat-session-row--unread');
-    expect(textContent(session)).toContain('还没有聊天内容');
+    expect(textContent(session)).toContain('还没有新的剧场消息');
     expect(textContent(session)).toContain('剧本 · 月见庭院');
     expect(textContent(session)).toContain('只读');
     expect(textContent(session)).toContain('月');
@@ -293,7 +292,6 @@ describe('playbook component functional behavior', () => {
     const onInput = vi.fn();
     const onSend = vi.fn();
     const onBuyPoints = vi.fn();
-    const onTierChange = vi.fn();
     const onPrimary = vi.fn();
     const onSecondary = vi.fn();
 
@@ -344,18 +342,6 @@ describe('playbook component functional behavior', () => {
     expect(onInput).toHaveBeenCalledWith('月下见');
     expect(onSend).toHaveBeenCalledTimes(1);
 
-    const tierControl = renderElement(
-      <ModelTierSegmentedControl
-        tiers={['casual', 'standard', 'immersive']}
-        activeTier="standard"
-        costs={{ casual: 1, standard: 2, immersive: 3 }}
-        onChange={onTierChange}
-      />,
-    );
-    expect(tierControl.props.className).toContain('model-tier-control');
-    (findAll(tierControl, (node) => String(node.props.className ?? '').includes('model-tier-control__item'))[0]!.props.onTap as () => void)();
-    expect(onTierChange).toHaveBeenCalledWith('casual');
-
     const payment = renderElement(<PaymentResultCard status="paid" onPrimary={onPrimary} onSecondary={onSecondary} />);
     expect(payment.props.className).toContain('payment-result-card--pending');
     (findByClass(payment, 'payment-result-card__primary').props.onTap as () => void)();
@@ -365,7 +351,7 @@ describe('playbook component functional behavior', () => {
 
     const share = renderElement(<SharePreviewCard characterName="白藏" excerpt="分享内容" />);
     expect(share.props.className).toContain('share-preview-card');
-    expect(textContent(share)).toContain('庭院狐神');
+    expect(textContent(share)).toContain('剧中角色');
 
     const achievement = renderElement(<AchievementIcon code="first_chat" />);
     expect(achievement.props.className).toContain('achievement-icon--moon');

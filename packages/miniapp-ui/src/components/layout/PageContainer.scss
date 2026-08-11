@@ -1,29 +1,5 @@
 @use '../../styles/tokens.scss' as *;
 
-.page-container {
-  min-height: 100vh;
-  background-color: $color-background;
-  color: $color-on-background;
-  box-sizing: border-box;
-}
-
-.page-container--default {
-  padding: $space-4;
-  padding-bottom: calc(150rpx + env(safe-area-inset-bottom, $safe-bottom));
-}
-
-.page-container--full {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.page-container--sheet {
-  padding: $space-4;
-  background-color: $color-surface;
-}
-
 .page-shell {
   min-height: 100vh;
   background-color: $color-background;

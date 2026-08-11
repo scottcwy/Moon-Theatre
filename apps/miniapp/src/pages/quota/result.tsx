@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { PageShell, PaymentResultCard, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { navigateBackOrHome } from '../../utils/navigation';
 import './result.scss';
 
 interface OrderDetail {
@@ -43,7 +44,7 @@ export default function QuotaResult() {
           if (!cancelled) setLoading(false);
           return;
         }
-        const data = await api.get<OrderDetail>(`/api/orders/${orderId}`);
+        const data = await api.get<OrderDetail>(`/api/orders/${encodeURIComponent(orderId)}`);
         if (!cancelled) {
           setOrder(data);
           setLoading(false);
@@ -67,7 +68,7 @@ export default function QuotaResult() {
   };
 
   const handleGoBack = () => {
-    Taro.navigateBack();
+    navigateBackOrHome();
   };
 
   if (loading) {

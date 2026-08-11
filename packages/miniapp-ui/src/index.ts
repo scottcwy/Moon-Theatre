@@ -2,15 +2,14 @@ export type { ModelTier, MoodType, PaymentStatus } from './types';
 export {
   getFigmaMoodLabel,
   getPaymentResultCopy,
-  getShareIdentityLabel,
-  getTierMeta,
+  SHARE_IDENTITY_FALLBACK,
 } from './design/figma-system';
 export { Badge, MoodChip, PointsBadge } from './components/ui/Badge';
 export { BaseButton, IconButton, PrimaryButton, TonalButton } from './components/ui/Button';
 export { BalancePanel } from './components/commerce/BalancePanel';
 export { BottomAction } from './components/layout/BottomAction';
 export { TopBar } from './components/layout/TopBar';
-export { NoticeBlock, PageContainer, PageSection, PageShell } from './components/layout/PageContainer';
+export { NoticeBlock, PageSection, PageShell } from './components/layout/PageContainer';
 export { CharacterAvatar } from './components/character/CharacterAvatar';
 export { BondProgress } from './components/character/BondProgress';
 export { CharacterHeader } from './components/character/CharacterHeader';
@@ -20,7 +19,6 @@ export { BOND_LEVEL_NAMES, bondLevelName, createBondViewModel } from './componen
 export { CharacterPosterCard } from './components/discovery/CharacterPosterCard';
 export { ChatBubble } from './components/chat/ChatBubble';
 export { ChatInputBar } from './components/chat/ChatInputBar';
-export { ModelTierSegmentedControl } from './components/chat/ModelTierSegmentedControl';
 export { ChatSessionRow } from './components/lists/ChatSessionRow';
 export { PaymentResultCard } from './components/status/PaymentResultCard';
 export { EmptyState, StatusStateCard } from './components/status/StatusStateCard';

@@ -1,5 +1,5 @@
 import { Text, View } from '@tarojs/components';
-import { getShareIdentityLabel } from '../../design/figma-system';
+import { SHARE_IDENTITY_FALLBACK } from '../../design/figma-system';
 import { bondLevelName } from '../character/bond.model';
 import { Badge } from '../ui/Badge';
 import './SharePreviewCard.scss';
@@ -8,21 +8,23 @@ interface SharePreviewCardProps {
   characterName: string;
   excerpt: string;
   bondLevel?: number;
-  /** 数据驱动身份标签；缺省时回退到名字→标签映射。 */
+  /** 数据驱动身份标签；缺省时回退到通用文案。 */
   identity?: string;
+  /** 传入后右上角渲染可点击的关闭按钮；缺省不渲染，避免无响应的「×」装饰。 */
+  onClose?: () => void;
 }
 
-export function SharePreviewCard({ characterName, excerpt, bondLevel = 1, identity }: SharePreviewCardProps) {
+export function SharePreviewCard({ characterName, excerpt, bondLevel = 1, identity, onClose }: SharePreviewCardProps) {
   return (
     <View className="share-preview-card">
       <View className="share-preview-card__overlay" />
-      <Text className="share-preview-card__close">×</Text>
+      {onClose && <View className="share-preview-card__close" onTap={onClose}>×</View>}
       <View className="share-preview-card__content">
         <Text className="share-preview-card__quote-mark">“</Text>
         <Text className="share-preview-card__quote">{excerpt}</Text>
         <View className="share-preview-card__name-row">
           <Text className="share-preview-card__name">{characterName}</Text>
-          <Badge tone="primary">{identity || getShareIdentityLabel(characterName)}</Badge>
+          <Badge tone="primary">{identity || SHARE_IDENTITY_FALLBACK}</Badge>
         </View>
         <View className="share-preview-card__badges">
           <Badge tone="neutral">♥ 信赖</Badge>

@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { Badge, CharacterPosterCard, PageSection, PageShell, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isApiError } from '../../services/api';
-import { getCharacterAvatarUrl, getScriptCoverUrl } from '../home/index.model';
+import { setCharacterGender } from '../../services/character-gender';
+import type { CharacterGender } from '../../types';
+import { getCharacterAvatarUrl, getCharacterGenderVariants, getScriptCoverUrl } from '../home/index.model';
 import { getScriptCharacterDetailUrl } from './select.model';
 import './select.scss';
 
@@ -51,7 +53,7 @@ export default function ScriptSelect() {
           setLoading(false);
           return;
         }
-        const data = await api.get<ScriptDetail>(`/api/scripts/${scriptId}`);
+        const data = await api.get<ScriptDetail>(`/api/scripts/${encodeURIComponent(scriptId)}`);
         if (!cancelled) setScript(data);
       } catch (err) {
         if (cancelled) return;
@@ -87,6 +89,12 @@ export default function ScriptSelect() {
   }
 
   const coverUrl = getScriptCoverUrl(script);
+  const characterOptions = script.characters.flatMap((character) => {
+    const genders = getCharacterGenderVariants(character.name);
+    return genders.length > 0
+      ? genders.map((gender) => ({ character, gender }))
+      : [{ character, gender: null as CharacterGender | null }];
+  });
 
   return (
     <PageShell variant="scroll" noPadding>
@@ -105,18 +113,21 @@ export default function ScriptSelect() {
           <Text className="script-select__world" userSelect>{script.worldSetting}</Text>
         </PageSection>
 
-        <PageSection title="选择角色" kicker={`${script.characters.length} 位可互动角色`} className="script-select__characters">
+        <PageSection title="选择角色" kicker={`${characterOptions.length} 位可互动角色`} className="script-select__characters">
           {script.characters.length > 0 ? (
             <View className="script-select__grid">
-              {script.characters.map((character) => (
+              {characterOptions.map(({ character, gender }) => (
                 <CharacterPosterCard
-                  key={character.id}
-                  title={character.name}
+                  key={`${character.id}-${gender ?? 'default'}`}
+                  title={gender ? `${character.name}（${gender === 'male' ? '男' : '女'}）` : character.name}
                   subtitle={character.identity}
                   description={character.description}
-                  imageUrl={getCharacterAvatarUrl(character.name, character.avatarUrl)}
-                  badge="查看详情"
-                  onTap={() => Taro.navigateTo({ url: getScriptCharacterDetailUrl(character.id) })}
+                  imageUrl={getCharacterAvatarUrl(character.name, character.avatarUrl, gender)}
+                  badge={gender ? (gender === 'male' ? '男' : '女') : '查看详情'}
+                  onTap={() => {
+                    if (gender) setCharacterGender(character.name, gender);
+                    Taro.navigateTo({ url: getScriptCharacterDetailUrl(character.id) });
+                  }}
                 />
               ))}
             </View>

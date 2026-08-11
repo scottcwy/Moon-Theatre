@@ -28,7 +28,7 @@ export function CharacterPosterCard({
     <View className={classes} onTap={onTap}>
       <View className="character-poster-card__poster">
         {imageUrl ? (
-          <Image className="character-poster-card__image" src={imageUrl} mode="aspectFill" />
+          <Image className="character-poster-card__image" src={imageUrl} mode="aspectFill" lazyLoad />
         ) : (
           <View className="character-poster-card__placeholder">
             <Text className="character-poster-card__placeholder-text">{title.slice(0, 2)}</Text>

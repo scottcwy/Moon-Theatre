@@ -13,12 +13,13 @@ import {
   TopBar,
 } from '@juben-sha/miniapp-ui';
 import { api, isLoggedIn } from '../../services/api';
+import { getCharacterGender } from '../../services/character-gender';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import {
   buildFrequentCharactersUrl,
   buildScriptsUrl,
+  CHARACTER_DECISION_BADGE,
   getCharacterAvatarUrl,
-  getCharacterDecisionBadge,
   getActiveScriptIndex,
   getCharacterDetailUrl,
   getCharacterSectionTitle,
@@ -45,6 +46,7 @@ interface ScriptCard {
   genre: string;
   coverUrl: string | null;
   sortOrder: number;
+  supportsScriptMode?: boolean;
 }
 
 /** 常聊角色接口条目：只取首页卡片需要的字段（成功轮数仅用于服务端排序，不在卡片展示）。 */
@@ -66,6 +68,8 @@ export default function Home() {
   const [selectedCharacterId, setSelectedCharacterId] = useState('');
   const [scriptModeOn, setScriptModeOn] = useState(false);
   const scriptModeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 首个 onShow 与首挂载加载重叠，跳过；之后每次回到首页都刷新角色列表。
+  const skipFirstShowRef = useRef(true);
   const [topBarStyle, setTopBarStyle] = useState<Record<string, string>>(
     getTopBarStyle(calculateTopBarMetrics()),
   );
@@ -109,32 +113,29 @@ export default function Home() {
     setScriptScrollEpoch((epoch) => epoch + 1);
   }, [scripts]);
 
-  useEffect(() => {
-    let cancelled = false;
-
+  // 首页是常驻 tab 页，不做卸载取消；首挂载与返回首页（useDidShow）共用此入口。
+  const loadCharacters = useCallback(() => {
     const loadRecommendedCharacters = () => {
       api
         .get<{ characters: CharacterCard[] }>('/api/characters')
         .then((data) => {
-          if (cancelled) return;
           setCharacters(data.characters);
           setHasFrequentCharacters(false);
         })
         .catch(() => {
-          if (!cancelled) setCharacterError('角色列表暂时不可用，请稍后重试');
+          setCharacterError('角色列表暂时不可用，请稍后重试');
         });
     };
 
     // 未登录：不发起必然 401 的常聊聚合请求，直接用公共推荐。
     if (!isLoggedIn()) {
       loadRecommendedCharacters();
-      return () => { cancelled = true; };
+      return;
     }
 
     api
       .get<{ characters: FrequentCharacterEntry[] }>(buildFrequentCharactersUrl())
       .then((data) => {
-        if (cancelled) return;
         if (data.characters.length === 0) {
           // 已登录但无历史：回退公共推荐角色。
           loadRecommendedCharacters();
@@ -149,11 +150,13 @@ export default function Home() {
         setHasFrequentCharacters(true);
       })
       .catch(() => {
-        if (cancelled) return;
         loadRecommendedCharacters();
       });
-    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    loadCharacters();
+  }, [loadCharacters]);
 
   useEffect(() => {
     try {
@@ -173,8 +176,10 @@ export default function Home() {
     Taro.navigateTo({ url: getCharacterDetailUrl(characterId) });
   };
 
-  const chooseRole = (scriptId: string) => {
-    Taro.navigateTo({ url: getScriptRoleSelectUrl(scriptId) });
+  const chooseRole = (script: ScriptCard) => {
+    // 与剧本目录同范式：仅预览（不支持剧本模式）的剧本不进入选角。
+    if (script.supportsScriptMode === false) return;
+    Taro.navigateTo({ url: getScriptRoleSelectUrl(script.id) });
   };
 
   const openScriptCatalog = () => {
@@ -194,6 +199,11 @@ export default function Home() {
   useDidShow(() => {
     if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
     setScriptModeOn(false);
+    if (skipFirstShowRef.current) {
+      skipFirstShowRef.current = false;
+      return;
+    }
+    loadCharacters();
   });
 
   // 离开首页即取消未触发的跳转定时器，避免用户在 260ms 内点了其它入口后仍被 push 到剧本目录。
@@ -279,10 +289,10 @@ export default function Home() {
                       key={script.id}
                       id={`script-${index}-${scriptScrollEpoch}`}
                       className="theater-home__hero-card"
-                      onTap={() => chooseRole(script.id)}
+                      onTap={() => chooseRole(script)}
                     >
                       {coverUrl ? (
-                        <Image className="theater-home__hero-image" src={coverUrl} mode="aspectFill" />
+                        <Image className="theater-home__hero-image" src={coverUrl} mode="aspectFill" lazyLoad />
                       ) : (
                         <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
                       )}
@@ -326,8 +336,8 @@ export default function Home() {
                   className="theater-home__poster-card"
                   title={character.name}
                   subtitle={character.identity}
-                  imageUrl={getCharacterAvatarUrl(character.name, character.avatarUrl)}
-                  badge={getCharacterDecisionBadge(character.name)}
+                  imageUrl={getCharacterAvatarUrl(character.name, character.avatarUrl, getCharacterGender(character.name))}
+                  badge={CHARACTER_DECISION_BADGE}
                   selected={selectedCharacterId === character.id}
                   onTap={() => openCharacter(character.id)}
                 />

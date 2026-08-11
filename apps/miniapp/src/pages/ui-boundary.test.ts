@@ -128,7 +128,7 @@ describe('production pages use shared miniapp ui', () => {
 
     const scriptSelectPage = fs.readFileSync(path.join(pagesDir, 'script/select.tsx'), 'utf8');
     const scriptSelectStyles = fs.readFileSync(path.join(pagesDir, 'script/select.scss'), 'utf8');
-    expect(scriptSelectPage).toContain("`/api/scripts/${scriptId}`");
+    expect(scriptSelectPage).toContain("`/api/scripts/${encodeURIComponent(scriptId)}`");
     expect(scriptSelectPage).toContain('CharacterPosterCard');
     expect(scriptSelectPage).toContain('getScriptCharacterDetailUrl');
     expect(scriptSelectPage).toContain('<PageSection title="世界观" surface>');

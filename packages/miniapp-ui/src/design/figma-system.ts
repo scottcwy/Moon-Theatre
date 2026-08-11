@@ -1,4 +1,4 @@
-import type { ModelTier, MoodType, PaymentStatus } from '@juben-sha/shared';
+import type { MoodType, PaymentStatus } from '@juben-sha/shared';
 
 export const FIGMA_MOOD_LABELS: Record<MoodType, string> = {
   neutral: '平静',
@@ -12,42 +12,20 @@ export function getFigmaMoodLabel(mood: MoodType): string {
   return FIGMA_MOOD_LABELS[mood] ?? '平静';
 }
 
-export const FIGMA_SHARE_IDENTITY_LABELS: Record<string, string> = {
-  白藏: '庭院狐神',
-  贺茂清玄: '冷面阴阳师',
-  月岛澪: '绘梦画师',
-  久远: '守门武士',
-};
-
-export function getShareIdentityLabel(characterName: string): string {
-  return FIGMA_SHARE_IDENTITY_LABELS[characterName] ?? '剧中角色';
-}
-
-export interface TierMeta {
-  label: string;
-  costLabel: string;
-  activeHint: string;
-}
-
-export function getTierMeta(tier: ModelTier, cost: number): TierMeta {
-  const labels: Record<ModelTier, string> = {
-    casual: '轻松',
-    standard: '标准',
-    immersive: '沉浸',
-  };
-
-  return {
-    label: labels[tier],
-    costLabel: `${cost} 点/次`,
-    activeHint: '当前档位',
-  };
-}
+/** 分享海报身份标签的通用降级文案；差异化身份由后端 character.identity 字段数据驱动。 */
+export const SHARE_IDENTITY_FALLBACK = '剧中角色';
 
 export interface PaymentResultCopy {
   title: string;
   message: string;
   tone: 'success' | 'pending' | 'error' | 'neutral';
 }
+
+const PAYMENT_FAILED_COPY: PaymentResultCopy = {
+  title: '支付失败',
+  message: '支付未完成，可能是支付方式异常、网络异常或平台确认失败。',
+  tone: 'error',
+};
 
 export function getPaymentResultCopy(status: PaymentStatus | string): PaymentResultCopy {
   const config: Record<string, PaymentResultCopy> = {
@@ -71,11 +49,7 @@ export function getPaymentResultCopy(status: PaymentStatus | string): PaymentRes
       message: '订单已创建，请在支付页完成付款。',
       tone: 'pending',
     },
-    failed: {
-      title: '支付失败',
-      message: '支付未完成，可能是支付方式异常、网络异常或平台确认失败。',
-      tone: 'error',
-    },
+    failed: PAYMENT_FAILED_COPY,
     closed: {
       title: '支付取消',
       message: '你已取消本次支付，可以重新选择额度包。',
@@ -88,5 +62,5 @@ export function getPaymentResultCopy(status: PaymentStatus | string): PaymentRes
     },
   };
 
-  return config[status] ?? config.failed!;
+  return config[status] ?? PAYMENT_FAILED_COPY;
 }

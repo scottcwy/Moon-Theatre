@@ -8,8 +8,8 @@ import type { ReturnMessagesCheckResponse } from './return-messages';
 /** 底部 tabBar 中「聊天」tab 的下标（与 app.config.ts tabBar.list 顺序一致）。 */
 const CHAT_TAB_INDEX = 1;
 
-/** 回访留言前台轮询周期：进前台立即查一次，之后每 30s 刷新 tab 红点。 */
-export const CHAT_UNREAD_POLL_INTERVAL_MS = 30_000;
+/** 回访留言前台轮询周期：进前台立即查一次，之后每 45s 刷新 tab 红点。间隔需大于 API 超时（30s），避免慢网络下请求重叠。 */
+export const CHAT_UNREAD_POLL_INTERVAL_MS = 45_000;
 
 /**
  * 按未读数点亮/熄灭底部「聊天」tab 红点（微信语义：纯圆点，无数字；

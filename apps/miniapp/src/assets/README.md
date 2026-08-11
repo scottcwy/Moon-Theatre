@@ -7,8 +7,8 @@
 | 目录 | 用途 | 引用方 | 说明 |
 |---|---|---|---|
 | `icons/` | 底部 tabBar 图标 | `src/app.config.ts` | 每 tab 两张：`name.png`（未选中）+ `name-active.png`（选中） |
-| `characters/` | 角色立绘/头像 | `src/pages/home/index.model.ts` | 900×900 JPG，`LOCAL_CHARACTER_AVATARS` 按角色名映射；流氓叙事 9 角色头像为占位图（chengyuhuai/jiangbojia/chengzouliu/miaohongmo/delilah/isaac/qiangqingci/odin/archie），正式图到位后替换 |
-| `home/` | 首页脚本封面 | `src/pages/home/index.model.ts`、`src/pages/chat/list.tsx` | `LOCAL_SCRIPT_COVERS` 按 slug 映射；`moon-tower-cover.jpg` 为占位封面，正式图到位后替换 |
+| `characters/` | 角色立绘/头像 | `src/pages/home/index.model.ts` | 竖版海报头像（560×747~792 JPG，q72 压缩），`LOCAL_CHARACTER_AVATARS` 按角色名映射；流氓叙事 9 角色已替换为正式海报，程聿怀/羌青瓷另有性别变体（`chengyuhuai-female.jpg`、`qiangqingci-male.jpg`），选角时按本地选择切换 |
+| `home/` | 首页脚本封面 | `src/pages/home/index.model.ts`、`src/pages/chat/list.tsx` | `LOCAL_SCRIPT_COVERS` 按 slug 映射；`moon-tower-cover.jpg` 为《流氓叙事》剧本主海报（700×996，q72 压缩，源图：官方售后海报 `剧本主海报.jpg`） |
 | `login/` | 登录页背景 | `src/pages/login/index.scss` | 通过 CSS `url()` 引用 |
 | `lordicon/` | 成就动画图标（WebP） | `AchievementIcon`（`packages/miniapp-ui`） | 详见目录内 `README.md`，注意保留 Lordicon 署名 |
 
@@ -26,3 +26,4 @@
 - 删除资源前先全仓 grep 引用，确认无引用再删。
 - 与视觉 token 相关的颜色走 `styles/tokens.scss`，不要在资源里硬编码业务色。
 - 占位图统一用品牌酒红底 + 角色名文字（本目录 `characters/`、`home/` 内标注「占位」的 JPG）；正式美术图到位后整体替换，替换前先全仓 grep 确认引用。
+- 头像源图是竖版海报，显示端统一 `aspectFill` 裁切；替换图源时抽查圆形小头像与详情页 hero 的裁切效果。

@@ -229,7 +229,7 @@ export default function Profile() {
                   <Input
                     className="profile__name-input"
                     value={preferredNameDraft}
-                    maxlength={40}
+                    maxlength={20}
                     placeholder="输入对话称呼"
                     placeholderClass="profile__name-placeholder"
                     disabled={savingPreferredName}

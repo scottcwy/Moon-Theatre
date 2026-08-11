@@ -2,12 +2,6 @@ import { Text, View } from '@tarojs/components';
 import type { ReactNode } from 'react';
 import './PageContainer.scss';
 
-interface PageContainerProps {
-  children: ReactNode;
-  variant?: 'default' | 'full' | 'sheet';
-  className?: string;
-}
-
 interface PageShellProps {
   children: ReactNode;
   variant?: 'scroll' | 'full';
@@ -28,11 +22,6 @@ interface PageSectionProps {
 interface NoticeBlockProps {
   children: ReactNode;
   className?: string;
-}
-
-export function PageContainer({ children, variant = 'default', className = '' }: PageContainerProps) {
-  const classes = ['page-container', `page-container--${variant}`, className].filter(Boolean).join(' ');
-  return <View className={classes}>{children}</View>;
 }
 
 export function PageSection({ children, title, kicker, surface = false, className = '' }: PageSectionProps) {

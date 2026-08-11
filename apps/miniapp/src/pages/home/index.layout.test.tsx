@@ -25,7 +25,7 @@ describe('home hot scripts layout', () => {
     expect(styleSource).not.toContain('-webkit-line-clamp: 3');
     expect(styleSource).toContain('overflow: hidden');
     expect(source).not.toContain('theater-home__hero-desc');
-    expect(source).toContain('onTap={() => chooseRole(script.id)}');
+    expect(source).toContain('onTap={() => chooseRole(script)}');
   });
 
   it('renders page dots only when more than one script exists', () => {

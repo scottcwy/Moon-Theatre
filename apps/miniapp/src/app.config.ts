@@ -30,7 +30,7 @@ export default defineAppConfig({
     backgroundColor: '#FFFBF8',
     backgroundTextStyle: 'dark',
     navigationBarBackgroundColor: '#FFFBF8',
-    navigationBarTitleText: '剧本杀',
+    navigationBarTitleText: '月满楼',
     navigationBarTextStyle: 'black',
   },
   networkTimeout: {

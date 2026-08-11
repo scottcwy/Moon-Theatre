@@ -5,6 +5,8 @@
   align-items: center;
   padding: $space-3 $space-4;
   padding-top: calc($status-bar-height + $space-3);
+  // 自定义导航下右上角是微信胶囊（约 87px 宽 + 边距），预留 100px 避免遮挡积分徽章。
+  padding-right: calc(100px + $space-4);
   background-color: $color-background;
   box-sizing: border-box;
 }

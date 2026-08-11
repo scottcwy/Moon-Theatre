@@ -1,10 +1,11 @@
 import { View, Canvas } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useEffect, useState } from 'react';
-import { BottomAction, createBondViewModel, PrimaryButton, SharePreviewCard, TonalButton, getShareIdentityLabel } from '@juben-sha/miniapp-ui';
+import { BottomAction, createBondViewModel, PrimaryButton, SHARE_IDENTITY_FALLBACK, SharePreviewCard, TonalButton } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import { FALLBACK_SHARE_EXCERPT, getShareExcerpt } from './preview.model';
+import { navigateBackOrHome } from '../../utils/navigation';
 import './preview.scss';
 
 const CANVAS_ID = 'shareCanvas';
@@ -59,7 +60,7 @@ export default function SharePreview() {
   }, [characterId, handleAuthError, verifyAuth]);
 
   const displayName = character?.name?.trim() || '月满楼';
-  const displayIdentity = character?.identity?.trim() || getShareIdentityLabel(displayName);
+  const displayIdentity = character?.identity?.trim() || SHARE_IDENTITY_FALLBACK;
   const bondViewModel = createBondViewModel(character?.relationship);
 
   const drawPoster = () => {
@@ -88,7 +89,8 @@ export default function SharePreview() {
     ctx.fillRect(250, 580, 190, 56);
     ctx.setFillStyle('#fff7f8');
     ctx.setFontSize(22);
-    ctx.fillText(displayIdentity, 275, 618);
+    // 底块 250..440，文字起点 275，右侧留 25px 内边距 → 可用 140px，超长截断加省略号。
+    ctx.fillText(fitCanvasTextToWidth(ctx, displayIdentity, 140), 275, 618);
 
     ctx.setFillStyle('#f6e6ea');
     ctx.setFontSize(22);
@@ -123,7 +125,15 @@ export default function SharePreview() {
               Taro.showToast({ title: '已保存到相册', icon: 'success' });
             },
             fail() {
-              Taro.showToast({ title: '保存失败，请检查相册权限', icon: 'none' });
+              Taro.showModal({
+                title: '保存失败',
+                content: '需要相册权限才能保存海报，请在设置中开启后重试。',
+                confirmText: '去设置',
+                cancelText: '取消',
+                success(modal) {
+                  if (modal.confirm) void Taro.openSetting();
+                },
+              });
             },
             complete() {
               Taro.hideLoading();
@@ -142,7 +152,7 @@ export default function SharePreview() {
 
   return (
     <View className="share-preview-page">
-      <SharePreviewCard characterName={displayName} excerpt={excerpt} bondLevel={bondViewModel.level} identity={displayIdentity} />
+      <SharePreviewCard characterName={displayName} excerpt={excerpt} bondLevel={bondViewModel.level} identity={displayIdentity} onClose={navigateBackOrHome} />
 
       <BottomAction variant="dark">
         <View className="share-preview-page__actions">
@@ -162,6 +172,15 @@ export default function SharePreview() {
       />
     </View>
   );
+}
+
+function fitCanvasTextToWidth(ctx: Taro.CanvasContext, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let trimmed = text;
+  while (trimmed && ctx.measureText(`${trimmed}…`).width > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return trimmed ? `${trimmed}…` : '';
 }
 
 function wrapCanvasText(

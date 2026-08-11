@@ -15,7 +15,7 @@ export function CharacterAvatar({ name, src, size = 'md', online = false, classN
   return (
     <View className={classes}>
       {src ? (
-        <Image className="character-avatar__image" src={src} mode="aspectFill" />
+        <Image className="character-avatar__image" src={src} mode="aspectFill" lazyLoad={size !== 'hero'} />
       ) : (
         <View className="character-avatar__placeholder">
           <Text className="character-avatar__text">{name[0] ?? '角'}</Text>

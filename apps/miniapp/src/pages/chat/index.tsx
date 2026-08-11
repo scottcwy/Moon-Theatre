@@ -13,6 +13,7 @@ import { MODEL_TIER_COSTS } from '@juben-sha/shared';
 import type { ChatMode, MoodType, StarterQuestions } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn, streamChat } from '../../services/api';
+import { getCharacterGender } from '../../services/character-gender';
 import type { StreamCallbacks } from '../../services/api';
 import { navigateBackOrHome } from '../../utils/navigation';
 import { getCharacterAvatarUrl } from '../home/index.model';
@@ -367,7 +368,7 @@ export default function Chat() {
 
   const handleShare = () => {
     if (!character?.id) return;
-    Taro.navigateTo({ url: `/pages/share/preview?characterId=${character.id}` });
+    Taro.navigateTo({ url: `/pages/share/preview?characterId=${encodeURIComponent(character.id)}` });
   };
 
   const handleModeChange = async (targetMode: ChatMode) => {
@@ -618,7 +619,7 @@ export default function Chat() {
   const isInsufficientPoints = typeof pointsBalance === 'number' && pointsBalance < selectedTierCost;
   const scopeUnavailable = mode === 'script' && !scriptId;
   const interactionDisabled = sending || scopeSwitching || !canSend || scopeUnavailable;
-  const characterAvatarUrl = character ? getCharacterAvatarUrl(character.name, character.avatarUrl) : '';
+  const characterAvatarUrl = character ? getCharacterAvatarUrl(character.name, character.avatarUrl, getCharacterGender(character.name)) : '';
   const bondViewModel = createBondViewModel({ bondLevel, bondExp });
   const visibleStarterQuestions = getVisibleStarterQuestions(starterQuestions, mode, hasSuccessfulTurn);
 
@@ -782,4 +783,5 @@ export default function Chat() {
 
 definePageConfig({
   navigationBarTitleText: '对话',
+  navigationStyle: 'custom',
 });

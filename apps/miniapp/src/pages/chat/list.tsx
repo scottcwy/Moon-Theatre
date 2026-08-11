@@ -6,6 +6,7 @@ import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard } fro
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import { syncChatTabRedDot } from '../../services/chat-red-dot';
+import { getCharacterGender } from '../../services/character-gender';
 import type { ChatMode } from '../../types';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import { getCharacterAvatarUrl } from '../home/index.model';
@@ -234,7 +235,7 @@ export default function ChatList() {
                   key={entry.characterId}
                   className="chat-list__item"
                   characterName={entry.characterName}
-                  avatarUrl={getCharacterAvatarUrl(entry.characterName, entry.characterAvatarUrl)}
+                  avatarUrl={getCharacterAvatarUrl(entry.characterName, entry.characterAvatarUrl, getCharacterGender(entry.characterName))}
                   readOnly={!entry.canSend}
                   timeLabel={getSessionTimeLabel(entry.updatedAt)}
                   preview={getChatPreviewText(entry.lastMessage)}

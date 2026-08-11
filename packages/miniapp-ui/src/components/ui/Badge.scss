@@ -26,8 +26,8 @@
 }
 
 .ui-badge--primary {
-  background-color: #f6d3de;
-  color: #7f294a;
+  background-color: $color-primary-container;
+  color: $color-primary;
 }
 
 .ui-badge--secondary {
@@ -66,7 +66,7 @@
 }
 
 .ui-mood-chip--happy .ui-mood-chip__dot {
-  color: #7f294a;
+  color: $color-primary;
 }
 
 .ui-mood-chip--neutral .ui-mood-chip__dot {

@@ -4,6 +4,8 @@ export type { ModelTier, MoodType, OrderStatus, PaymentStatus, WalletTxType } fr
 
 export type ChatMode = 'script' | 'free';
 
+export type CharacterGender = 'male' | 'female';
+
 export interface StarterQuestions {
   script: string[];
   free: string[];

@@ -13,6 +13,7 @@ import {
 } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isApiError } from '../../services/api';
+import { getCharacterGender } from '../../services/character-gender';
 import type { ChatMode, MoodType, StarterQuestions } from '../../types';
 import { navigateBackOrHome } from '../../utils/navigation';
 import { getCharacterAvatarUrl } from '../home/index.model';
@@ -153,7 +154,7 @@ export default function CharacterDetail() {
         name={character.name}
         identity={character.identity}
         description={character.description}
-        avatarUrl={getCharacterAvatarUrl(character.name, character.avatarUrl)}
+        avatarUrl={getCharacterAvatarUrl(character.name, character.avatarUrl, getCharacterGender(character.name))}
         relationship={character.initialRelationship}
         bond={bondViewModel}
         mood={mood}
@@ -192,4 +193,5 @@ export default function CharacterDetail() {
 
 definePageConfig({
   navigationBarTitleText: '角色详情',
+  navigationStyle: 'custom',
 });

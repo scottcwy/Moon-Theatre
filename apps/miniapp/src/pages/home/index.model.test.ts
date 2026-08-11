@@ -3,7 +3,7 @@ import {
   buildFrequentCharactersUrl,
   buildScriptsUrl,
   getCharacterAvatarUrl,
-  getCharacterDecisionBadge,
+  getCharacterGenderVariants,
   getActiveScriptIndex,
   getCharacterDetailUrl,
   getCharacterSectionTitle,
@@ -75,14 +75,47 @@ describe('home navigation helpers', () => {
     expect(getCharacterAvatarUrl('贺茂清玄', null)).toBe('/assets/characters/kiyoharu.jpg');
   });
 
+  it('maps every 流氓叙事 character to a local portrait', () => {
+    expect(getCharacterAvatarUrl('程聿怀', '')).toBe('/assets/characters/chengyuhuai.jpg');
+    expect(getCharacterAvatarUrl('蒋伯驾', '')).toBe('/assets/characters/jiangbojia.jpg');
+    expect(getCharacterAvatarUrl('程走柳', '')).toBe('/assets/characters/chengzouliu.jpg');
+    expect(getCharacterAvatarUrl('缪宏谟', '')).toBe('/assets/characters/miaohongmo.jpg');
+    expect(getCharacterAvatarUrl('黛利拉', '')).toBe('/assets/characters/delilah.jpg');
+    expect(getCharacterAvatarUrl('以撒', '')).toBe('/assets/characters/isaac.jpg');
+    expect(getCharacterAvatarUrl('羌青瓷', '')).toBe('/assets/characters/qiangqingci.jpg');
+    expect(getCharacterAvatarUrl('奥丁', '')).toBe('/assets/characters/odin.jpg');
+    expect(getCharacterAvatarUrl('阿奇', '')).toBe('/assets/characters/archie.jpg');
+  });
+
   it('keeps explicit API avatar urls when provided', () => {
     expect(getCharacterAvatarUrl('白藏', 'https://cdn.example.com/hakuzo.webp')).toBe('https://cdn.example.com/hakuzo.webp');
   });
 
-  it('adds decision badges to character cards instead of a generic role label', () => {
-    expect(getCharacterDecisionBadge('白藏')).toBe('新手友好');
-    expect(getCharacterDecisionBadge('贺茂清玄')).toBe('隐藏线多');
-    expect(getCharacterDecisionBadge('陌生角色')).toBe('可选角色');
+  it('switches dual-poster characters by gender variant', () => {
+    expect(getCharacterAvatarUrl('程聿怀', '', 'male')).toBe('/assets/characters/chengyuhuai.jpg');
+    expect(getCharacterAvatarUrl('程聿怀', '', 'female')).toBe('/assets/characters/chengyuhuai-female.jpg');
+    expect(getCharacterAvatarUrl('羌青瓷', '', 'male')).toBe('/assets/characters/qiangqingci-male.jpg');
+    expect(getCharacterAvatarUrl('羌青瓷', '', 'female')).toBe('/assets/characters/qiangqingci.jpg');
+  });
+
+  it('lets a gender variant override an explicit avatar url for dual-poster characters', () => {
+    expect(getCharacterAvatarUrl('程聿怀', '/assets/characters/chengyuhuai.jpg', 'female')).toBe('/assets/characters/chengyuhuai-female.jpg');
+    expect(getCharacterAvatarUrl('程聿怀', '/assets/characters/chengyuhuai.jpg')).toBe('/assets/characters/chengyuhuai.jpg');
+  });
+
+  it('ignores gender for characters without dual posters', () => {
+    expect(getCharacterAvatarUrl('以撒', '', 'female')).toBe('/assets/characters/isaac.jpg');
+    expect(getCharacterAvatarUrl('程走柳', '', 'male')).toBe('/assets/characters/chengzouliu.jpg');
+  });
+
+  it('lists gender variants only for dual-poster characters', () => {
+    expect(getCharacterGenderVariants('程聿怀')).toEqual(['male', 'female']);
+    expect(getCharacterGenderVariants('羌青瓷')).toEqual(['male', 'female']);
+    expect(getCharacterGenderVariants('以撒')).toEqual([]);
+  });
+
+  it('falls back to empty avatar for unknown characters', () => {
+    expect(getCharacterAvatarUrl('陌生角色', '')).toBe('');
   });
 
   it('calculates top bar space from status bar and WeChat capsule geometry', () => {

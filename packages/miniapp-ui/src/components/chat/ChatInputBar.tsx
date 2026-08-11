@@ -36,6 +36,8 @@ export function ChatInputBar({
           type="text"
           placeholder={placeholder}
           value={value}
+          // 与服务端 /api/chat/stream 的 message 上限（zod max 5000）对齐。
+          maxlength={5000}
           onInput={(e) => onInput(e.detail.value)}
           confirmType="send"
           onConfirm={onSend}

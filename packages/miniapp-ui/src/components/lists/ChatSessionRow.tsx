@@ -29,13 +29,14 @@ export function ChatSessionRow({
 }: ChatSessionRowProps) {
   const hasUnread = unreadCount > 0;
   const classes = ['chat-session-row', hasUnread ? 'chat-session-row--unread' : '', className].filter(Boolean).join(' ');
-  const previewText = preview || '还没有聊天内容';
+  // 空预览文案由调用方统一给出（chat/list.model.ts），组件不再保留第二套默认文案。
+  const previewText = preview || '';
 
   return (
     <View className={classes} onTap={onTap}>
       <View className="chat-session-row__avatar">
         {avatarUrl ? (
-          <Image className="chat-session-row__avatar-image" src={avatarUrl} mode="aspectFill" />
+          <Image className="chat-session-row__avatar-image" src={avatarUrl} mode="aspectFill" lazyLoad />
         ) : (
           <View className="chat-session-row__avatar-placeholder">
             <Text className="chat-session-row__avatar-text">{characterName[0] || '角'}</Text>

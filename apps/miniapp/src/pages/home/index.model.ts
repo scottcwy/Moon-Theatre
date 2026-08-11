@@ -1,3 +1,5 @@
+import type { CharacterGender } from '../../types';
+
 export interface ScriptCoverInput {
   slug: string;
   coverUrl?: string | null;
@@ -48,12 +50,20 @@ const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
   阿奇: '/assets/characters/archie.jpg',
 };
 
-const CHARACTER_DECISION_BADGES: Record<string, string> = {
-  白藏: '新手友好',
-  贺茂清玄: '隐藏线多',
-  月岛澪: '高戏剧张力',
-  久远: '守护线',
+/** 有男女双版本海报的角色：选角时按性别切换头像。默认版本与 LOCAL_CHARACTER_AVATARS 一致。 */
+const CHARACTER_GENDER_VARIANTS: Record<string, Partial<Record<CharacterGender, string>>> = {
+  程聿怀: {
+    male: '/assets/characters/chengyuhuai.jpg',
+    female: '/assets/characters/chengyuhuai-female.jpg',
+  },
+  羌青瓷: {
+    male: '/assets/characters/qiangqingci-male.jpg',
+    female: '/assets/characters/qiangqingci.jpg',
+  },
 };
+
+/** 角色卡片决策建议徽标的通用文案；差异化建议后续由后端字段数据驱动。 */
+export const CHARACTER_DECISION_BADGE = '可选角色';
 
 export function getCharacterDetailUrl(characterId: string): string {
   const id = characterId.trim();
@@ -86,14 +96,18 @@ export function getScriptCoverUrl(script: ScriptCoverInput): string {
   return LOCAL_SCRIPT_COVERS[script.slug] || '';
 }
 
-export function getCharacterAvatarUrl(name: string, avatarUrl?: string | null): string {
+export function getCharacterAvatarUrl(name: string, avatarUrl?: string | null, gender?: CharacterGender | null): string {
   const explicitUrl = avatarUrl?.trim();
+  const variantUrl = gender ? CHARACTER_GENDER_VARIANTS[name]?.[gender] : undefined;
+  if (variantUrl) return variantUrl;
   if (explicitUrl) return explicitUrl;
   return LOCAL_CHARACTER_AVATARS[name] ?? '';
 }
 
-export function getCharacterDecisionBadge(name: string): string {
-  return CHARACTER_DECISION_BADGES[name] ?? '可选角色';
+/** 返回角色可选的性别变体；无男女双版本的角色返回空数组。 */
+export function getCharacterGenderVariants(name: string): CharacterGender[] {
+  const variants = CHARACTER_GENDER_VARIANTS[name];
+  return variants ? (Object.keys(variants) as CharacterGender[]) : [];
 }
 
 /**
