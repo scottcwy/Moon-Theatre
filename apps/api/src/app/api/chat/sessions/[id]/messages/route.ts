@@ -125,7 +125,7 @@ export async function GET(
       page,
       limit,
     });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

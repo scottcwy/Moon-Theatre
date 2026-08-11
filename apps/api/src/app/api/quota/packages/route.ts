@@ -19,7 +19,7 @@ export async function GET() {
       .orderBy(asc(quotaPackages.sortOrder));
 
     return successResponse({ packages: rows });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

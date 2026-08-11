@@ -26,7 +26,7 @@ export async function GET() {
       .orderBy(asc(modelProfiles.pointsPerCall));
 
     return successResponse({ profiles: rows });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

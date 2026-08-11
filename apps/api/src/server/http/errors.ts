@@ -25,7 +25,11 @@ export class ValidationError extends HttpError {
   }
 }
 
-export function internalErrorResponse(): NextResponse {
+export function internalErrorResponse(error?: unknown): NextResponse {
+  if (error !== undefined) {
+    // 诊断细节只写服务端日志，不向客户端泄漏原始异常（稳定错误码 internal_error）。
+    console.error('[internalError] unhandled error:', error);
+  }
   return NextResponse.json({ error: 'internal_error' }, { status: 500 });
 }
 

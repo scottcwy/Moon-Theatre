@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     // 默认：按角色聚合的聊天列表（模块 7 依赖该语义与字段，保持不变）。
     const { entries, hasMore } = await getCharacterChatEntries(auth.userId, page, limit, keyword);
     return successResponse({ characters: entries, page, limit, hasMore });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

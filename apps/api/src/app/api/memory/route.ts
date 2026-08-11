@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     const groups = await getGroupedMemoriesForUser(auth.userId);
     return successResponse({ groups });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

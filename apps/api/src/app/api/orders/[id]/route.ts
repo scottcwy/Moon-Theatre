@@ -52,7 +52,7 @@ export async function GET(
     }
 
     return successResponse(order);
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }
