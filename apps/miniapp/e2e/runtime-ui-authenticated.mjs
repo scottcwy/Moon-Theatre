@@ -170,6 +170,102 @@ const PAGE_CHECKS = [
     ],
   },
   {
+    name: 'auth-moon-tower-script-select',
+    route: 'pages/script/select?scriptId=script-moon-tower',
+    expectedPath: 'pages/script/select',
+    open: 'reLaunch',
+    ready: ['.script-select__hero'],
+    settleMs: 1200,
+    required: [
+      { label: 'script hero', selectors: ['.script-select__hero'] },
+      { label: 'script world setting', selectors: ['.script-select__world'], allowOutsideViewport: true },
+      { label: 'script character grid', selectors: ['.script-select__grid'], allowOutsideViewport: true },
+      { label: 'script character card', selectors: ['.character-poster-card'], allowOutsideViewport: true },
+    ],
+    assertions: [
+      {
+        label: 'moon-tower script select shows the script title and all nine character posters',
+        run: async (page) => {
+          const titleBox = await getElementBox(page, '.script-select__title');
+          const title = titleBox?.text ?? '';
+          if (!title.includes('月满楼')) {
+            throw new Error(`expected 月满楼 script title, got ${title || 'none'}`);
+          }
+          const cards = await page.$('.character-poster-card');
+          if (cards.length !== 9) {
+            throw new Error(`expected 9 character posters, got ${cards.length}`);
+          }
+          const names = await Promise.all(cards.map((card) => card.text().catch(() => '')));
+          if (!names.some((text) => text.includes('程聿怀'))) {
+            throw new Error(`expected 程聿怀 among posters, got ${names.join(' | ')}`);
+          }
+        },
+      },
+    ],
+  },
+  {
+    name: 'auth-moon-tower-character-detail',
+    route: 'pages/character/detail?characterId=chengyuhuai',
+    expectedPath: 'pages/character/detail',
+    open: 'reLaunch',
+    ready: ['.character-detail-hero'],
+    settleMs: 1000,
+    resetScrollBeforeAssert: true,
+    required: [
+      { label: 'character hero', selectors: ['.character-detail-hero'] },
+      { label: 'character script section', selectors: ['.detail__section--script'], allowOutsideViewport: true },
+      { label: 'character intro section', selectors: ['.detail__section'], allowOutsideViewport: true },
+      { label: 'character bottom action', selectors: ['.bottom-action'] },
+      { label: 'character mode actions', selectors: ['.detail__actions'] },
+    ],
+    assertions: [
+      {
+        label: 'moon-tower character detail shows the character name and script world setting',
+        run: async (page) => {
+          const heroBox = await getElementBox(page, '.character-detail-hero');
+          if (!heroBox?.text.includes('程聿怀')) {
+            throw new Error(`expected 程聿怀 in character hero, got ${heroBox?.text || 'none'}`);
+          }
+          const scriptSection = await getElementBox(page, '.detail__section--script');
+          if (!scriptSection?.text.includes('月满楼')) {
+            throw new Error(`expected 月满楼 in script section, got ${scriptSection?.text || 'none'}`);
+          }
+        },
+      },
+    ],
+  },
+  {
+    name: 'auth-moon-tower-chat',
+    route: 'pages/chat/index?sessionId=session-chengyuhuai',
+    expectedPath: 'pages/chat/index',
+    open: 'reLaunch',
+    ready: ['.chat-page', '.chat-bubble-row'],
+    settleMs: 1200,
+    required: [
+      { label: 'chat page', selectors: ['.chat-page'] },
+      { label: 'chat header', selectors: ['.character-header'] },
+      { label: 'chat bubbles', selectors: ['.chat-bubble-row'] },
+      { label: 'script mode scope bar', selectors: ['.chat-page__scope-bar'] },
+    ],
+    assertions: [
+      {
+        label: 'moon-tower script chat shows script scope and a moon-tower line',
+        run: async (page) => {
+          const scopeLabel = await page.$('.chat-page__scope-label');
+          const scopeText = scopeLabel ? await scopeLabel.text().catch(() => '') : '';
+          if (scopeText !== '剧本模式') {
+            throw new Error(`expected 剧本模式 scope label, got ${scopeText || 'none'}`);
+          }
+          const bubbles = await page.$('.chat-bubble__text');
+          const texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
+          if (!texts.some((text) => text.includes('月满楼'))) {
+            throw new Error(`expected a moon-tower line in history, got ${texts.join(' | ') || 'none'}`);
+          }
+        },
+      },
+    ],
+  },
+  {
     name: 'auth-chat-list',
     route: 'pages/chat/list',
     open: 'switchTab',

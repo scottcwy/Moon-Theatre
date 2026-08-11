@@ -239,4 +239,108 @@ describe('authenticated miniapp mock API server', () => {
       await server.close();
     }
   });
+
+  it('serves the Moon Tower script with nine characters (multi-script chain)', async () => {
+    const server = await startMockApiServer({ port: 0 });
+
+    try {
+      const [scripts, detail, characters] = await Promise.all([
+        fetch(`${server.baseUrl}/api/scripts`).then(readJson),
+        fetch(`${server.baseUrl}/api/scripts/script-moon-tower`).then(readJson),
+        fetch(`${server.baseUrl}/api/characters`).then(readJson),
+      ]);
+
+      expect(scripts.scripts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'script-moon-tower', slug: 'moon-tower', title: '月满楼' }),
+        ]),
+      );
+      expect(detail).toMatchObject({
+        id: 'script-moon-tower',
+        slug: 'moon-tower',
+        title: '月满楼',
+        genre: '现代情感',
+      });
+      expect(detail.characters).toHaveLength(9);
+      expect(detail.characters.map((character) => character.name)).toEqual([
+        '程聿怀',
+        '蒋伯驾',
+        '程走柳',
+        '缪宏谟',
+        '黛利拉',
+        '以撒',
+        '羌青瓷',
+        '奥丁',
+        '阿奇',
+      ]);
+
+      const moonTowerIds = [
+        'chengyuhuai', 'jiangbojia', 'chengzouliu', 'miaohongmo', 'delilah',
+        'isaac', 'qiangqingci', 'odin', 'archie',
+      ];
+      for (const id of moonTowerIds) {
+        expect(characters.characters.some((character) => character.id === id)).toBe(true);
+      }
+
+      const chengyuhuai = await fetch(`${server.baseUrl}/api/characters/chengyuhuai`).then(readJson);
+      expect(chengyuhuai).toMatchObject({
+        id: 'chengyuhuai',
+        name: '程聿怀',
+        identity: '记者',
+        initialRelationship: '似曾相识的梦中旧识',
+        scriptId: 'script-moon-tower',
+        availableModes: ['script', 'free'],
+      });
+      expect(chengyuhuai.script).toMatchObject({ id: 'script-moon-tower', title: '月满楼' });
+      expect(chengyuhuai.starterQuestions.script.length).toBeGreaterThanOrEqual(1);
+      expect(chengyuhuai.starterQuestions.free.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('serves Moon Tower chat entries, sessions and history for a script-mode character', async () => {
+    const server = await startMockApiServer({ port: 0 });
+
+    try {
+      const [chatList, sessions, history, freeSessions] = await Promise.all([
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E7%A8%8B`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/sessions?characterId=chengyuhuai&mode=script&page=1&limit=1`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/sessions/session-chengyuhuai/messages?page=1&limit=50`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/sessions?characterId=chengyuhuai&mode=free&page=1&limit=1`).then(readJson),
+      ]);
+
+      expect(chatList.characters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            characterId: 'chengyuhuai',
+            characterName: '程聿怀',
+            latestSessionId: 'session-chengyuhuai',
+            lastUsedMode: 'script',
+            canSend: true,
+          }),
+        ]),
+      );
+      expect(sessions.sessions[0]).toMatchObject({
+        id: 'session-chengyuhuai',
+        characterId: 'chengyuhuai',
+        characterName: '程聿怀',
+        mode: 'script',
+        scriptId: 'script-moon-tower',
+        scriptTitle: '月满楼',
+        canSend: true,
+      });
+      expect(history.session).toMatchObject({
+        id: 'session-chengyuhuai',
+        characterId: 'chengyuhuai',
+        mode: 'script',
+        scriptId: 'script-moon-tower',
+        hasSuccessfulTurn: true,
+      });
+      expect(history.messages.length).toBeGreaterThanOrEqual(1);
+      expect(freeSessions.sessions).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  });
 });

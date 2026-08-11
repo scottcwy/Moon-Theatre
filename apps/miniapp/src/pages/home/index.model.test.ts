@@ -66,6 +66,7 @@ describe('home navigation helpers', () => {
   it('uses API covers first and keeps only an image fallback for known assets', () => {
     expect(getScriptCoverUrl({ slug: 'moon-garden', coverUrl: 'https://cdn.example.com/moon.webp' })).toBe('https://cdn.example.com/moon.webp');
     expect(getScriptCoverUrl({ slug: 'moon-garden', coverUrl: '' })).toBe('/assets/home/moon-garden-cover.jpg');
+    expect(getScriptCoverUrl({ slug: 'moon-tower', coverUrl: '' })).toBe('/assets/home/moon-tower-cover.jpg');
     expect(getScriptCoverUrl({ slug: 'unknown', coverUrl: null })).toBe('');
   });
 

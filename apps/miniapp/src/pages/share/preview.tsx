@@ -4,47 +4,49 @@ import { useEffect, useState } from 'react';
 import { BottomAction, createBondViewModel, PrimaryButton, SharePreviewCard, TonalButton, getShareIdentityLabel } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { FALLBACK_SHARE_EXCERPT, getShareExcerpt } from './preview.model';
 import './preview.scss';
 
 const CANVAS_ID = 'shareCanvas';
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 840;
-const EXCERPT = '铃声响起时，北门的月光会替你照路。若你仍想知道前世真相，我会陪你走到门前。';
 
 interface ShareCharacter {
   name: string;
+  identity?: string | null;
+  description?: string | null;
+  script?: {
+    title?: string;
+    description?: string | null;
+  } | null;
   relationship?: {
     bondLevel: number;
     bondExp: number;
   } | null;
 }
 
-const CHARACTER_MAP: Record<string, ShareCharacter> = {
-  'char-hakuzo': { name: '白藏' },
-  'char-kiyoharu': { name: '贺茂清玄' },
-  'char-mio': { name: '月岛澪' },
-  'char-kuon': { name: '久远' },
-};
-
 export default function SharePreview() {
   const router = useRouter();
-  const characterId = router.params.characterId || 'char-hakuzo';
+  const characterId = router.params.characterId || '';
   const [saving, setSaving] = useState(false);
-  const [character, setCharacter] = useState<ShareCharacter>(CHARACTER_MAP[characterId] || { name: '白藏' });
+  const [character, setCharacter] = useState<ShareCharacter | null>(null);
+  const [excerpt, setExcerpt] = useState(FALLBACK_SHARE_EXCERPT);
   const { verifyAuth, handleAuthError } = useAuthGuard();
 
   useEffect(() => {
     let cancelled = false;
-    setCharacter(CHARACTER_MAP[characterId] || { name: '白藏' });
+    setCharacter(null);
+    setExcerpt(FALLBACK_SHARE_EXCERPT);
 
     async function fetchCharacter() {
+      if (!characterId) return;
       try {
         const authenticated = await verifyAuth();
-        if (!authenticated) return;
+        if (!authenticated || cancelled) return;
         const data = await api.get<ShareCharacter>(`/api/characters/${characterId}`);
-        if (!cancelled) {
-          setCharacter(data);
-        }
+        if (cancelled) return;
+        setCharacter(data);
+        setExcerpt(getShareExcerpt(data.script?.description, data.description));
       } catch (err) {
         if (!cancelled) {
           handleAuthError(err);
@@ -52,11 +54,13 @@ export default function SharePreview() {
       }
     }
 
-    fetchCharacter();
+    void fetchCharacter();
     return () => { cancelled = true; };
   }, [characterId, handleAuthError, verifyAuth]);
 
-  const bondViewModel = createBondViewModel(character.relationship);
+  const displayName = character?.name?.trim() || '月满楼';
+  const displayIdentity = character?.identity?.trim() || getShareIdentityLabel(displayName);
+  const bondViewModel = createBondViewModel(character?.relationship);
 
   const drawPoster = () => {
     const ctx = Taro.createCanvasContext(CANVAS_ID);
@@ -75,16 +79,16 @@ export default function SharePreview() {
 
     ctx.setFillStyle('#ffffff');
     ctx.setFontSize(38);
-    wrapCanvasText(ctx, EXCERPT, 64, 444, CANVAS_WIDTH - 128, 56, 3);
+    wrapCanvasText(ctx, excerpt, 64, 444, CANVAS_WIDTH - 128, 56, 3);
 
     ctx.setFontSize(50);
-    ctx.fillText(character.name, 64, 620);
+    ctx.fillText(displayName, 64, 620);
 
     ctx.setFillStyle('#8b3454');
     ctx.fillRect(250, 580, 190, 56);
     ctx.setFillStyle('#fff7f8');
     ctx.setFontSize(22);
-    ctx.fillText(getShareIdentityLabel(character.name), 275, 618);
+    ctx.fillText(displayIdentity, 275, 618);
 
     ctx.setFillStyle('#f6e6ea');
     ctx.setFontSize(22);
@@ -138,7 +142,7 @@ export default function SharePreview() {
 
   return (
     <View className="share-preview-page">
-      <SharePreviewCard characterName={character.name} excerpt={EXCERPT} bondLevel={bondViewModel.level} />
+      <SharePreviewCard characterName={displayName} excerpt={excerpt} bondLevel={bondViewModel.level} identity={displayIdentity} />
 
       <BottomAction variant="dark">
         <View className="share-preview-page__actions">

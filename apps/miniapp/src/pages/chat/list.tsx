@@ -45,7 +45,7 @@ function ChatListTopBackdrop() {
 function ChatListHeader() {
   return (
     <View className="chat-list__header">
-      <Image className="chat-list__brand-avatar" src="/assets/home/moon-garden-cover.jpg" mode="aspectFill" />
+      <Image className="chat-list__brand-avatar" src="/assets/home/moon-tower-cover.jpg" mode="aspectFill" />
       <View className="chat-list__header-copy">
         <Text className="chat-list__title">聊天</Text>
         <Text className="chat-list__subtitle">月满楼</Text>

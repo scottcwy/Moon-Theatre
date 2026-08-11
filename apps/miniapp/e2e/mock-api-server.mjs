@@ -34,6 +34,19 @@ const snowTeahouseScript = {
   genre: '现代悬疑',
   searchKeywords: '雪,茶寮,守夜',
   coverUrl: null,
+  sortOrder: 3,
+  status: 'active',
+};
+
+const moonTowerScript = {
+  id: 'script-moon-tower',
+  title: '月满楼',
+  description: '一座只在梦的边界营业的酒楼。你来过这里，却想不起什么时候；楼里的每个人都像认识你很久了。',
+  worldSetting: '月满楼是一座只在梦的边界营业的酒楼，灯火隔着雾也看得见。来自布雷诺的来客们各自带着未说完的心事在此停驻。',
+  slug: 'moon-tower',
+  genre: '现代情感',
+  searchKeywords: '月满楼,布雷诺,现代,情感,梦的边界',
+  coverUrl: '/assets/home/moon-tower-cover.jpg',
   sortOrder: 2,
   status: 'active',
 };
@@ -48,6 +61,16 @@ const scriptCards = [
     coverUrl: moonGardenScript.coverUrl,
     sortOrder: moonGardenScript.sortOrder,
     searchKeywords: moonGardenScript.searchKeywords,
+  },
+  {
+    id: moonTowerScript.id,
+    title: moonTowerScript.title,
+    description: moonTowerScript.description,
+    slug: moonTowerScript.slug,
+    genre: moonTowerScript.genre,
+    coverUrl: moonTowerScript.coverUrl,
+    sortOrder: moonTowerScript.sortOrder,
+    searchKeywords: moonTowerScript.searchKeywords,
   },
   {
     id: snowTeahouseScript.id,
@@ -113,6 +136,69 @@ const characters = [
     },
   },
 ];
+
+function moonTowerCharacter(id, name, identity, description, starterQuestions) {
+  return {
+    id,
+    name,
+    avatarUrl: '',
+    identity,
+    description,
+    initialRelationship: '似曾相识的梦中旧识',
+    scriptId: moonTowerScript.id,
+    script: {
+      id: moonTowerScript.id,
+      title: moonTowerScript.title,
+      description: moonTowerScript.description,
+      worldSetting: moonTowerScript.worldSetting,
+    },
+    relationship: { bondLevel: 1, bondExp: 0 },
+    availableModes: ['script', 'free'],
+    lastUsedMode: null,
+    starterQuestions,
+  };
+}
+
+const moonTowerCharacters = [
+  moonTowerCharacter('chengyuhuai', '程聿怀', '记者', '冷静克制的记者，眼里总有没查完的案子。', {
+    script: ['你胸前的孤挺花有什么来历？', '你相信“真相”能被藏住吗？'],
+    free: ['你最近在查什么案子？', '你撒谎的时候会心虚吗？'],
+  }),
+  moonTowerCharacter('jiangbojia', '蒋伯驾', '缪家家主', '温文尔雅、城府极深的缪家家主。', {
+    script: ['你做过最重的决定是什么？', '“功德”对你来说算什么？'],
+    free: ['你生日会怎么过？', '你相信命运吗？'],
+  }),
+  moonTowerCharacter('chengzouliu', '程走柳', '记者', '犀利清醒的记者，嘴比刀快。', {
+    script: ['你觉得谎言和真相哪个更有力量？', '你怕过“心动”吗？'],
+    free: ['你一般几点睡？', '你最近写过什么报道？'],
+  }),
+  moonTowerCharacter('miaohongmo', '缪宏谟', '眼科医生', '温柔圆滑的眼科医生。', {
+    script: ['你觉得眼睛能藏住秘密吗？', '“自由”对你来说是什么？'],
+    free: ['你平时怎么放松？', '你最喜欢哪个季节？'],
+  }),
+  moonTowerCharacter('delilah', '黛利拉', '热烈如火的女孩', '热烈得像一团火的女孩。', {
+    script: ['你觉得爱是什么颜色的？', '你害怕失去吗？'],
+    free: ['你今天看到什么好看的东西了吗？', '你最喜欢什么花？'],
+  }),
+  moonTowerCharacter('isaac', '以撒', '布雷诺青年', '安静敏感的布雷诺青年，笑起来会停不下来。', {
+    script: ['你为什么会狂笑？', '“爱是自由”是谁教你的？'],
+    free: ['你平时跑步吗？', '你喜欢什么音乐？'],
+  }),
+  moonTowerCharacter('qiangqingci', '羌青瓷', '金狮医院院长', '金狮医院的院长，温柔优雅，似乎总在等待什么。', {
+    script: ['你胸前这朵孤挺花，有什么故事吗？', '你觉得“等待”是一种爱的方式吗？'],
+    free: ['累的时候，你一般会做什么？', '你喜欢雨天还是晴天？'],
+  }),
+  moonTowerCharacter('odin', '奥丁', '狂草帮帮主', '狂草帮的帮主，爱讲冷笑话的硬汉。', {
+    script: ['你耳机里放的什么歌？', '为什么你总爱讲冷笑话？'],
+    free: ['你今天讲个最好笑的笑话听听？', '你怕过什么吗？'],
+  }),
+  moonTowerCharacter('archie', '阿奇', '布雷族魔术师', '总是笑着的魔术师，口袋里好像装着整个布雷诺的阳光。', {
+    script: ['你最喜欢变什么魔术？', '“大义”对你来说是什么意思？'],
+    free: ['心情不好的时候，你还会笑吗？', '你喜欢吃什么？'],
+  }),
+];
+
+characters.push(...moonTowerCharacters);
 
 // Module 7 回访留言：写入自由会话消息流的 assistant 消息（excludedFromContext）。
 // 留言注入不前移会话排序，聊天列表红点只由 /api/return-messages/check 的 characterUnread 驱动。
@@ -281,24 +367,27 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
   const scriptMatch = pathname.match(/^\/api\/scripts\/([^/]+)$/);
   if (req.method === 'GET' && scriptMatch) {
     const scriptId = decodeURIComponent(scriptMatch[1]);
-    if (scriptId !== moonGardenScript.id) {
+    const script = [moonGardenScript, moonTowerScript].find((item) => item.id === scriptId);
+    if (!script) {
       json(res, 404, { error: 'Script not found' });
       return;
     }
     json(res, 200, {
-      ...moonGardenScript,
-      characters: characters.map((character) => ({
-        id: character.id,
-        name: character.name,
-        avatarUrl: character.avatarUrl,
-        identity: character.identity,
-        description: character.description,
-        scriptId: character.scriptId,
-        initialRelationship: character.initialRelationship,
-        starterQuestions: character.starterQuestions,
-        sortOrder: character.id === 'hakuzo' ? 1 : 2,
-        status: 'active',
-      })),
+      ...script,
+      characters: characters
+        .filter((character) => character.scriptId === script.id)
+        .map((character, index) => ({
+          id: character.id,
+          name: character.name,
+          avatarUrl: character.avatarUrl,
+          identity: character.identity,
+          description: character.description,
+          scriptId: character.scriptId,
+          initialRelationship: character.initialRelationship,
+          starterQuestions: character.starterQuestions,
+          sortOrder: index + 1,
+          status: 'active',
+        })),
     });
     return;
   }
@@ -394,19 +483,47 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
         updatedAt: now,
         canSend: true,
       },
+      {
+        characterId: 'chengyuhuai',
+        characterName: '程聿怀',
+        characterAvatarUrl: '',
+        identity: '记者',
+        successfulTurnCount: 6,
+        latestSessionId: 'session-chengyuhuai',
+        lastUsedMode: 'script',
+        lastMessage: '你问的这件案子，我查了很久。',
+        updatedAt: now,
+        canSend: true,
+      },
+      {
+        characterId: 'archie',
+        characterName: '阿奇',
+        characterAvatarUrl: '',
+        identity: '布雷族魔术师',
+        successfulTurnCount: 4,
+        latestSessionId: 'session-archie',
+        lastUsedMode: 'free',
+        lastMessage: '口袋里刚好变出一颗糖，给你。',
+        updatedAt: now,
+        canSend: true,
+      },
     ].filter((entry) => !keyword || `${entry.characterName} ${entry.lastMessage}`.toLowerCase().includes(keyword));
 
-    // 常聊聚合（home 页）走 sort=turn_count：保留 identity 与 successfulTurnCount；
-    // 默认聊天列表不带这两个字段，与真实接口语义一致。
+    // 常聊聚合（home 页）走 sort=turn_count：保留 identity 与 successfulTurnCount 并按成功轮数倒序；
+    // 默认聊天列表不带这两个字段，与真实接口语义一致；limit 生效，与真实接口分页语义一致。
+    const sortedEntries = sort === 'turn_count'
+      ? [...entries].sort((a, b) => b.successfulTurnCount - a.successfulTurnCount)
+      : entries;
+    const pagedEntries = sortedEntries.slice((page - 1) * limit, page * limit);
     const characters = sort === 'turn_count'
-      ? entries
-      : entries.map(({ identity, successfulTurnCount, ...entry }) => entry);
+      ? pagedEntries
+      : pagedEntries.map(({ identity, successfulTurnCount, ...entry }) => entry);
 
     json(res, 200, {
       characters,
       page,
       limit,
-      hasMore: false,
+      hasMore: page * limit < sortedEntries.length,
     });
     return;
   }
@@ -438,6 +555,23 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
       if (requestedMode === 'free') {
         // 白藏的自由会话（Module 7 留言投递目标）存在即返回；其他角色无自由会话。
         return requestedCharacterId === 'hakuzo' ? [{ ...hakuzoFreeSession, unreadCount: 1 }] : [];
+      }
+      if (requestedCharacterId === 'chengyuhuai') {
+        // 月满楼剧本会话：程聿怀（脚本模式）链路。
+        return [{
+          id: 'session-chengyuhuai',
+          characterId: 'chengyuhuai',
+          characterName: '程聿怀',
+          characterAvatarUrl: '',
+          modelTier: 'standard',
+          mode: 'script',
+          scriptId: moonTowerScript.id,
+          scriptTitle: moonTowerScript.title,
+          canSend: true,
+          lastMessage: '你问的这件案子，我查了很久。',
+          updatedAt: now,
+          unreadCount: 0,
+        }];
       }
       return [
         {
@@ -536,6 +670,29 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
       },
       messages: [
         { id: 'msg-1', role: 'assistant', content: '铃音，今夜的月很满。', mood: 'neutral', createdAt: now },
+      ],
+      page: Number(url.searchParams.get('page') ?? 1),
+      limit: Number(url.searchParams.get('limit') ?? 50),
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/chat/sessions/session-chengyuhuai/messages') {
+    json(res, 200, {
+      session: {
+        id: 'session-chengyuhuai',
+        characterId: 'chengyuhuai',
+        characterName: '程聿怀',
+        characterAvatarUrl: '',
+        characterIdentity: '记者',
+        mode: 'script',
+        scriptId: moonTowerScript.id,
+        scriptTitle: moonTowerScript.title,
+        canSend: true,
+        hasSuccessfulTurn: true,
+      },
+      messages: [
+        { id: 'msg-chengyuhuai-1', role: 'assistant', content: '你问的这件案子，我查了很久——先说说你为什么会来月满楼？', mood: 'neutral', createdAt: now },
       ],
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 50),

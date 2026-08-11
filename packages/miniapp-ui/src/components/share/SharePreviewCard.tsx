@@ -8,9 +8,11 @@ interface SharePreviewCardProps {
   characterName: string;
   excerpt: string;
   bondLevel?: number;
+  /** 数据驱动身份标签；缺省时回退到名字→标签映射。 */
+  identity?: string;
 }
 
-export function SharePreviewCard({ characterName, excerpt, bondLevel = 1 }: SharePreviewCardProps) {
+export function SharePreviewCard({ characterName, excerpt, bondLevel = 1, identity }: SharePreviewCardProps) {
   return (
     <View className="share-preview-card">
       <View className="share-preview-card__overlay" />
@@ -20,7 +22,7 @@ export function SharePreviewCard({ characterName, excerpt, bondLevel = 1 }: Shar
         <Text className="share-preview-card__quote">{excerpt}</Text>
         <View className="share-preview-card__name-row">
           <Text className="share-preview-card__name">{characterName}</Text>
-          <Badge tone="primary">{getShareIdentityLabel(characterName)}</Badge>
+          <Badge tone="primary">{identity || getShareIdentityLabel(characterName)}</Badge>
         </View>
         <View className="share-preview-card__badges">
           <Badge tone="neutral">♥ 信赖</Badge>

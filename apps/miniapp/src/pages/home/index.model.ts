@@ -29,6 +29,7 @@ export function buildFrequentCharactersUrl(limit = FREQUENT_CHARACTERS_LIMIT): s
 
 const LOCAL_SCRIPT_COVERS: Record<string, string> = {
   'moon-garden': '/assets/home/moon-garden-cover.jpg',
+  'moon-tower': '/assets/home/moon-tower-cover.jpg',
 };
 
 const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
