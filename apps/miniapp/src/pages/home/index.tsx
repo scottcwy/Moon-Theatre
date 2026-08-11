@@ -236,6 +236,9 @@ export default function Home() {
               <View className="theater-home__mode-switch-thumb" />
             </View>
           </View>
+          <Text className="theater-home__mode-hint">
+            {scriptModeOn ? '正在进入剧本目录…' : '打开剧本模式，从剧本开始选角色'}
+          </Text>
           <SearchBar
             value={scriptQuery}
             placeholder="搜索剧本名称、类型或关键词"

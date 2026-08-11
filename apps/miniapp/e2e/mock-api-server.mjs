@@ -333,6 +333,13 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
     return;
   }
 
+  // e2e-only 调试端点：允许检查用例按需设置余额（例如触发点数不足拦截）。
+  if (req.method === 'POST' && pathname === '/api/debug/set-balance') {
+    options.balancePoints = Number(body?.points ?? 0);
+    json(res, 200, { balancePoints: options.balancePoints });
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/chat/characters') {
     const page = Number(url.searchParams.get('page') ?? 1);
     const limit = Number(url.searchParams.get('limit') ?? 20);

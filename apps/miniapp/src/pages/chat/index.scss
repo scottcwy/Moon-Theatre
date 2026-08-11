@@ -97,11 +97,6 @@
     color: $color-primary;
   }
 
-  &__tier-control--disabled {
-    pointer-events: none;
-    opacity: 0.56;
-  }
-
   &__messages {
     flex: 1;
     min-height: 0;
@@ -151,17 +146,35 @@
   &__starter {
     min-height: 68rpx;
     padding: $space-2 $space-3;
-    border-radius: $radius-sm;
+    border-radius: $radius-md;
     display: flex;
     align-items: center;
-    background-color: rgba($color-background, 0.78);
+    justify-content: space-between;
+    gap: $space-2;
+    background-color: $color-background;
+    box-shadow: 0 6rpx 16rpx rgba(58, 7, 24, 0.06);
     box-sizing: border-box;
+    transition: background-color 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  &__starter:active {
+    background-color: $color-surface-container-low;
   }
 
   &__starter-text {
+    flex: 1;
+    min-width: 0;
     color: $color-on-surface;
     font-size: $font-body-md;
     line-height: 1.5;
+  }
+
+  &__starter-arrow {
+    flex-shrink: 0;
+    color: $color-primary;
+    font-size: $font-title-md;
+    font-weight: 800;
+    line-height: 1;
   }
 
   &__stream-error {

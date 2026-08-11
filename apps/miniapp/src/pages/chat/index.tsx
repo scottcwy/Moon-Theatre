@@ -7,11 +7,10 @@ import {
   ChatInputBar,
   createBondViewModel,
   EmptyState,
-  ModelTierSegmentedControl,
   StatusStateCard,
 } from '@juben-sha/miniapp-ui';
 import { MODEL_TIER_COSTS } from '@juben-sha/shared';
-import type { ChatMode, ModelTier, MoodType, StarterQuestions } from '../../types';
+import type { ChatMode, MoodType, StarterQuestions } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn, streamChat } from '../../services/api';
 import type { StreamCallbacks } from '../../services/api';
@@ -115,8 +114,6 @@ interface ClientMessageLookupResponse {
 }
 
 const EMPTY_STARTER_QUESTIONS: StarterQuestions = { script: [], free: [] };
-const MODEL_TIERS: ModelTier[] = ['casual', 'standard', 'immersive'];
-
 function readRouteMode(value?: string): ChatMode | undefined {
   return value === 'script' || value === 'free' ? value : undefined;
 }
@@ -143,8 +140,10 @@ export default function Chat() {
   const [canSend, setCanSend] = useState(true);
   const [hasSuccessfulTurn, setHasSuccessfulTurn] = useState(false);
   const [scopeSwitching, setScopeSwitching] = useState(false);
-  const [modelTier, setModelTier] = useState<ModelTier>(getInitialModelTier());
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
+  // 模型档位选择已按产品决定收掉：对话统一走默认档（轻松，每轮 1 点），
+  // 计费与余额判断照常，页面上不再出现三档控制器。
+  const modelTier = getInitialModelTier();
   const [bondLevel, setBondLevel] = useState(1);
   const [bondExp, setBondExp] = useState(0);
   const [inputValue, setInputValue] = useState('');
@@ -686,15 +685,6 @@ export default function Chat() {
         )}
       </View>
 
-      <View className={interactionDisabled ? 'chat-page__tier-control chat-page__tier-control--disabled' : 'chat-page__tier-control'}>
-        <ModelTierSegmentedControl
-          tiers={MODEL_TIERS}
-          activeTier={modelTier}
-          costs={MODEL_TIER_COSTS}
-          onChange={(tier) => { if (!interactionDisabled) setModelTier(tier); }}
-        />
-      </View>
-
       {!canSend && (
         <StatusStateCard
           className="chat-page__notice-card"
@@ -740,6 +730,7 @@ export default function Chat() {
                 {visibleStarterQuestions.map((question) => (
                   <View key={question} className="chat-page__starter" onTap={() => handleStarterQuestion(question)}>
                     <Text className="chat-page__starter-text">{question}</Text>
+                    <Text className="chat-page__starter-arrow">›</Text>
                   </View>
                 ))}
               </View>

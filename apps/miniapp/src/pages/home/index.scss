@@ -52,6 +52,16 @@
   line-height: 1.2;
 }
 
+.theater-home__mode-hint {
+  display: block;
+  margin: -12rpx 0 $space-3;
+  padding-right: 2rpx;
+  color: rgba(90, 74, 78, 0.72);
+  font-size: 22rpx;
+  line-height: 1.4;
+  text-align: right;
+}
+
 /* 剧本模式滑动开关：常态（关=标准模式）灰粉轨道+白钮；开启变酒红、展开显出名称。 */
 .theater-home__mode-switch {
   position: relative;

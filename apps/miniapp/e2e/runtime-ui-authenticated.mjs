@@ -179,7 +179,7 @@ const PAGE_CHECKS = [
       { label: 'chat list body', selectors: ['.chat-list__body'] },
       { label: 'chat session list', selectors: ['.chat-list__list'] },
       { label: 'chat session row', selectors: ['.chat-list__item'] },
-      { label: 'chat unread red dot', selectors: ['.chat-session-row__unread-dot'] },
+      { label: 'chat unread red dot', selectors: ['.chat-session-row__unread-badge'] },
     ],
   },
   {
@@ -193,7 +193,7 @@ const PAGE_CHECKS = [
     run: async (miniProgram, page) => {
       const items = await page.$$('.chat-list__item');
       assert(items.length > 0, `Expected at least one chat session row, got ${items.length}`);
-      const dotsBefore = await page.$$('.chat-session-row__unread-dot');
+      const dotsBefore = await page.$$('.chat-session-row__unread-badge');
       assert(dotsBefore.length === 1, `Expected 1 unread dot before reading, got ${dotsBefore.length}`);
 
       await items[0].tap();
@@ -230,10 +230,10 @@ const PAGE_CHECKS = [
       assert(listPage?.path === 'pages/chat/list', `Expected back on chat list, got ${listPage?.path}`);
       await waitForSelector(listPage, '.chat-list__list', 15000);
       const settleDeadline = Date.now() + 8000;
-      let dotsAfter = await listPage.$$('.chat-session-row__unread-dot');
+      let dotsAfter = await listPage.$$('.chat-session-row__unread-badge');
       while (dotsAfter.length !== 0 && Date.now() < settleDeadline) {
         await listPage.waitFor(300);
-        dotsAfter = await listPage.$$('.chat-session-row__unread-dot');
+        dotsAfter = await listPage.$$('.chat-session-row__unread-badge');
       }
       assert(dotsAfter.length === 0, `Expected unread dot cleared after reading, got ${dotsAfter.length}`);
       return listPage;
@@ -301,12 +301,19 @@ const PAGE_CHECKS = [
     open: 'reLaunch',
     ready: ['.chat-page'],
     settleMs: 1200,
-    beforeAssert: selectImmersiveTier,
+    run: async (miniProgram, page) => {
+      // 三档选择已收掉（固定轻松档 1 点/轮）：余额清零即可触发点数不足拦截。
+      await setMockBalance(0);
+      await miniProgram.reLaunch('/pages/chat/index?characterId=hakuzo');
+      const freshPage = await miniProgram.currentPage({ retries: 15, timeout: 20000 });
+      await waitForSelector(freshPage, '.chat-page__notice-card', 15000);
+      await setMockBalance(3);
+      return freshPage;
+    },
     required: [
       { label: 'chat page', selectors: ['.chat-page'] },
       { label: 'chat header', selectors: ['.character-header'] },
       { label: 'chat scope bar', selectors: ['.chat-page__scope-bar'] },
-      { label: 'model tier control', selectors: ['.model-tier-control'] },
       { label: 'insufficient points notice', selectors: ['.chat-page__notice-card'] },
       { label: 'chat input bar', selectors: ['.chat-input-bar'] },
     ],
@@ -583,12 +590,13 @@ async function checkNonOverlap(page, pair) {
   }];
 }
 
-async function selectImmersiveTier(page) {
-  const items = await page.$$('.model-tier-control__item');
-  assert(items.length >= 3, `Expected at least 3 model tier items, got ${items.length}`);
-  await items[2].tap();
-  await page.waitFor(500);
-  await waitForSelector(page, '.chat-page__notice-card');
+async function setMockBalance(points) {
+  const response = await fetch(`${mockApiBaseUrl}/api/debug/set-balance`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ points }),
+  });
+  assert(response.ok, `setMockBalance(${points}) failed with HTTP ${response.status}`);
 }
 
 async function sendChatMessageAndWaitForError(page) {
