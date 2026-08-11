@@ -105,7 +105,8 @@ describe('buildSystemPrompt', () => {
     const script = makeScript();
     const prompt = buildSystemPrompt(character, script, { bondLevel: 3, bondExp: 250 });
 
-    expect(prompt).toContain('当前羁绊等级：Lv.3');
+    // 250 累计经验 → 6 级门槛第 2 档「灯前」，不再向模型注入 1–10 数字等级。
+    expect(prompt).toContain('当前羁绊等级：灯前');
   });
 
   it('injects memory lines when context provided', () => {

@@ -1,6 +1,6 @@
-// 深路径直引：本文件是纯逻辑层，vitest 在 node 环境跑；
-// 若从 '@juben-sha/miniapp-ui' 桶文件引入会连带 @tarojs/runtime，直接在测试里 ReferenceError。
-import { bondLevelName, createBondViewModel } from '@juben-sha/miniapp-ui/src/components/character/bond.model';
+// 羁绊纯逻辑已下沉到 @juben-sha/shared：本文件是纯逻辑层，vitest 在 node 环境跑，
+// 从 shared 引入不会连带 @tarojs/runtime（从 miniapp-ui 桶文件引入会 ReferenceError）。
+import { bondLevelName, createBondViewModel } from '@juben-sha/shared';
 import type { ChatMode, StarterQuestions } from '../../types';
 
 export interface ChatRenderMessage {
