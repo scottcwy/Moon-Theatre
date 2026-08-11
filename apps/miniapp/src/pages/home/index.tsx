@@ -1,6 +1,6 @@
 import { Image, ScrollView, Text, View } from '@tarojs/components';
 import type { BaseEventOrig, ScrollViewProps } from '@tarojs/components';
-import Taro, { useDidShow } from '@tarojs/taro';
+import Taro, { useDidHide, useDidShow } from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -194,6 +194,11 @@ export default function Home() {
   useDidShow(() => {
     if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
     setScriptModeOn(false);
+  });
+
+  // 离开首页即取消未触发的跳转定时器，避免用户在 260ms 内点了其它入口后仍被 push 到剧本目录。
+  useDidHide(() => {
+    if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
   });
 
   useEffect(() => () => {
