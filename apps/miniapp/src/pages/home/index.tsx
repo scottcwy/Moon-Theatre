@@ -230,9 +230,11 @@ export default function Home() {
               onTap={handleScriptModeToggle}
               aria-label="剧本模式开关"
             >
-              {/* label 始终渲染，用 opacity 淡入；条件插入会跳过过渡造成瞬跳。 */}
+              {/* 名称常显于轨道左侧（设置行形态），轨道内部只有滑动的拇指。 */}
               <Text className="theater-home__mode-switch-label">{homeSections.scriptModeEntry}</Text>
-              <View className="theater-home__mode-switch-thumb" />
+              <View className="theater-home__mode-switch-track">
+                <View className="theater-home__mode-switch-thumb" />
+              </View>
             </View>
           </View>
           <Text className="theater-home__mode-hint">

@@ -59,16 +59,20 @@ describe('home hot scripts layout', () => {
   });
 
   it('renders the script-mode switch as a standard toggle: off by default, thumb slides right via transform when on', () => {
-    // 初始为关：无 --on 类，保留无障碍语义与文案。
+    // 初始为关：无 --on 类，保留无障碍语义与文案；名称常显于轨道左侧，不做条件插入。
     expect(source).toContain('const [scriptModeOn, setScriptModeOn] = useState(false);');
     expect(source).toContain("scriptModeOn ? 'theater-home__mode-switch--on' : ''");
     expect(source).toContain('aria-label="剧本模式开关"');
-    // 固定轨道宽度：开启态只改颜色，不再拉伸宽度造成布局漂移。
-    const onBlock = styleSource.match(/\.theater-home__mode-switch--on\s*\{([\s\S]*?)\}/);
-    expect(onBlock?.[1]).not.toContain('width');
-    // 拇指位移走 transform 过渡；文字始终渲染、用 opacity 淡入。
-    expect(styleSource).toContain('.theater-home__mode-switch--on .theater-home__mode-switch-thumb');
-    expect(styleSource).toContain('transition: transform');
     expect(source).not.toMatch(/\{scriptModeOn \?\s*\(\s*<Text className="theater-home__mode-switch-label"/);
+    // 标准小轨道固定 88×52：开启态只换背景色，任何 --on 规则都不再改几何尺寸。
+    expect(styleSource).toContain('width: 88rpx');
+    const onRules = styleSource.match(/\.theater-home__mode-switch--on[^{]*\{[\s\S]*?\}/g) ?? [];
+    expect(onRules.length).toBeGreaterThan(0);
+    for (const rule of onRules) {
+      expect(rule).not.toContain('width');
+    }
+    // 拇指位移走 transform 过渡（88 - 两侧各 6 边距 - 40 拇指 = 36rpx）。
+    expect(styleSource).toContain('transition: transform');
+    expect(styleSource).toContain('transform: translateX(36rpx)');
   });
 });

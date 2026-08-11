@@ -26,7 +26,7 @@ describe('home navigation helpers', () => {
 
   it('keeps the home flow centered on choosing a role from a script', () => {
     expect(homeSections.scriptTitle).toBe('热门剧本');
-    expect(homeSections.scriptModeEntry).toBe('剧本模式');
+    expect(homeSections.scriptModeEntry).toBe('剧本');
     expect(homeSections.frequentCharacterTitle).toBe('常聊角色');
     expect(homeSections.recommendedCharacterTitle).toBe('推荐角色');
   });
