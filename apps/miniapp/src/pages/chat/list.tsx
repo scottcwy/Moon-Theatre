@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { syncChatTabRedDot } from '../../services/chat-red-dot';
 import type { ChatMode } from '../../types';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import { getCharacterAvatarUrl } from '../home/index.model';
@@ -115,6 +116,11 @@ export default function ChatList() {
     void loadCharacterChats(searchQuery);
     void loadCharacterUnread();
   });
+
+  // 未读数变化即同步底部「聊天」tab 红点：check 拉回与点开已读共用这一处。
+  useEffect(() => {
+    syncChatTabRedDot(characterUnread);
+  }, [characterUnread]);
 
   useEffect(() => {
     try {
