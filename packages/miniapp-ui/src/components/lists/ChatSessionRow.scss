@@ -1,13 +1,13 @@
 @use '../../styles/tokens.scss' as *;
 
 .chat-session-row {
-  min-height: 124rpx;
+  min-height: 112rpx;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   padding: $space-2 $space-2;
   border-radius: $radius-md;
   box-sizing: border-box;
-  transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1), transform 160ms cubic-bezier(0.2, 0, 0, 1);
+  transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .chat-session-row--unread {
@@ -15,7 +15,7 @@
 }
 
 .chat-session-row:active {
-  transform: scale(0.98);
+  background-color: rgba(90, 74, 78, 0.08);
 }
 
 .chat-session-row__avatar {
@@ -49,16 +49,27 @@
   font-weight: 800;
 }
 
-.chat-session-row__unread-dot {
+.chat-session-row__unread-badge {
   position: absolute;
-  top: -2rpx;
-  right: -2rpx;
-  width: 20rpx;
-  height: 20rpx;
+  top: -6rpx;
+  right: -6rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  padding: 0 $space-1;
   border: 4rpx solid $color-background;
   border-radius: $radius-full;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background-color: $color-error;
   box-sizing: border-box;
+}
+
+.chat-session-row__unread-count {
+  color: #fff;
+  font-size: 20rpx;
+  line-height: 1;
+  font-weight: 700;
 }
 
 .chat-session-row__content {
@@ -119,15 +130,16 @@
 
 .chat-session-row__preview {
   display: -webkit-box;
-  margin-top: 8rpx;
+  margin-top: 6rpx;
   max-width: 480rpx;
   overflow: hidden;
   color: $color-on-surface-variant;
   font-size: $font-label-md;
   line-height: 1.45;
   text-overflow: ellipsis;
+  white-space: nowrap;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
 }
 
 .chat-session-row__context-line {

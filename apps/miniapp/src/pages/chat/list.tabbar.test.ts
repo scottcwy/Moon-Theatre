@@ -51,7 +51,7 @@ describe('chat list tab bar integration', () => {
     expect(source).toContain('RETURN_MESSAGES_CHECK_PATH');
     expect(source).toContain('RETURN_MESSAGES_READ_PATH');
     expect(source).toContain('characterUnread');
-    expect(source).toContain('unread={(characterUnread[entry.characterId] ?? 0) > 0}');
+    expect(source).toContain('unreadCount={characterUnread[entry.characterId] ?? 0}');
     expect(source).not.toContain('ReturnMessageCard');
     expect(source).not.toContain('角色留言');
     expect(source).not.toContain('chat-list__return-messages');

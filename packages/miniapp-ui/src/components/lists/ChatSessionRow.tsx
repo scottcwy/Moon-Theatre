@@ -9,7 +9,8 @@ interface ChatSessionRowProps {
   readOnly?: boolean;
   timeLabel?: string;
   preview?: string | null;
-  unread?: boolean;
+  /** 未读条数：>0 时在头像右上角渲染红色数字角标（>99 显示 99+），0/undefined 不渲染。 */
+  unreadCount?: number;
   className?: string;
   onTap?: () => void;
 }
@@ -22,11 +23,12 @@ export function ChatSessionRow({
   readOnly = false,
   timeLabel,
   preview,
-  unread = false,
+  unreadCount = 0,
   className = '',
   onTap,
 }: ChatSessionRowProps) {
-  const classes = ['chat-session-row', unread ? 'chat-session-row--unread' : '', className].filter(Boolean).join(' ');
+  const hasUnread = unreadCount > 0;
+  const classes = ['chat-session-row', hasUnread ? 'chat-session-row--unread' : '', className].filter(Boolean).join(' ');
   const previewText = preview || '还没有聊天内容';
 
   return (
@@ -39,7 +41,11 @@ export function ChatSessionRow({
             <Text className="chat-session-row__avatar-text">{characterName[0] || '角'}</Text>
           </View>
         )}
-        {unread ? <View className="chat-session-row__unread-dot" /> : null}
+        {hasUnread ? (
+          <View className="chat-session-row__unread-badge">
+            <Text className="chat-session-row__unread-count">{unreadCount > 99 ? '99+' : unreadCount}</Text>
+          </View>
+        ) : null}
       </View>
       <View className="chat-session-row__content">
         <View className="chat-session-row__header">

@@ -21,16 +21,20 @@
 
 .chat-bubble {
   max-width: 560rpx;
-  border-radius: 32rpx;
+  border-radius: 28rpx;
   padding: $space-3 $space-4;
   background-color: $color-surface-container;
   box-sizing: border-box;
-  box-shadow: 0 6rpx 16rpx rgba(58, 7, 24, 0.04);
+  box-shadow: 0 4rpx 12rpx rgba(58, 7, 24, 0.035);
 }
 
 .chat-bubble--user {
   background-color: $color-primary;
-  border-bottom-right-radius: $radius-xs;
+  border-bottom-right-radius: 8rpx;
+}
+
+.chat-bubble-row--assistant .chat-bubble {
+  border-top-left-radius: 8rpx;
 }
 
 .chat-bubble--system {
@@ -59,13 +63,13 @@
 }
 
 .chat-bubble__meta {
-  margin-top: $space-2;
+  margin-top: $space-1;
   display: flex;
   align-items: center;
+  gap: $space-2;
 }
 
 .chat-bubble__fallback {
-  margin-left: $space-2;
   font-size: $font-label-sm;
   color: $color-on-surface-variant;
 }

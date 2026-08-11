@@ -188,7 +188,7 @@ describe('playbook component functional behavior', () => {
         characterName="月岛澪"
         contextLabel="剧本 · 月见庭院"
         preview=""
-        unread
+        unreadCount={3}
         readOnly
         onTap={onSessionTap}
       />,
@@ -200,7 +200,8 @@ describe('playbook component functional behavior', () => {
     expect(textContent(session)).toContain('剧本 · 月见庭院');
     expect(textContent(session)).toContain('只读');
     expect(textContent(session)).toContain('月');
-    expect(findAll(session, (node) => String(node.props.className ?? '').includes('chat-session-row__unread-dot'))).toHaveLength(1);
+    expect(textContent(session)).toContain('3');
+    expect(findAll(session, (node) => String(node.props.className ?? '').includes('chat-session-row__unread-badge'))).toHaveLength(1);
 
     const poster = renderElement(
       <CharacterPosterCard

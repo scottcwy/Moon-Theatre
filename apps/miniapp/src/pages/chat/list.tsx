@@ -232,7 +232,7 @@ export default function ChatList() {
                   readOnly={!entry.canSend}
                   timeLabel={getSessionTimeLabel(entry.updatedAt)}
                   preview={getChatPreviewText(entry.lastMessage)}
-                  unread={(characterUnread[entry.characterId] ?? 0) > 0}
+                  unreadCount={characterUnread[entry.characterId] ?? 0}
                   onTap={() => handleCharacterTap(entry)}
                 />
               ))}

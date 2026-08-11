@@ -77,7 +77,11 @@
 }
 
 .chat-list__item {
-  margin-bottom: $space-1;
+  margin-bottom: 0;
+}
+
+.chat-list__item + .chat-list__item {
+  border-top: 1rpx solid rgba(137, 122, 126, 0.16);
 }
 
 .chat-list__state {
