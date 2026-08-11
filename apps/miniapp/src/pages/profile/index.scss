@@ -10,12 +10,11 @@
   flex-direction: column;
   gap: $space-4;
   margin-top: $space-2;
-  margin-bottom: $space-6;
-  padding: $space-6 $space-5;
+  margin-bottom: $space-5;
+  padding: $space-5;
   border-radius: $radius-lg;
-  background:
-    linear-gradient(180deg, rgba(255, 247, 248, 0.92) 0%, rgba(241, 231, 228, 0.96) 100%);
-  box-shadow: 0 18rpx 42rpx rgba(58, 7, 24, 0.1);
+  background: $color-surface-container-low;
+  box-shadow: $shadow-card;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -46,10 +45,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: $space-2;
-}
-
-.profile__status-badge {
-  opacity: 0.72;
 }
 
 .profile__nickname {
@@ -115,7 +110,7 @@
 }
 
 .profile__name-edit .ui-icon-button__icon {
-  font-size: 28rpx;
+  font-size: $font-body-md;
 }
 
 .profile__name-save {
@@ -183,7 +178,7 @@
 .profile__stat-item {
   min-width: 0;
   padding: $space-3 0;
-  border-bottom: 2rpx solid rgba($color-outline-variant, 0.72);
+  border-bottom: 2rpx solid $color-outline-variant;
   background-color: transparent;
   box-sizing: border-box;
 }
@@ -231,7 +226,7 @@
 
 .profile__empty-panel .status-state-card {
   box-shadow: none;
-  background-color: rgba(255, 251, 248, 0.72);
+  background-color: $color-background;
 }
 
 .profile__achievement {

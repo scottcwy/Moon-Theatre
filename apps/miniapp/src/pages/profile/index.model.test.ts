@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getPreferredNameError, getPreferredNameSaveValue, getProfileDisplayName } from './index.model';
+import {
+  getPreferredNameError,
+  getPreferredNameSaveValue,
+  getProfileDisplayName,
+  getProfileStatusLabel,
+} from './index.model';
 
 describe('profile preferred name helpers', () => {
   it('trims a valid preferred name before saving', () => {
@@ -23,5 +28,11 @@ describe('profile preferred name helpers', () => {
     expect(getProfileDisplayName(null, ' 微信昵称 ')).toBe('微信昵称');
     expect(getProfileDisplayName(' ', ' ')).toBe('我的');
     expect(getProfileDisplayName(undefined, null)).toBe('我的');
+  });
+
+  it('maps authenticated account state to user-facing copy without leaking backend values', () => {
+    expect(getProfileStatusLabel('active')).toBe('已登录');
+    expect(getProfileStatusLabel(null)).toBe('已登录');
+    expect(getProfileStatusLabel('pending_review')).toBe('状态待确认');
   });
 });

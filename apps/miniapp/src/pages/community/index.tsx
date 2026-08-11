@@ -44,6 +44,7 @@ export default function Community() {
 
         <View className="community__body">
           <View className="community__hero surface-card">
+            <Text className="community__hero-kicker">{communityPlaceholder.kicker}</Text>
             <Text className="page-title community__hero-title">{communityPlaceholder.title}</Text>
             <Text className="page-subtitle community__hero-subtitle">
               {communityPlaceholder.subtitle}
@@ -54,10 +55,10 @@ export default function Community() {
           </View>
 
           <View className="community__preview">
-            <Text className="community__section-title">开放后你会看到</Text>
+            <Text className="community__section-title">{communityPlaceholder.previewTitle}</Text>
             <View className="community__preview-list">
               {communityPreviewItems.map((item) => (
-                <View key={item.title} className="community__preview-item">
+                <View key={item.id} className="community__preview-item">
                   <View className="community__preview-mark" />
                   <View className="community__preview-copy">
                     <Text className="community__preview-title">{item.title}</Text>

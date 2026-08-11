@@ -8,6 +8,10 @@ export function getProfileDisplayName(
   return preferredName?.trim() || nickname?.trim() || '我的';
 }
 
+export function getProfileStatusLabel(status: string | null | undefined): string {
+  return !status || status === 'active' ? '已登录' : '状态待确认';
+}
+
 export function getPreferredNameSaveValue(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed || [...trimmed].length > 20) return null;

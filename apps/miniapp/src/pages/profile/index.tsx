@@ -16,7 +16,12 @@ import {
 } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, clearAuth, isApiError, isLoggedIn, setUser } from '../../services/api';
-import { getPreferredNameError, getPreferredNameSaveValue, getProfileDisplayName } from './index.model';
+import {
+  getPreferredNameError,
+  getPreferredNameSaveValue,
+  getProfileDisplayName,
+  getProfileStatusLabel,
+} from './index.model';
 import './index.scss';
 
 interface ProfileData {
@@ -178,7 +183,7 @@ export default function Profile() {
   };
 
   const displayName = getProfileDisplayName(profile?.preferredName, profile?.nickname);
-  const displayStatus = profile?.status === 'active' ? '已登录' : profile?.status || '已登录';
+  const displayStatus = getProfileStatusLabel(profile?.status);
   const hasTitles = titles.length > 0;
   const hasAchievements = achievements.length > 0;
   const hasGrowthRecords = hasTitles || hasAchievements;
@@ -258,12 +263,11 @@ export default function Profile() {
                 </View>
               )}
             </View>
-            <Text className="profile__subtitle">我的档案</Text>
+            <Text className="profile__subtitle">玩家档案 · {displayStatus}</Text>
           </View>
         </View>
         <View className="profile__hero-actions">
           <PointsBadge points={balance} onTap={handleBuyPoints} />
-          <Badge tone="success" className="profile__status-badge">{displayStatus}</Badge>
         </View>
       </View>
 

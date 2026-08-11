@@ -11,7 +11,7 @@
 
 .community__topbar {
   background: rgba($color-background, 0.96);
-  box-shadow: 0 8rpx 24rpx rgba(58, 7, 24, 0.06);
+  box-shadow: none;
 }
 
 .community__topbar .top-bar__content {
@@ -31,28 +31,36 @@
 
 .community__topbar-title {
   color: $color-primary;
-  font-size: 36rpx;
+  font-size: $font-title-lg;
   font-weight: 800;
   line-height: 1.1;
 }
 
 .community__body {
   min-height: 100vh;
-  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-8}) $page-padding-h calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
-  background:
-    linear-gradient(180deg, rgba(255, 217, 225, 0.32) 0%, rgba(255, 251, 248, 0) 360rpx),
-    $color-background;
+  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-6}) $page-padding-h calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
+  background: $color-background;
   box-sizing: border-box;
 }
 
 .community__hero {
   padding: $space-6 $space-5;
-  box-shadow: 0 8rpx 24rpx rgba(58, 7, 24, 0.06);
+  background: $color-surface-container-low;
+  box-shadow: $shadow-card;
+}
+
+.community__hero-kicker {
+  display: block;
+  margin-bottom: $space-2;
+  color: $color-secondary;
+  font-size: $font-label-sm;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .community__hero-title {
-  font-size: 50rpx;
-  line-height: 1.16;
+  font-size: $font-headline-md;
+  line-height: 1.3;
 }
 
 .community__hero-subtitle {
@@ -82,27 +90,28 @@
 
 .community__preview-list {
   margin-top: $space-3;
+  border-block: 1rpx solid $color-outline-variant;
 }
 
 .community__preview-item {
   display: flex;
   align-items: flex-start;
   gap: $space-3;
-  margin-bottom: $space-3;
-  padding: $space-4;
-  border-radius: $radius-md;
-  background: rgba($color-surface-container-low, 0.82);
+  padding: $space-4 $space-1;
   box-sizing: border-box;
 }
 
+.community__preview-item + .community__preview-item {
+  border-top: 1rpx solid $color-outline-variant;
+}
+
 .community__preview-mark {
-  flex: 0 0 20rpx;
-  width: 20rpx;
-  height: 20rpx;
-  margin-top: 8rpx;
+  flex: 0 0 $space-2;
+  width: $space-2;
+  height: $space-2;
+  margin-top: $space-1;
   border-radius: 50%;
   background: $color-secondary;
-  box-shadow: 0 0 0 8rpx rgba(93, 111, 90, 0.12);
 }
 
 .community__preview-copy {

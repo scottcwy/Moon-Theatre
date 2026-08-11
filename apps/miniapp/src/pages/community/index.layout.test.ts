@@ -14,4 +14,11 @@ describe('community top bar layout', () => {
     expect(styleSource).toContain('var(--topbar-total-height');
     expect(styleSource).not.toContain('.community__topbar-shell');
   });
+
+  it('renders preview copy from the model as one unframed list instead of repeated cards', () => {
+    expect(source).toContain('{communityPlaceholder.previewTitle}');
+    expect(source).toContain('key={item.id}');
+    expect(styleSource).toContain('.community__preview-item + .community__preview-item');
+    expect(styleSource).not.toContain('background: rgba($color-surface-container-low');
+  });
 });
