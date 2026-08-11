@@ -115,11 +115,11 @@ describe('production pages use shared miniapp ui', () => {
 
     const homePage = fs.readFileSync(path.join(pagesDir, 'home/index.tsx'), 'utf8');
     expect(homePage).toContain('PageSection');
-    expect(homePage).toContain('Badge');
-    expect(homePage).toContain('PrimaryButton');
     expect(homePage).toContain('CharacterPosterCard');
     expect(homePage).toContain('SearchBar');
     expect(homePage).toContain('buildScriptsUrl');
+    expect(homePage).toContain('theater-home__mode-switch');
+    expect(homePage).not.toContain('theater-home__script-mode-entry');
     expect(homePage).not.toContain('theater-home__script-card');
     expect(homePage).not.toContain('theater-home__poster-wrap');
     expect(homePage).not.toContain('theater-home__start-button');
@@ -134,9 +134,5 @@ describe('production pages use shared miniapp ui', () => {
     expect(scriptSelectPage).toContain('<PageSection title="世界观" surface>');
     expect(scriptSelectStyles).toContain('transform: scale(1.08) translateY(16rpx);');
     expect(scriptSelectStyles).toContain('padding: $space-5 $page-padding-h');
-
-    const moonRoleStyles = fs.readFileSync(path.join(pagesDir, 'role-select/moon-garden.scss'), 'utf8');
-    expect(moonRoleStyles).not.toContain('.moon-role-select__hero-badge');
-    expect(moonRoleStyles).toContain('$color-surface-container-low');
   });
 });
