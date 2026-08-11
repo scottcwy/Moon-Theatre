@@ -158,29 +158,44 @@ describe('getReturnMessageReadCharacterId', () => {
 });
 
 describe('getBondFeedback', () => {
-  it('reports a level-up with the server-provided level', () => {
-    expect(getBondFeedback({ bondLevel: 4, bondDelta: 10, leveledUp: true })).toEqual({
+  it('reports a level-up with the recomputed 6-level name when the tier really changes', () => {
+    expect(getBondFeedback({ bondDelta: 10, bondExp: 205, previousBondExp: 195, leveledUp: true })).toEqual({
       kind: 'leveledUp',
-      level: 4,
+      levelName: '灯前',
+    });
+  });
+
+  it('derives the previous exp from bondDelta when previousBondExp is absent', () => {
+    expect(getBondFeedback({ bondDelta: 10, bondExp: 205, leveledUp: true })).toEqual({
+      kind: 'leveledUp',
+      levelName: '灯前',
+    });
+  });
+
+  it('suppresses repeat level-up prompts at the capped 入念 tier', () => {
+    // 服务端 1–10 体系在 26700 exp 之后仍可能发 leveledUp；前端已满级，名称不再变化。
+    expect(getBondFeedback({ bondDelta: 10, bondExp: 26790, previousBondExp: 26780, leveledUp: true })).toEqual({
+      kind: 'gained',
+      delta: 10,
     });
   });
 
   it('reports a normal gain from the server delta', () => {
-    expect(getBondFeedback({ bondLevel: 1, bondDelta: 10, leveledUp: false })).toEqual({
+    expect(getBondFeedback({ bondDelta: 10, bondExp: 100, leveledUp: false })).toEqual({
       kind: 'gained',
       delta: 10,
     });
   });
 
   it('returns null for idempotent replays with delta 0', () => {
-    expect(getBondFeedback({ bondLevel: 3, bondDelta: 0, leveledUp: false })).toBeNull();
+    expect(getBondFeedback({ bondDelta: 0, bondExp: 3000, leveledUp: false })).toBeNull();
   });
 
   it('returns null when bond fields are absent (async effects / filtered turns)', () => {
     expect(getBondFeedback({})).toBeNull();
   });
 
-  it('falls back to a gain when leveledUp lacks a level', () => {
+  it('falls back to a gain when leveledUp lacks exp data', () => {
     expect(getBondFeedback({ bondDelta: 10, leveledUp: true })).toEqual({ kind: 'gained', delta: 10 });
   });
 });

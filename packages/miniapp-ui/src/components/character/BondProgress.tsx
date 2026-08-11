@@ -1,6 +1,7 @@
 import { Text, View } from '@tarojs/components';
 import { Badge } from '../ui/Badge';
 import type { BondViewModel } from './bond.model';
+import { bondLevelName } from './bond.model';
 import './BondProgress.scss';
 
 interface BondProgressProps {
@@ -24,7 +25,7 @@ export function BondProgress({ relationship, level, exp, maxExp, bond }: BondPro
           <Text className="bond-progress__label">当前关系</Text>
           <Text className="bond-progress__relationship">{relationship} ♥</Text>
         </View>
-        <Badge tone="primary">羁绊 Lv.{displayLevel}</Badge>
+        <Badge tone="primary">{bondLevelName(displayLevel)}</Badge>
       </View>
       <View className="bond-progress__track">
         <View className="bond-progress__bar" style={{ width: `${percent}%` }} />

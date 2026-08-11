@@ -3,6 +3,7 @@ import { CharacterAvatar } from './CharacterAvatar';
 import { IconButton } from '../ui/Button';
 import { Badge, PointsBadge } from '../ui/Badge';
 import type { BondViewModel } from './bond.model';
+import { bondLevelName } from './bond.model';
 import './CharacterHeader.scss';
 
 interface CharacterHeaderProps {
@@ -30,7 +31,7 @@ export function CharacterHeader({
   onPointsTap,
   onBack,
 }: CharacterHeaderProps) {
-  const displayLabel = bond?.compactLevelLabel ?? `羁绊 Lv.${bondLevel}`;
+  const displayLabel = bond?.compactLevelLabel ?? bondLevelName(bondLevel);
   const progressText = bond?.progressLabel
     ?? (typeof bondExp === 'number' && bondMaxExp !== undefined ? `${bondExp}/${bondMaxExp}` : undefined);
 
