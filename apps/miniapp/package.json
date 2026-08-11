@@ -47,7 +47,7 @@
     "@tarojs/cli": "^4.0.0",
     "@tarojs/webpack5-runner": "^4.0.0",
     "@types/react": "^18.3.0",
-    "@weapp-vite/miniprogram-automator": "1.2.5",
+    "@weapp-vite/miniprogram-automator": "1.2.12",
     "babel-preset-taro": "^4.0.0",
     "eslint": "^9.0.0",
     "sass": "^1.77.0",

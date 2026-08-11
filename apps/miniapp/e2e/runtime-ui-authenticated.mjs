@@ -54,6 +54,72 @@ const PAGE_CHECKS = [
           }
         },
       },
+      {
+        label: 'gallery cards show only the script title (no description/button), and script-mode switch lives below the hero',
+        run: async (page) => {
+          const switches = await page.$$('.theater-home__mode-switch');
+          if (switches.length !== 1) {
+            throw new Error(`expected exactly 1 script-mode switch, got ${switches.length}`);
+          }
+          const titles = await page.$$('.theater-home__hero-card-title');
+          if (titles.length < 2) {
+            throw new Error(`expected title-only gallery cards, got ${titles.length}`);
+          }
+          const descs = await page.$$('.theater-home__hero-desc');
+          const actions = await page.$$('.theater-home__primary-action');
+          if (descs.length > 0 || actions.length > 0) {
+            throw new Error(`gallery cards must not render description/CTA (desc=${descs.length}, actions=${actions.length})`);
+          }
+          // 布局关系：开关在「热门剧本」标题行右侧，即搜索栏上方
+          const switchBox = await getElementBox(page, '.theater-home__mode-switch');
+          const searchBox = await getElementBox(page, '.theater-home__script-search');
+          if (!switchBox?.rect || !searchBox?.rect) {
+            throw new Error(`script-mode switch or search bar box unavailable (switch=${JSON.stringify(switchBox)}, search=${JSON.stringify(searchBox)})`);
+          }
+          if (switchBox.rect.bottom > searchBox.rect.top + 8) {
+            throw new Error(`script-mode switch must sit above the search bar (switch.bottom=${switchBox.rect.bottom}, search.top=${searchBox.rect.top})`);
+          }
+        },
+      },
+    ],
+  },
+  {
+    name: 'auth-home-script-mode-switch',
+    route: 'pages/home/index',
+    open: 'switchTab',
+    ready: ['.theater-home__content'],
+    settleMs: 1200,
+    run: async (miniProgram, page) => {
+      const switches = await page.$$('.theater-home__mode-switch');
+      assert(switches.length === 1, `Expected script-mode switch on home, got ${switches.length}`);
+      const before = await switches[0].attribute('class').catch(() => '');
+      assert(!before.includes('--on'), `Switch must start off, got class=${before}`);
+
+      await switches[0].tap();
+      const catalogPage = await waitForCurrentPath(miniProgram, 'pages/script/catalog', 15000);
+      await waitForSelector(catalogPage, '.script-catalog__list', 15000);
+
+      // 回到首页：开关复位为关闭态（首屏锁定在标准模式）
+      await miniProgram.switchTab('/pages/home/index');
+      const homePage = await miniProgram.currentPage({ retries: 10, timeout: 15000 });
+      await waitForSelector(homePage, '.theater-home__mode-switch', 15000);
+      const restored = await homePage.$('.theater-home__mode-switch');
+      const classAfter = restored ? await restored.attribute('class').catch(() => '') : '';
+      assert(!classAfter.includes('--on'), `Switch must reset to off after returning home, got class=${classAfter}`);
+      return homePage;
+    },
+  },
+  {
+    name: 'auth-script-catalog',
+    route: 'pages/script/catalog',
+    expectedPath: 'pages/script/catalog',
+    open: 'reLaunch',
+    ready: ['.script-catalog__list'],
+    settleMs: 1200,
+    required: [
+      { label: 'script catalog list', selectors: ['.script-catalog__list'] },
+      { label: 'script catalog search', selectors: ['.script-catalog__search'] },
+      { label: 'script catalog card', selectors: ['.script-catalog__card'] },
     ],
   },
   {
@@ -113,6 +179,93 @@ const PAGE_CHECKS = [
       { label: 'chat list body', selectors: ['.chat-list__body'] },
       { label: 'chat session list', selectors: ['.chat-list__list'] },
       { label: 'chat session row', selectors: ['.chat-list__item'] },
+      { label: 'chat unread red dot', selectors: ['.chat-session-row__unread-dot'] },
+    ],
+  },
+  {
+    // Module 7 新语义：列表红点 → 点进角色即已读 → 留言正文躺在自由会话消息流里（恰好一次）。
+    // 必须排在所有会进入白藏会话的检查之前，否则会话入口已触发已读，红点前置断言失效。
+    name: 'auth-return-message-flow',
+    route: 'pages/chat/list',
+    open: 'switchTab',
+    ready: ['.chat-list__body'],
+    settleMs: 1500,
+    run: async (miniProgram, page) => {
+      const items = await page.$$('.chat-list__item');
+      assert(items.length > 0, `Expected at least one chat session row, got ${items.length}`);
+      const dotsBefore = await page.$$('.chat-session-row__unread-dot');
+      assert(dotsBefore.length === 1, `Expected 1 unread dot before reading, got ${dotsBefore.length}`);
+
+      await items[0].tap();
+      const chatPage = await waitForCurrentPath(miniProgram, 'pages/chat/index', 15000);
+      await waitForSelector(chatPage, '.chat-page', 15000);
+      await waitForSelector(chatPage, '.chat-bubble-row', 15000);
+
+      // 留言写入自由会话（spec §3.2），剧本会话历史不含留言
+      let bubbles = await chatPage.$$('.chat-bubble__text');
+      const scriptTexts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
+      assert(
+        !scriptTexts.some((text) => text.includes('回来吧，庭院的花开了一夜。')),
+        'Script-mode history must not contain the return message',
+      );
+
+      const modeOptions = await chatPage.$$('.chat-page__mode-option');
+      assert(modeOptions.length === 2, `Expected dual chat mode options, got ${modeOptions.length}`);
+      await modeOptions[1].tap();
+
+      const deadline = Date.now() + 10000;
+      let hits = 0;
+      while (Date.now() < deadline) {
+        bubbles = await chatPage.$$('.chat-bubble__text');
+        const texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
+        hits = texts.filter((text) => text.includes('回来吧，庭院的花开了一夜。')).length;
+        if (hits === 1) break;
+        await chatPage.waitFor(250);
+      }
+      assert(hits === 1, `Expected the return message exactly once in free-mode history, got ${hits}`);
+
+      // 已读闭环：回到列表后红点消失（check 幂等重拉，mock 的 characterUnread 已清空）
+      await miniProgram.switchTab('/pages/chat/list');
+      const listPage = await miniProgram.currentPage({ retries: 10, timeout: 15000 });
+      assert(listPage?.path === 'pages/chat/list', `Expected back on chat list, got ${listPage?.path}`);
+      await waitForSelector(listPage, '.chat-list__list', 15000);
+      const settleDeadline = Date.now() + 8000;
+      let dotsAfter = await listPage.$$('.chat-session-row__unread-dot');
+      while (dotsAfter.length !== 0 && Date.now() < settleDeadline) {
+        await listPage.waitFor(300);
+        dotsAfter = await listPage.$$('.chat-session-row__unread-dot');
+      }
+      assert(dotsAfter.length === 0, `Expected unread dot cleared after reading, got ${dotsAfter.length}`);
+      return listPage;
+    },
+  },
+  {
+    // 自由模式聊天屏：直达白藏自由会话，画面含 Module 7 留言（assistant 消息流内）。
+    name: 'auth-chat-free-mode',
+    route: 'pages/chat/index?sessionId=session-hakuzo-free',
+    expectedPath: 'pages/chat/index',
+    open: 'reLaunch',
+    ready: ['.chat-page', '.chat-bubble-row'],
+    settleMs: 1200,
+    required: [
+      { label: 'chat page', selectors: ['.chat-page'] },
+      { label: 'chat header', selectors: ['.character-header'] },
+      { label: 'chat bubbles', selectors: ['.chat-bubble-row'] },
+      { label: 'free mode scope bar', selectors: ['.chat-page__scope-bar'] },
+    ],
+    assertions: [
+      {
+        label: 'scope label shows 自由模式 and history includes the return message once',
+        run: async (page) => {
+          const scopeLabel = await page.$('.chat-page__scope-label');
+          const scopeText = scopeLabel ? await scopeLabel.text().catch(() => '') : '';
+          assert(scopeText === '自由聊天', `Expected 自由聊天 scope label, got ${scopeText || 'none'}`);
+          const bubbles = await page.$$('.chat-bubble__text');
+          const texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
+          const hits = texts.filter((text) => text.includes('回来吧，庭院的花开了一夜。')).length;
+          assert(hits === 1, `Expected the return message exactly once, got ${hits}`);
+        },
+      },
     ],
   },
   {
