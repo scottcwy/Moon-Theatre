@@ -6,7 +6,6 @@ export interface ScriptCoverInput {
 export const homeSections = {
   scriptKicker: '今日开演',
   scriptTitle: '热门剧本',
-  scriptPrimaryAction: '选择角色',
   scriptModeEntry: '剧本模式',
   characterKicker: '选择一位角色开始',
   frequentCharacterTitle: '常聊角色',

@@ -15,15 +15,17 @@ describe('home hot scripts layout', () => {
     expect(styleSource).toContain('.theater-home__script-scroll');
   });
 
-  it('keeps the first card at 86%-90% of the available width with a fixed responsive height', () => {
-    expect(styleSource).toMatch(/flex:\s*0\s*0\s*8[6-9]%/);
-    expect(styleSource).toMatch(/height:\s*\d+rpx/);
+  it('keeps gallery cards at a glanceable width with a halved fixed height', () => {
+    expect(styleSource).toContain('flex: 0 0 64%');
+    expect(styleSource).toContain('height: 260rpx');
   });
 
-  it('clamps the title to 2 lines and the description to 3 lines', () => {
+  it('shows only the script title on gallery cards, clamped to 2 lines', () => {
     expect(styleSource).toContain('-webkit-line-clamp: 2');
-    expect(styleSource).toContain('-webkit-line-clamp: 3');
+    expect(styleSource).not.toContain('-webkit-line-clamp: 3');
     expect(styleSource).toContain('overflow: hidden');
+    expect(source).not.toContain('theater-home__hero-desc');
+    expect(source).toContain('onTap={() => chooseRole(script.id)}');
   });
 
   it('renders page dots only when more than one script exists', () => {
