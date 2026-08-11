@@ -57,4 +57,18 @@ describe('home hot scripts layout', () => {
     expect(source).not.toContain('successfulTurnCount');
     expect(source).not.toContain('聊天次数');
   });
+
+  it('renders the script-mode switch as a standard toggle: off by default, thumb slides right via transform when on', () => {
+    // 初始为关：无 --on 类，保留无障碍语义与文案。
+    expect(source).toContain('const [scriptModeOn, setScriptModeOn] = useState(false);');
+    expect(source).toContain("scriptModeOn ? 'theater-home__mode-switch--on' : ''");
+    expect(source).toContain('aria-label="剧本模式开关"');
+    // 固定轨道宽度：开启态只改颜色，不再拉伸宽度造成布局漂移。
+    const onBlock = styleSource.match(/\.theater-home__mode-switch--on\s*\{([\s\S]*?)\}/);
+    expect(onBlock?.[1]).not.toContain('width');
+    // 拇指位移走 transform 过渡；文字始终渲染、用 opacity 淡入。
+    expect(styleSource).toContain('.theater-home__mode-switch--on .theater-home__mode-switch-thumb');
+    expect(styleSource).toContain('transition: transform');
+    expect(source).not.toMatch(/\{scriptModeOn \?\s*\(\s*<Text className="theater-home__mode-switch-label"/);
+  });
 });
