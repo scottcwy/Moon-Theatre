@@ -96,7 +96,7 @@ export const seedCharacters = [
     avatarUrl: '/assets/characters/mio.jpg',
     identity: '绘梦的病弱画师',
     description: '住在庭院东厢的病弱画师，能把记忆画进屏风。他温柔敏感，知道许多旧事，却总说记起来未必是好事。每修复一幅画，他的身体就更虚弱一些。',
-    initialRelationship: '似曾相识的温柔',
+    initialRelationship: '初见的熟悉感',
     sortOrder: 3,
     status: 'active',
     prompt: {

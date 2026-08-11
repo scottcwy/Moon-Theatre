@@ -3,8 +3,8 @@ import { FALLBACK_SHARE_EXCERPT, getShareExcerpt, truncateExcerpt } from './prev
 
 describe('share preview excerpt helpers', () => {
   it('prefers the script description over the character description', () => {
-    expect(getShareExcerpt('月满楼是一座只在梦的边界营业的酒楼。', '角色简介')).toBe(
-      '月满楼是一座只在梦的边界营业的酒楼。',
+    expect(getShareExcerpt('月满楼是一座营业到天亮的酒楼。', '角色简介')).toBe(
+      '月满楼是一座营业到天亮的酒楼。',
     );
   });
 
