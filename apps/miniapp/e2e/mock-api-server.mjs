@@ -41,11 +41,11 @@ const snowTeahouseScript = {
 const moonTowerScript = {
   id: 'script-moon-tower',
   title: '流氓叙事',
-  description: '一座只在梦的边界营业的酒楼。你来过这里，却想不起什么时候；楼里的每个人都像认识你很久了。',
-  worldSetting: '月满楼是一座只在梦的边界营业的酒楼，灯火隔着雾也看得见。来自布雷诺的来客们各自带着未说完的心事在此停驻。',
+  description: '千禧年架空都市背景下，六个被命运裹挟的“流氓”在布雷诺的权力与谎言中挣扎求生。',
+  worldSetting: '布雷诺是世界上最穷苦的地区，布雷族与诺族在此百年对立、暴乱循环。千禧年，六个被命运裹挟的“流氓”在权力与谎言中挣扎求生，双强爱情、极限拉扯、破镜重圆。',
   slug: 'moon-tower',
   genre: '现代情感',
-  searchKeywords: '流氓叙事,月满楼,布雷诺,现代,情感,梦的边界',
+  searchKeywords: '流氓叙事,布雷诺,千禧年,架空,都市,现代,情感,智性恋,复仇,罪案,权力,谎言,家族,水上书',
   coverUrl: '/assets/home/moon-tower-cover.jpg',
   sortOrder: 2,
   status: 'active',
@@ -144,7 +144,7 @@ function moonTowerCharacter(id, name, identity, description, starterQuestions) {
     avatarUrl: '',
     identity,
     description,
-    initialRelationship: '似曾相识的梦中旧识',
+    initialRelationship: '初识于布雷诺',
     scriptId: moonTowerScript.id,
     script: {
       id: moonTowerScript.id,
@@ -557,7 +557,7 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
         return requestedCharacterId === 'hakuzo' ? [{ ...hakuzoFreeSession, unreadCount: 1 }] : [];
       }
       if (requestedCharacterId === 'chengyuhuai') {
-        // 月满楼剧本会话：程聿怀（脚本模式）链路。
+        // 流氓叙事剧本会话：程聿怀（脚本模式）链路。
         return [{
           id: 'session-chengyuhuai',
           characterId: 'chengyuhuai',
@@ -692,7 +692,7 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
         hasSuccessfulTurn: true,
       },
       messages: [
-        { id: 'msg-chengyuhuai-1', role: 'assistant', content: '你问的这件案子，我查了很久——先说说你为什么会来月满楼？', mood: 'neutral', createdAt: now },
+        { id: 'msg-chengyuhuai-1', role: 'assistant', content: '你问的这件案子，我查了很久——先说说你为什么会来布雷诺？', mood: 'neutral', createdAt: now },
       ],
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 50),

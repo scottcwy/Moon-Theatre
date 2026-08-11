@@ -7,7 +7,7 @@
 | 目录 | 用途 | 引用方 | 说明 |
 |---|---|---|---|
 | `icons/` | 底部 tabBar 图标 | `src/app.config.ts` | 每 tab 两张：`name.png`（未选中）+ `name-active.png`（选中） |
-| `characters/` | 角色立绘/头像 | `src/pages/home/index.model.ts` | 900×900 JPG，`LOCAL_CHARACTER_AVATARS` 按角色名映射；月满楼 9 角色头像为占位图（chengyuhuai/jiangbojia/chengzouliu/miaohongmo/delilah/isaac/qiangqingci/odin/archie），正式图到位后替换 |
+| `characters/` | 角色立绘/头像 | `src/pages/home/index.model.ts` | 900×900 JPG，`LOCAL_CHARACTER_AVATARS` 按角色名映射；流氓叙事 9 角色头像为占位图（chengyuhuai/jiangbojia/chengzouliu/miaohongmo/delilah/isaac/qiangqingci/odin/archie），正式图到位后替换 |
 | `home/` | 首页脚本封面 | `src/pages/home/index.model.ts`、`src/pages/chat/list.tsx` | `LOCAL_SCRIPT_COVERS` 按 slug 映射；`moon-tower-cover.jpg` 为占位封面，正式图到位后替换 |
 | `login/` | 登录页背景 | `src/pages/login/index.scss` | 通过 CSS `url()` 引用 |
 | `lordicon/` | 成就动画图标（WebP） | `AchievementIcon`（`packages/miniapp-ui`） | 详见目录内 `README.md`，注意保留 Lordicon 署名 |

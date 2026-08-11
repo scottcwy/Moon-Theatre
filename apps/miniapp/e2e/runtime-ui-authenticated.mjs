@@ -258,7 +258,7 @@ const PAGE_CHECKS = [
           }
           const bubbles = await page.$('.chat-bubble__text');
           const texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
-          if (!texts.some((text) => text.includes('月满楼'))) {
+          if (!texts.some((text) => text.includes('布雷诺'))) {
             throw new Error(`expected a moon-tower line in history, got ${texts.join(' | ') || 'none'}`);
           }
         },

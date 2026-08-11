@@ -40,7 +40,7 @@ describe('seed story data', () => {
     expect(moonTower.title).toBe('流氓叙事');
     expect(moonTower.slug).toBe('moon-tower');
     expect(moonTower.genre).toBe('现代情感');
-    expect(moonTower.searchKeywords).toContain('月满楼');
+    expect(moonTower.searchKeywords).toContain('布雷诺');
     expect(moonTower.searchKeywords).toContain('流氓叙事');
     expect(moonTower.coverUrl).toBeNull();
     expect(moonTower.sortOrder).toBe(1);
@@ -57,9 +57,9 @@ describe('seed story data', () => {
     expect(seedCharacters.filter((character) => character.scriptSlug === 'moon-tower')).toHaveLength(9);
   });
 
-  it('gives every Moon Tower character the dream-acquaintance relationship', () => {
+  it('gives every Moon Tower character the Brenow acquaintance relationship', () => {
     for (const character of seedCharacters.filter((c) => c.scriptSlug === 'moon-tower')) {
-      expect(character.initialRelationship).toBe('似曾相识的梦中旧识');
+      expect(character.initialRelationship).toBe('初识于布雷诺');
     }
   });
 

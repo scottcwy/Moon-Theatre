@@ -287,7 +287,7 @@ describe('authenticated miniapp mock API server', () => {
         id: 'chengyuhuai',
         name: '程聿怀',
         identity: '记者',
-        initialRelationship: '似曾相识的梦中旧识',
+        initialRelationship: '初识于布雷诺',
         scriptId: 'script-moon-tower',
         availableModes: ['script', 'free'],
       });
