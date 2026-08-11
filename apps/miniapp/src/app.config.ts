@@ -1,7 +1,6 @@
 export default defineAppConfig({
   pages: [
     'pages/home/index',
-    'pages/role-select/moon-garden',
     'pages/script/select',
     'pages/script/catalog',
     'pages/chat/index',
@@ -23,7 +22,7 @@ export default defineAppConfig({
     list: [
       { pagePath: 'pages/home/index', text: '首页', iconPath: 'assets/icons/home.png', selectedIconPath: 'assets/icons/home-active.png' },
       { pagePath: 'pages/chat/list', text: '聊天', iconPath: 'assets/icons/chat.png', selectedIconPath: 'assets/icons/chat-active.png' },
-      { pagePath: 'pages/community/index', text: '社区', iconPath: 'assets/icons/memory.png', selectedIconPath: 'assets/icons/memory-active.png' },
+      { pagePath: 'pages/community/index', text: '社区', iconPath: 'assets/icons/community.png', selectedIconPath: 'assets/icons/community-active.png' },
       { pagePath: 'pages/profile/index', text: '我的', iconPath: 'assets/icons/profile.png', selectedIconPath: 'assets/icons/profile-active.png' },
     ],
   },

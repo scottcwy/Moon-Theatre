@@ -87,7 +87,7 @@ export async function POST(
       providerOrderId: prepayResult.providerOrderId,
       prepayParams: prepayResult.prepayParams,
     });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

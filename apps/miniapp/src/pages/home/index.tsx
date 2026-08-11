@@ -1,15 +1,13 @@
 import { Image, ScrollView, Text, View } from '@tarojs/components';
 import type { BaseEventOrig, ScrollViewProps } from '@tarojs/components';
-import Taro from '@tarojs/taro';
+import Taro, { useDidHide, useDidShow } from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Badge,
   CharacterPosterCard,
   EmptyState,
   PageSection,
   PageShell,
-  PrimaryButton,
   SearchBar,
   StatusStateCard,
   TopBar,
@@ -66,6 +64,8 @@ export default function Home() {
   const [scriptsLoading, setScriptsLoading] = useState(true);
   const [scriptsError, setScriptsError] = useState('');
   const [selectedCharacterId, setSelectedCharacterId] = useState('');
+  const [scriptModeOn, setScriptModeOn] = useState(false);
+  const scriptModeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [topBarStyle, setTopBarStyle] = useState<Record<string, string>>(
     getTopBarStyle(calculateTopBarMetrics()),
   );
@@ -181,6 +181,30 @@ export default function Home() {
     Taro.navigateTo({ url: getScriptCatalogUrl() });
   };
 
+  // 滑动开关：点击后短暂展示开启态动画，随后进入剧本目录；回到首页时复位为关闭。
+  const handleScriptModeToggle = () => {
+    if (scriptModeOn) return;
+    setScriptModeOn(true);
+    if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
+    scriptModeTimerRef.current = setTimeout(() => {
+      openScriptCatalog();
+    }, 260);
+  };
+
+  useDidShow(() => {
+    if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
+    setScriptModeOn(false);
+  });
+
+  // 离开首页即取消未触发的跳转定时器，避免用户在 260ms 内点了其它入口后仍被 push 到剧本目录。
+  useDidHide(() => {
+    if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
+  });
+
+  useEffect(() => () => {
+    if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
+  }, []);
+
   const hasScriptQuery = scriptQuery.trim().length > 0;
 
   return (
@@ -190,17 +214,28 @@ export default function Home() {
           className="theater-home__topbar"
           titleClassName="theater-home__topbar-title"
           left={<View className="theater-home__settings-button"><Text className="theater-home__settings">⚙</Text></View>}
-          right={(
-            <View className="theater-home__script-mode-entry" onTap={openScriptCatalog}>
-              <Text className="theater-home__script-mode-entry-text">{homeSections.scriptModeEntry}</Text>
-            </View>
-          )}
-          title={<Text className="theater-home__brand">灵犀剧场</Text>}
+          title={<Text className="theater-home__brand">阅满楼</Text>}
         />
       </View>
 
       <View className="theater-home__content" style={topBarStyle as CSSProperties}>
-        <PageSection title={homeSections.scriptTitle} kicker={homeSections.scriptKicker} className="theater-home__hero-section">
+        <PageSection className="theater-home__hero-section">
+          <View className="theater-home__hero-header">
+            <View className="theater-home__hero-heading">
+              <Text className="theater-home__hero-kicker">{homeSections.scriptKicker}</Text>
+              <Text className="theater-home__hero-title">{homeSections.scriptTitle}</Text>
+            </View>
+            <View
+              className={['theater-home__mode-switch', scriptModeOn ? 'theater-home__mode-switch--on' : ''].filter(Boolean).join(' ')}
+              onTap={handleScriptModeToggle}
+              aria-label="剧本模式开关"
+            >
+              {scriptModeOn ? (
+                <Text className="theater-home__mode-switch-label">{homeSections.scriptModeEntry}</Text>
+              ) : null}
+              <View className="theater-home__mode-switch-thumb" />
+            </View>
+          </View>
           <SearchBar
             value={scriptQuery}
             placeholder="搜索剧本名称、类型或关键词"
@@ -240,6 +275,7 @@ export default function Home() {
                       key={script.id}
                       id={`script-${index}-${scriptScrollEpoch}`}
                       className="theater-home__hero-card"
+                      onTap={() => chooseRole(script.id)}
                     >
                       {coverUrl ? (
                         <Image className="theater-home__hero-image" src={coverUrl} mode="aspectFill" />
@@ -247,16 +283,8 @@ export default function Home() {
                         <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
                       )}
                       <View className="theater-home__hero-shade" />
-                      <View className="theater-home__hero-logo">
-                        <Text className="theater-home__hero-logo-text">{script.genre || '角色剧本'}</Text>
-                      </View>
                       <View className="theater-home__hero-content">
-                        <Badge tone="secondary" className="theater-home__tag">可进入</Badge>
-                        <Text className="theater-home__hero-title">{script.title}</Text>
-                        <Text className="theater-home__hero-desc">{script.description}</Text>
-                        <PrimaryButton className="theater-home__primary-action" onTap={() => chooseRole(script.id)}>
-                          {homeSections.scriptPrimaryAction}
-                        </PrimaryButton>
+                        <Text className="theater-home__hero-card-title" userSelect>{script.title}</Text>
                       </View>
                     </View>
                   );
@@ -317,6 +345,6 @@ export default function Home() {
 }
 
 definePageConfig({
-  navigationBarTitleText: '灵犀剧场',
+  navigationBarTitleText: '阅满楼',
   navigationStyle: 'custom',
 });

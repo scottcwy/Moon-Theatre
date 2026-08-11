@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     const balance = await getBalance(auth.userId);
     return successResponse({ balancePoints: balance });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

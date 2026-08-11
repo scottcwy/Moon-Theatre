@@ -307,7 +307,7 @@ describe('playbook component functional behavior', () => {
     const headerBond = createBondViewModel({ bondLevel: 2, bondExp: 20 });
     const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bond={headerBond} points={12} onBack={onBack} />);
     expect(header.props.className).toContain('character-header');
-    expect(textContent(header)).toContain('20/100');
+    expect(textContent(header)).toContain('20/200');
     (findByClass(header, 'character-header__back').props.onTap as () => void)();
     expect(onBack).toHaveBeenCalledTimes(1);
 

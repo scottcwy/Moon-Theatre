@@ -59,6 +59,6 @@ export async function POST(
     if (err instanceof PaymentNotifyError) {
       return errorResponse(err.message, err.status);
     }
-    return internalErrorResponse();
+    return internalErrorResponse(err);
   }
 }

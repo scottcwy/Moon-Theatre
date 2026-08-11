@@ -30,7 +30,7 @@
 - `scripts` 表与 `apps/api/src/server/modules/scripts` 模块：`slug`、`genre`、`searchKeywords`、`coverUrl`、`sortOrder`、`starterQuestions`（角色侧）。
 - 种子数据：第一个剧本《月见庭院：狐神的新娘》（slug `moon-garden`），含四位角色（狐神白藏、阴阳师贺茂清玄、画师月岛澪、武士久远）。
 - API：`GET /api/scripts`（支持关键词搜索，无需认证）、`GET /api/scripts/:id`（需认证，含角色列表）。
-- 小程序：`pages/script/select`（剧本列表 + 搜索）、`pages/role-select/moon-garden`（月之花园选角流程）。
+- 小程序：`pages/script/catalog`（剧本目录 + 搜索）、`pages/script/select`（按 `scriptId` 打开的单剧本选角页）。
 
 ### 2.3 记忆作用域
 
@@ -53,7 +53,7 @@
 
 ### 2.6 模块 3 / 4 / 6 落地形态
 
-- **module 3（羁绊封顶）**：`done` 事件透传 `bondLevel` / `bondExp` / `bondDelta` / `leveledUp`；成功轮 `+10` 经验、每 `100` 经验升 1 级、服务端等级封顶 `10`（经验继续累计）；前端以服务端透传为准展示「羁绊 +10 / 羁绊提升至 Lv.N」，满级（`MAX_BOND_LEVEL = 10`）后提示改为「羁绊已满级」，不再显示「距下一级」；进度条满格，经验继续累计。
+- **module 3（羁绊 6 级化）**：`done` 事件透传 `bondLevel` / `bondExp` / `bondDelta` / `leveledUp`；成功轮 `+10` 经验、服务端 1–10 数值模型不变（每 `100` 经验升 1 级、封顶 `10`、经验继续累计）；前端按 6 级累计经验门槛（0/200/700/2700/10700/26700）重算展示层级与名称（檐下 → 灯前 → 杯沿 → 留盏 → 不言 → 入念），升级提示只在实际名称档位变化时出现，满级「入念」后不再提示升级。
 - **module 4（首页横滑）**：首页「热门剧本」横向 ScrollView 展示 `GET /api/scripts` 结果，随滚动同步圆点指示（`getActiveScriptIndex`），支持关键词搜索。
 - **module 6（常聊角色）**：`GET /api/chat/characters?sort=turn_count` 按成功对话轮数倒序返回常聊角色，首页 `limit=4` 卡片使用；默认语义仍是按角色聚合的聊天列表（每个 `characterId` 最多一项）。
 

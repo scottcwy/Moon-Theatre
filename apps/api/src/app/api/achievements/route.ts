@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     const result = await getUserAchievements(auth.userId);
     return successResponse(result);
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

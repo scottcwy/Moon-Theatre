@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const q = searchParams.get('q') ?? undefined;
     const scripts = await listScripts(q);
     return successResponse({ scripts });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

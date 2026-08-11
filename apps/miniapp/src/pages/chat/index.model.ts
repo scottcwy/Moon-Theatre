@@ -1,3 +1,6 @@
+// 羁绊纯逻辑已下沉到 @juben-sha/shared：本文件是纯逻辑层，vitest 在 node 环境跑，
+// 从 shared 引入不会连带 @tarojs/runtime（从 miniapp-ui 桶文件引入会 ReferenceError）。
+import { bondLevelName, createBondViewModel } from '@juben-sha/shared';
 import type { ChatMode, StarterQuestions } from '../../types';
 
 export interface ChatRenderMessage {
@@ -135,17 +138,32 @@ export function applyStarterQuestion(inputValue: string, question: string): { ap
 }
 
 export type BondFeedback =
-  | { kind: 'leveledUp'; level: number }
+  | { kind: 'leveledUp'; levelName: string }
   | { kind: 'gained'; delta: number }
   | null;
 
+/**
+ * 生成聊天完成后的羁绊反馈。
+ * 前端等级体系只有 6 档名称（bondLevelName），不直接消费服务端透传的 bondLevel：
+ * 升级与否用 done 事件的 bondExp 按前端曲线重算新旧档位（previousBondExp 缺省时以
+ * bondExp - bondDelta 推导），只有名称档位真实变化才提示升级；满级「入念」后
+ * 服务端继续累加的旧体系等级不再触发重复升级提示。
+ */
 export function getBondFeedback(result: {
-  bondLevel?: number;
   bondDelta?: number;
+  bondExp?: number;
+  previousBondExp?: number;
   leveledUp?: boolean;
 }): BondFeedback {
-  if (result.leveledUp && typeof result.bondLevel === 'number') {
-    return { kind: 'leveledUp', level: result.bondLevel };
+  if (result.leveledUp && typeof result.bondExp === 'number') {
+    const previousBondExp = typeof result.previousBondExp === 'number'
+      ? result.previousBondExp
+      : result.bondExp - (typeof result.bondDelta === 'number' ? result.bondDelta : 0);
+    const level = createBondViewModel({ bondExp: result.bondExp }).level;
+    const previousLevel = createBondViewModel({ bondExp: previousBondExp }).level;
+    if (level > previousLevel) {
+      return { kind: 'leveledUp', levelName: bondLevelName(level) };
+    }
   }
   if (typeof result.bondDelta === 'number' && result.bondDelta > 0) {
     return { kind: 'gained', delta: result.bondDelta };

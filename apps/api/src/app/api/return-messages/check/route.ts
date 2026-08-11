@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const result = await checkReturnMessages(auth.userId);
     return successResponse(result);
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

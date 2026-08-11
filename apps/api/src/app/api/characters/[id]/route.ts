@@ -39,7 +39,7 @@ export async function GET(
         ? { bondLevel: relationship.bondLevel, bondExp: relationship.bondExp }
         : null,
     });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

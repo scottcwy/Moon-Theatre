@@ -27,7 +27,7 @@ export async function GET(
     }
 
     return successResponse(script);
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

@@ -1,3 +1,4 @@
+import { bondLevelFromExp, bondLevelName } from '@juben-sha/shared';
 import type { Script, CharacterWithPrompts } from './service.js';
 
 export interface PromptContext {
@@ -48,8 +49,13 @@ export function buildSystemPrompt(
   }
 
   if (context?.bondLevel || context?.bondExp) {
-    const bondLine = `当前羁绊等级：Lv.${context.bondLevel ?? 1}`;
-    parts.push(bondLine);
+    // 产品口径：羁绊只有 6 档名称（檐下 → 入念），无 1–10 级数字概念。
+    // 服务端 `bondExp` 为累计经验（与 bondLevel 同时提供），按前端 6 级门槛映射；
+    // 仅当 exp 缺失时才用服务端 1–10 的 bondLevel 近似映射到名称。
+    const levelName = context.bondExp !== undefined
+      ? bondLevelName(bondLevelFromExp(context.bondExp))
+      : bondLevelName(context.bondLevel ?? 1);
+    parts.push(`当前羁绊等级：${levelName}`);
   }
 
   if (prompts?.[0]?.systemPrompt) {

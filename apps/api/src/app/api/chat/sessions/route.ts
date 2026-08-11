@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
       page,
       limit,
     });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

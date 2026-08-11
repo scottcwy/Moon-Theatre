@@ -12,7 +12,7 @@ export async function GET() {
   try {
     const characters = await listCharacters();
     return successResponse({ characters });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

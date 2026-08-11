@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { z } from 'zod';
-import { NotFoundError, ValidationError, jsonError, readJsonBody } from '../errors.js';
+import { NotFoundError, ValidationError, internalErrorResponse, jsonError, readJsonBody } from '../errors.js';
 
 describe('http error mapping', () => {
   afterEach(() => {
@@ -55,6 +55,28 @@ describe('http error mapping', () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: 'internal_error' });
+  });
+
+  it('internalErrorResponse returns stable code without logging when no error is attached', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = internalErrorResponse();
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: 'internal_error' });
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it('internalErrorResponse logs the attached error for server-side diagnosis', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const original = new Error('secret db detail: connection refused');
+
+    const response = internalErrorResponse(original);
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: 'internal_error' });
+    // 诊断细节只进服务端日志，不回给客户端。
+    expect(consoleError).toHaveBeenCalledWith('[internalError] unhandled error:', original);
   });
 
   it('turns invalid JSON bodies into validation errors', async () => {

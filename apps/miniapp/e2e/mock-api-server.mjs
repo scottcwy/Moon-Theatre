@@ -114,6 +114,34 @@ const characters = [
   },
 ];
 
+// Module 7 回访留言：写入自由会话消息流的 assistant 消息（excludedFromContext）。
+// 留言注入不前移会话排序，聊天列表红点只由 /api/return-messages/check 的 characterUnread 驱动。
+const returnMessage = {
+  id: 'return-msg-hakuzo-1',
+  characterId: 'hakuzo',
+  characterName: '白藏',
+  characterAvatarUrl: '',
+  content: '回来吧，庭院的花开了一夜。',
+  reason: 'recent',
+  createdAt: '2026-07-08T21:30:00+08:00',
+  readAt: null,
+};
+
+const hakuzoFreeSession = {
+  id: 'session-hakuzo-free',
+  characterId: 'hakuzo',
+  characterName: '白藏',
+  characterAvatarUrl: '',
+  characterIdentity: '月见庭院的狐神',
+  modelTier: 'standard',
+  mode: 'free',
+  scriptId: null,
+  scriptTitle: null,
+  canSend: true,
+  lastMessage: '回来吧，庭院的花开了一夜。',
+  updatedAt: now,
+};
+
 const quotaPackages = [
   {
     id: 'pkg-small',
@@ -209,7 +237,7 @@ function createOrder(orderId, packageId) {
   };
 }
 
-function routeRequest({ req, res, url, body, options, orders }) {
+function routeRequest({ req, res, url, body, options, orders, readReturnMessageCharacters }) {
   const pathname = url.pathname;
 
   if (req.method === 'OPTIONS') {
@@ -323,6 +351,42 @@ function routeRequest({ req, res, url, body, options, orders }) {
         updatedAt: now,
         canSend: true,
       },
+      {
+        characterId: 'kiyoharu',
+        characterName: '贺茂清玄',
+        characterAvatarUrl: '',
+        identity: '冷静克制的阴阳师',
+        successfulTurnCount: 8,
+        latestSessionId: 'session-kiyoharu',
+        lastUsedMode: 'free',
+        lastMessage: '红线不可轻碰，先从第七声铃的方位说起。',
+        updatedAt: now,
+        canSend: true,
+      },
+      {
+        characterId: 'mio',
+        characterName: '月岛澪',
+        characterAvatarUrl: '',
+        identity: '庭院引路人',
+        successfulTurnCount: 5,
+        latestSessionId: 'session-mio',
+        lastUsedMode: 'free',
+        lastMessage: '今晚的月色很好，要一起走走吗？',
+        updatedAt: now,
+        canSend: true,
+      },
+      {
+        characterId: 'kuon',
+        characterName: '久远',
+        characterAvatarUrl: '',
+        identity: '守夜人',
+        successfulTurnCount: 2,
+        latestSessionId: 'session-kuon',
+        lastUsedMode: 'script',
+        lastMessage: '茶还温着，慢慢讲。',
+        updatedAt: now,
+        canSend: true,
+      },
     ].filter((entry) => !keyword || `${entry.characterName} ${entry.lastMessage}`.toLowerCase().includes(keyword));
 
     // 常聊聚合（home 页）走 sort=turn_count：保留 identity 与 successfulTurnCount；
@@ -341,41 +405,87 @@ function routeRequest({ req, res, url, body, options, orders }) {
   }
 
   if (req.method === 'POST' && pathname === '/api/return-messages/check') {
+    // 契约（return-message-spec §5.1）：messages 仅未读，已读后为空。
+    const unread = !readReturnMessageCharacters.has(returnMessage.characterId);
     json(res, 200, {
-      messages: [],
-      characterUnread: { hakuzo: 1 },
+      messages: unread ? [returnMessage] : [],
+      characterUnread: unread ? { [returnMessage.characterId]: 1 } : {},
     });
     return;
   }
 
   if (req.method === 'POST' && pathname === '/api/return-messages/read') {
-    json(res, 200, { updated: 1 });
+    // 幂等（§5.2）：首次置已读 updated=1，重复调用返回 0。
+    const characterId = body?.characterId;
+    const unread = characterId && !readReturnMessageCharacters.has(characterId);
+    if (unread) readReturnMessageCharacters.add(characterId);
+    json(res, 200, { updated: unread ? 1 : 0 });
     return;
   }
 
   if (req.method === 'GET' && pathname === '/api/chat/sessions') {
     const requestedCharacterId = url.searchParams.get('characterId');
     const requestedMode = url.searchParams.get('mode');
-    const sessions = requestedCharacterId === 'hakuzo-free-only' || requestedMode === 'free' ? [] : [
-      {
-        id: 'session-hakuzo',
-        characterId: 'hakuzo',
-        characterName: '白藏',
-        characterAvatarUrl: '',
-        modelTier: 'standard',
-        mode: 'script',
-        scriptId: moonGardenScript.id,
-        scriptTitle: moonGardenScript.title,
-        canSend: true,
-        lastMessage: '铃声响起时，北门的月光会替你照路。',
-        updatedAt: now,
-        unreadCount: 1,
-      },
-    ];
+    const sessions = (() => {
+      if (requestedCharacterId === 'hakuzo-free-only') return [];
+      if (requestedMode === 'free') {
+        // 白藏的自由会话（Module 7 留言投递目标）存在即返回；其他角色无自由会话。
+        return requestedCharacterId === 'hakuzo' ? [{ ...hakuzoFreeSession, unreadCount: 1 }] : [];
+      }
+      return [
+        {
+          id: 'session-hakuzo',
+          characterId: 'hakuzo',
+          characterName: '白藏',
+          characterAvatarUrl: '',
+          modelTier: 'standard',
+          mode: 'script',
+          scriptId: moonGardenScript.id,
+          scriptTitle: moonGardenScript.title,
+          canSend: true,
+          lastMessage: '铃声响起时，北门的月光会替你照路。',
+          updatedAt: now,
+          unreadCount: 1,
+        },
+      ];
+    })();
     json(res, 200, {
       sessions,
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 20),
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/chat/sessions/session-hakuzo-free/messages') {
+    json(res, 200, {
+      session: {
+        id: hakuzoFreeSession.id,
+        characterId: hakuzoFreeSession.characterId,
+        characterName: hakuzoFreeSession.characterName,
+        characterAvatarUrl: hakuzoFreeSession.characterAvatarUrl,
+        characterIdentity: hakuzoFreeSession.characterIdentity,
+        mode: 'free',
+        scriptId: null,
+        scriptTitle: null,
+        canSend: true,
+        hasSuccessfulTurn: true,
+      },
+      messages: [
+        { id: 'msg-hakuzo-free-1', role: 'user', content: '最近院子里的花怎么样了？', createdAt: '2026-07-08T20:12:00+08:00' },
+        {
+          id: returnMessage.id,
+          role: 'assistant',
+          content: returnMessage.content,
+          mood: 'neutral',
+          createdAt: returnMessage.createdAt,
+          excludedFromContext: true,
+          outOfScope: false,
+          generationStatus: 'completed',
+        },
+      ],
+      page: Number(url.searchParams.get('page') ?? 1),
+      limit: Number(url.searchParams.get('limit') ?? 50),
     });
     return;
   }
@@ -397,7 +507,7 @@ function routeRequest({ req, res, url, body, options, orders }) {
       messages: [
         { id: 'msg-free-1', role: 'assistant', content: '今晚想聊点什么？', mood: 'neutral', createdAt: now },
       ],
-      page: Number(url.searchParams.get('page') ?? 1),
+      page: Number(url.searchParams.get('page' ) ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 50),
     });
     return;
@@ -559,6 +669,8 @@ export async function startMockApiServer(config = {}) {
   };
   const requests = [];
   const orders = new Map();
+  // Module 7 已读状态按 server 实例隔离（每个测试/用例互不污染，模拟多用户名单环境）。
+  const readReturnMessageCharacters = new Set();
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
@@ -571,7 +683,7 @@ export async function startMockApiServer(config = {}) {
     });
 
     try {
-      routeRequest({ req, res, url, body, options, orders });
+      routeRequest({ req, res, url, body, options, orders, readReturnMessageCharacters });
     } catch (error) {
       json(res, 500, {
         error: error instanceof Error ? error.message : String(error),

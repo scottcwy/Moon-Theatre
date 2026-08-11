@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       if (err instanceof PaymentNotifyError) {
         return errorResponse(err.message, err.status);
       }
-      return internalErrorResponse();
+      return internalErrorResponse(err);
     }
   } else {
     try {
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       if (err instanceof PaymentNotifyError) {
         return errorResponse(err.message, err.status);
       }
-      return internalErrorResponse();
+      return internalErrorResponse(err);
     }
   }
 

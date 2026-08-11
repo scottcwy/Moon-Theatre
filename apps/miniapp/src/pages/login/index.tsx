@@ -68,7 +68,7 @@ export default function Login() {
 
       <View className="login-page__content">
         <View className="login-page__stage">
-          <Text className="login-page__brand">灵犀剧场</Text>
+          <Text className="login-page__brand">阅满楼</Text>
           <View className="login-page__title">
             <View className="login-page__title-line">有些角色</View>
             <View className="login-page__title-line">在等你开口</View>
@@ -92,5 +92,5 @@ export default function Login() {
 }
 
 definePageConfig({
-  navigationBarTitleText: '灵犀剧场',
+  navigationBarTitleText: '阅满楼',
 });

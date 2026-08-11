@@ -92,7 +92,7 @@ export default function SharePreview() {
 
     ctx.setFillStyle('#f8dfe7');
     ctx.setFontSize(22);
-    ctx.fillText('灵犀剧场', 64, 728);
+    ctx.fillText('阅满楼', 64, 728);
     ctx.setFillStyle('rgba(255,255,255,0.58)');
     ctx.fillText('扫码加入故事 · AI 生成内容', 64, 762);
 

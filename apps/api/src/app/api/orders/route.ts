@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       },
       201,
     );
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

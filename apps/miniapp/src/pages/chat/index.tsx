@@ -553,11 +553,11 @@ export default function Chat() {
         }
         if (typeof result.balanceAfter === 'number') setPointsBalance(result.balanceAfter);
         else void loadBalance();
-        const bondFeedback = getBondFeedback(result);
+        const bondFeedback = getBondFeedback({ ...result, previousBondExp: bondExp });
         if (bondFeedback) {
           Taro.showToast({
             title: bondFeedback.kind === 'leveledUp'
-              ? `羁绊提升至 Lv.${bondFeedback.level}`
+              ? `羁绊提升至「${bondFeedback.levelName}」`
               : `羁绊 +${bondFeedback.delta}`,
             icon: 'none',
           });

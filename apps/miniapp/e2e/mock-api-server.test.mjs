@@ -155,14 +155,17 @@ describe('authenticated miniapp mock API server', () => {
         fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20`).then(readJson),
       ]);
 
-      expect(frequent.characters).toEqual([
+      expect(frequent.characters).toHaveLength(4);
+      expect(frequent.characters[0]).toEqual(
         expect.objectContaining({
           characterId: 'hakuzo',
           characterName: '白藏',
           identity: '月见庭院的狐神',
           successfulTurnCount: 12,
         }),
-      ]);
+      );
+      const turnCounts = frequent.characters.map((entry) => entry.successfulTurnCount);
+      expect(turnCounts).toEqual([...turnCounts].sort((a, b) => b - a));
       expect(defaultList.characters[0]).not.toHaveProperty('identity');
       expect(defaultList.characters[0]).not.toHaveProperty('successfulTurnCount');
     } finally {
@@ -170,23 +173,57 @@ describe('authenticated miniapp mock API server', () => {
     }
   });
 
-  it('serves return-messages check and read endpoints for chat list unread state', async () => {
+  it('serves return-messages check → free-session history → idempotent read (Module 7)', async () => {
     const server = await startMockApiServer({ port: 0 });
 
     try {
+      // 未读时：check 返回契约形状（messages 仅未读 + characterUnread 红点计数）
       const check = await fetch(`${server.baseUrl}/api/return-messages/check`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       }).then(readJson);
-      expect(check).toMatchObject({ messages: [], characterUnread: { hakuzo: 1 } });
+      expect(check).toMatchObject({ characterUnread: { hakuzo: 1 } });
+      expect(check.messages).toHaveLength(1);
+      expect(check.messages[0]).toMatchObject({
+        characterId: 'hakuzo',
+        content: '回来吧，庭院的花开了一夜。',
+        readAt: null,
+      });
 
+      // 留言出现在白藏自由会话的消息流里，带 Excluded From Context 标记（§3.2）
+      const freeSessions = await fetch(
+        `${server.baseUrl}/api/chat/sessions?characterId=hakuzo&mode=free&page=1&limit=1`,
+      ).then(readJson);
+      expect(freeSessions.sessions).toHaveLength(1);
+      expect(freeSessions.sessions[0]).toMatchObject({ id: 'session-hakuzo-free', mode: 'free' });
+
+      const history = await fetch(`${server.baseUrl}/api/chat/sessions/session-hakuzo-free/messages?page=1&limit=50`).then(readJson);
+      const returnMessages = history.messages.filter((message) => message.id === 'return-msg-hakuzo-1');
+      expect(returnMessages).toHaveLength(1);
+      expect(returnMessages[0]).toMatchObject({ role: 'assistant', excludedFromContext: true });
+
+      // read 幂等（§5.2）：首次 1，重复 0；已读后 check 不再返回留言与红点
       const read = await fetch(`${server.baseUrl}/api/return-messages/read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ characterId: 'hakuzo' }),
       }).then(readJson);
       expect(read).toEqual({ updated: 1 });
+
+      const readAgain = await fetch(`${server.baseUrl}/api/return-messages/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: 'hakuzo' }),
+      }).then(readJson);
+      expect(readAgain).toEqual({ updated: 0 });
+
+      const checkAfterRead = await fetch(`${server.baseUrl}/api/return-messages/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).then(readJson);
+      expect(checkAfterRead).toEqual({ messages: [], characterUnread: {} });
 
       expect(server.requests).toEqual(
         expect.arrayContaining([

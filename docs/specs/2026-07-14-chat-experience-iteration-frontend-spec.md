@@ -627,7 +627,7 @@ P0 发布期间如果 P1 尚未完成，首页可以暂时只展示一个由 `GE
 本文件描述的 V1.1 前端修改（P0 + P1）已全部实现并通过 miniapp 测试（134 用例）、类型检查与构建校验。以下为与当前代码现实对齐的补充说明及后续迭代衔接：
 
 - 剧本搜索已内嵌在首页（`pages/home/index`，消费 `GET /api/scripts?q=`）；`pages/script/select` 为按 `scriptId` 打开的单剧本选角页。完整剧本目录页（一级页面、可搜索）由 P0 七模块模块 5 另行落地，本文件不重复定义。
-- `pages/role-select/moon-garden` 保留为兼容遗留页（V1 月见庭院专用选角页），当前无任何新入口跳转；待模块 5 目录页落地后清理。
-- 首页角色区当前实现为“最近角色”（消费 `GET /api/characters` 全量 active 角色）；将由 P0 七模块模块 6 改为“常聊角色”（按成功回复轮数排序 + 前 4 网格 + 点击进详情）。
-- 羁绊展示层将由 P0 七模块模块 3 改为 6 级名称：檐下 → 灯前 → 杯沿 → 留盏 → 不言 → 入念；`bondLevel`/`bondExp` 数值模型不变，纯前端展示映射。
-- 社区保持占位页；回访留言前端（聊天列表红点 + `ReturnMessageCard` + check/read 调用）以 `docs/specs/2026-08-10-return-message-spec.md` 为准。
+- 遗留选角页 `pages/role-select/moon-garden` 已随 2026-08-11 清理删除（提交 331b7e1），不再注册；选角统一走 `pages/script/select`（按 `scriptId` 打开）。
+- 首页角色区已实现为“常聊角色”（消费 `GET /api/chat/characters?sort=turn_count`，按成功回复轮数排序 + 前 4 网格 + 点击进详情）；无聊天历史时回退“推荐角色”（`GET /api/characters` 全量 active 角色）。
+- 羁绊展示层已按 2026-08 确认的 6 级名称实现：檐下 → 灯前 → 杯沿 → 留盏 → 不言 → 入念；`bondLevel`（1–10）/`bondExp` 数值模型不变，前端按 6 级累计经验门槛（0/200/700/2700/10700/26700）重算展示层级与升级提示。
+- 社区保持占位页；回访留言前端（聊天列表未读红点 + check/read 调用，留言正文写入自由会话消息流）以 `docs/specs/2026-08-10-return-message-spec.md` 为准。

@@ -184,12 +184,12 @@ Authorization: Bearer <jwt>
 
 #### 羁绊反馈（bondDelta / leveledUp）
 
-产品端统一使用「羁绊」，数值规则：成功轮 `+10` 经验、每 `100` 经验升 1 级、服务端等级上限 `10` 级（经验继续累计，等级与展示封顶）。
+产品端统一使用「羁绊」，数值规则：成功轮 `+10` 经验、服务端 `bondLevel` 每 `100` 经验升 1 级、上限 `10` 级（经验继续累计）；展示层由前端按 6 级累计经验门槛（0/200/700/2700/10700/26700）映射名称档位（檐下 → 灯前 → 杯沿 → 留盏 → 不言 → 入念）。
 
 - **成功轮**：`done` 事件携带最新 `bondLevel`/`bondExp`，并携带 `bondDelta: 10`；该轮跨过 100 经验阈值时 `leveledUp: true`，否则 `false`。
 - **幂等重放**：相同 `clientMessageId` 的已完成重试返回 `replayed: true`，同时返回当前关系值与 `bondDelta: 0`、`leveledUp: false`，不伪造再次增长。
 - **输出过滤（`blocked: true`）**、**越界（`outOfScope: true`）**、**模型失败/发送失败**：不增加羁绊；`done` 事件不包含 `bondLevel`、`bondExp`、`bondDelta`、`leveledUp`（失败轮返回 `error` 事件）。
-- **前端约定**：聊天页以服务端 `bondDelta`/`leveledUp` 为准展示「羁绊 +10」或「羁绊提升至 Lv.N」，不本地猜测增量；满级（Lv.10）不再显示「距下一级」。
+- **前端约定**：聊天页以服务端 `bondDelta`/`bondExp` 为准展示「羁绊 +10」或「羁绊提升至「名称」」；升级提示按前端 6 级门槛重算名称档位（与 `leveledUp` 一致时才会出现），不直接展示服务端 1–10 数字等级；满级「入念」后不再提示升级。
 
 流式错误事件使用稳定 `code`，`message` 只用于诊断，客户端不得直接展示未知 raw message。V1 code：
 

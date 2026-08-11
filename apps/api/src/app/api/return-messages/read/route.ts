@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   try {
     const updated = await markCharacterMessagesRead(auth.userId, parsed.data.characterId);
     return successResponse({ updated });
-  } catch {
-    return internalErrorResponse();
+  } catch (err) {
+    return internalErrorResponse(err);
   }
 }

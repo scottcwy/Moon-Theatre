@@ -24,26 +24,82 @@
   line-height: 1;
 }
 
-.theater-home__script-mode-entry {
+.theater-home__hero-header {
   display: flex;
   align-items: center;
-  height: 56rpx;
-  padding: 0 $space-3;
-  border-radius: $radius-full;
-  background: linear-gradient(135deg, $color-primary 0%, #a84f68 100%);
-  box-shadow: 0 8rpx 18rpx rgba(139, 66, 88, 0.22);
+  justify-content: space-between;
+  margin-bottom: $space-4;
 }
 
-.theater-home__script-mode-entry:active {
+.theater-home__hero-heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.theater-home__hero-kicker {
+  margin-bottom: $space-2;
+  color: $color-secondary;
+  font-size: $font-label-md;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.theater-home__hero-title {
+  color: $color-on-surface;
+  font-size: $font-title-md;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+/* 剧本模式滑动开关：常态（关=标准模式）灰粉轨道+白钮；开启变酒红、展开显出名称。 */
+.theater-home__mode-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 104rpx;
+  height: 60rpx;
+  padding: 0 26rpx 0 0;
+  border-radius: $radius-full;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background-color: $color-surface-container-high;
+  box-shadow: inset 0 2rpx 8rpx rgba(58, 7, 24, 0.08);
+  box-sizing: border-box;
+  transition:
+    width 240ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.theater-home__mode-switch--on {
+  width: 176rpx;
+  padding: 0 $space-1 0 $space-3;
+  justify-content: space-between;
+  background-color: $color-primary;
+  box-shadow: 0 8rpx 18rpx rgba(139, 66, 88, 0.28);
+}
+
+.theater-home__mode-switch:active {
   transform: scale(0.96);
 }
 
-.theater-home__script-mode-entry-text {
+.theater-home__mode-switch-label {
+  min-width: 0;
+  overflow: hidden;
   color: $color-on-primary;
   font-size: $font-label-sm;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
+}
+
+.theater-home__mode-switch-thumb {
+  flex-shrink: 0;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: $radius-full;
+  background-color: $color-background;
+  box-shadow: 0 4rpx 14rpx rgba(58, 7, 24, 0.22);
 }
 
 .theater-home__brand {
@@ -126,13 +182,18 @@
 
 .theater-home__hero-card {
   position: relative;
-  flex: 0 0 88%;
-  height: 520rpx;
+  flex: 0 0 64%;
+  height: 260rpx;
+  margin-right: $space-3;
   border-radius: $radius-lg;
   overflow: hidden;
   background: #1c1117;
   box-shadow: 0 12rpx 28rpx rgba(58, 7, 24, 0.1);
   transform: translateZ(0);
+}
+
+.theater-home__hero-card:active {
+  transform: scale(0.98);
 }
 
 .theater-home__hero-image {
@@ -150,73 +211,27 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(12, 15, 22, 0.04) 0%, rgba(25, 12, 18, 0.28) 38%, rgba(15, 5, 8, 0.92) 100%),
-    linear-gradient(90deg, rgba(58, 7, 24, 0.52) 0%, rgba(58, 7, 24, 0.08) 54%, rgba(58, 7, 24, 0.32) 100%);
-}
-
-.theater-home__hero-logo {
-  position: absolute;
-  top: $space-5;
-  left: $space-5;
-  right: $space-5;
-  min-height: 64rpx;
-  display: flex;
-  align-items: center;
-}
-
-.theater-home__hero-logo-text {
-  max-width: 100%;
-  color: #fff7f8;
-  font-size: $font-label-md;
-  font-weight: 800;
-  line-height: 1.3;
-  text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
+    linear-gradient(180deg, rgba(15, 5, 8, 0) 30%, rgba(15, 5, 8, 0.68) 100%),
+    linear-gradient(90deg, rgba(58, 7, 24, 0.28) 0%, rgba(58, 7, 24, 0.06) 60%);
 }
 
 .theater-home__hero-content {
   position: absolute;
   left: $space-5;
   right: $space-5;
-  bottom: $space-5;
+  bottom: $space-4;
 }
 
-.theater-home__tag {
-  align-self: flex-start;
-  border: 2rpx solid rgba(25, 37, 23, 0.1);
-  box-shadow: 0 8rpx 18rpx rgba(0, 0, 0, 0.12);
-}
-
-.theater-home__hero-title {
+.theater-home__hero-card-title {
   display: -webkit-box;
-  margin-top: $space-3;
   color: $color-on-primary;
-  font-size: 50rpx;
+  font-size: $font-title-lg;
   font-weight: 800;
-  line-height: 1.18;
+  line-height: 1.24;
   overflow: hidden;
+  text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.theater-home__hero-desc {
-  display: -webkit-box;
-  margin-top: $space-2;
-  max-width: 552rpx;
-  color: $color-on-primary;
-  font-size: $font-body-md;
-  line-height: 1.58;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.theater-home__primary-action {
-  margin-top: $space-4;
-  width: 100%;
-}
-
-.theater-home__primary-action:active {
-  transform: scale(0.98);
 }
 
 .theater-home__grid {
