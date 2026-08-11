@@ -27,7 +27,7 @@ export function SharePreviewCard({ characterName, excerpt, bondLevel = 1 }: Shar
           <Badge tone="neutral">✹ {bondLevelName(bondLevel)}</Badge>
         </View>
         <View className="share-preview-card__divider" />
-        <Text className="share-preview-card__brand">阅满楼</Text>
+        <Text className="share-preview-card__brand">月满楼</Text>
         <Text className="share-preview-card__scan">扫码加入故事 · AI 生成内容</Text>
       </View>
     </View>

@@ -214,7 +214,7 @@ export default function Home() {
           className="theater-home__topbar"
           titleClassName="theater-home__topbar-title"
           left={<View className="theater-home__settings-button"><Text className="theater-home__settings">⚙</Text></View>}
-          title={<Text className="theater-home__brand">阅满楼</Text>}
+          title={<Text className="theater-home__brand">月满楼</Text>}
         />
       </View>
 
@@ -348,6 +348,6 @@ export default function Home() {
 }
 
 definePageConfig({
-  navigationBarTitleText: '阅满楼',
+  navigationBarTitleText: '月满楼',
   navigationStyle: 'custom',
 });

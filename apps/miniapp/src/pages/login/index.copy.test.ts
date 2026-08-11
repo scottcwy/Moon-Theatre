@@ -10,7 +10,7 @@ describe('login page copy', () => {
   it('uses user-facing theater entry copy instead of product-feature language', () => {
     const page = fs.readFileSync(loginPagePath, 'utf8');
 
-    expect(page).toContain('阅满楼');
+    expect(page).toContain('月满楼');
     expect(page).toContain('有些角色');
     expect(page).toContain('在等你开口');
     expect(page).toContain('回来继续上次那场戏，见你没聊完的人。');
