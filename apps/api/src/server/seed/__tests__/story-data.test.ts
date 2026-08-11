@@ -1,26 +1,65 @@
 import { describe, expect, it } from 'vitest';
-import { legacyScriptTitle, seedCharacters, seedScript } from '../story-data.js';
+import { legacyScriptTitle, seedCharacters, seedScripts } from '../story-data.js';
 
-describe('moon garden seed story data', () => {
-  it('defines the Moon Garden script and four prompt-driven agents', () => {
-    expect(seedScript.title).toBe('月见庭院：狐神的新娘');
-    expect(seedScript.worldSetting).toContain('只在满月出现');
+const moonGarden = seedScripts.find((script) => script.slug === 'moon-garden')!;
+const moonTower = seedScripts.find((script) => script.slug === 'moon-tower')!;
+
+describe('seed story data', () => {
+  it('defines two scripts and thirteen prompt-driven agents', () => {
+    expect(seedScripts.map((script) => script.slug)).toEqual(['moon-garden', 'moon-tower']);
+    expect(seedScripts.map((script) => script.title)).toEqual(['月见庭院：狐神的新娘', '月满楼']);
 
     expect(seedCharacters.map((character) => character.name)).toEqual([
       '白藏',
       '贺茂清玄',
       '月岛澪',
       '久远',
+      '程聿怀',
+      '蒋伯驾',
+      '程走柳',
+      '缪宏谟',
+      '黛利拉',
+      '以撒',
+      '羌青瓷',
+      '奥丁',
+      '阿奇',
     ]);
   });
 
-  it('does not retain Night Siege characters in the active seed story', () => {
-    const serialized = JSON.stringify({ seedScript, seedCharacters });
+  it('keeps the Moon Garden script fields', () => {
+    expect(moonGarden.worldSetting).toContain('只在满月出现');
+    expect(moonGarden.genre).toBe('和风悬疑');
+    expect(moonGarden.searchKeywords).toContain('狐神');
+    expect(moonGarden.searchKeywords).toContain('月见庭院');
+    expect(moonGarden.coverUrl).toBeNull();
+    expect(moonGarden.sortOrder).toBe(0);
+    expect(moonGarden.status).toBe('active');
+  });
 
-    expect(serialized).not.toContain('夜色围城');
-    expect(serialized).not.toContain('蒋伯驾');
-    expect(serialized).not.toContain('程聿怀');
-    expect(serialized).not.toContain('以撒');
+  it('defines the Moon Tower script', () => {
+    expect(moonTower.title).toBe('月满楼');
+    expect(moonTower.slug).toBe('moon-tower');
+    expect(moonTower.genre).toBe('现代情感');
+    expect(moonTower.searchKeywords).toContain('月满楼');
+    expect(moonTower.coverUrl).toBeNull();
+    expect(moonTower.sortOrder).toBe(1);
+    expect(moonTower.status).toBe('active');
+  });
+
+  it('assigns every character to a script slug with correct grouping', () => {
+    for (const character of seedCharacters) {
+      expect(character.scriptSlug).toBeDefined();
+      expect(seedScripts.some((script) => script.slug === character.scriptSlug)).toBe(true);
+      expect(character.status).toBe('active');
+    }
+    expect(seedCharacters.filter((character) => character.scriptSlug === 'moon-garden')).toHaveLength(4);
+    expect(seedCharacters.filter((character) => character.scriptSlug === 'moon-tower')).toHaveLength(9);
+  });
+
+  it('gives every Moon Tower character the dream-acquaintance relationship', () => {
+    for (const character of seedCharacters.filter((c) => c.scriptSlug === 'moon-tower')) {
+      expect(character.initialRelationship).toBe('似曾相识的梦中旧识');
+    }
   });
 
   it('points character avatars at processed miniapp assets', () => {
@@ -29,40 +68,26 @@ describe('moon garden seed story data', () => {
       '/assets/characters/kiyoharu.jpg',
       '/assets/characters/mio.jpg',
       '/assets/characters/kuon.jpg',
+      '/assets/characters/chengyuhuai.jpg',
+      '/assets/characters/jiangbojia.jpg',
+      '/assets/characters/chengzouliu.jpg',
+      '/assets/characters/miaohongmo.jpg',
+      '/assets/characters/delilah.jpg',
+      '/assets/characters/isaac.jpg',
+      '/assets/characters/qiangqingci.jpg',
+      '/assets/characters/odin.jpg',
+      '/assets/characters/archie.jpg',
     ]);
   });
 
   it('does not seed mood tag output instructions', () => {
-    const serialized = JSON.stringify({ seedScript, seedCharacters });
+    const serialized = JSON.stringify({ seedScripts, seedCharacters });
 
     expect(serialized).not.toContain('[情绪:');
     expect(serialized).not.toContain('当前情绪标签');
   });
 
-  // ── P1: slug ──
-  it('has stable slug moon-garden for Moon Garden script', () => {
-    expect(seedScript.slug).toBe('moon-garden');
-  });
-
-  // ── P1: genre, searchKeywords, coverUrl, sortOrder ──
-  it('has genre 和风悬疑', () => {
-    expect(seedScript.genre).toBe('和风悬疑');
-  });
-
-  it('has searchKeywords covering狐神 and 月见庭院', () => {
-    expect(seedScript.searchKeywords).toContain('狐神');
-    expect(seedScript.searchKeywords).toContain('月见庭院');
-  });
-
-  it('coverUrl is null (no cover image yet)', () => {
-    expect(seedScript.coverUrl).toBeNull();
-  });
-
-  it('sortOrder is 0', () => {
-    expect(seedScript.sortOrder).toBe(0);
-  });
-
-  // ── P1: starterQuestions structure on all characters ──
+  // ── starterQuestions structure on all characters ──
   it('every active character has starterQuestions with script and free arrays', () => {
     for (const c of seedCharacters) {
       expect(c.starterQuestions).toBeDefined();
@@ -98,6 +123,42 @@ describe('moon garden seed story data', () => {
     }
   });
 
+  it('free questions are casual/non-plot oriented', () => {
+    for (const c of seedCharacters) {
+      for (const q of c.starterQuestions.free) {
+        // Free mode questions shouldn't ask about plot mysteries
+        expect(q).not.toContain('百年前');
+        expect(q).not.toContain('北门');
+        expect(q).not.toContain('阴阳寮');
+      }
+    }
+  });
+
+  // ── spoiler guard on user-facing fields ──
+  it('user-facing seed fields contain no spoiler terms', () => {
+    const spoilerTerms = ['延迟', '怒河', '受控燃烧', '解离', '献祭', '1990', '卧底', '杀手', '牺牲', '死亡', '复活', 'SECRET-'];
+    const texts: string[] = [];
+    for (const script of seedScripts) {
+      texts.push(script.description, script.worldSetting);
+    }
+    for (const character of seedCharacters) {
+      texts.push(
+        character.description,
+        character.identity,
+        character.initialRelationship,
+        ...character.starterQuestions.script,
+        ...character.starterQuestions.free,
+      );
+    }
+    for (const text of texts) {
+      expect(text).not.toMatch(/T0\d/);
+      for (const term of spoilerTerms) {
+        expect(text).not.toContain(term);
+      }
+    }
+  });
+
+  // ── themed starter questions ──
   it('白藏 has Japanese-fantasy themed script questions', () => {
     const hakuzo = seedCharacters.find((c) => c.name === '白藏')!;
     expect(hakuzo.starterQuestions.script.some((q) => q.includes('狐嫁') || q.includes('庭院'))).toBe(true);
@@ -118,20 +179,19 @@ describe('moon garden seed story data', () => {
     expect(kuon.starterQuestions.script.some((q) => q.includes('北门') || q.includes('赎罪') || q.includes('百年'))).toBe(true);
   });
 
-  it('free questions are casual/non-plot oriented', () => {
-    for (const c of seedCharacters) {
-      for (const q of c.starterQuestions.free) {
-        // Free mode questions shouldn't ask about plot mysteries
-        expect(q).not.toContain('百年前');
-        expect(q).not.toContain('北门');
-        expect(q).not.toContain('阴阳寮');
-      }
-    }
+  it('程聿怀 has reporter/truth themed script questions', () => {
+    const chengyuhuai = seedCharacters.find((c) => c.name === '程聿怀')!;
+    expect(chengyuhuai.starterQuestions.script.some((q) => q.includes('真相') || q.includes('孤挺花'))).toBe(true);
+  });
+
+  it('阿奇 has magician themed script questions', () => {
+    const archie = seedCharacters.find((c) => c.name === '阿奇')!;
+    expect(archie.starterQuestions.script.some((q) => q.includes('魔术') || q.includes('大义'))).toBe(true);
   });
 });
 
 // ============================================================
-// Legacy script status contract
+// Legacy script deletion contract
 // ============================================================
 describe('legacy script status', () => {
   it('legacyScriptTitle is 夜色围城', () => {
@@ -139,25 +199,21 @@ describe('legacy script status', () => {
   });
 
   it('legacy script title is NOT in active seed data', () => {
-    expect(seedScript.title).not.toBe('夜色围城');
+    expect(seedScripts.map((script) => script.title)).not.toContain('夜色围城');
   });
 
-  it('active seed script uses status active', () => {
-    expect(seedScript.status).toBe('active');
+  it('all seeded scripts use status active', () => {
+    for (const script of seedScripts) {
+      expect(script.status).toBe('active');
+    }
   });
 
-  it('legacy characters are not in seedCharacters', () => {
-    const names = seedCharacters.map((c) => c.name);
-    expect(names).not.toContain('蒋伯驾');
-    expect(names).not.toContain('程聿怀');
-    expect(names).not.toContain('以撒');
-  });
-
-  // The seed/index.ts sets legacy script to 'retired' at runtime.
-  // This test verifies the data contract that the seed does not
-  // accidentally activate legacy content.
-  it('seedScript does not contain retired as its own status', () => {
-    expect(seedScript.status).not.toBe('retired');
-    expect(seedScript.status).not.toBe('inactive');
+  it('former legacy characters are promoted into Moon Tower as active', () => {
+    for (const name of ['蒋伯驾', '程聿怀', '以撒']) {
+      const character = seedCharacters.find((c) => c.name === name)!;
+      expect(character).toBeDefined();
+      expect(character.scriptSlug).toBe('moon-tower');
+      expect(character.status).toBe('active');
+    }
   });
 });

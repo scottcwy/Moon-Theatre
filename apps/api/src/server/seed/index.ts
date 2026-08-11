@@ -1,9 +1,25 @@
 import { pathToFileURL } from 'node:url';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { closeDb, db } from '../db/index.js';
-import { scripts, characters, characterPrompts, modelProfiles, blockedKeywords } from '../db/schema.js';
+import {
+  blockedKeywords,
+  characterPrompts,
+  characterReturnMessages,
+  characters,
+  chatSessions,
+  memories,
+  messages,
+  modelProfiles,
+  modelUsageLogs,
+  relationships,
+  reviewLogs,
+  scenes,
+  scripts,
+  storyNodes,
+  userStoryState,
+} from '../db/schema.js';
 import { seedQuotaPackages } from './quota-packages.js';
-import { legacyScriptTitle, seedCharacters, seedScript } from './story-data.js';
+import { legacyScriptTitle, seedCharacters, seedScripts } from './story-data.js';
 
 const initialBlockedKeywords = [
   { keyword: 'fuck', category: 'profanity' },
@@ -63,28 +79,114 @@ async function seedBlockedKeywords() {
     .onConflictDoNothing({ target: blockedKeywords.keyword });
 }
 
+/**
+ * 完全删除历史遗留剧本（夜色围城）及其全部关联数据。
+ * 按外键依赖逆序删除：characters 被 character_prompts 级联引用，
+ * messages 会级联清 chat_effect_runs / relationship_bond_exp_events。
+ * 本地无夜色围城时为 0 行删除。
+ */
+async function deleteLegacyScript() {
+  const [legacyScript] = await db
+    .select({ id: scripts.id })
+    .from(scripts)
+    .where(eq(scripts.title, legacyScriptTitle))
+    .limit(1);
+
+  if (!legacyScript) {
+    console.log(`Legacy script "${legacyScriptTitle}" not found; nothing to delete`);
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    const legacyCharacters = await tx
+      .select({ id: characters.id })
+      .from(characters)
+      .where(eq(characters.scriptId, legacyScript.id));
+    const characterIds = legacyCharacters.map((character) => character.id);
+
+    const legacySessions =
+      characterIds.length > 0
+        ? await tx
+            .select({ id: chatSessions.id })
+            .from(chatSessions)
+            .where(inArray(chatSessions.characterId, characterIds))
+        : [];
+    const sessionIds = legacySessions.map((session) => session.id);
+
+    const logDeleted = (label: string, result: unknown) => {
+      const meta = result as { rowCount?: number | null; count?: string | null };
+      const rowCount = meta.rowCount ?? (meta.count != null ? Number(meta.count) : 0);
+      console.log(`Deleted ${label}: ${rowCount}`);
+    };
+
+    logDeleted(
+      'character_return_messages',
+      await tx.delete(characterReturnMessages).where(inArray(characterReturnMessages.characterId, characterIds)),
+    );
+    logDeleted(
+      'review_logs',
+      await tx.delete(reviewLogs).where(inArray(reviewLogs.sessionId, sessionIds)),
+    );
+    logDeleted(
+      'model_usage_logs',
+      await tx.delete(modelUsageLogs).where(inArray(modelUsageLogs.sessionId, sessionIds)),
+    );
+    logDeleted(
+      'messages',
+      await tx.delete(messages).where(inArray(messages.sessionId, sessionIds)),
+    );
+    logDeleted(
+      'chat_sessions',
+      await tx.delete(chatSessions).where(inArray(chatSessions.characterId, characterIds)),
+    );
+    logDeleted(
+      'memories',
+      await tx.delete(memories).where(inArray(memories.characterId, characterIds)),
+    );
+    logDeleted(
+      'relationships',
+      await tx.delete(relationships).where(inArray(relationships.characterId, characterIds)),
+    );
+    logDeleted(
+      'characters',
+      await tx.delete(characters).where(eq(characters.scriptId, legacyScript.id)),
+    );
+    logDeleted('scenes', await tx.delete(scenes).where(eq(scenes.scriptId, legacyScript.id)));
+    logDeleted(
+      'story_nodes',
+      await tx.delete(storyNodes).where(eq(storyNodes.scriptId, legacyScript.id)),
+    );
+    logDeleted(
+      'user_story_state',
+      await tx.delete(userStoryState).where(eq(userStoryState.scriptId, legacyScript.id)),
+    );
+    logDeleted('scripts', await tx.delete(scripts).where(eq(scripts.id, legacyScript.id)));
+  });
+
+  console.log(`Legacy script "${legacyScriptTitle}" fully deleted`);
+}
+
 async function seed() {
   await seedBlockedKeywords();
 
   console.log('Seeding database...');
 
-  await db.update(scripts).set({ status: 'retired' }).where(eq(scripts.title, legacyScriptTitle));
-  await db.update(characters).set({ status: 'inactive' }).where(eq(characters.name, '蒋伯驾'));
-  await db.update(characters).set({ status: 'inactive' }).where(eq(characters.name, '程聿怀'));
-  await db.update(characters).set({ status: 'inactive' }).where(eq(characters.name, '以撒'));
+  await deleteLegacyScript();
 
-  const script = await upsertScript();
-  if (!script) throw new Error('Failed to create script');
-  console.log(`Seeded script: ${script.id}`);
+  for (const script of seedScripts) {
+    const seededScript = await upsertScript(script);
+    if (!seededScript) throw new Error(`Failed to upsert script ${script.slug}`);
+    console.log(`Seeded script: ${seededScript.id} (${script.slug})`);
 
-  const characterIds: string[] = [];
-  for (const seedCharacter of seedCharacters) {
-    const character = await upsertCharacter(script.id, seedCharacter);
-    characterIds.push(character.id);
-    await refreshCharacterPrompt(character.id, seedCharacter.prompt);
+    const characterIds: string[] = [];
+    for (const seedCharacter of seedCharacters.filter((character) => character.scriptSlug === script.slug)) {
+      const character = await upsertCharacter(seededScript.id, seedCharacter);
+      characterIds.push(character.id);
+      await refreshCharacterPrompt(character.id, seedCharacter.prompt);
+    }
+
+    console.log(`Seeded characters [${script.slug}]: ${characterIds.join(', ')}`);
   }
-
-  console.log(`Seeded characters: ${characterIds.join(', ')}`);
 
   await seedModelProfiles();
 
@@ -114,23 +216,23 @@ export async function seedModelProfiles() {
   });
 }
 
-async function upsertScript() {
+async function upsertScript(script: (typeof seedScripts)[number]) {
   const [existing] = await db
     .select()
     .from(scripts)
-    .where(eq(scripts.slug, seedScript.slug))
+    .where(eq(scripts.slug, script.slug))
     .limit(1);
 
   if (existing) {
     const [updated] = await db
       .update(scripts)
-      .set(seedScript)
+      .set(script)
       .where(eq(scripts.id, existing.id))
       .returning({ id: scripts.id });
     return updated;
   }
 
-  const [created] = await db.insert(scripts).values(seedScript).returning({ id: scripts.id });
+  const [created] = await db.insert(scripts).values(script).returning({ id: scripts.id });
   return created;
 }
 

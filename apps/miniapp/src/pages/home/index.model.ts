@@ -36,6 +36,15 @@ const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
   贺茂清玄: '/assets/characters/kiyoharu.jpg',
   月岛澪: '/assets/characters/mio.jpg',
   久远: '/assets/characters/kuon.jpg',
+  程聿怀: '/assets/characters/chengyuhuai.jpg',
+  蒋伯驾: '/assets/characters/jiangbojia.jpg',
+  程走柳: '/assets/characters/chengzouliu.jpg',
+  缪宏谟: '/assets/characters/miaohongmo.jpg',
+  黛利拉: '/assets/characters/delilah.jpg',
+  以撒: '/assets/characters/isaac.jpg',
+  羌青瓷: '/assets/characters/qiangqingci.jpg',
+  奥丁: '/assets/characters/odin.jpg',
+  阿奇: '/assets/characters/archie.jpg',
 };
 
 const CHARACTER_DECISION_BADGES: Record<string, string> = {
