@@ -5,9 +5,9 @@ const moonGarden = seedScripts.find((script) => script.slug === 'moon-garden')!;
 const moonTower = seedScripts.find((script) => script.slug === 'moon-tower')!;
 
 describe('seed story data', () => {
-  it('defines two scripts and thirteen prompt-driven agents', () => {
-    expect(seedScripts.map((script) => script.slug)).toEqual(['moon-garden', 'moon-tower']);
-    expect(seedScripts.map((script) => script.title)).toEqual(['月见庭院：狐神的新娘', '流氓叙事']);
+  it('defines three scripts and nineteen prompt-driven agents', () => {
+    expect(seedScripts.map((script) => script.slug)).toEqual(['moon-garden', 'moon-tower', 'yunyun']);
+    expect(seedScripts.map((script) => script.title)).toEqual(['月见庭院：狐神的新娘', '流氓叙事', '芸芸']);
 
     expect(seedCharacters.map((character) => character.name)).toEqual([
       '白藏',
@@ -23,6 +23,12 @@ describe('seed story data', () => {
       '羌青瓷',
       '奥丁',
       '阿奇',
+      '南窗',
+      '赋霄',
+      '岑奕岚',
+      '季沧海',
+      '知何',
+      '叶上秋',
     ]);
   });
 
@@ -55,6 +61,29 @@ describe('seed story data', () => {
     }
     expect(seedCharacters.filter((character) => character.scriptSlug === 'moon-garden')).toHaveLength(4);
     expect(seedCharacters.filter((character) => character.scriptSlug === 'moon-tower')).toHaveLength(9);
+    expect(seedCharacters.filter((character) => character.scriptSlug === 'yunyun')).toHaveLength(6);
+  });
+
+  it('defines the YunYun script', () => {
+    const yunyun = seedScripts.find((script) => script.slug === 'yunyun')!;
+    expect(yunyun.title).toBe('芸芸');
+    expect(yunyun.genre).toBe('古风仙侠情感');
+    expect(yunyun.searchKeywords).toContain('云乡');
+    expect(yunyun.coverUrl).toBeNull();
+    expect(yunyun.sortOrder).toBe(2);
+    expect(yunyun.status).toBe('active');
+  });
+
+  it('gives every YunYun character the dream acquaintance relationship', () => {
+    for (const character of seedCharacters.filter((c) => c.scriptSlug === 'yunyun')) {
+      expect(character.initialRelationship).toBe('似曾相识的梦中旧识');
+      expect(character.prompt).toBeDefined();
+      expect(character.prompt.systemPrompt.length).toBeGreaterThan(20);
+      expect(character.prompt.personalityPrompt.length).toBeGreaterThan(20);
+      expect(character.prompt.scenarioPrompt.length).toBeGreaterThan(0);
+      expect(character.prompt.safetyPrompt.length).toBeGreaterThan(0);
+      expect(character.prompt.outputFormatPrompt.length).toBeGreaterThan(0);
+    }
   });
 
   it('gives every Moon Tower character the Brenow acquaintance relationship', () => {
@@ -78,6 +107,12 @@ describe('seed story data', () => {
       '/assets/characters/qiangqingci.jpg',
       '/assets/characters/odin.jpg',
       '/assets/characters/archie.jpg',
+      '/assets/characters/nanchuang.jpg',
+      '/assets/characters/fuxiao.jpg',
+      '/assets/characters/cenyilan.jpg',
+      '/assets/characters/jicanghai.jpg',
+      '/assets/characters/zhihe.jpg',
+      '/assets/characters/yeshangqiu.jpg',
     ]);
   });
 

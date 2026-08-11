@@ -67,12 +67,22 @@ describe('home navigation helpers', () => {
     expect(getScriptCoverUrl({ slug: 'moon-garden', coverUrl: 'https://cdn.example.com/moon.webp' })).toBe('https://cdn.example.com/moon.webp');
     expect(getScriptCoverUrl({ slug: 'moon-garden', coverUrl: '' })).toBe('/assets/home/moon-garden-cover.jpg');
     expect(getScriptCoverUrl({ slug: 'moon-tower', coverUrl: '' })).toBe('/assets/home/moon-tower-cover.jpg');
+    expect(getScriptCoverUrl({ slug: 'yunyun', coverUrl: '' })).toBe('/assets/home/yunyun-cover.jpg');
     expect(getScriptCoverUrl({ slug: 'unknown', coverUrl: null })).toBe('');
   });
 
   it('uses local character portraits when API avatar urls are empty', () => {
     expect(getCharacterAvatarUrl('白藏', '')).toBe('/assets/characters/hakuzo.jpg');
     expect(getCharacterAvatarUrl('贺茂清玄', null)).toBe('/assets/characters/kiyoharu.jpg');
+  });
+
+  it('maps every 芸芸 character to a local portrait', () => {
+    expect(getCharacterAvatarUrl('南窗', '')).toBe('/assets/characters/nanchuang.jpg');
+    expect(getCharacterAvatarUrl('赋霄', '')).toBe('/assets/characters/fuxiao.jpg');
+    expect(getCharacterAvatarUrl('岑奕岚', '')).toBe('/assets/characters/cenyilan.jpg');
+    expect(getCharacterAvatarUrl('季沧海', '')).toBe('/assets/characters/jicanghai.jpg');
+    expect(getCharacterAvatarUrl('知何', '')).toBe('/assets/characters/zhihe.jpg');
+    expect(getCharacterAvatarUrl('叶上秋', '')).toBe('/assets/characters/yeshangqiu.jpg');
   });
 
   it('maps every 流氓叙事 character to a local portrait', () => {

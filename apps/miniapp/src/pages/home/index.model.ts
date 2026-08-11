@@ -32,6 +32,7 @@ export function buildFrequentCharactersUrl(limit = FREQUENT_CHARACTERS_LIMIT): s
 const LOCAL_SCRIPT_COVERS: Record<string, string> = {
   'moon-garden': '/assets/home/moon-garden-cover.jpg',
   'moon-tower': '/assets/home/moon-tower-cover.jpg',
+  'yunyun': '/assets/home/yunyun-cover.jpg',
 };
 
 const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
@@ -48,6 +49,12 @@ const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
   羌青瓷: '/assets/characters/qiangqingci.jpg',
   奥丁: '/assets/characters/odin.jpg',
   阿奇: '/assets/characters/archie.jpg',
+  南窗: '/assets/characters/nanchuang.jpg',
+  赋霄: '/assets/characters/fuxiao.jpg',
+  岑奕岚: '/assets/characters/cenyilan.jpg',
+  季沧海: '/assets/characters/jicanghai.jpg',
+  知何: '/assets/characters/zhihe.jpg',
+  叶上秋: '/assets/characters/yeshangqiu.jpg',
 };
 
 /** 有男女双版本海报的角色：选角时按性别切换头像。默认版本与 LOCAL_CHARACTER_AVATARS 一致。 */
