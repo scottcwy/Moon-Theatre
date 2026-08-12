@@ -169,6 +169,8 @@ rtk docker compose exec -T postgres pg_restore -U postgres -d juben_sha --clean 
 
 ## 9. v1.1 上线检查清单
 
+> **上线阻断：真实支付服务商联调未完成。`PAYMENT_PROVIDER` 必须为 `aggregate` 且四参数（`PAYMENT_MERCHANT_ID` / `PAYMENT_APP_ID` / `PAYMENT_SECRET` / `PAYMENT_NOTIFY_URL`）齐全方可上线。**
+
 v1.1（聊天体验：剧本/自由模式、剧本目录、记忆作用域、回访留言）上线时按序执行。镜像 tag **由发布负责人填写**，仓库不预设具体值。
 
 1. 构建并推送 `api` / `api-tools` / `fastclaw` 新镜像（`linux/amd64`）：登录腾讯云 CCR 后，按仓库构建流程产出三个新镜像并推送（tag 由发布负责人填写，例如日期 + 提交短哈希，但不得沿用 07-06 快照 tag）。
