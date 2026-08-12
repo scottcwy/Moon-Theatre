@@ -4,10 +4,10 @@
 
 ## 1. 域名和服务器前置条件
 
-1. 准备一个 API 子域名，例如 `api.your-domain.com`。
+1. 准备一个 API 子域名，例如 `api.yuemanlou.xyz`。
 2. 在 DNS 服务商添加 `A` 记录，指向服务器公网 IP。
 3. 服务器安全组或防火墙开放 `80` 和 `443`。
-4. 微信公众平台后台把 `https://api.your-domain.com` 加入 request 合法域名。
+4. 微信公众平台后台把 `https://api.yuemanlou.xyz` 加入 request 合法域名。
 5. 等 DNS 生效后再启动 Caddy，Caddy 会自动申请 HTTPS 证书。
 
 ## 2. 环境变量
@@ -81,15 +81,15 @@ rtk docker compose up -d api caddy
 ## 4. 健康检查
 
 ```bash
-rtk curl -fsS https://api.your-domain.com/api/health
-rtk curl -fsS https://api.your-domain.com/api/ready
+rtk curl -fsS https://api.yuemanlou.xyz/api/health
+rtk curl -fsS https://api.yuemanlou.xyz/api/ready
 ```
 
 `/api/health` 只表示 API 进程存活。`/api/ready` 检查 API 进程、Postgres 连通（`select 1`，5 秒超时）、FastClaw 配置与 `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec；任一检查失败返回 `503` 且 `status=not_ready`。业务聊天 Agent 若超过 `maxTokens=768`、`maxToolIterations` 不等于 `0` 或 `thinking` 不等于 `"off"`，readiness 会返回 `503`。
 
 ## 5. 小程序生产构建
 
-域名统一配置在 `apps/miniapp/config/hosts.json`（`dev` 本地调试 / `lan` 真机预览 / `prod` 生产域名），当前生产域名：`https://api.offergo.xz.cn`。
+域名统一配置在 `apps/miniapp/config/hosts.json`（`dev` 本地调试 / `lan` 真机预览 / `prod` 生产域名）。当前 `prod` 指向 `https://api.yuemanlou.xyz`，生产构建直接读取。
 
 推荐入口：
 
@@ -101,9 +101,9 @@ rtk pnpm build:miniapp:prod
 
 - 开发环境用 `rtk pnpm dev:miniapp`（默认 `http://127.0.0.1:3000`，配合微信开发者工具"不校验合法域名"）。
 - 真机预览用 `rtk pnpm dev:miniapp:lan`（先在本机 `hosts.json` 的 `lan` 填入电脑局域网 IP）。
-- 等价旧方式：`rtk API_BASE_URL="https://api.offergo.xz.cn" pnpm --filter @juben-sha/miniapp build:weapp` + `verify:weapp`；`API_BASE_URL` 环境变量仍可临时覆盖 `hosts.json`（供 CI 或紧急切换使用），优先级高于配置文件。
+- 等价旧方式：`rtk API_BASE_URL="https://api.yuemanlou.xyz" pnpm --filter @juben-sha/miniapp build:weapp` + `verify:weapp`；`API_BASE_URL` 环境变量仍可临时覆盖 `hosts.json`（供 CI 或紧急切换使用），优先级高于配置文件。
 - 生产域名变更时，只改 `hosts.json` 的 `prod` 后重新构建上传即可；后端镜像域名由服务器 `.env` 的 `CADDY_API_SITE_ADDRESS` 控制，与此无关。
-- 构建前确认域名已加入微信 request 合法域名；`verify:weapp` 会继续挡住占位 API 主机和 localhost。
+- 构建前确认域名已加入微信 request 合法域名；`verify:weapp` 会继续挡住占位 API 主机和 `localhost` 拼写地址。
 - `apps/miniapp/project.config.json` 的 `urlCheck: false` 只影响微信开发者工具内的本地请求校验，不影响发布包（体验版/正式版仍必须走合法域名）；如需工具内严格校验，改 `project.private.config.json`（不入库）。`uploadWithSourceMap: false` 保证上传包不带 sourcemap。
 
 ## 6. 回滚
@@ -199,7 +199,7 @@ rtk pnpm build:miniapp:prod
 
 ## 10. 附录 A：微信后台上线清单（非仓库操作，人工执行）
 
-1. request 合法域名 `https://api.offergo.xz.cn` 已配置（`apps/miniapp/config/hosts.json` 的 `prod` 已入库）。
+1. request 合法域名 `https://api.yuemanlou.xyz` 已配置（`apps/miniapp/config/hosts.json` 的 `prod` 已指向该域名）。
 2. 用户隐私保护指引：收集 openid、聊天内容、头像昵称等，须在微信公众平台提交。
 3. 小程序类目与资质（AI 聊天 / 角色扮演类目要求以平台审核为准）。
 4. UGC 内容安全：项目已有本地 blocked-keywords + 输出过滤；确认是否需接 `msgSecCheck` 或用户协议兜底。

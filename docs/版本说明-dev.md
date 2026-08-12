@@ -115,7 +115,7 @@ rtk pnpm build:miniapp:prod   # 小程序生产构建 + verify:weapp
 - **镜像仍为 07-06 快照**：具体 tag 以 `docs/deployment.md` 第 3 节为单一事实源，此处只引用不复制。
 - 服务器当前跑的既不是 v1.1 代码：v1.1 上线需要**构建并推送 api / api-tools / fastclaw 新镜像**（tag 由发布负责人填写），服务器 `.env` 更新镜像 tag 后 `rtk docker compose pull && up -d`，并**确认迁移 0004–0009 已应用**。
 - 上线检查清单见 `docs/deployment.md` 新增的「v1.1 上线检查清单」一节。
-- 小程序生产域名 `https://api.offergo.xz.cn`（`apps/miniapp/config/hosts.json` 已跟踪）。
+- 小程序生产域名 `https://api.yuemanlou.xyz`（`apps/miniapp/config/hosts.json` 已跟踪），生产构建直接读取 `prod`。
 
 ## 6. 已知边界
 

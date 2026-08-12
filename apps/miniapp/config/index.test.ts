@@ -149,7 +149,7 @@ describe('miniapp hosts.json single config point', () => {
 
     const config = await import('./prod');
 
-    expect(config.default.defineConstants?.API_BASE_URL).toBe('"https://api.offergo.xz.cn"');
+    expect(config.default.defineConstants?.API_BASE_URL).toBe('"https://api.yuemanlou.xyz"');
   });
 
   it('uses the hosts.json dev host for development builds without API_BASE_URL', async () => {

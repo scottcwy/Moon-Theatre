@@ -264,7 +264,7 @@
 
 ## 附录 A：微信后台上线清单（非仓库操作，人工执行）
 
-1. request 合法域名 `https://api.offergo.xz.cn` 已配置（`hosts.json` prod 已入库）。
+1. request 合法域名 `https://api.yuemanlou.xyz` 已配置（`hosts.json` prod 已入库）。
 2. 用户隐私保护指引：收集 openid、聊天内容、头像昵称等，须在微信公众平台提交。
 3. 小程序类目与资质（AI 聊天 / 角色扮演类目要求以平台审核为准）。
 4. UGC 内容安全：项目已有本地 blocked-keywords + 输出过滤；确认是否需接 `msgSecCheck` 或用户协议兜底。
