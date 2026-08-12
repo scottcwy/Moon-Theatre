@@ -531,12 +531,12 @@ export default function Chat() {
       void loadBalance();
       void refreshCharacterRelationship();
     }
-  }, [loadBalance, refreshCharacterRelationship, scriptTitle, setScope, updateAssistantPlaceholder]);
+  }, [clearWaitingReply, loadBalance, refreshCharacterRelationship, scriptTitle, setScope, updateAssistantPlaceholder]);
 
   const handleSend = () => {
     const characterId = character?.id;
     const userMessage = inputValue.trim();
-    if (!userMessage || sendingRef.current || !characterId || !canSend) return;
+    if (!userMessage || sendingRef.current || scopeSwitchingRef.current || !characterId || !canSend) return;
     if (!requireAuth()) {
       goLogin();
       return;
