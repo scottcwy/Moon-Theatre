@@ -25,10 +25,14 @@ import {
 } from './index.js';
 import type { ChatMode } from './index.js';
 import { sanitizeAssistantOutput } from './output-sanitizer.js';
-import { classifyChatScope } from './scope-classifier.js';
+import { classifyChatScopeNonBlocking, SCOPE_CLASSIFY_GRACE_MS } from './scope-classifier.js';
 import { runChatCompletionEffects } from './workflow.js';
 
 const OUT_OF_SCOPE_FALLBACK = '这个问题超出了当前角色和剧情能可靠回应的范围。我们可以换成和角色、线索或当前剧情更相关的问题继续。';
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export interface ChatStreamInput {
   userId: string;
@@ -510,6 +514,25 @@ function createGenerationResponse(input: {
       try {
         controller.enqueue(encoder.encode(JSON.stringify({ type: 'status', mode: 'moderated_buffered', stage: 'generating' }) + '\n'));
 
+        const pendingScopeClassification = input.mode === 'script'
+          ? classifyChatScopeNonBlocking({
+              userMessage: input.userMessage,
+              characterName: input.characterName,
+              characterIdentity: input.characterIdentity,
+              scriptTitle: input.scriptTitle,
+              worldSetting: input.worldSetting,
+            }).catch((err) => {
+              console.warn({
+                event: 'scope_classifier_failed',
+                sessionId: input.sessionId,
+                userMessageId: input.userMessageId,
+                clientMessageId: input.clientMessageId,
+                error: err instanceof Error ? err.message : String(err),
+              });
+              return { classification: 'in_scope' as const, settledInGrace: false };
+            })
+          : null;
+
         const generationStartedAt = Date.now();
         for await (const event of streamChat(input.systemPrompt, input.userMessage, {
           messages: input.messages,
@@ -554,25 +577,20 @@ function createGenerationResponse(input: {
         const { mood, cleanedText } = parseMood(sanitizedText);
 
         let scopeClassification: 'in_scope' | 'out_of_scope' = 'in_scope';
-        if (input.mode === 'script') {
-          try {
-            const classification = await classifyChatScope({
-              userMessage: input.userMessage,
-              assistantDraft: cleanedText,
-              characterName: input.characterName,
-              characterIdentity: input.characterIdentity,
-              scriptTitle: input.scriptTitle,
-              worldSetting: input.worldSetting,
-            });
-            scopeClassification = classification === 'out_of_scope' ? 'out_of_scope' : 'in_scope';
-          } catch (err) {
-            console.warn({
-              event: 'scope_classifier_failed',
+        if (pendingScopeClassification) {
+          const scopeResult = await Promise.race([
+            pendingScopeClassification.then(({ classification }) => ({ classification, timedOut: false })),
+            sleep(SCOPE_CLASSIFY_GRACE_MS).then(() => ({ classification: 'in_scope' as const, timedOut: true })),
+          ]);
+          if (scopeResult.timedOut) {
+            console.info({
+              event: 'scope_classifier_grace_expired',
               sessionId: input.sessionId,
               userMessageId: input.userMessageId,
               clientMessageId: input.clientMessageId,
-              error: err instanceof Error ? err.message : String(err),
             });
+          } else {
+            scopeClassification = scopeResult.classification === 'out_of_scope' ? 'out_of_scope' : 'in_scope';
           }
         }
 

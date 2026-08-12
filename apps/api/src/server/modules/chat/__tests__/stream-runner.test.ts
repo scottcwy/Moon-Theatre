@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const selectMock = vi.fn();
 const insertMock = vi.fn();
@@ -134,6 +134,12 @@ vi.mock('../workflow.js', () => ({
 
 vi.mock('../scope-classifier.js', () => ({
   classifyChatScope: classifyChatScopeMock,
+  classifyChatScopeNonBlocking: async (input: unknown) => {
+    const classification = await classifyChatScopeMock(input);
+    return { classification, settledInGrace: true };
+  },
+  SCOPE_CLASSIFY_TIMEOUT_MS: 3_000,
+  SCOPE_CLASSIFY_GRACE_MS: 500,
 }));
 
 async function readEvents(response: Response): Promise<Array<Record<string, unknown>>> {
@@ -223,6 +229,10 @@ describe('runChatStream', () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     setupHappyPath();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('keeps chat completion effects synchronous by default', async () => {
@@ -653,6 +663,112 @@ describe('runChatStream', () => {
     expect(refundConsumedPointsMock).toHaveBeenCalledWith('user-1', 3, 'refund_user-message-1_1');
     expect(markTurnOutOfScopeMock).not.toHaveBeenCalled();
     expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
+    expect(classifyChatScopeMock.mock.calls[0]![0]).not.toHaveProperty('assistantDraft');
+  });
+
+  it('starts scope classification before generation without the assistant draft', async () => {
+    const { runChatStream } = await import('../stream-runner.js');
+
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      mode: 'script',
+      scriptId: 'script-1',
+      clientMessageId: 'client-1',
+    });
+    await readEvents(response);
+
+    expect(classifyChatScopeMock).toHaveBeenCalledWith(expect.objectContaining({
+      userMessage: '你好',
+      characterName: '铃音',
+      characterIdentity: '巫女',
+      scriptTitle: '月见庭院',
+      worldSetting: '庭院',
+    }));
+    const classifyInput = classifyChatScopeMock.mock.calls[0]![0] as Record<string, unknown>;
+    expect(classifyInput).not.toHaveProperty('assistantDraft');
+    expect(classifyChatScopeMock.mock.invocationCallOrder[0]!).toBeLessThan(streamChatMock.mock.invocationCallOrder[0]!);
+  });
+
+  it('does not block the reply when scope classification rejects', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    classifyChatScopeMock.mockRejectedValue(new Error('classifier down'));
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const startedAt = Date.now();
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      mode: 'script',
+      scriptId: 'script-1',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+    const elapsed = Date.now() - startedAt;
+
+    const doneEvent = events.find((event) => event.type === 'done');
+    expect(doneEvent).toMatchObject({ type: 'done', messageId: 'assistant-message-1' });
+    expect(doneEvent).not.toHaveProperty('outOfScope');
+    expect(events.some((event) => event.type === 'delta' && String(event.content).includes('月色'))).toBe(true);
+    expect(elapsed).toBeLessThan(1_000);
+    expect(warnSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'scope_classifier_failed',
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      clientMessageId: 'client-1',
+    }));
+  });
+
+  it('does not wait beyond the grace period for a hanging scope classifier', async () => {
+    classifyChatScopeMock.mockImplementation(() => new Promise(() => {}));
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const startedAt = Date.now();
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      mode: 'script',
+      scriptId: 'script-1',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+    const elapsed = Date.now() - startedAt;
+
+    const doneEvent = events.find((event) => event.type === 'done');
+    expect(doneEvent).toMatchObject({ type: 'done', messageId: 'assistant-message-1' });
+    expect(doneEvent).not.toHaveProperty('outOfScope');
+    expect(events.some((event) => event.type === 'delta' && String(event.content).includes('月色'))).toBe(true);
+    expect(elapsed).toBeLessThan(2_000);
+  });
+
+  it('logs scope_classifier_grace_expired when classification does not settle in grace', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    classifyChatScopeMock.mockImplementation(() => new Promise(() => {}));
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      mode: 'script',
+      scriptId: 'script-1',
+      clientMessageId: 'client-1',
+    });
+    await readEvents(response);
+
+    expect(infoSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'scope_classifier_grace_expired',
+      sessionId: 'session-1',
+      userMessageId: 'user-message-1',
+      clientMessageId: 'client-1',
+    }));
   });
 
   it('blocked input with clientMessageId saves assistant fallback with the same clientMessageId', async () => {
