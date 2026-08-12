@@ -23,7 +23,7 @@ import {
   ScriptUnavailableError,
   SessionScopeMismatchError,
 } from './index.js';
-import type { ChatMode } from './index.js';
+import type { ChatMode, ChatSessionScope } from './index.js';
 import { extractUserRecap } from './prompt-builder.js';
 import { createStreamingOutputCleaner, sanitizeAssistantOutput } from './output-sanitizer.js';
 import { classifyChatScopeNonBlocking, settleScopeWithinGrace, type ScopeClassification } from './scope-classifier.js';
@@ -101,27 +101,35 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   const clientMessageId = input.clientMessageId?.trim();
   const message = input.message;
 
-  const [profile] = await db
-    .select({
-      modelName: modelProfiles.modelName,
-      pointsPerCall: modelProfiles.pointsPerCall,
-    })
-    .from(modelProfiles)
-    .where(and(eq(modelProfiles.tier, modelTier), eq(modelProfiles.enabled, true)))
-    .limit(1);
+  // P2-2 4.2：profile / character / wallet 相互独立，入口并行；sessionId 路径的会话
+  // scope 一并并行（resolveRequestScope 复用，不再二次查询）。getBalance/consumePoints
+  // 保持原位，错误判定顺序保持 400 -> 404 -> 409(scope) -> 409(turn) -> 402。
+  const [profileRows, character, , persistedScope] = await Promise.all([
+    db
+      .select({
+        modelName: modelProfiles.modelName,
+        pointsPerCall: modelProfiles.pointsPerCall,
+      })
+      .from(modelProfiles)
+      .where(and(eq(modelProfiles.tier, modelTier), eq(modelProfiles.enabled, true)))
+      .limit(1),
+    getCharacterWithPrompts(characterId),
+    getOrCreateWallet(userId),
+    sessionId ? getChatSessionScope(userId, sessionId) : Promise.resolve(null),
+  ]);
+  const [profile] = profileRows;
 
   if (!profile) {
     return errorResponse(`Model tier "${modelTier}" is not available`, 400);
   }
 
-  const character = await getCharacterWithPrompts(characterId);
   if (!character) {
     return errorResponse('Character not found', 404);
   }
 
   let scope: { mode: ChatMode; scriptId: string | null };
   try {
-    scope = await resolveRequestScope(input, character);
+    scope = await resolveRequestScope(input, character, persistedScope);
   } catch (error) {
     if (error instanceof SessionScopeMismatchError) {
       return errorResponse('session_scope_mismatch', 409);
@@ -318,6 +326,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
 async function resolveRequestScope(
   input: ChatStreamInput,
   character: NonNullable<Awaited<ReturnType<typeof getCharacterWithPrompts>>>,
+  persistedScope?: ChatSessionScope | null,
 ): Promise<{ mode: ChatMode; scriptId: string | null }> {
   const currentScript = character.scriptId ? await getScriptById(character.scriptId) : null;
   if (character.scriptId && (!currentScript || currentScript.status !== 'active')) {
@@ -325,7 +334,8 @@ async function resolveRequestScope(
   }
 
   if (input.sessionId) {
-    const persisted = await getChatSessionScope(input.userId, input.sessionId);
+    // 入口已并行取过会话 scope（4.2），此处直接复用；缺省时兜底查询以保持独立调用可用。
+    const persisted = persistedScope !== undefined ? persistedScope : await getChatSessionScope(input.userId, input.sessionId);
     if (
       !persisted ||
       persisted.status !== 'active' ||
@@ -393,7 +403,7 @@ async function createPreparedGenerationResponse(input: {
   mode: ChatMode;
   scriptId: string | null;
 }): Promise<Response> {
-  await getOrCreateWallet(input.userId);
+  // wallet 已在入口并行创建（4.2）；getBalance 内部幂等，保持原位。
   const balance = await getBalance(input.userId);
   if (balance < input.pointsPerCall) {
     await failTurn(input.userMessageId);

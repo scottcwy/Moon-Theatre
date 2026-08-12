@@ -376,6 +376,77 @@ describe('runChatStream', () => {
     expect(finalizeAssistantTurnMock).not.toHaveBeenCalled();
   });
 
+  it('starts profile, character and wallet lookups in parallel before any of them resolves', async () => {
+    const characterDeferred = deferred();
+    const walletDeferred = deferred();
+    getCharacterWithPromptsMock.mockReturnValue(characterDeferred.promise);
+    getOrCreateWalletMock.mockReturnValue(walletDeferred.promise);
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const pending = runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+    });
+    await Promise.resolve();
+
+    // 三个相互独立的入口查询都已在任一查询 resolve 前发出（并行，而非串行）
+    expect(limitMock).toHaveBeenCalledWith(1);
+    expect(getCharacterWithPromptsMock).toHaveBeenCalledWith('character-1');
+    expect(getOrCreateWalletMock).toHaveBeenCalledWith('user-1');
+
+    characterDeferred.resolve({
+      id: 'character-1',
+      name: '铃音',
+      avatarUrl: '/avatar.png',
+      identity: '巫女',
+      description: '月见庭院的守门人',
+      scriptId: 'script-1',
+      initialRelationship: 'neutral',
+      status: 'active',
+      prompts: null,
+    });
+    walletDeferred.resolve(undefined);
+
+    const response = await pending;
+    await readEvents(response);
+    expect(response.status).toBe(200);
+  });
+
+  it('reuses the entry-parallel session scope on the sessionId path', async () => {
+    getChatSessionScopeMock.mockResolvedValue({
+      id: 'session-1',
+      userId: 'user-1',
+      characterId: 'character-1',
+      status: 'active',
+      mode: 'script',
+      scriptId: 'script-1',
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      sessionId: 'session-1',
+      message: '继续',
+      modelTier: 'standard',
+    });
+    await readEvents(response);
+
+    // 会话 scope 只在入口取一次，resolveRequestScope 复用同一结果
+    expect(getChatSessionScopeMock).toHaveBeenCalledTimes(1);
+    expect(getChatSessionScopeMock).toHaveBeenCalledWith('user-1', 'session-1');
+    expect(findOrCreateSessionMock).toHaveBeenCalledWith(
+      'user-1',
+      'character-1',
+      'standard',
+      'session-1',
+      'script',
+      'script-1',
+    );
+  });
+
   it('finalizes successful generated turns through the lifecycle service', async () => {
     runChatCompletionEffectsMock.mockResolvedValue({
       bond: null,
