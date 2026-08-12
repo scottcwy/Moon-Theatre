@@ -20,7 +20,7 @@ rtk cp .env.example .env
 
 必须替换的值：
 
-- `POSTGRES_IMAGE`, `API_IMAGE`, `API_TOOLS_IMAGE`, `FASTCLAW_IMAGE`, `CADDY_IMAGE`: 服务器拉取的生产镜像。当前模板指向 `ccr.ccs.tencentyun.com/juben-sha/*`。
+- `POSTGRES_IMAGE`, `API_IMAGE`, `API_TOOLS_IMAGE`, `FASTCLAW_IMAGE`, `CADDY_IMAGE`: 服务器拉取的生产镜像，指向 `ccr.ccs.tencentyun.com/juben-sha/*`。postgres / caddy 保持官方镜像 tag（`postgres:16-alpine` / `caddy:2-alpine`）；api / api-tools / fastclaw 三个业务镜像 tag 由发布负责人按 `YYYYMMDD-<git 短哈希 7 位>` 构建推送后填写（模板为 `RELEASE_TAG` 占位），禁止 `-dirty`、禁止沿用 07-06 快照；构建推送命令见第 3 节。
 - `CADDY_API_SITE_ADDRESS`: API 域名，不带协议。
 - `POSTGRES_PASSWORD`: Postgres 密码。
 - `DATABASE_URL`: API 使用的数据库连接串，密码必须和 `POSTGRES_PASSWORD` 一致。
@@ -36,7 +36,7 @@ rtk cp .env.example .env
 
 不要把真实 `.env` 提交到仓库。
 
-## 3. 镜像和启动
+## 3. 镜像构建、推送和启动
 
 服务器部署前先登录腾讯云 CCR：
 
@@ -44,15 +44,27 @@ rtk cp .env.example .env
 rtk docker login ccr.ccs.tencentyun.com --username=<腾讯云账号 ID>
 ```
 
-当前已推送的 `linux/amd64` 镜像：
+本机为 arm64（`uname -m`），服务器为 amd64，业务镜像构建必须显式指定 `--platform linux/amd64`。当前无 CI，由发布负责人按 `YYYYMMDD-<git 短哈希 7 位>` 命名 tag 手工构建推送（禁止 `-dirty`、禁止沿用 07-06 快照；与 `fastclaw/.github/workflows/docker.yml` 同范式，buildx 一步构建+推送）：
+
+```bash
+docker buildx build --platform linux/amd64 --push \
+  -t ccr.ccs.tencentyun.com/juben-sha/api:<tag> -f apps/api/Dockerfile .
+docker buildx build --platform linux/amd64 --push \
+  -t ccr.ccs.tencentyun.com/juben-sha/api-tools:<tag> -f apps/api/Dockerfile.tools .
+docker buildx build --platform linux/amd64 --push \
+  -t ccr.ccs.tencentyun.com/juben-sha/fastclaw:<tag> -f fastclaw/Dockerfile.minimal fastclaw/
+```
+
+等价替代：`docker build --platform linux/amd64 ... && docker push ...`（需本机 buildx/qemu，Docker Desktop 自带）。
+
+postgres / caddy 使用官方镜像 tag，不构建推送：
 
 ```bash
 POSTGRES_IMAGE=ccr.ccs.tencentyun.com/juben-sha/postgres:16-alpine
-API_IMAGE=ccr.ccs.tencentyun.com/juben-sha/api:20260706-58cf7ce-deployfix
-API_TOOLS_IMAGE=ccr.ccs.tencentyun.com/juben-sha/api-tools:20260706-58cf7ce-deployfix
-FASTCLAW_IMAGE=ccr.ccs.tencentyun.com/juben-sha/fastclaw:20260706-58cf7ce-dirty
 CADDY_IMAGE=ccr.ccs.tencentyun.com/juben-sha/caddy:2-alpine
 ```
+
+> 历史遗留：CCR 上已推送的 07-06 快照（`api:20260706-58cf7ce-deployfix`、`api-tools:20260706-58cf7ce-deployfix`、`fastclaw:20260706-58cf7ce-dirty`）**禁止继续使用**。`.env.example` 模板业务镜像 tag 已改为 `RELEASE_TAG` 占位，发布时由负责人填写真实 tag；未填真实 tag 时 `docker compose pull` 会失败，这是有意为之。
 
 服务器只拉镜像，不执行业务镜像构建：
 

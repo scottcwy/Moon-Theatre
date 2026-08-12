@@ -50,15 +50,25 @@ test('compose exposes only caddy publicly and pulls deployment images from env',
   assert.match(compose, /image:\s+\$\{CADDY_IMAGE:\?CADDY_IMAGE is required\}/);
 });
 
-test('env example points server deployment at Tencent CCR images', () => {
+test('env example points server deployment at Tencent CCR images with a release-owned tag', () => {
   const envExample = readRepoFile('.env.example');
+  const releaseTagPattern = /^(RELEASE_TAG|\d{8}-[0-9a-f]{7})$/;
 
   assert.match(envExample, /^POSTGRES_IMAGE=ccr\.ccs\.tencentyun\.com\/juben-sha\/postgres:16-alpine$/m);
-  assert.match(envExample, /^API_IMAGE=ccr\.ccs\.tencentyun\.com\/juben-sha\/api:20260706-58cf7ce-deployfix$/m);
-  assert.match(envExample, /^API_TOOLS_IMAGE=ccr\.ccs\.tencentyun\.com\/juben-sha\/api-tools:20260706-58cf7ce-deployfix$/m);
-  assert.match(envExample, /^FASTCLAW_IMAGE=ccr\.ccs\.tencentyun\.com\/juben-sha\/fastclaw:20260706-58cf7ce-dirty$/m);
   assert.match(envExample, /^CADDY_IMAGE=ccr\.ccs\.tencentyun\.com\/juben-sha\/caddy:2-alpine$/m);
   assert.doesNotMatch(envExample, /api\.example\.com/);
+
+  for (const key of ['API_IMAGE', 'API_TOOLS_IMAGE', 'FASTCLAW_IMAGE']) {
+    const line = envExample.split('\n').find((l) => l.startsWith(`${key}=`));
+    assert.ok(line, `${key} must be defined in .env.example`);
+    const [, image] = line.split('=');
+    const tag = image.slice(image.lastIndexOf(':') + 1);
+    assert.match(image, /^ccr\.ccs\.tencentyun\.com\/juben-sha\/[^:]+:.+$/, `${key} must point at Tencent CCR`);
+    assert.match(tag, releaseTagPattern, `${key} tag must be RELEASE_TAG or YYYYMMDD-<sha7>, got ${tag}`);
+  }
+
+  assert.doesNotMatch(envExample, /20260706/, '.env.example must not pin the 07-06 snapshot');
+  assert.doesNotMatch(envExample, /-dirty/, '.env.example must not contain -dirty tags');
 });
 
 test('api Dockerfile pins a Node 20 compatible pnpm version', () => {
