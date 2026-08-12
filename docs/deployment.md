@@ -115,7 +115,7 @@ rtk docker compose pull api api-migrate api-seed fastclaw
 rtk docker compose up -d api fastclaw caddy
 ```
 
-3. 数据库迁移不做自动回滚。涉及破坏性迁移前必须先备份 Postgres volume 或线上数据库。
+3. 数据库迁移不做自动回滚。涉及破坏性迁移前必须先备份 Postgres（见第 8 节）。
 4. 回滚后重新执行健康检查和小程序关键链路联调。
 
 ## 7. FastClaw 说明
@@ -126,7 +126,48 @@ rtk docker compose up -d api fastclaw caddy
 
 **数据持久化**：FastClaw 已挂载命名卷 `fastclaw-data`（容器内 `/data/.fastclaw`，sqlite 数据落该目录）。服务器旧容器若已有匿名卷数据，切换前必须先备份：`docker inspect juben-sha-fastclaw` 找到匿名卷 `Source` 路径，用 `docker cp` 或临时挂载导出备份后再切换命名卷；本地测试阶段无业务数据可直接切换。匿名卷在 `docker compose down -v` 时会被删除，切换命名卷后旧匿名卷数据不再挂载（未删除但不可见）。
 
-## 8. v1.1 上线检查清单
+## 8. 备份与恢复
+
+### 8.1 备份
+
+仓库提供 `scripts/backup-postgres.mjs`：读取根 `.env` 的 `POSTGRES_PASSWORD`，通过 `docker compose exec -T` 在 postgres 容器内执行 `pg_dump -Fc`，输出到 `backups/juben-sha-<UTC时间戳>.dump`。`backups/` 已加入 `.gitignore` 与 `.dockerignore`，备份文件不会进 Docker 构建上下文，也不会被提交。
+
+```bash
+rtk node scripts/backup-postgres.mjs
+```
+
+前提：postgres 容器在运行（`rtk docker compose up -d postgres`），且根 `.env` 已配置 `POSTGRES_PASSWORD`。
+
+建议：
+
+- 每日 03:00 定时备份（服务器时区 Asia/Shanghai），例如 cron：
+
+  ```cron
+  0 3 * * * cd /opt/juben-sha && /usr/bin/node scripts/backup-postgres.mjs >> backups/backup.log 2>&1
+  ```
+
+- 保留策略：本地保留 14 天，超期清理（例如 `find backups -name '*.dump' -mtime +14 -delete`）。
+- 上线前、破坏性迁移前必须强制备份。
+
+### 8.2 恢复
+
+宿主机无需安装 libpq：直接用 postgres 容器内自带的 `pg_restore` 列档或还原。
+
+列档检查：
+
+```bash
+rtk docker compose exec -T postgres pg_restore --list - < backups/juben-sha-<时间戳>.dump
+```
+
+还原（覆盖式，谨慎执行）：
+
+```bash
+rtk docker compose exec -T postgres pg_restore -U postgres -d juben_sha --clean --if-exists < backups/juben-sha-<时间戳>.dump
+```
+
+恢复后重启 api 并执行第 4 节健康检查。
+
+## 9. v1.1 上线检查清单
 
 v1.1（聊天体验：剧本/自由模式、剧本目录、记忆作用域、回访留言）上线时按序执行。镜像 tag **由发布负责人填写**，仓库不预设具体值。
 
