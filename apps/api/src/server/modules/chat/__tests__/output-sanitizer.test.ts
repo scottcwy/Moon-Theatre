@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createStreamingOutputCleaner, sanitizeAssistantOutput } from '../output-sanitizer.js';
+
+const IN_CHARACTER_FALLBACK = '这个问题牵着太深的雾，我不能草率替你下结论。我们换个角度，从你手里的线索慢慢拆开。';
 
 describe('sanitizeAssistantOutput', () => {
   it('removes explicit thinking blocks and internal labels from model output', () => {
@@ -9,20 +11,20 @@ describe('sanitizeAssistantOutput', () => {
       '白藏垂下眼，指尖轻轻按住铃铛。月色不会一次照亮所有真相，但我会陪你从第一枚裂纹看起。',
     ].join('\n'));
 
-    expect(result).toBe('白藏垂下眼，指尖轻轻按住铃铛。月色不会一次照亮所有真相，但我会陪你从第一枚裂纹看起。');
+    expect(result.text).toBe('白藏垂下眼，指尖轻轻按住铃铛。月色不会一次照亮所有真相，但我会陪你从第一枚裂纹看起。');
   });
 
   it('rewrites generic AI refusal into an in-character fallback', () => {
     const result = sanitizeAssistantOutput('作为AI模型，我不能回答这个问题。');
 
-    expect(result).toBe('这个问题牵着太深的雾，我不能草率替你下结论。我们换个角度，从你手里的线索慢慢拆开。');
+    expect(result.text).toBe(IN_CHARACTER_FALLBACK);
   });
 
   it('removes dangling think tags and de-duplicates leaked thinking answer', () => {
     const visible = '我是白藏，这庭院的守约者，狐嫁的见证人。\n千年了，你依然记不起吗？红线系在腕上，铃铛响过七次，每一次都是命运的低语。';
     const result = sanitizeAssistantOutput([visible, '</think>', visible].join('\n'));
 
-    expect(result).toBe(visible);
+    expect(result.text).toBe(visible);
   });
 
   it('removes alternate internal tag blocks and labeled reasoning lines', () => {
@@ -33,39 +35,127 @@ describe('sanitizeAssistantOutput', () => {
       '白藏抬眸望向檐下的铃，声音放得很轻：若你愿意，我们从第七声铃响说起。',
     ].join('\n'));
 
-    expect(result).toBe('白藏抬眸望向檐下的铃，声音放得很轻：若你愿意，我们从第七声铃响说起。');
+    expect(result.text).toBe('白藏抬眸望向檐下的铃，声音放得很轻：若你愿意，我们从第七声铃响说起。');
   });
 
   it('preserves normal roleplay stage directions in square brackets', () => {
     const text = '白藏垂眸看向铃铛。[他没有立刻回答]\n月色会替我们记住这一刻。';
 
-    expect(sanitizeAssistantOutput(text)).toBe(text);
+    expect(sanitizeAssistantOutput(text).text).toBe(text);
   });
 
   it('preserves non-internal angle-bracket dialogue', () => {
     const text = '久远在门前停住，低声说：<北门还不能开>。';
 
-    expect(sanitizeAssistantOutput(text)).toBe(text);
+    expect(sanitizeAssistantOutput(text).text).toBe(text);
   });
 
   it('collapses adjacent exact duplicate sentences only', () => {
     const result = sanitizeAssistantOutput('铃声停了。铃声停了。她抬起眼。她迟疑片刻，又抬起眼。');
 
-    expect(result).toBe('铃声停了。她抬起眼。她迟疑片刻，又抬起眼。');
+    expect(result.text).toBe('铃声停了。她抬起眼。她迟疑片刻，又抬起眼。');
   });
 
   it('collapses adjacent exact duplicate paragraphs', () => {
     const paragraph = '白藏看向旧井。\n井沿还留着昨夜的水痕。';
     const result = sanitizeAssistantOutput(`${paragraph}\n\n${paragraph}`);
 
-    expect(result).toBe(paragraph);
+    expect(result.text).toBe(paragraph);
   });
 
   it('rewrites known English AI persona variants without translating story English', () => {
-    expect(sanitizeAssistantOutput('As an AI language model, I cannot help with that.')).toBe('这个问题牵着太深的雾，我不能草率替你下结论。我们换个角度，从你手里的线索慢慢拆开。');
+    expect(sanitizeAssistantOutput('As an AI language model, I cannot help with that.').text).toBe(IN_CHARACTER_FALLBACK);
 
     const story = '线索上写着 Raven Hotel，白藏没有解释，只把纸条推回你手边。';
-    expect(sanitizeAssistantOutput(story)).toBe(story);
+    expect(sanitizeAssistantOutput(story).text).toBe(story);
+  });
+
+  describe('Spec 4: JSON block stripping', () => {
+    it('strips the four audited leak samples and keeps non-empty content as the reply', () => {
+      const samples = [
+        // DS 月岛澪/script
+        { raw: '{ "mood": "静寂而专注…", "content": "你握着笔，悬在屏风前…" }', expected: '你握着笔，悬在屏风前…' },
+        // DS 久远/script
+        { raw: '{"mood":"沉静·警惕","content":"……北门不是散步的地方…"}', expected: '……北门不是散步的地方…' },
+        // Qwen 白藏/script（```json 围栏）
+        { raw: '```json { "mood": "温柔", "content": "铃音，你竟想以这般方式…" }\n```', expected: '铃音，你竟想以这般方式…' },
+        // Qwen 久远/script
+        { raw: '{ "mood": "克制", "content": "不能这样。红线铃铛未响…" }', expected: '不能这样。红线铃铛未响…' },
+      ];
+
+      for (const sample of samples) {
+        const result = sanitizeAssistantOutput(sample.raw);
+        expect(result.text).toBe(sample.expected);
+        expect(result.jsonBlockStripped).toBe(true);
+      }
+    });
+
+    it('does not strip normal roleplay dialogue or mid-text action notes', () => {
+      const dialogue = '白藏微微一怔，指尖停在铃铛上，月光把她的影子拉得很长。';
+
+      const result = sanitizeAssistantOutput(dialogue);
+      expect(result.text).toBe(dialogue);
+      expect(result.jsonBlockStripped).toBe(false);
+    });
+
+    it('keeps whole-text JSON without internal fields untouched (false-positive guard)', () => {
+      const text = '{"only":"动作"}';
+
+      const result = sanitizeAssistantOutput(text);
+      expect(result.text).toBe(text);
+      expect(result.jsonBlockStripped).toBe(false);
+    });
+
+    it('falls back to IN_CHARACTER_FALLBACK when the JSON block has no non-empty content', () => {
+      const result = sanitizeAssistantOutput('{"mood":"克制"}');
+
+      expect(result.text).toBe(IN_CHARACTER_FALLBACK);
+      expect(result.jsonBlockStripped).toBe(true);
+    });
+
+    it('deletes the whole suspicious block and logs parse_fail when single-quoted JSON fails to parse', () => {
+      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      const result = sanitizeAssistantOutput("{'mood':'克制','content':'不能这样。'}");
+
+      expect(result.text).toBe(IN_CHARACTER_FALLBACK);
+      expect(result.jsonBlockStripped).toBe(true);
+      expect(infoSpy).toHaveBeenCalledWith(expect.objectContaining({ event: 'output_sanitizer_parse_fail' }));
+
+      infoSpy.mockRestore();
+    });
+
+    it('logs output_sanitizer_hit with call-site metadata when stripping a JSON block', () => {
+      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      const result = sanitizeAssistantOutput('{"mood":"克制","content":"不能这样。"}', {
+        characterId: 'character-1',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+        sessionId: 'session-1',
+        userMessageId: 'user-message-1',
+      });
+
+      expect(result.text).toBe('不能这样。');
+      expect(infoSpy).toHaveBeenCalledWith(expect.objectContaining({
+        event: 'output_sanitizer_hit',
+        kind: 'json-block',
+        characterId: 'character-1',
+        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+        sessionId: 'session-1',
+        userMessageId: 'user-message-1',
+      }));
+
+      infoSpy.mockRestore();
+    });
+
+    it('removes embedded fenced json blocks from mid-text output', () => {
+      const text = '好的：\n```json\n{"mood":"克制","content":"不能这样。"}\n```\n还有什么要问的吗？';
+
+      const result = sanitizeAssistantOutput(text);
+
+      expect(result.text).toBe('好的：\n还有什么要问的吗？');
+      expect(result.jsonBlockStripped).toBe(true);
+    });
   });
 });
 
