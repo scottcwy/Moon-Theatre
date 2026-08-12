@@ -1,5 +1,5 @@
 import { ScrollView, Text, View } from '@tarojs/components';
-import Taro, { useRouter, useUnload } from '@tarojs/taro';
+import Taro, { useDidShow, useRouter, useUnload } from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -117,6 +117,8 @@ interface ClientMessageLookupResponse {
 }
 
 const EMPTY_STARTER_QUESTIONS: StarterQuestions = { script: [], free: [] };
+// 首字节等待软提示阈值（3–5s 区间取 4s）；15s 断流仍由 streamChat 心跳 onError('stream_stalled') 收口。
+const WAITING_REPLY_HINT_DELAY_MS = 4000;
 function readRouteMode(value?: string): ChatMode | undefined {
   return value === 'script' || value === 'free' ? value : undefined;
 }
@@ -152,6 +154,7 @@ export default function Chat() {
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [streamError, setStreamError] = useState('');
+  const [waitingReply, setWaitingReply] = useState(false);
   const [topBarStyle, setTopBarStyle] = useState<Record<string, string>>(
     getTopBarStyle(calculateTopBarMetrics()),
   );
@@ -164,6 +167,10 @@ export default function Chat() {
   const activeStreamRef = useRef<{ abort: () => void } | null>(null);
   const mountedRef = useRef(true);
   const historyLoadIdRef = useRef(0);
+  const skipFirstShowRef = useRef(true);
+  const scopeSwitchingRef = useRef(false);
+  const sendingRef = useRef(false);
+  const waitingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setScope = useCallback((next: { sessionId?: string; mode: ChatMode; scriptId?: string; scriptTitle?: string }) => {
     sessionIdRef.current = next.sessionId;
@@ -179,6 +186,26 @@ export default function Chat() {
     activeStreamRef.current?.abort();
     activeStreamRef.current = null;
   }, []);
+
+  const clearWaitingReplyTimer = useCallback(() => {
+    if (waitingReplyTimerRef.current !== null) {
+      clearTimeout(waitingReplyTimerRef.current);
+      waitingReplyTimerRef.current = null;
+    }
+  }, []);
+
+  const clearWaitingReply = useCallback(() => {
+    clearWaitingReplyTimer();
+    setWaitingReply(false);
+  }, [clearWaitingReplyTimer]);
+
+  const scheduleWaitingReply = useCallback(() => {
+    clearWaitingReplyTimer();
+    waitingReplyTimerRef.current = setTimeout(() => {
+      waitingReplyTimerRef.current = null;
+      setWaitingReply(true);
+    }, WAITING_REPLY_HINT_DELAY_MS);
+  }, [clearWaitingReplyTimer]);
 
   const updateAssistantPlaceholder = useCallback((tempId: string, updater: (current: ChatMessage) => ChatMessage) => {
     setMessages((current) => current.map((message) => message.id === tempId ? updater(message) : message));
@@ -310,6 +337,7 @@ export default function Chat() {
   useUnload(() => {
     mountedRef.current = false;
     abortActiveStream();
+    clearWaitingReplyTimer();
   });
 
   useEffect(() => {
@@ -317,8 +345,9 @@ export default function Chat() {
     return () => {
       mountedRef.current = false;
       abortActiveStream();
+      clearWaitingReplyTimer();
     };
-  }, [abortActiveStream]);
+  }, [abortActiveStream, clearWaitingReplyTimer]);
 
   useEffect(() => {
     try {
@@ -333,48 +362,62 @@ export default function Chat() {
     }
   }, []);
 
+  const loadPage = useCallback(async (options: { verifyFirst?: boolean; isCancelled?: () => boolean } = {}) => {
+    const isCancelled = options.isCancelled ?? (() => false);
+    setPageLoading(true);
+    setPageError('');
+    try {
+      if (options.verifyFirst) {
+        const authenticated = await verifyAuth();
+        if (isCancelled() || !authenticated) return;
+      }
+
+      if (routeSessionId) {
+        const history = await loadSessionHistory(routeSessionId);
+        if (isCancelled()) return;
+        if (!history) {
+          setPageError('历史对话加载失败，请重试');
+          return;
+        }
+        markReturnMessagesRead(getReturnMessageReadCharacterId(routeCharacterId, history.session.characterId) ?? '');
+        void loadBalance();
+        if (history.session.canSend) {
+          await loadCharacterDetail(history.session.characterId, false);
+        }
+        return;
+      }
+
+      if (!routeCharacterId) {
+        setPageError('缺少角色信息');
+        return;
+      }
+      markReturnMessagesRead(routeCharacterId);
+      await loadCharacterDetail(routeCharacterId, true);
+      if (!isCancelled()) void loadBalance();
+    } catch (err) {
+      if (!isCancelled() && !handleAuthError(err)) {
+        setPageError(err instanceof Error && /模式|剧本信息/.test(err.message) ? err.message : '无法进入当前对话，请稍后重试');
+      }
+    } finally {
+      if (!isCancelled()) setPageLoading(false);
+    }
+  }, [handleAuthError, loadBalance, loadCharacterDetail, loadSessionHistory, markReturnMessagesRead, routeCharacterId, routeSessionId, verifyAuth]);
+
   useEffect(() => {
     let cancelled = false;
-    async function boot() {
-      setPageLoading(true);
-      setPageError('');
-      try {
-        const authenticated = await verifyAuth();
-        if (cancelled || !authenticated) return;
-
-        if (routeSessionId) {
-          const history = await loadSessionHistory(routeSessionId);
-          if (cancelled) return;
-          if (!history) {
-            setPageError('历史对话加载失败，请重试');
-            return;
-          }
-          markReturnMessagesRead(getReturnMessageReadCharacterId(routeCharacterId, history.session.characterId) ?? '');
-          void loadBalance();
-          if (history.session.canSend) {
-            await loadCharacterDetail(history.session.characterId, false);
-          }
-          return;
-        }
-
-        if (!routeCharacterId) {
-          setPageError('缺少角色信息');
-          return;
-        }
-        markReturnMessagesRead(routeCharacterId);
-        await loadCharacterDetail(routeCharacterId, true);
-        if (!cancelled) void loadBalance();
-      } catch (err) {
-        if (!cancelled && !handleAuthError(err)) {
-          setPageError(err instanceof Error && /模式|剧本信息/.test(err.message) ? err.message : '无法进入当前对话，请稍后重试');
-        }
-      } finally {
-        if (!cancelled) setPageLoading(false);
-      }
-    }
-    void boot();
+    void loadPage({ verifyFirst: true, isCancelled: () => cancelled });
     return () => { cancelled = true; };
-  }, [handleAuthError, loadBalance, loadCharacterDetail, loadSessionHistory, markReturnMessagesRead, routeCharacterId, routeSessionId, verifyAuth]);
+  }, [loadPage]);
+
+  // 充值流程 result→buy→chat 两步返回后刷新余额；首帧余额由 boot 的 loadBalance 覆盖，
+  // 用 skipFirstShowRef 跳过首帧 onShow，避免首挂载重复拉余额。
+  useDidShow(() => {
+    if (skipFirstShowRef.current) {
+      skipFirstShowRef.current = false;
+      return;
+    }
+    void loadBalance();
+  });
 
   const handleBuyPoints = () => {
     if (!requireAuth()) {
@@ -390,7 +433,7 @@ export default function Chat() {
   };
 
   const handleModeChange = async (targetMode: ChatMode) => {
-    if (targetMode === mode || sending || scopeSwitching || !canSend || !character) return;
+    if (targetMode === mode || sendingRef.current || scopeSwitchingRef.current || !canSend || !character) return;
     if (!availableModes.includes(targetMode)) return;
     const targetScope = getEmptyModeScope(targetMode, character);
     if (!targetScope) {
@@ -400,6 +443,7 @@ export default function Chat() {
     const targetScriptId = targetScope.scriptId;
 
     setScopeSwitching(true);
+    scopeSwitchingRef.current = true;
     setStreamError('');
     setMessages((current) => current.filter((message) => !(message.role === 'assistant' && message.id.startsWith('assistant-'))));
     try {
@@ -427,6 +471,7 @@ export default function Chat() {
       }
     } finally {
       setScopeSwitching(false);
+      scopeSwitchingRef.current = false;
     }
   };
 
@@ -439,35 +484,9 @@ export default function Chat() {
     setInputValue(result.value);
   };
 
-  const handleRetryPageLoad = async () => {
-    setPageLoading(true);
-    setPageError('');
-    try {
-      if (routeSessionId) {
-        const history = await loadSessionHistory(routeSessionId);
-        if (!history) {
-          setPageError('历史对话加载失败，请重试');
-          return;
-        }
-        markReturnMessagesRead(getReturnMessageReadCharacterId(routeCharacterId, history.session.characterId) ?? '');
-        void loadBalance();
-        if (history.session.canSend) {
-          await loadCharacterDetail(history.session.characterId, false);
-        }
-        return;
-      }
-      if (!routeCharacterId) {
-        setPageError('缺少角色信息');
-        return;
-      }
-      markReturnMessagesRead(routeCharacterId);
-      await loadCharacterDetail(routeCharacterId, true);
-      void loadBalance();
-    } catch (err) {
-      if (!handleAuthError(err)) setPageError('无法进入当前对话，请稍后重试');
-    } finally {
-      setPageLoading(false);
-    }
+  const handleRetryPageLoad = () => {
+    // 与 boot 共用 loadPage：错误文案以 boot 的 /模式|剧本信息/ 映射为权威。
+    void loadPage({ verifyFirst: false });
   };
 
   const reconcileFailedSend = useCallback(async (clientMessageId: string, fallbackMessage: string, tempAssistantId: string) => {
@@ -505,17 +524,19 @@ export default function Chat() {
       setStreamError(fallbackMessage);
     } finally {
       if (!mountedRef.current) return;
+      clearWaitingReply();
       activeStreamRef.current = null;
       setSending(false);
+      sendingRef.current = false;
       void loadBalance();
       void refreshCharacterRelationship();
     }
-  }, [loadBalance, refreshCharacterRelationship, scriptTitle, setScope, updateAssistantPlaceholder]);
+  }, [clearWaitingReply, loadBalance, refreshCharacterRelationship, scriptTitle, setScope, updateAssistantPlaceholder]);
 
   const handleSend = () => {
     const characterId = character?.id;
     const userMessage = inputValue.trim();
-    if (!userMessage || sending || !characterId || !canSend) return;
+    if (!userMessage || sendingRef.current || scopeSwitchingRef.current || !characterId || !canSend) return;
     if (!requireAuth()) {
       goLogin();
       return;
@@ -532,8 +553,10 @@ export default function Chat() {
     const tempAssistantId = `assistant-${clientMessageId}`;
     const userMsgId = `user-${clientMessageId}`;
     setInputValue('');
+    sendingRef.current = true;
     setSending(true);
     setStreamError('');
+    scheduleWaitingReply();
     setMessages((current) => [
       ...current,
       { id: userMsgId, role: 'user', content: userMessage },
@@ -544,11 +567,13 @@ export default function Chat() {
     const callbacks: StreamCallbacks = {
       onDelta(content) {
         if (!mountedRef.current) return;
+        clearWaitingReply();
         updateAssistantPlaceholder(tempAssistantId, (current) => ({ ...current, content: current.content + content }));
         scrollIntoViewRef.current = `msg-${tempAssistantId}`;
       },
       onDone(result) {
         if (!mountedRef.current) return;
+        clearWaitingReply();
         setScope({
           sessionId: result.sessionId,
           mode: result.mode,
@@ -585,10 +610,12 @@ export default function Chat() {
         if (unlockedCount > 0) Taro.showToast({ title: `解锁了 ${unlockedCount} 项新记录`, icon: 'none' });
         activeStreamRef.current = null;
         setSending(false);
+        sendingRef.current = false;
         scrollIntoViewRef.current = `msg-${result.messageId}`;
       },
       onError(code) {
         if (!mountedRef.current) return;
+        clearWaitingReply();
         const friendlyMessage = getFriendlyStreamErrorMessage(code);
         if (code === 'script_unavailable') setCanSend(false);
         if (!shouldReconcileStreamError(code)) {
@@ -596,6 +623,7 @@ export default function Chat() {
           setStreamError(friendlyMessage);
           activeStreamRef.current = null;
           setSending(false);
+          sendingRef.current = false;
           if (code === 'session_scope_mismatch' && sessionIdRef.current) {
             void loadSessionHistory(sessionIdRef.current);
           }
@@ -609,6 +637,10 @@ export default function Chat() {
       },
       onAuthExpired() {
         if (!mountedRef.current) return;
+        clearWaitingReply();
+        sendingRef.current = false;
+        activeStreamRef.current = null;
+        setSending(false);
         setPointsBalance(null);
         goLogin();
       },
@@ -779,6 +811,11 @@ export default function Chat() {
           ))}
           {shouldRenderStandaloneTypingIndicator(sending, messages) && (
             <ChatBubble role="assistant" content="" typing avatarUrl={characterAvatarUrl} characterName={character.name} />
+          )}
+          {waitingReply && (
+            <View style={{ padding: '12rpx 0 24rpx', textAlign: 'center' }}>
+              <Text style={{ color: '#897A7E', fontSize: '24rpx', lineHeight: 1.5 }}>正在等待回应</Text>
+            </View>
           )}
         </View>
       </ScrollView>
