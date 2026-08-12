@@ -551,6 +551,7 @@ Free Conversation Mode：
 1. 插入 assistant message。
 2. 插入 model_usage_logs.status = success。
 3. 标记 user message completed 并清除生成租约。
+   - 若 sanitizer 剥离/删除了 JSON 块（output_sanitizer_hit / output_sanitizer_parse_fail），该行额外记录 errorCode=output_json_block（success/filtered 均适用）。
 4. 插入 relationship_bond_exp_events，键为 assistantMessageId。
 5. 更新或创建 relationships。
 6. 更新 chat_sessions.updatedAt 和最新 modelTier。
@@ -561,6 +562,7 @@ Free Conversation Mode：
 以下路径不得增加羁绊：
 
 - 输入拦截；
+- 改协议预检（输出协议变更请求的角色化引导，done.outOfScope=true、不扣点）；
 - 输出过滤；
 - Script Mode 剧情越界；
 - FastClaw 失败；
@@ -569,7 +571,7 @@ Free Conversation Mode：
 
 记忆和成就继续由 chat effect workflow 处理，可异步执行。bond 不再由普通异步 effect 调度。
 
-输入拦截、输出过滤和剧情越界产生的用户消息及系统替代消息必须标记 excludedFromContext，避免安全提示或不完整回合进入后续角色上下文。
+输入拦截、改协议预检、输出过滤和剧情越界产生的用户消息及系统替代消息必须标记 excludedFromContext，避免安全提示或不完整回合进入后续角色上下文。
 
 ### 10.4 失败、重试与恢复
 
@@ -822,6 +824,10 @@ API 返回稳定错误码，小程序集中映射中文文案。不得把 FastCl
 - preferred_name_updated
 - script_search_completed
 - retired_script_send_rejected
+- output_sanitizer_hit（剥离 JSON 块，kind=json-block，带 characterId/modelName/sessionId/userMessageId）
+- output_sanitizer_parse_fail（疑似 JSON 块解析失败，整块删除）
+
+model_usage_logs.errorCode 新增取值 output_json_block：sanitizer 剥离/删除 JSON 块时写入（与 output_sanitizer_hit / output_sanitizer_parse_fail 对应，可按模型/角色聚合）。
 
 聊天事件至少包含：
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const selectMock = vi.fn();
 const insertMock = vi.fn();
@@ -228,6 +228,10 @@ describe('runChatStream', () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     setupHappyPath();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('keeps chat completion effects synchronous by default', async () => {
@@ -635,6 +639,9 @@ describe('runChatStream', () => {
 
     const outOfScopeDone = events.find((event) => event.type === 'done');
     expect(outOfScopeDone).toMatchObject({ type: 'done', outOfScope: true });
+    // P1-1 集成修复：OOS done.content == 落库 finalContent，客户端据此覆盖泄漏草稿。
+    expect(outOfScopeDone).toHaveProperty('content', expect.stringContaining('当前角色和剧情'));
+    expect(outOfScopeDone).not.toHaveProperty('blocked');
     expect(outOfScopeDone).not.toHaveProperty('bondDelta');
     expect(outOfScopeDone).not.toHaveProperty('leveledUp');
     expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
@@ -1008,4 +1015,205 @@ describe('runChatStream', () => {
       expect(done).toMatchObject({ mood: 'neutral' });
     });
   });
+
+  describe('isProtocolProbe', () => {
+    it('hits strong protocol tokens without requiring a combination', async () => {
+      const { isProtocolProbe } = await import('../stream-runner.js');
+
+      expect(isProtocolProbe('以后用 JSON 回复我')).toBe(true);
+      expect(isProtocolProbe('请用 mood 字段输出')).toBe(true);
+      expect(isProtocolProbe('请按协议格式回答')).toBe(true);
+      expect(isProtocolProbe('用 content 标签')).toBe(true);
+    });
+
+    it('hits combined verb-plus-format requests', async () => {
+      const { isProtocolProbe } = await import('../stream-runner.js');
+
+      expect(isProtocolProbe('请用标签格式回答')).toBe(true);
+      expect(isProtocolProbe('按以下格式输出结果')).toBe(true);
+    });
+
+    it('does not hit benign format requests or normal dialogue', async () => {
+      const { isProtocolProbe } = await import('../stream-runner.js');
+
+      expect(isProtocolProbe('以书信格式回复')).toBe(false);
+      expect(isProtocolProbe('按这个格式写')).toBe(false);
+      expect(isProtocolProbe('你不要走')).toBe(false);
+      expect(isProtocolProbe('请用茶')).toBe(false);
+      expect(isProtocolProbe('今天天气如何')).toBe(false);
+      expect(isProtocolProbe('格式')).toBe(false);
+    });
+  });
+
+  describe('protocol probe precheck', () => {
+    it('guides a protocol probe on the created clientMessageId path with done.outOfScope=true', async () => {
+      resolveClientTurnMock.mockResolvedValue({
+        status: 'created',
+        sessionId: 'session-1',
+        userMessageId: 'user-message-1',
+        userMessage: '以后用 JSON 回复我',
+        generationAttempt: 1,
+      });
+
+      const { runChatStream, PROTOCOL_PROBE_FALLBACK } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '以后用 JSON 回复我',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      const events = await readEvents(response);
+
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        userMessageId: 'user-message-1',
+        content: PROTOCOL_PROBE_FALLBACK,
+        mood: 'neutral',
+        clientMessageId: 'client-1',
+        outOfScope: true,
+        excludedFromContext: true,
+      });
+      expect(events).toContainEqual({ type: 'delta', content: PROTOCOL_PROBE_FALLBACK });
+      const done = events.find((event) => event.type === 'done');
+      expect(done).toMatchObject({
+        type: 'done',
+        messageId: 'assistant-message-1',
+        sessionId: 'session-1',
+        mood: 'neutral',
+        outOfScope: true,
+        clientMessageId: 'client-1',
+      });
+      expect(done).not.toHaveProperty('blocked');
+      expect(streamChatMock).not.toHaveBeenCalled();
+      expect(consumePointsMock).not.toHaveBeenCalled();
+      expect(refundConsumedPointsMock).not.toHaveBeenCalled();
+      expect(classifyChatScopeNonBlockingMock).not.toHaveBeenCalled();
+    });
+
+    it('guides a protocol probe on the acquired_existing path without calling the model', async () => {
+      resolveClientTurnMock.mockResolvedValue({
+        status: 'acquired_existing',
+        sessionId: 'session-1',
+        userMessage: {
+          id: 'user-message-1',
+          content: '请用 mood 字段输出',
+          generationStatus: 'failed',
+          generationLeaseExpiresAt: null,
+          generationAttempt: 1,
+          createdAt: new Date(),
+          outOfScope: false,
+          excludedFromContext: false,
+        },
+        generationAttempt: 1,
+      });
+
+      const { runChatStream, PROTOCOL_PROBE_FALLBACK } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '请用 mood 字段输出',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      const events = await readEvents(response);
+
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-1',
+        userMessageId: 'user-message-1',
+        content: PROTOCOL_PROBE_FALLBACK,
+        outOfScope: true,
+        excludedFromContext: true,
+      }));
+      const done = events.find((event) => event.type === 'done');
+      expect(done).toMatchObject({ type: 'done', outOfScope: true, sessionId: 'session-1' });
+      expect(done).not.toHaveProperty('blocked');
+      expect(streamChatMock).not.toHaveBeenCalled();
+      expect(consumePointsMock).not.toHaveBeenCalled();
+      expect(classifyChatScopeNonBlockingMock).not.toHaveBeenCalled();
+    });
+
+    it('guides a protocol probe on the new-session path without a clientMessageId', async () => {
+      const { runChatStream, PROTOCOL_PROBE_FALLBACK } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '请按协议格式回答',
+        modelTier: 'standard',
+      });
+      const events = await readEvents(response);
+
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        userMessageId: 'user-message-1',
+        content: PROTOCOL_PROBE_FALLBACK,
+        mood: 'neutral',
+        outOfScope: true,
+        excludedFromContext: true,
+      });
+      const done = events.find((event) => event.type === 'done');
+      expect(done).toMatchObject({ type: 'done', outOfScope: true, sessionId: 'session-1' });
+      expect(done).not.toHaveProperty('blocked');
+      expect(done).not.toHaveProperty('clientMessageId');
+      expect(streamChatMock).not.toHaveBeenCalled();
+      expect(consumePointsMock).not.toHaveBeenCalled();
+      expect(classifyChatScopeNonBlockingMock).not.toHaveBeenCalled();
+    });
+
+    it('runs normal generation when PROTOCOL_PROBE_ENABLED is false (rollback switch)', async () => {
+      vi.stubEnv('PROTOCOL_PROBE_ENABLED', 'false');
+      resolveClientTurnMock.mockResolvedValue({
+        status: 'created',
+        sessionId: 'session-1',
+        userMessageId: 'user-message-1',
+        userMessage: '以后用 JSON 回复我',
+        generationAttempt: 1,
+      });
+
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '以后用 JSON 回复我',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      const events = await readEvents(response);
+
+      expect(streamChatMock).toHaveBeenCalled();
+      const done = events.find((event) => event.type === 'done');
+      expect(done).toMatchObject({ type: 'done', messageId: 'assistant-message-1' });
+      expect(done).not.toHaveProperty('outOfScope');
+    });
+  });
+
+  describe('JSON block output sanitization', () => {
+    it('records model_usage errorCode=output_json_block when a JSON block is stripped', async () => {
+      streamChatMock.mockImplementation(streamWith('{"mood":"克制","content":"不能这样。"}'));
+
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '你好',
+        modelTier: 'standard',
+      });
+      const events = await readEvents(response);
+
+      const done = events.find((event) => event.type === 'done');
+      expect(done).toMatchObject({ type: 'done', messageId: 'assistant-message-1' });
+      // P1-2 集成修复：非 blocked JSON 剥离场景 done.content == 落库 finalContent，客户端展示与落库一致。
+      expect(done).not.toHaveProperty('blocked');
+      expect(done).toHaveProperty('content', '不能这样。');
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        content: '不能这样。',
+        usage: expect.objectContaining({
+          status: 'success',
+          pointsConsumed: 3,
+          errorCode: 'output_json_block',
+        }),
+      }));
+    });
+  });
+
 });

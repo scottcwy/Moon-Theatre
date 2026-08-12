@@ -31,6 +31,52 @@ import { runChatCompletionEffects } from './workflow.js';
 
 const OUT_OF_SCOPE_FALLBACK = '这个问题超出了当前角色和剧情能可靠回应的范围。我们可以换成和角色、线索或当前剧情更相关的问题继续。';
 
+// Spec 4：改协议类输入预检（输入侧第一道防线，不发起模型调用）。
+export const PROTOCOL_PROBE_FALLBACK = '我习惯了以我们之间的话来回应你，换成别的格式反倒生分了。你想问的，我还是会这般告诉你。';
+// 开关（默认 true）：线上快速回退用，设 PROTOCOL_PROBE_ENABLED=false 可关闭预检。
+export const PROTOCOL_PROBE_ENABLED = process.env.PROTOCOL_PROBE_ENABLED !== 'false';
+
+const PROTOCOL_PROBE_STRONG_PATTERN = /(?:json|mood|content|协议)/i;
+const PROTOCOL_PROBE_VERB_PATTERN = /(?:回复|输出|回答)/;
+const PROTOCOL_PROBE_FORMAT_PATTERN = /(?:格式|标签|标记)/;
+// 误伤排除：「以书信格式回复」这类正常可化解的风格化格式请求不预检。
+const BENIGN_STYLE_FORMAT_PATTERN = /以(?!下)[^，。！？!?、\s]{0,10}格式(?:来|进行)?(?:回复|回答|输出)/;
+
+export function isProtocolProbe(message: string): boolean {
+  if (PROTOCOL_PROBE_STRONG_PATTERN.test(message)) {
+    return true;
+  }
+  if (BENIGN_STYLE_FORMAT_PATTERN.test(message)) {
+    return false;
+  }
+  return PROTOCOL_PROBE_VERB_PATTERN.test(message) && PROTOCOL_PROBE_FORMAT_PATTERN.test(message);
+}
+
+async function handleProtocolProbeIfNeeded(input: {
+  sessionId: string;
+  userMessageId: string;
+  message: string;
+  clientMessageId?: string;
+}): Promise<Response | null> {
+  if (!PROTOCOL_PROBE_ENABLED || !isProtocolProbe(input.message)) {
+    return null;
+  }
+  const saved = await finalizeAssistantTurn({
+    sessionId: input.sessionId,
+    userMessageId: input.userMessageId,
+    content: PROTOCOL_PROBE_FALLBACK,
+    mood: 'neutral',
+    ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+    outOfScope: true,
+    excludedFromContext: true,
+  });
+  return createProtocolProbeResponse(input.sessionId, saved.id, input.clientMessageId);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export interface ChatStreamInput {
   userId: string;
   characterId: string;
@@ -127,6 +173,15 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           });
           return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
         }
+        const probeResponse = await handleProtocolProbeIfNeeded({
+          sessionId: resolved.sessionId,
+          userMessageId: resolved.userMessage.id,
+          message: resolved.userMessage.content,
+          clientMessageId,
+        });
+        if (probeResponse) {
+          return probeResponse;
+        }
         const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
         const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory);
         return createPreparedGenerationResponse({
@@ -164,6 +219,15 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
             excludedFromContext: true,
           });
           return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
+        }
+        const probeResponse = await handleProtocolProbeIfNeeded({
+          sessionId: resolved.sessionId,
+          userMessageId: resolved.userMessageId,
+          message: resolved.userMessage,
+          clientMessageId,
+        });
+        if (probeResponse) {
+          return probeResponse;
         }
         const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
         const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory);
@@ -213,6 +277,16 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
       excludedFromContext: true,
     });
     return createBlockedInputResponse(session.id, saved.id);
+  }
+
+  const probeResponse = await handleProtocolProbeIfNeeded({
+    sessionId: session.id,
+    userMessageId: userMsg.id,
+    message,
+    clientMessageId,
+  });
+  if (probeResponse) {
+    return probeResponse;
   }
 
   const cleanHistory = await getCleanHistoryMessages(userId, session.id, clientMessageId);
@@ -417,6 +491,31 @@ async function createBlockedInputResponse(
   return new Response(stream, { headers: STREAM_HEADERS });
 }
 
+// Spec 4：预检命中后的角色化引导响应。复用 createBlockedInputResponse 的流式构造模式，
+// 但 done 形态为 outOfScope:true（不用 blocked:true），携带角色化文案全文。
+function createProtocolProbeResponse(
+  sessionId: string,
+  assistantMessageId: string,
+  clientMessageId?: string,
+): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: PROTOCOL_PROBE_FALLBACK }) + '\n'));
+      controller.enqueue(encoder.encode(JSON.stringify({
+        type: 'done',
+        messageId: assistantMessageId,
+        sessionId,
+        mood: 'neutral',
+        outOfScope: true,
+        ...(clientMessageId ? { clientMessageId } : {}),
+      }) + '\n'));
+      controller.close();
+    },
+  });
+  return new Response(stream, { headers: STREAM_HEADERS });
+}
+
 function createReplayResponse(
   sessionId: string,
   assistantMessage: { id: string; content: string; mood: string | null },
@@ -571,7 +670,13 @@ function createGenerationResponse(input: {
         generationMs = Date.now() - generationStartedAt;
 
         const moderationStartedAt = Date.now();
-        const sanitizedText = sanitizeAssistantOutput(fullContent);
+        const sanitizerResult = sanitizeAssistantOutput(fullContent, {
+          characterId: input.characterId,
+          modelName: input.modelName,
+          sessionId: input.sessionId,
+          userMessageId: input.userMessageId,
+        });
+        const sanitizedText = sanitizerResult.text;
         const { mood, cleanedText } = parseMood(sanitizedText);
 
         let scopeClassification: ScopeClassification = 'in_scope';
@@ -642,6 +747,9 @@ function createGenerationResponse(input: {
             mode: input.mode,
             mood: 'neutral',
             outOfScope: true,
+            // P1-1 集成修复：done.content == 落库 finalContent（OUT_OF_SCOPE_FALLBACK），
+            // 客户端 onDone 以 content 覆盖气泡，消除「泄漏草稿 + 兜底文案」残留。
+            content: OUT_OF_SCOPE_FALLBACK,
             ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
             balanceAfter,
           }) + '\n'));
@@ -675,6 +783,7 @@ function createGenerationResponse(input: {
             walletTransactionId: blocked ? null : input.walletTransactionId,
             status: blocked ? 'filtered' : 'success',
             pointsConsumed: blocked ? 0 : input.pointsPerCall,
+            ...(sanitizerResult.jsonBlockStripped ? { errorCode: 'output_json_block' } : {}),
           },
         });
         saveMs = Date.now() - saveStartedAt;
@@ -724,7 +833,7 @@ function createGenerationResponse(input: {
           mode: input.mode,
           ...(finalMood ? { mood: finalMood } : {}),
           ...(usedFallback ? { fallback: true } : {}),
-          ...(blocked ? { blocked: true, content: finalContent } : {}),
+          ...(blocked ? { blocked: true, content: finalContent } : sanitizerResult.jsonBlockStripped ? { content: finalContent } : {}),
           ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
           ...(saved.bondLevel !== undefined ? { bondLevel: saved.bondLevel } : {}),
           ...(saved.bondExp !== undefined ? { bondExp: saved.bondExp } : {}),

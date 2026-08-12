@@ -2,7 +2,7 @@
 
 本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；其中 `GET /api/characters`、`GET /api/scripts`、`GET /api/models`、`GET /api/quota/packages` 为公开只读接口，无需认证；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内；同时 `/api/admin/**` 与 `/admin/**` 页面均由 Basic Auth middleware 保护，admin API 需 Basic Auth 与 JWT 白名单双层校验都通过。生产环境必须配置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
 
-聊天接口当前是 `incremental-buffered`（`X-Stream-Mode: incremental-buffered`）：响应为 NDJSON streaming 形态，服务端边生成边按行净化并下发 `delta`（不做整段缓冲），生成结束后对已发送全文复核输出过滤；命中过滤时追加修正提示 delta，并在 `done` 携带 `blocked:true` 与可选 `content`（= 落库 finalContent）。
+聊天接口当前是 `incremental-buffered`（`X-Stream-Mode: incremental-buffered`）：响应为 NDJSON streaming 形态，服务端边生成边按行净化并下发 `delta`（不做整段缓冲），生成结束后对已发送全文复核输出过滤；命中过滤时追加修正提示 delta，并在 `done` 携带 `blocked:true` 与可选 `content`（= 落库 finalContent）；当落库 finalContent 与已下发增量不一致（blocked / outOfScope / JSON 块被剥离等文本修正场景）时 `done` 同样携带 `content` 供客户端以落库内容覆盖气泡。
 
 ## 小程序 API
 
@@ -171,7 +171,7 @@ Authorization: Bearer <jwt>
 {"type":"status","mode":"incremental_buffered","stage":"generating"}
 {"type":"delta","content":"逐段增量下发的 AI 回复（可能多个）"}
 {"type":"delta","content":"（内容已按安全规则调整）"}  // 仅输出过滤命中时追加
-{"type":"done","messageId":"uuid","sessionId":"uuid","mode":"script","mood":"neutral","blocked":true,"content":"修正后全文（= 落库 finalContent，仅 blocked 场景携带）","bondLevel":1,"bondExp":10,"bondDelta":10,"leveledUp":false,"balanceAfter":97,"clientMessageId":"miniapp-generated-id"}
+{"type":"done","messageId":"uuid","sessionId":"uuid","mode":"script","mood":"neutral","blocked":true,"content":"修正后全文（= 落库 finalContent；blocked/outOfScope/JSON 剥离等文本修正场景携带）","bondLevel":1,"bondExp":10,"bondDelta":10,"leveledUp":false,"balanceAfter":97,"clientMessageId":"miniapp-generated-id"}
 {"type":"done","messageId":"uuid","sessionId":"uuid","mode":"script","mood":"neutral","bondLevel":1,"bondExp":10,"bondDelta":10,"leveledUp":false,"balanceAfter":97,"clientMessageId":"miniapp-generated-id"}
 {"type":"error","code":"upstream_error","message":"diagnostic only"}
 ```
@@ -180,7 +180,7 @@ Authorization: Bearer <jwt>
 
 `clientMessageId` 由小程序每次发送生成，服务端写入同一轮 user/assistant 消息，用于失败对账、幂等重试和分析。相同 `clientMessageId` 的已完成重试会重放已保存 assistant；仍在生成且 lease 未过期时返回 `error.code="in_progress"`；失败或 lease 过期后允许同 ID 重新获取生成 lease。
 
-`done` 事件同步保证 `messageId`、`sessionId`、`mode`、`mood`（如可解析）、`balanceAfter` 和 `clientMessageId`（如请求提供）。还可能包含 `fallback`、`blocked`、`outOfScope`、`replayed`、`bondLevel`、`bondExp`、`bondDelta`、`leveledUp`、`unlockedAchievements`、`unlockedTitles`。**仅 blocked（输出过滤命中）场景**新增可选 `content`：等于落库 `finalContent`（修正后全文，不含修正提示句），客户端 `onDone` 收到后以 `content` 为准覆盖气泡。点数不足返回 `error.code="insufficient_points"` 或 `402`。输入安全拦截不会预扣点数。模型失败、输出过滤、越界兜底会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化"作为 AI 模型"式拒答会被替换为角色内兜底回复。
+`done` 事件同步保证 `messageId`、`sessionId`、`mode`、`mood`（如可解析）、`balanceAfter` 和 `clientMessageId`（如请求提供）。还可能包含 `fallback`、`blocked`、`outOfScope`、`replayed`、`bondLevel`、`bondExp`、`bondDelta`、`leveledUp`、`unlockedAchievements`、`unlockedTitles`。当落库 `finalContent` 与已下发增量不一致时（**blocked** 输出过滤命中、**outOfScope** 越界兜底、**JSON 块剥离**等文本修正场景）`done` 携带可选 `content`：等于落库 `finalContent`（修正后全文，不含修正提示句），客户端 `onDone` 收到后以 `content` 为准覆盖气泡。点数不足返回 `error.code="insufficient_points"` 或 `402`。输入安全拦截不会预扣点数。模型失败、输出过滤、越界兜底会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化"作为 AI 模型"式拒答会被替换为角色内兜底回复。
 
 当角色绑定的剧本已下架（`script.status != 'active'`）时，禁止在该角色上创建新对话；已有 session 的 `canSend` 字段会变为 `false`；stream 请求返回 `error.code="script_unavailable"`（`409`）。
 
