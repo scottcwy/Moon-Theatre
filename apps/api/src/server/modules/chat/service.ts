@@ -170,19 +170,22 @@ export interface CharacterWithPrompts {
 }
 
 export async function getCharacterWithPrompts(characterId: string): Promise<CharacterWithPrompts | null> {
-  const [character] = await db
-    .select()
-    .from(characters)
-    .where(and(eq(characters.id, characterId), eq(characters.status, 'active')))
-    .limit(1);
+  // P2-2：characters 与 characterPrompts 互不依赖，并行发出；角色不存在时 prompts 结果丢弃（成本可接受）。
+  const [characterRows, promptRows] = await Promise.all([
+    db
+      .select()
+      .from(characters)
+      .where(and(eq(characters.id, characterId), eq(characters.status, 'active')))
+      .limit(1),
+    db
+      .select()
+      .from(characterPrompts)
+      .where(eq(characterPrompts.characterId, characterId)),
+  ]);
+  const [character] = characterRows;
   if (!character) return null;
 
-  const prompts = await db
-    .select()
-    .from(characterPrompts)
-    .where(eq(characterPrompts.characterId, characterId));
-
-  return { ...character, prompts: prompts.length > 0 ? prompts : null };
+  return { ...character, prompts: promptRows.length > 0 ? promptRows : null };
 }
 
 export async function getScriptById(scriptId: string): Promise<Script | null> {
@@ -224,8 +227,8 @@ export async function findOrCreateSession(
   userId: string,
   characterId: string,
   modelTier: string,
-  sessionId?: string,
-  mode?: ChatMode,
+  sessionId: string | undefined,
+  mode: ChatMode,
   scriptId?: string | null,
 ): Promise<{ id: string; mode: ChatMode; scriptId: string | null }> {
   const requestedScriptId = scriptId ?? null;
@@ -259,38 +262,21 @@ export async function findOrCreateSession(
     if (existing.characterId !== characterId) {
       throw new Error('Session character mismatch');
     }
-    if (mode && (existing.mode !== mode || existing.scriptId !== (scriptId ?? null))) {
+    if (existing.mode !== mode || existing.scriptId !== requestedScriptId) {
       throw new SessionScopeMismatchError(
         sessionId,
         existing.mode,
         existing.scriptId,
         mode,
-        scriptId ?? null,
+        requestedScriptId,
       );
     }
     return { id: existing.id, mode: existing.mode as ChatMode, scriptId: existing.scriptId };
   }
 
-  // Resolve mode defaults when not provided (backward compat)
-  if (!mode) {
-    const [character] = await db
-      .select({ scriptId: characters.scriptId })
-      .from(characters)
-      .where(eq(characters.id, characterId))
-      .limit(1);
-    mode = 'script';
-    scriptId = character?.scriptId ?? null;
-  }
-
-  const scriptIdValue = scriptId ?? null;
-
-  // Boundary validation: enforce mode/scriptId invariants before any DB access
-  if (mode === 'script' && !scriptIdValue) {
-    throw new ScriptUnavailableError();
-  }
-  if (mode === 'free' && scriptIdValue) {
-    throw new Error('scriptId must not be provided for free mode');
-  }
+  // P2-2 4.3：mode/scriptId 由调用方传入（new-session 路径复用已加载的 character.scriptId），
+  // 不再重查 characters 推断默认 scope；mode/scriptId 边界校验已在函数入口完成。
+  const scriptIdValue = requestedScriptId;
 
   // Build active-session query matching the unique index
   const activeConditions = [
@@ -323,7 +309,7 @@ export async function findOrCreateSession(
       characterId,
       modelTier: modelTier as 'casual' | 'standard' | 'immersive',
       status: 'active',
-      mode: mode as 'script' | 'free',
+      mode,
       scriptId: scriptIdValue,
     })
     .returning({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId });

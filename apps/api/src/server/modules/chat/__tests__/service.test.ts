@@ -170,6 +170,15 @@ function setupTransactionMocks() {
   }));
 }
 
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return { promise, resolve };
+}
+
 describe('chat service', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -192,6 +201,68 @@ describe('chat service', () => {
         { type: 'eq', left: 'characters.status', right: 'active' },
       ],
     });
+  });
+
+  it('starts characters and characterPrompts queries in parallel', async () => {
+    const { getCharacterWithPrompts } = await import('../service.js');
+    const characterDeferred = deferred<unknown[]>();
+    const promptsDeferred = deferred<unknown[]>();
+    const characterLimitMock = vi.fn(() => characterDeferred.promise);
+    let whereCalls = 0;
+    selectWhereMock.mockImplementation(() => {
+      whereCalls += 1;
+      if (whereCalls === 1) {
+        // characters 查询：.where() 后跟 .limit(1)
+        return { limit: characterLimitMock };
+      }
+      // characterPrompts 查询：无 .limit()
+      return promptsDeferred.promise;
+    });
+
+    const pending = getCharacterWithPrompts('character-1');
+    await Promise.resolve();
+
+    // 两个查询都已在任一查询 resolve 之前发出（并行，而非串行）
+    expect(whereCalls).toBe(2);
+    expect(characterLimitMock).toHaveBeenCalledWith(1);
+
+    characterDeferred.resolve([{
+      id: 'character-1',
+      name: '铃音',
+      avatarUrl: '/avatar.png',
+      identity: '巫女',
+      description: '月见庭院的守门人',
+      scriptId: 'script-1',
+      initialRelationship: 'neutral',
+      status: 'active',
+      prompts: null,
+    }]);
+    promptsDeferred.resolve([{ id: 'prompt-1', characterId: 'character-1', systemPrompt: 'sys' }]);
+
+    const result = await pending;
+    expect(result?.id).toBe('character-1');
+    expect(result?.prompts).toHaveLength(1);
+  });
+
+  it('returns null for a missing character even though the prompts query was already issued', async () => {
+    const { getCharacterWithPrompts } = await import('../service.js');
+    const promptsDeferred = deferred<unknown[]>();
+    let whereCalls = 0;
+    selectWhereMock.mockImplementation(() => {
+      whereCalls += 1;
+      if (whereCalls === 1) {
+        return { limit: selectLimitMock };
+      }
+      return promptsDeferred.promise;
+    });
+    selectLimitMock.mockResolvedValue([]);
+
+    const pending = getCharacterWithPrompts('character-missing');
+    await Promise.resolve();
+    expect(whereCalls).toBe(2);
+
+    promptsDeferred.resolve([]);
+    await expect(pending).resolves.toBeNull();
   });
 });
 
@@ -520,6 +591,20 @@ describe('resolveClientTurn', () => {
   }
 
   // ── Existing tests (updated for mode-aware mocks) ──
+
+  it('does not re-query characters when mode/scriptId are provided (stream path)', async () => {
+    // runChatStream 传已解析 scope（4.3）：legacy 推断路径不可达，characters 不重复查询
+    selectLimitMock.mockResolvedValueOnce([sessionRow()]); // findOrCreateSession 命中现有会话
+    insertReturningMock.mockResolvedValueOnce([{ id: 'msg-created', generationAttempt: 1 }]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(baseInput);
+
+    expect(result.status).toBe('created');
+    expect(
+      selectWhereMock.mock.calls.filter(([conditions]) => JSON.stringify(conditions).includes('characters.id')),
+    ).toHaveLength(0);
+  });
 
   it('unique constraint (23505) on insert -> re-read with assistant -> replay', async () => {
     orderByMock.mockResolvedValueOnce([]);
@@ -958,6 +1043,10 @@ describe('findOrCreateSession boundary validation', () => {
     const result = await findOrCreateSession('user-1', 'char-1', 'casual', undefined, 'script', 'script-1');
     expect(result.mode).toBe('script');
     expect(result.scriptId).toBe('script-1');
+    // 4.3：mode/scriptId 由调用方传入后不再重查 characters（legacy 推断已删除）
+    expect(
+      selectWhereMock.mock.calls.filter(([conditions]) => JSON.stringify(conditions).includes('characters.id')),
+    ).toHaveLength(0);
   });
 
   it('allows free mode without scriptId (no throw)', async () => {

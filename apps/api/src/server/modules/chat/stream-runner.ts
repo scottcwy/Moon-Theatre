@@ -23,7 +23,7 @@ import {
   ScriptUnavailableError,
   SessionScopeMismatchError,
 } from './index.js';
-import type { ChatMode } from './index.js';
+import type { ChatMode, ChatSessionScope, Script } from './index.js';
 import { extractUserRecap } from './prompt-builder.js';
 import { createStreamingOutputCleaner, sanitizeAssistantOutput } from './output-sanitizer.js';
 import { classifyChatScopeNonBlocking, settleScopeWithinGrace, type ScopeClassification } from './scope-classifier.js';
@@ -101,27 +101,35 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   const clientMessageId = input.clientMessageId?.trim();
   const message = input.message;
 
-  const [profile] = await db
-    .select({
-      modelName: modelProfiles.modelName,
-      pointsPerCall: modelProfiles.pointsPerCall,
-    })
-    .from(modelProfiles)
-    .where(and(eq(modelProfiles.tier, modelTier), eq(modelProfiles.enabled, true)))
-    .limit(1);
+  // P2-2 4.2：profile / character / wallet 相互独立，入口并行；sessionId 路径的会话
+  // scope 一并并行（resolveRequestScope 复用，不再二次查询）。getBalance/consumePoints
+  // 保持原位，错误判定顺序保持 400 -> 404 -> 409(scope) -> 409(turn) -> 402。
+  const [profileRows, character, , persistedScope] = await Promise.all([
+    db
+      .select({
+        modelName: modelProfiles.modelName,
+        pointsPerCall: modelProfiles.pointsPerCall,
+      })
+      .from(modelProfiles)
+      .where(and(eq(modelProfiles.tier, modelTier), eq(modelProfiles.enabled, true)))
+      .limit(1),
+    getCharacterWithPrompts(characterId),
+    getOrCreateWallet(userId),
+    sessionId ? getChatSessionScope(userId, sessionId) : Promise.resolve(null),
+  ]);
+  const [profile] = profileRows;
 
   if (!profile) {
     return errorResponse(`Model tier "${modelTier}" is not available`, 400);
   }
 
-  const character = await getCharacterWithPrompts(characterId);
   if (!character) {
     return errorResponse('Character not found', 404);
   }
 
-  let scope: { mode: ChatMode; scriptId: string | null };
+  let scope: { mode: ChatMode; scriptId: string | null; script: Script | null };
   try {
-    scope = await resolveRequestScope(input, character);
+    scope = await resolveRequestScope(input, character, persistedScope);
   } catch (error) {
     if (error instanceof SessionScopeMismatchError) {
       return errorResponse('session_scope_mismatch', 409);
@@ -133,6 +141,8 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   }
 
   if (clientMessageId) {
+    // P2-2 4.3：直接传已解析的 scope，resolveClientTurn 的 legacy 推断路径（内部会重查
+    // chatSessions/characters）在流入口已不可达，new-session 路径 characters 查询仅 1 次。
     const resolved = await resolveClientTurn({
       userId,
       characterId,
@@ -140,8 +150,8 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
       message,
       clientMessageId,
       sessionId,
-      mode: input.mode,
-      ...(input.scriptId ? { scriptId: input.scriptId } : {}),
+      mode: scope.mode,
+      ...(scope.scriptId !== null ? { scriptId: scope.scriptId } : {}),
     });
 
     switch (resolved.status) {
@@ -183,7 +193,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           return probeResponse;
         }
         const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
-        const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory);
+        const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory, scope.script);
         return createPreparedGenerationResponse({
           requestStartedAt,
           userId,
@@ -230,7 +240,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           return probeResponse;
         }
         const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
-        const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory);
+        const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory, scope.script);
         return createPreparedGenerationResponse({
           requestStartedAt,
           userId,
@@ -290,7 +300,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   }
 
   const cleanHistory = await getCleanHistoryMessages(userId, session.id, clientMessageId);
-  const promptContext = await buildPromptContext(userId, characterId, character, session, cleanHistory);
+  const promptContext = await buildPromptContext(userId, characterId, character, session, cleanHistory, scope.script);
 
   return createPreparedGenerationResponse({
     requestStartedAt,
@@ -318,14 +328,16 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
 async function resolveRequestScope(
   input: ChatStreamInput,
   character: NonNullable<Awaited<ReturnType<typeof getCharacterWithPrompts>>>,
-): Promise<{ mode: ChatMode; scriptId: string | null }> {
+  persistedScope?: ChatSessionScope | null,
+): Promise<{ mode: ChatMode; scriptId: string | null; script: Script | null }> {
   const currentScript = character.scriptId ? await getScriptById(character.scriptId) : null;
   if (character.scriptId && (!currentScript || currentScript.status !== 'active')) {
     throw new ScriptUnavailableError();
   }
 
   if (input.sessionId) {
-    const persisted = await getChatSessionScope(input.userId, input.sessionId);
+    // 入口已并行取过会话 scope（4.2），此处直接复用；缺省时兜底查询以保持独立调用可用。
+    const persisted = persistedScope !== undefined ? persistedScope : await getChatSessionScope(input.userId, input.sessionId);
     if (
       !persisted ||
       persisted.status !== 'active' ||
@@ -349,27 +361,30 @@ async function resolveRequestScope(
 
     if (persisted.mode === 'script') {
       if (!persisted.scriptId) throw new ScriptUnavailableError();
-      const script = await getScriptById(persisted.scriptId);
+      // P2-2 4.3：会话脚本与角色当前脚本相同时复用 currentScript；结果随 scope 返回，
+      // buildPromptContext 不再第 3 次查询 scripts（常规会话路径 scripts 查询 = 1 次）。
+      const script = persisted.scriptId === character.scriptId ? currentScript : await getScriptById(persisted.scriptId);
       if (!script || script.status !== 'active') throw new ScriptUnavailableError();
+      return { mode: persisted.mode, scriptId: persisted.scriptId, script };
     }
-    return { mode: persisted.mode, scriptId: persisted.scriptId };
+    return { mode: persisted.mode, scriptId: persisted.scriptId, script: null };
   }
 
   if (input.mode === 'free') {
-    return { mode: 'free', scriptId: null };
+    return { mode: 'free', scriptId: null, script: null };
   }
 
   if (input.mode === 'script') {
     if (!input.scriptId || input.scriptId !== character.scriptId || !currentScript) {
       throw new ScriptUnavailableError();
     }
-    return { mode: 'script', scriptId: input.scriptId };
+    return { mode: 'script', scriptId: input.scriptId, script: currentScript };
   }
 
   if (!currentScript || !character.scriptId) {
     throw new ScriptUnavailableError();
   }
-  return { mode: 'script', scriptId: character.scriptId };
+  return { mode: 'script', scriptId: character.scriptId, script: currentScript };
 }
 
 async function createPreparedGenerationResponse(input: {
@@ -393,7 +408,7 @@ async function createPreparedGenerationResponse(input: {
   mode: ChatMode;
   scriptId: string | null;
 }): Promise<Response> {
-  await getOrCreateWallet(input.userId);
+  // wallet 已在入口并行创建（4.2）；getBalance 内部幂等，保持原位。
   const balance = await getBalance(input.userId);
   if (balance < input.pointsPerCall) {
     await failTurn(input.userMessageId);
@@ -439,10 +454,9 @@ async function buildPromptContext(
   character: NonNullable<Awaited<ReturnType<typeof getCharacterWithPrompts>>>,
   scope: { mode: ChatMode; scriptId: string | null },
   cleanHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  script: Script | null,
 ): Promise<{ systemPrompt: string; scriptTitle?: string; worldSetting?: string }> {
-  const script = scope.mode === 'script' && scope.scriptId
-    ? await getScriptById(scope.scriptId)
-    : null;
+  // P2-2 4.3：script 由 resolveRequestScope 已加载并随 scope 传入，不再重复查询 scripts。
   const [existingMemories, existingRelationship, user] = await Promise.all([
     getEnabledMemories(userId, characterId, scope.mode, scope.scriptId),
     getRelationship(userId, characterId),
