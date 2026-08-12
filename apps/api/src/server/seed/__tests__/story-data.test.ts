@@ -6,8 +6,8 @@ const moonTower = seedScripts.find((script) => script.slug === 'moon-tower')!;
 
 describe('seed story data', () => {
   it('defines three scripts and nineteen prompt-driven agents', () => {
-    expect(seedScripts.map((script) => script.slug)).toEqual(['moon-garden', 'moon-tower', 'yunyun']);
-    expect(seedScripts.map((script) => script.title)).toEqual(['月见庭院：狐神的新娘', '流氓叙事', '芸芸']);
+    expect(seedScripts.map((script) => script.slug)).toEqual(['moon-tower', 'yunyun', 'moon-garden']);
+    expect(seedScripts.map((script) => script.title)).toEqual(['流氓叙事', '芸芸', '月见庭院：狐神的新娘']);
 
     expect(seedCharacters.map((character) => character.name)).toEqual([
       '白藏',
@@ -38,7 +38,7 @@ describe('seed story data', () => {
     expect(moonGarden.searchKeywords).toContain('狐神');
     expect(moonGarden.searchKeywords).toContain('月见庭院');
     expect(moonGarden.coverUrl).toBeNull();
-    expect(moonGarden.sortOrder).toBe(0);
+    expect(moonGarden.sortOrder).toBe(2);
     expect(moonGarden.status).toBe('active');
   });
 
@@ -49,7 +49,7 @@ describe('seed story data', () => {
     expect(moonTower.searchKeywords).toContain('布雷诺');
     expect(moonTower.searchKeywords).toContain('流氓叙事');
     expect(moonTower.coverUrl).toBeNull();
-    expect(moonTower.sortOrder).toBe(1);
+    expect(moonTower.sortOrder).toBe(0);
     expect(moonTower.status).toBe('active');
   });
 
@@ -70,7 +70,7 @@ describe('seed story data', () => {
     expect(yunyun.genre).toBe('古风仙侠情感');
     expect(yunyun.searchKeywords).toContain('云乡');
     expect(yunyun.coverUrl).toBeNull();
-    expect(yunyun.sortOrder).toBe(2);
+    expect(yunyun.sortOrder).toBe(1);
     expect(yunyun.status).toBe('active');
   });
 

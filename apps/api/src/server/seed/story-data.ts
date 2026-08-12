@@ -2,17 +2,6 @@ export const legacyScriptTitle = '夜色围城';
 
 export const seedScripts = [
   {
-    title: '月见庭院：狐神的新娘',
-    slug: 'moon-garden',
-    description: '你因家族旧债被送入一座只在满月出现的庭院，成为狐神新娘的候选人。庭院中的每个人都声称等你很久，却没人愿意说清百年前那场未完成的婚契。',
-    worldSetting: '月见庭院是一座只在满月出现的神隐庭院，门扉藏在荒废神社、雾中鸟居与镜面池水之间。百年前，一位少女曾主动成为狐神新娘，却在狐嫁仪式前夜失踪，留下断裂红线、烧毁名册与北门下的无名尸骨。如今你因家族债约被送入庭院，手腕系上红线铃铛，必须在七个满月夜里完成试炼，找回前世记忆，并决定结契、破契，还是改写契约。',
-    genre: '和风悬疑',
-    searchKeywords: '狐神,月见庭院,狐嫁,新娘,阴阳师,画师,武士,和风,悬疑,前世',
-    coverUrl: null,
-    sortOrder: 0,
-    status: 'active',
-  },
-  {
     title: '流氓叙事',
     slug: 'moon-tower',
     description: '千禧年架空都市背景下，六个被命运裹挟的“流氓”在布雷诺的权力与谎言中挣扎求生。',
@@ -20,7 +9,7 @@ export const seedScripts = [
     genre: '现代情感',
     searchKeywords: '流氓叙事,布雷诺,千禧年,架空,都市,现代,情感,智性恋,复仇,罪案,权力,谎言,家族,水上书',
     coverUrl: null,
-    sortOrder: 1,
+    sortOrder: 0,
     status: 'active',
   },
   {
@@ -30,6 +19,17 @@ export const seedScripts = [
     worldSetting: '九天之上是天界，九天之下是人界；而在天界之下、人界之上，有一片名叫“云乡”的幻境。生活在云乡的人被称为讯使，他们不老不灭，为神仙打理这片土地、清除怨念。云乡广袤，众生熙攘，相逢便是幸运。',
     genre: '古风仙侠情感',
     searchKeywords: '芸芸,云乡,讯使,仙侠,情感,纯爱,沧海浮尘',
+    coverUrl: null,
+    sortOrder: 1,
+    status: 'active',
+  },
+  {
+    title: '月见庭院：狐神的新娘',
+    slug: 'moon-garden',
+    description: '你因家族旧债被送入一座只在满月出现的庭院，成为狐神新娘的候选人。庭院中的每个人都声称等你很久，却没人愿意说清百年前那场未完成的婚契。',
+    worldSetting: '月见庭院是一座只在满月出现的神隐庭院，门扉藏在荒废神社、雾中鸟居与镜面池水之间。百年前，一位少女曾主动成为狐神新娘，却在狐嫁仪式前夜失踪，留下断裂红线、烧毁名册与北门下的无名尸骨。如今你因家族债约被送入庭院，手腕系上红线铃铛，必须在七个满月夜里完成试炼，找回前世记忆，并决定结契、破契，还是改写契约。',
+    genre: '和风悬疑',
+    searchKeywords: '狐神,月见庭院,狐嫁,新娘,阴阳师,画师,武士,和风,悬疑,前世',
     coverUrl: null,
     sortOrder: 2,
     status: 'active',
