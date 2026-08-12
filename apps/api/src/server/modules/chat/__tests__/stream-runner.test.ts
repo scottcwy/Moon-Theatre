@@ -639,6 +639,9 @@ describe('runChatStream', () => {
 
     const outOfScopeDone = events.find((event) => event.type === 'done');
     expect(outOfScopeDone).toMatchObject({ type: 'done', outOfScope: true });
+    // P1-1 集成修复：OOS done.content == 落库 finalContent，客户端据此覆盖泄漏草稿。
+    expect(outOfScopeDone).toHaveProperty('content', expect.stringContaining('当前角色和剧情'));
+    expect(outOfScopeDone).not.toHaveProperty('blocked');
     expect(outOfScopeDone).not.toHaveProperty('bondDelta');
     expect(outOfScopeDone).not.toHaveProperty('leveledUp');
     expect(finalizeAssistantTurnMock).toHaveBeenCalledWith({
@@ -1199,6 +1202,9 @@ describe('runChatStream', () => {
 
       const done = events.find((event) => event.type === 'done');
       expect(done).toMatchObject({ type: 'done', messageId: 'assistant-message-1' });
+      // P1-2 集成修复：非 blocked JSON 剥离场景 done.content == 落库 finalContent，客户端展示与落库一致。
+      expect(done).not.toHaveProperty('blocked');
+      expect(done).toHaveProperty('content', '不能这样。');
       expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
         content: '不能这样。',
         usage: expect.objectContaining({

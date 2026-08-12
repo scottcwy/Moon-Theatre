@@ -747,6 +747,9 @@ function createGenerationResponse(input: {
             mode: input.mode,
             mood: 'neutral',
             outOfScope: true,
+            // P1-1 集成修复：done.content == 落库 finalContent（OUT_OF_SCOPE_FALLBACK），
+            // 客户端 onDone 以 content 覆盖气泡，消除「泄漏草稿 + 兜底文案」残留。
+            content: OUT_OF_SCOPE_FALLBACK,
             ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
             balanceAfter,
           }) + '\n'));
@@ -830,7 +833,7 @@ function createGenerationResponse(input: {
           mode: input.mode,
           ...(finalMood ? { mood: finalMood } : {}),
           ...(usedFallback ? { fallback: true } : {}),
-          ...(blocked ? { blocked: true, content: finalContent } : {}),
+          ...(blocked ? { blocked: true, content: finalContent } : sanitizerResult.jsonBlockStripped ? { content: finalContent } : {}),
           ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
           ...(saved.bondLevel !== undefined ? { bondLevel: saved.bondLevel } : {}),
           ...(saved.bondExp !== undefined ? { bondExp: saved.bondExp } : {}),
