@@ -12,6 +12,7 @@ node_modules
 .next
 dist
 coverage
+backups
 .turbo
 .taro
 .swc

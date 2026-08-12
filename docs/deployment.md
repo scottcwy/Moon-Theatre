@@ -20,7 +20,7 @@ rtk cp .env.example .env
 
 必须替换的值：
 
-- `POSTGRES_IMAGE`, `API_IMAGE`, `API_TOOLS_IMAGE`, `FASTCLAW_IMAGE`, `CADDY_IMAGE`: 服务器拉取的生产镜像。当前模板指向 `ccr.ccs.tencentyun.com/juben-sha/*`。
+- `POSTGRES_IMAGE`, `API_IMAGE`, `API_TOOLS_IMAGE`, `FASTCLAW_IMAGE`, `CADDY_IMAGE`: 服务器拉取的生产镜像，指向 `ccr.ccs.tencentyun.com/juben-sha/*`。postgres / caddy 保持官方镜像 tag（`postgres:16-alpine` / `caddy:2-alpine`）；api / api-tools / fastclaw 三个业务镜像 tag 由发布负责人按 `YYYYMMDD-<git 短哈希 7 位>` 构建推送后填写（模板为 `RELEASE_TAG` 占位），禁止 `-dirty`、禁止沿用 07-06 快照；构建推送命令见第 3 节。
 - `CADDY_API_SITE_ADDRESS`: API 域名，不带协议。
 - `POSTGRES_PASSWORD`: Postgres 密码。
 - `DATABASE_URL`: API 使用的数据库连接串，密码必须和 `POSTGRES_PASSWORD` 一致。
@@ -36,7 +36,7 @@ rtk cp .env.example .env
 
 不要把真实 `.env` 提交到仓库。
 
-## 3. 镜像和启动
+## 3. 镜像构建、推送和启动
 
 服务器部署前先登录腾讯云 CCR：
 
@@ -44,15 +44,27 @@ rtk cp .env.example .env
 rtk docker login ccr.ccs.tencentyun.com --username=<腾讯云账号 ID>
 ```
 
-当前已推送的 `linux/amd64` 镜像：
+本机为 arm64（`uname -m`），服务器为 amd64，业务镜像构建必须显式指定 `--platform linux/amd64`。当前无 CI，由发布负责人按 `YYYYMMDD-<git 短哈希 7 位>` 命名 tag 手工构建推送（禁止 `-dirty`、禁止沿用 07-06 快照；与 `fastclaw/.github/workflows/docker.yml` 同范式，buildx 一步构建+推送）：
+
+```bash
+docker buildx build --platform linux/amd64 --push \
+  -t ccr.ccs.tencentyun.com/juben-sha/api:<tag> -f apps/api/Dockerfile .
+docker buildx build --platform linux/amd64 --push \
+  -t ccr.ccs.tencentyun.com/juben-sha/api-tools:<tag> -f apps/api/Dockerfile.tools .
+docker buildx build --platform linux/amd64 --push \
+  -t ccr.ccs.tencentyun.com/juben-sha/fastclaw:<tag> -f fastclaw/Dockerfile.minimal fastclaw/
+```
+
+等价替代：`docker build --platform linux/amd64 ... && docker push ...`（需本机 buildx/qemu，Docker Desktop 自带）。
+
+postgres / caddy 使用官方镜像 tag，不构建推送：
 
 ```bash
 POSTGRES_IMAGE=ccr.ccs.tencentyun.com/juben-sha/postgres:16-alpine
-API_IMAGE=ccr.ccs.tencentyun.com/juben-sha/api:20260706-58cf7ce-deployfix
-API_TOOLS_IMAGE=ccr.ccs.tencentyun.com/juben-sha/api-tools:20260706-58cf7ce-deployfix
-FASTCLAW_IMAGE=ccr.ccs.tencentyun.com/juben-sha/fastclaw:20260706-58cf7ce-dirty
 CADDY_IMAGE=ccr.ccs.tencentyun.com/juben-sha/caddy:2-alpine
 ```
+
+> 历史遗留：CCR 上已推送的 07-06 快照（`api:20260706-58cf7ce-deployfix`、`api-tools:20260706-58cf7ce-deployfix`、`fastclaw:20260706-58cf7ce-dirty`）**禁止继续使用**。`.env.example` 模板业务镜像 tag 已改为 `RELEASE_TAG` 占位，发布时由负责人填写真实 tag；未填真实 tag 时 `docker compose pull` 会失败，这是有意为之。
 
 服务器只拉镜像，不执行业务镜像构建：
 
@@ -73,7 +85,7 @@ rtk curl -fsS https://api.your-domain.com/api/health
 rtk curl -fsS https://api.your-domain.com/api/ready
 ```
 
-`/api/health` 只表示 API 进程存活。`/api/ready` 当前检查 FastClaw 配置、FastClaw `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec。业务聊天 Agent 若超过 `maxTokens=768` 或 `maxToolIterations` 不等于 `0`，readiness 会返回 `503`。后续还应补数据库连接和关键生产配置完整性检查。
+`/api/health` 只表示 API 进程存活。`/api/ready` 检查 API 进程、Postgres 连通（`select 1`，5 秒超时）、FastClaw 配置与 `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec；任一检查失败返回 `503` 且 `status=not_ready`。业务聊天 Agent 若超过 `maxTokens=768` 或 `maxToolIterations` 不等于 `0`，readiness 会返回 `503`。
 
 ## 5. 小程序生产构建
 
@@ -92,6 +104,7 @@ rtk pnpm build:miniapp:prod
 - 等价旧方式：`rtk API_BASE_URL="https://api.offergo.xz.cn" pnpm --filter @juben-sha/miniapp build:weapp` + `verify:weapp`；`API_BASE_URL` 环境变量仍可临时覆盖 `hosts.json`（供 CI 或紧急切换使用），优先级高于配置文件。
 - 生产域名变更时，只改 `hosts.json` 的 `prod` 后重新构建上传即可；后端镜像域名由服务器 `.env` 的 `CADDY_API_SITE_ADDRESS` 控制，与此无关。
 - 构建前确认域名已加入微信 request 合法域名；`verify:weapp` 会继续挡住占位 API 主机和 localhost。
+- `apps/miniapp/project.config.json` 的 `urlCheck: false` 只影响微信开发者工具内的本地请求校验，不影响发布包（体验版/正式版仍必须走合法域名）；如需工具内严格校验，改 `project.private.config.json`（不入库）。`uploadWithSourceMap: false` 保证上传包不带 sourcemap。
 
 ## 6. 回滚
 
@@ -103,7 +116,7 @@ rtk docker compose pull api api-migrate api-seed fastclaw
 rtk docker compose up -d api fastclaw caddy
 ```
 
-3. 数据库迁移不做自动回滚。涉及破坏性迁移前必须先备份 Postgres volume 或线上数据库。
+3. 数据库迁移不做自动回滚。涉及破坏性迁移前必须先备份 Postgres（见第 8 节）。
 4. 回滚后重新执行健康检查和小程序关键链路联调。
 
 ## 7. FastClaw 说明
@@ -112,11 +125,56 @@ rtk docker compose up -d api fastclaw caddy
 
 业务聊天 Agent 需要按 V1 速度目标配置：`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`、`maxTokens <= 768`、`maxToolIterations = 0`。对话生成仅支持 DeepSeek agent：Qwen agent 必须停用/删除，`FASTCLAW_FALLBACK_ENABLED` 保持 `false`（不配置降级）。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；超过 `maxTokens=768` 或启用任何工具迭代都不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
 
-## 8. v1.1 上线检查清单
+**数据持久化**：FastClaw 已挂载命名卷 `fastclaw-data`（容器内 `/data/.fastclaw`，sqlite 数据落该目录）。服务器旧容器若已有匿名卷数据，切换前必须先备份：`docker inspect juben-sha-fastclaw` 找到匿名卷 `Source` 路径，用 `docker cp` 或临时挂载导出备份后再切换命名卷；本地测试阶段无业务数据可直接切换。匿名卷在 `docker compose down -v` 时会被删除，切换命名卷后旧匿名卷数据不再挂载（未删除但不可见）。
+
+## 8. 备份与恢复
+
+### 8.1 备份
+
+仓库提供 `scripts/backup-postgres.mjs`：读取根 `.env` 的 `POSTGRES_PASSWORD`，通过 `docker compose exec -T` 在 postgres 容器内执行 `pg_dump -Fc`，输出到 `backups/juben-sha-<UTC时间戳>.dump`。`backups/` 已加入 `.gitignore` 与 `.dockerignore`，备份文件不会进 Docker 构建上下文，也不会被提交。
+
+```bash
+rtk node scripts/backup-postgres.mjs
+```
+
+前提：postgres 容器在运行（`rtk docker compose up -d postgres`），且根 `.env` 已配置 `POSTGRES_PASSWORD`。
+
+建议：
+
+- 每日 03:00 定时备份（服务器时区 Asia/Shanghai），例如 cron：
+
+  ```cron
+  0 3 * * * cd /opt/juben-sha && /usr/bin/node scripts/backup-postgres.mjs >> backups/backup.log 2>&1
+  ```
+
+- 保留策略：本地保留 14 天，超期清理（例如 `find backups -name '*.dump' -mtime +14 -delete`）。
+- 上线前、破坏性迁移前必须强制备份。
+
+### 8.2 恢复
+
+宿主机无需安装 libpq：直接用 postgres 容器内自带的 `pg_restore` 列档或还原。
+
+列档检查：
+
+```bash
+rtk docker compose exec -T postgres pg_restore --list < backups/juben-sha-<时间戳>.dump
+```
+
+还原（覆盖式，谨慎执行）：
+
+```bash
+rtk docker compose exec -T postgres pg_restore -U postgres -d juben_sha --clean --if-exists < backups/juben-sha-<时间戳>.dump
+```
+
+恢复后重启 api 并执行第 4 节健康检查。
+
+## 9. v1.1 上线检查清单
+
+> **上线阻断：真实支付服务商联调未完成。`PAYMENT_PROVIDER` 必须为 `aggregate` 且四参数（`PAYMENT_MERCHANT_ID` / `PAYMENT_APP_ID` / `PAYMENT_SECRET` / `PAYMENT_NOTIFY_URL`）齐全方可上线。**
 
 v1.1（聊天体验：剧本/自由模式、剧本目录、记忆作用域、回访留言）上线时按序执行。镜像 tag **由发布负责人填写**，仓库不预设具体值。
 
-1. 构建并推送 `api` / `api-tools` / `fastclaw` 新镜像（`linux/amd64`）：登录腾讯云 CCR 后，按仓库构建流程产出三个新镜像并推送（tag 由发布负责人填写，例如日期 + 提交短哈希，但不得沿用 07-06 快照 tag）。
+1. 构建并推送 `api` / `api-tools` / `fastclaw` 新镜像（`linux/amd64`）：按第 3 节 buildx 命令产出三个新镜像并推送（tag 由发布负责人填写，例如日期 + 提交短哈希，但不得沿用 07-06 快照 tag）。
 2. 在服务器根 `.env` 更新 `API_IMAGE` / `API_TOOLS_IMAGE` / `FASTCLAW_IMAGE` 为步骤 1 的新 tag。
 3. 拉取并启动：
 
@@ -136,3 +194,13 @@ rtk pnpm build:miniapp:prod
 6. 上线后执行第 4 节健康检查（`/api/health`、`/api/ready`）与小程序关键链路联调。
 
 > 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0009`；当前已推送镜像仍为 07-06 快照（见第 3 节）。`docs/版本说明-dev.md` 只引用本节与第 3 节，不复制镜像信息。
+
+## 10. 附录 A：微信后台上线清单（非仓库操作，人工执行）
+
+1. request 合法域名 `https://api.offergo.xz.cn` 已配置（`apps/miniapp/config/hosts.json` 的 `prod` 已入库）。
+2. 用户隐私保护指引：收集 openid、聊天内容、头像昵称等，须在微信公众平台提交。
+3. 小程序类目与资质（AI 聊天 / 角色扮演类目要求以平台审核为准）。
+4. UGC 内容安全：项目已有本地 blocked-keywords + 输出过滤；确认是否需接 `msgSecCheck` 或用户协议兜底。
+5. 体验版真机验证：`urlCheck: false` 仅开发者工具生效，体验版/正式版必须走合法域名。
+6. 主包体积：当前 <2MB（历史提交 `bf01332`），无自动断言，上线前在开发者工具人工核对；如需自动护栏另开条目。
+7. `TEST_USER_INITIAL_POINTS`：测试版可临时赠点，正式版必须为 `0`。

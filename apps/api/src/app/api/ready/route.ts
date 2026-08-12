@@ -1,12 +1,16 @@
+import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { config } from '@/server/config/index.js';
+import { db } from '@/server/db/index.js';
 
 const CHAT_AGENT_MAX_TOKENS = 768;
 const CHAT_AGENT_MAX_TOOL_ITERATIONS = 0;
+const DB_CHECK_TIMEOUT_MS = 5000;
 
 export async function GET() {
   const checks = {
     api: { ok: true },
+    db: await checkDatabase(),
     fastclaw: await checkFastClaw(),
   };
   const ok = Object.values(checks).every((check) => check.ok);
@@ -19,6 +23,27 @@ export async function GET() {
     },
     { status: ok ? 200 : 503 },
   );
+}
+
+async function checkDatabase(): Promise<{ ok: boolean; error?: string }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`DB readiness check timed out after ${DB_CHECK_TIMEOUT_MS}ms`)),
+      DB_CHECK_TIMEOUT_MS,
+    );
+  });
+
+  try {
+    // postgres.js 默认 connect_timeout 30s；ready 不能卡 30s，统一 5s 超时口径。
+    await Promise.race([db.execute(sql`select 1`), timeout]);
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'DB readiness check failed';
+    return { ok: false, error: message };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function checkFastClaw(): Promise<{

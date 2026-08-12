@@ -5,6 +5,7 @@ dist/
 .next/
 .logs/
 server-logs/
+backups/
 .env
 .env.local
 .env.*.local
