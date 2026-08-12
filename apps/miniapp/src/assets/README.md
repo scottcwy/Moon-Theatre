@@ -7,7 +7,7 @@
 | 目录 | 用途 | 引用方 | 说明 |
 |---|---|---|---|
 | `icons/` | 底部 tabBar 图标 | `src/app.config.ts` | 每 tab 两张：`name.png`（未选中）+ `name-active.png`（选中） |
-| `characters/` | 角色立绘/头像 | `src/pages/home/index.model.ts` | 竖版海报头像（多数 560×747~792 JPG，q72 压缩），`LOCAL_CHARACTER_AVATARS` 按角色名映射；流氓叙事 9 角色已替换为正式海报，程聿怀/羌青瓷另有性别变体（`chengyuhuai-female.jpg`、`qiangqingci-male.jpg`），选角时按本地选择切换；芸芸 6 角色为 600×600 方形头像（q82，源图：官方角色海报，按人脸校准裁切） |
+| `characters/` | 角色立绘/头像 | `src/pages/home/index.model.ts` | 方形头像为主：芸芸 6 角色与流氓叙事 9 角色（程聿怀男/女、程走柳、羌青瓷女、以撒、奥丁、黛利拉、蒋伯驾、缪宏谟）均为 600×600 JPG（q82，源图：官方角色海报，按人脸校准裁切，剔除海报文字/水印）；流氓叙事 阿奇/羌青瓷男 亦为 600×600 方形头像（q82）；程聿怀/羌青瓷另有性别变体（`chengyuhuai-female.jpg`、`qiangqingci-male.jpg`），选角时按本地选择切换；月见庭院 4 角色为 600×600 方形（无本地原图） |
 | `home/` | 首页脚本封面 | `src/pages/home/index.model.ts`、`src/pages/chat/list.tsx` | `LOCAL_SCRIPT_COVERS` 按 slug 映射；`moon-tower-cover.jpg` 为《流氓叙事》剧本主海报（700×996，q72 压缩，源图：官方售后海报 `剧本主海报.jpg`）；`yunyun-cover.jpg` 为《芸芸》主视觉封面（700×996，q82 压缩，源图：`芸芸素材/00_主视觉封面_沧海浮尘.png`） |
 | `login/` | 登录页背景 | `src/pages/login/index.scss` | 通过 CSS `url()` 引用 |
 | `lordicon/` | 成就动画图标（WebP） | `AchievementIcon`（`packages/miniapp-ui`） | 详见目录内 `README.md`，注意保留 Lordicon 署名 |
