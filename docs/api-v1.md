@@ -180,7 +180,7 @@ Authorization: Bearer <jwt>
 
 `clientMessageId` 由小程序每次发送生成，服务端写入同一轮 user/assistant 消息，用于失败对账、幂等重试和分析。相同 `clientMessageId` 的已完成重试会重放已保存 assistant；仍在生成且 lease 未过期时返回 `error.code="in_progress"`；失败或 lease 过期后允许同 ID 重新获取生成 lease。
 
-`done` 事件同步保证 `messageId`、`sessionId`、`mode`、`mood`（如可解析）、`balanceAfter` 和 `clientMessageId`（如请求提供）。还可能包含 `fallback`、`blocked`、`outOfScope`、`replayed`、`bondLevel`、`bondExp`、`bondDelta`、`leveledUp`、`unlockedAchievements`、`unlockedTitles`。当落库 `finalContent` 与已下发增量不一致时（**blocked** 输出过滤命中、**outOfScope** 越界兜底、**JSON 块剥离**等文本修正场景）`done` 携带可选 `content`：等于落库 `finalContent`（修正后全文，不含修正提示句），客户端 `onDone` 收到后以 `content` 为准覆盖气泡。点数不足返回 `error.code="insufficient_points"` 或 `402`。输入安全拦截不会预扣点数。模型失败、输出过滤、越界兜底会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化"作为 AI 模型"式拒答会被替换为角色内兜底回复。
+`done` 事件同步保证 `messageId`、`sessionId`、`mode`、`mood`（如可解析）、`balanceAfter` 和 `clientMessageId`（如请求提供）。还可能包含 `fallback`、`blocked`、`outOfScope`、`replayed`、`bondLevel`、`bondExp`、`bondDelta`、`leveledUp`、`unlockedAchievements`、`unlockedTitles`。当落库 `finalContent` 与已下发增量不一致时（**blocked** 输出过滤命中、**outOfScope** 越界兜底、**JSON 块剥离**等文本修正场景）`done` 携带可选 `content`：等于落库 `finalContent`（修正后全文，不含修正提示句），客户端 `onDone` 收到后以 `content` 为准覆盖气泡。点数不足返回 `error.code="insufficient_points"` 或 `402`。输入安全拦截不会预扣点数。模型失败、输出过滤、越界兜底会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化"作为 AI 模型"式拒答会被替换为角色内兜底回复。输出审核剥离/删除 JSON 块时（`output_sanitizer_hit` / `output_sanitizer_parse_fail`），该轮 `model_usage_logs` 额外记录 `errorCode=output_json_block`（success/filtered 均适用），用于按模型/角色聚合观测。
 
 当角色绑定的剧本已下架（`script.status != 'active'`）时，禁止在该角色上创建新对话；已有 session 的 `canSend` 字段会变为 `false`；stream 请求返回 `error.code="script_unavailable"`（`409`）。
 

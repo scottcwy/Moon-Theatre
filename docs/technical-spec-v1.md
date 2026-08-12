@@ -247,9 +247,9 @@ Taro 调 wx.login
 
 第一版只做微信登录，不做手机号登录，不做 refresh token。
 
-### 7.2 单 Agent moderated-buffered 聊天
+### 7.2 单 Agent 增量放行聊天
 
-V1 聊天接口采用 HTTP NDJSON streaming 形态，当前安全策略是 `moderated-buffered`：服务端可以流式接收 FastClaw 输出，但会先累积完整回复、完成 mood 解析和输出关键词过滤，再向小程序发送最终可展示文本。当前不承诺真正逐 token 实时展示。
+V1 聊天接口采用 HTTP NDJSON streaming 形态，当前安全策略是 `incremental-buffered`（2026-08-12 `chat-streaming-incremental-output-spec` 冻结修订，替代原 `moderated-buffered`）：服务端边生成边按行净化并逐段下发 `delta`，生成结束后对已发送全文复核输出过滤；命中过滤时追加修正提示 delta，`done` 携带 `blocked:true` 与可选 `content`（= 落库 finalContent）。仍不承诺真正逐 token 实时展示，但首字/首段提前到生成早期。
 
 本项目不规划 WebSocket；后续如要恢复真正逐 token 实时展示，必须先补充分段审核、风险中断和已展示内容处理策略。
 
@@ -289,7 +289,7 @@ Taro
 
 点数不足时不得调用 FastClaw。接口返回可恢复的业务错误，由小程序展示点数不足状态并引导进入额度包购买页。
 
-当前实现已返回 `X-Stream-Mode: moderated-buffered`。`done` 事件同步保证 `messageId`、`sessionId`、`mood`（如可解析）和 `balanceAfter`；还可能包含 `fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 等字段。`CHAT_EFFECTS_ASYNC_ENABLED=true` 时，`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 允许缺省。当前代码尚未在 FastClaw 错误路径写入 `model_usage_logs(status=failed)`，这是后续可观测性补强项。
+当前实现已返回 `X-Stream-Mode: incremental-buffered`（原 `moderated-buffered` 已被 2026-08-12 `chat-streaming-incremental-output-spec` 冻结修订）。`done` 事件同步保证 `messageId`、`sessionId`、`mood`（如可解析）和 `balanceAfter`；还可能包含 `fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 等字段。`CHAT_EFFECTS_ASYNC_ENABLED=true` 时，`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 允许缺省。当前代码尚未在 FastClaw 错误路径写入 `model_usage_logs(status=failed)`，这是后续可观测性补强项。
 
 ### 7.3 FastClaw 集成
 
@@ -356,6 +356,8 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 ```
 
 admin 需要支持列表筛选、禁用和覆盖错误记忆；相关 route、service 和测试属于 V1 后端验收项。
+
+抽取规则（2026-08-12 `chat-memory-fact-persistence-spec` 冻结修订）：story 只从用户消息提取、每轮候选上限 2 条；user_info/过往经历落具体事实模板（如「用户喜欢「草莓」」），不再落无实体泛化固定串；meta 指令（命中「回复/输出/回答/格式/协议」且「不要/去掉/移除/请用/以后」的组合）不落 story；service 对旧泛化条目/措辞变体执行删除+替换（保留新值）。
 
 ### 7.5 羁绊、称号、成就
 

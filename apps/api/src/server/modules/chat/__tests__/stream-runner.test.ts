@@ -843,6 +843,8 @@ describe('runChatStream', () => {
     const deltas = events.filter((event) => event.type === 'delta').map((event) => event.content as string);
     expect(deltas).toEqual(['你好，', '今晚月色很好。']);
     expect(deltas.join('')).toBe('你好，今晚月色很好。');
+    // 生成结束后对「已发送全文」复核（Spec 2：checkOutput(sentContent) 入口）。
+    expect(checkOutputMock).toHaveBeenCalledWith('你好，今晚月色很好。', 'session-1');
     const done = events.find((event) => event.type === 'done');
     expect(done).toMatchObject({ mood: 'happy' });
     expect(done).not.toHaveProperty('content');
@@ -866,6 +868,8 @@ describe('runChatStream', () => {
     });
     const events = await readEvents(response);
 
+    // 生成结束后对已发送全文复核：sentContent 已剥离可见 mood 标签。
+    expect(checkOutputMock).toHaveBeenCalledWith('这条回复提到赌博。', 'session-1');
     const deltas = events.filter((event) => event.type === 'delta').map((event) => event.content as string);
     expect(deltas).toContain('这条回复提到赌博。');
     expect(deltas).toContain('（内容已按安全规则调整）');

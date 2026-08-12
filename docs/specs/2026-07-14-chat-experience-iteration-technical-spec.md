@@ -86,7 +86,7 @@
 - 按 userId + characterId 查找或创建 active 会话；
 - Client Message ID 重放、生成租约和失败重试；
 - API 侧 clean history；
-- moderated-buffered 输出；
+- ~~moderated-buffered 输出~~（2026-08-12 已被 `chat-streaming-incremental-output-spec` 冻结修订为 incremental-buffered 增量放行）；
 - 输入与输出审核；
 - 预扣、退款和模型调用日志；
 - assistantMessageId 维度的羁绊幂等事件；
@@ -258,6 +258,13 @@ scope = script -> script_id is not null
 | story | 当前 script | 否 | 仅当前 script |
 
 现有 extractor 的“没有匹配项就把用户原文兜底保存为 story”规则在 Free Mode 禁用，避免普通闲聊污染剧情记忆。
+
+抽取规则修订（2026-08-12，`chat-memory-fact-persistence-spec` 冻结）：
+
+- story 只从用户消息提取，不再回灌助手回复；每轮候选上限 2 条；
+- user_info/过往经历落具体事实模板（如「用户喜欢「草莓」」），不再落「用户表达了偏好/情感倾向。」等无实体泛化固定串；
+- meta 指令（命中「回复/输出/回答/格式/协议」且「不要/去掉/移除/请用/以后」的组合）不落 story；
+- service 对旧泛化条目/措辞变体执行删除+替换（保留新值），避免新旧并存。
 
 ### 8.4 剧本目录元数据
 
@@ -824,6 +831,7 @@ API 返回稳定错误码，小程序集中映射中文文案。不得把 FastCl
 - preferred_name_updated
 - script_search_completed
 - retired_script_send_rejected
+- scope_classifier_grace_expired（Spec 1：script 模式宽限期放弃等待分类结果时记录，按 in_scope 放行）
 - output_sanitizer_hit（剥离 JSON 块，kind=json-block，带 characterId/modelName/sessionId/userMessageId）
 - output_sanitizer_parse_fail（疑似 JSON 块解析失败，整块删除）
 

@@ -618,6 +618,7 @@ describe('miniapp api client', () => {
         sessionId: 'session-id',
         blocked: true,
         content: '回复触发了安全机制，该消息已被替换。',
+        someFutureField: { nested: true },
       }) + '\n',
     });
 
@@ -625,5 +626,7 @@ describe('miniapp api client', () => {
       blocked: true,
       content: '回复触发了安全机制，该消息已被替换。',
     }));
+    // 老客户端兼容：未知字段不进入回调、不报错（Spec 2 §5 老版本客户端兼容）。
+    expect(onDone.mock.calls[0]![0]).not.toHaveProperty('someFutureField');
   });
 });
