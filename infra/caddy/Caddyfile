@@ -1,5 +1,12 @@
 {$CADDY_API_SITE_ADDRESS} {
     # Keep gzip-only for Mini Program client compatibility.
     encode gzip
+    log
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        X-Frame-Options "DENY"
+        -Server
+    }
     reverse_proxy api:3000
 }
