@@ -1,3 +1,6 @@
+/** 聊天搜索防抖：输入停止后延迟多少毫秒发起请求。 */
+export const CHAT_SEARCH_DEBOUNCE_MS = 250;
+
 const WEEKDAY_LABELS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
 function startOfDay(date: Date) {

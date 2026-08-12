@@ -12,6 +12,12 @@ const CANVAS_ID = 'shareCanvas';
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 840;
 
+// 身份徽章底色块：x/y 为左上角坐标，width/height 为尺寸。
+const IDENTITY_BADGE_X = 250;
+const IDENTITY_BADGE_Y = 580;
+const IDENTITY_BADGE_WIDTH = 190;
+const IDENTITY_BADGE_HEIGHT = 56;
+
 interface ShareCharacter {
   name: string;
   identity?: string | null;
@@ -86,10 +92,10 @@ export default function SharePreview() {
     ctx.fillText(displayName, 64, 620);
 
     ctx.setFillStyle('#8b3454');
-    ctx.fillRect(250, 580, 190, 56);
+    ctx.fillRect(IDENTITY_BADGE_X, IDENTITY_BADGE_Y, IDENTITY_BADGE_WIDTH, IDENTITY_BADGE_HEIGHT);
     ctx.setFillStyle('#fff7f8');
     ctx.setFontSize(22);
-    // 底块 250..440，文字起点 275，右侧留 25px 内边距 → 可用 140px，超长截断加省略号。
+    // 底块 IDENTITY_BADGE_X..IDENTITY_BADGE_X+IDENTITY_BADGE_WIDTH，文字起点 275，右侧留 25px 内边距 → 可用 140px，超长截断加省略号。
     ctx.fillText(fitCanvasTextToWidth(ctx, displayIdentity, 140), 275, 618);
 
     ctx.setFillStyle('#f6e6ea');

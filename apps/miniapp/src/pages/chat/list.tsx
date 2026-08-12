@@ -11,6 +11,7 @@ import type { ChatMode } from '../../types';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import { getCharacterAvatarUrl } from '../home/index.model';
 import {
+  CHAT_SEARCH_DEBOUNCE_MS,
   RETURN_MESSAGES_CHECK_PATH,
   RETURN_MESSAGES_READ_PATH,
   buildCharacterChatsUrl,
@@ -68,27 +69,39 @@ export default function ChatList() {
   const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
   const loadIdRef = useRef(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 按 searchQuery 键控的内存缓存：命中时先渲染缓存再静默刷新，避免切 tab 返回的 loading 抖动。
+  const chatListCacheRef = useRef<Map<string, CharacterChatEntry[]>>(new Map());
 
-  const loadCharacterChats = useCallback(async (query: string) => {
+  const loadCharacterChats = useCallback(async (query: string, { silent = false }: { silent?: boolean } = {}) => {
     const loadId = loadIdRef.current + 1;
     loadIdRef.current = loadId;
-    setLoading(true);
     setError('');
+
+    const cached = chatListCacheRef.current.get(query);
+    if (cached) {
+      // 命中缓存：先渲染缓存内容，后台静默刷新，避免重复 loading 抖动。
+      setCharacterChats(cached);
+      setLoading(false);
+    } else if (!silent) {
+      setLoading(true);
+    }
 
     try {
       const authenticated = await verifyAuth();
       if (loadIdRef.current !== loadId) return;
       if (!authenticated) {
+        chatListCacheRef.current.set(query, []);
         setCharacterChats([]);
-        setLoading(false);
         return;
       }
       const data = await api.get<CharacterChatsResponse>(buildCharacterChatsUrl(query));
       if (loadIdRef.current !== loadId) return;
+      chatListCacheRef.current.set(query, data.characters);
       setCharacterChats(data.characters);
     } catch (err) {
       if (loadIdRef.current !== loadId) return;
-      if (!handleAuthError(err)) {
+      // 静默刷新失败时保留缓存视图，不打断当前展示；未读数走 loadCharacterUnread 兜底登录态。
+      if (!cached && !handleAuthError(err)) {
         setError(err instanceof Error ? err.message : '加载失败');
       }
     } finally {
@@ -114,7 +127,8 @@ export default function ChatList() {
   }, [handleAuthError, verifyAuth]);
 
   useDidShow(() => {
-    void loadCharacterChats(searchQuery);
+    // 命中缓存时静默刷新；未读数每次拉取，驱动底部 tab 红点，与聊天列表缓存解耦。
+    void loadCharacterChats(searchQuery, { silent: chatListCacheRef.current.has(searchQuery) });
     void loadCharacterUnread();
   });
 
@@ -149,7 +163,7 @@ export default function ChatList() {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(() => {
       void loadCharacterChats(value);
-    }, 250);
+    }, CHAT_SEARCH_DEBOUNCE_MS);
   };
 
   const handleSearchClear = () => {

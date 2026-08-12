@@ -14,6 +14,12 @@ export const homeSections = {
   recommendedCharacterTitle: '推荐角色',
 } as const;
 
+/** 剧本搜索防抖：输入停止后延迟多少毫秒发起请求。 */
+export const SCRIPT_SEARCH_DEBOUNCE_MS = 250;
+
+/** 剧本模式开关：点击后展示开启态动画，延迟多少毫秒后进入剧本目录。 */
+export const SCRIPT_MODE_ENTRY_DELAY_MS = 260;
+
 /** 常聊角色区域固定取前 4 个（2 列网格 × 2 行）。 */
 export const FREQUENT_CHARACTERS_LIMIT = 4;
 

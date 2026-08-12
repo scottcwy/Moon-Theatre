@@ -48,7 +48,7 @@ export function ChatInputBar({
           disabled={disabled}
         />
       </View>
-      <View className={`chat-input-bar__send${disabled ? ' chat-input-bar__send--disabled' : ''}`} onTap={disabled && !insufficientPoints ? undefined : action}>
+      <View className={`chat-input-bar__send${disabled ? ' chat-input-bar__send--disabled' : ''}`} aria-label={insufficientPoints ? '充值' : sending ? '发送中' : '发送'} onTap={disabled && !insufficientPoints ? undefined : action}>
         <Text className="chat-input-bar__send-text">{insufficientPoints ? '充值' : sending ? '…' : '➤'}</Text>
       </View>
     </View>

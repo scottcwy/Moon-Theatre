@@ -19,6 +19,8 @@ import {
   buildFrequentCharactersUrl,
   buildScriptsUrl,
   CHARACTER_DECISION_BADGE,
+  SCRIPT_MODE_ENTRY_DELAY_MS,
+  SCRIPT_SEARCH_DEBOUNCE_MS,
   getCharacterAvatarUrl,
   getActiveScriptIndex,
   getCharacterDetailUrl,
@@ -99,7 +101,7 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       void loadScripts(scriptQuery);
-    }, 250);
+    }, SCRIPT_SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [loadScripts, scriptQuery]);
 
@@ -193,7 +195,7 @@ export default function Home() {
     if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
     scriptModeTimerRef.current = setTimeout(() => {
       openScriptCatalog();
-    }, 260);
+    }, SCRIPT_MODE_ENTRY_DELAY_MS);
   };
 
   useDidShow(() => {

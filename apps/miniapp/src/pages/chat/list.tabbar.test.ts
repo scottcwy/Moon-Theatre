@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const source = readFileSync(resolve(__dirname, 'list.tsx'), 'utf8');
+const modelSource = readFileSync(resolve(__dirname, 'list.model.ts'), 'utf8');
 const styleSource = readFileSync(resolve(__dirname, 'list.scss'), 'utf8');
 const appConfigSource = readFileSync(resolve(__dirname, '../../app.config.ts'), 'utf8');
 
@@ -14,16 +15,21 @@ describe('chat list tab bar integration', () => {
     expect(source).not.toContain('chat-list-tabbar');
   });
 
-  it('refreshes auth and character chats whenever the cached tab page is shown', () => {
+  it('shows cached character chats and silently refreshes whenever the cached tab page is shown', () => {
     expect(source).toContain('useDidShow');
     expect(source).toContain('loadCharacterChats');
+    // 命中缓存时先渲染再静默刷新，避免切 tab 返回的 loading 抖动；未读数仍每次拉取。
+    expect(source).toContain('chatListCacheRef');
+    expect(source).toContain('silent: chatListCacheRef.current.has(searchQuery)');
+    expect(source).toContain('loadCharacterUnread');
   });
 
   it('uses an active debounced server search instead of a disabled fake search affordance', () => {
     expect(source).toContain('searchQuery');
     expect(source).toContain('buildCharacterChatsUrl');
     expect(source).toContain('setTimeout');
-    expect(source).toContain('250');
+    expect(source).toContain('CHAT_SEARCH_DEBOUNCE_MS');
+    expect(modelSource).toContain('CHAT_SEARCH_DEBOUNCE_MS = 250');
     expect(source).not.toContain('filterChatSessions');
     expect(source).not.toContain('<SearchBar disabled');
   });
