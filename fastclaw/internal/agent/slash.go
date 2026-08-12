@@ -164,7 +164,7 @@ func (a *Agent) slashCompact(msg bus.InboundMessage) slashResult {
 		return slashResult{handled: true, reply: "No messages to compact."}
 	}
 
-	result, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model)
+	result, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model, a.thinking)
 	if err != nil {
 		return slashResult{handled: true, reply: fmt.Sprintf("Compaction error: %v", err)}
 	}

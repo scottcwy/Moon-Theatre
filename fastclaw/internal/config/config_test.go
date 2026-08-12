@@ -117,3 +117,45 @@ func TestAgentFileConfigMarshalKeepsExplicitZeroMaxToolIterations(t *testing.T) 
 		t.Fatalf("marshaled maxToolIterations = %v, want 0", got["maxToolIterations"])
 	}
 }
+
+func TestApplyDefaultsLeavesThinkingEmpty(t *testing.T) {
+	cfg := &Config{}
+
+	ApplyDefaults(cfg)
+
+	if cfg.Agents.Defaults.Thinking != "" {
+		t.Fatalf("thinking = %q, want empty default", cfg.Agents.Defaults.Thinking)
+	}
+}
+
+func TestMergedAgentConfigUsesDefaultThinking(t *testing.T) {
+	cfg := &Config{}
+	if err := json.Unmarshal([]byte(`{"agents":{"defaults":{"thinking":"off"}}}`), cfg); err != nil {
+		t.Fatal(err)
+	}
+	ApplyDefaults(cfg)
+
+	resolved := cfg.MergedAgentConfig(AgentEntry{ID: "agt_default_thinking"})
+
+	if resolved.Thinking != "off" {
+		t.Fatalf("thinking = %q, want off from defaults", resolved.Thinking)
+	}
+}
+
+func TestMergedAgentConfigEntryOverridesDefaultThinking(t *testing.T) {
+	cfg := &Config{}
+	if err := json.Unmarshal([]byte(`{"agents":{"defaults":{"thinking":"off"}}}`), cfg); err != nil {
+		t.Fatal(err)
+	}
+	ApplyDefaults(cfg)
+	var entry AgentEntry
+	if err := json.Unmarshal([]byte(`{"id":"agt_override_thinking","thinking":"adaptive"}`), &entry); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved := cfg.MergedAgentConfig(entry)
+
+	if resolved.Thinking != "adaptive" {
+		t.Fatalf("thinking = %q, want adaptive from entry override", resolved.Thinking)
+	}
+}

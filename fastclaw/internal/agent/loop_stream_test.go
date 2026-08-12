@@ -22,6 +22,7 @@ func (p *streamFallbackProvider) Chat(
 	_ string,
 	_ int,
 	_ float64,
+	_ string,
 ) (*provider.Response, error) {
 	p.chatTools = append([]provider.Tool(nil), tools...)
 	return &provider.Response{Content: p.chatContent}, nil
@@ -34,6 +35,7 @@ func (p *streamFallbackProvider) ChatStream(
 	_ string,
 	_ int,
 	_ float64,
+	_ string,
 ) (*provider.StreamReader, error) {
 	p.streamTools = append([]provider.Tool(nil), tools...)
 	ch := make(chan provider.StreamChunk, 1)

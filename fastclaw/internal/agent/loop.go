@@ -167,7 +167,7 @@ func NewAgentWithFullCfg(rc config.ResolvedAgent, prov provider.Provider, mb *bu
 		}
 		learnerLoader := NewSkillsLoaderWithGlobal(homeDir, rc.Home, "", rc.Skills, fullCfg.Skills)
 		learnerLoader.agentID = rc.ID
-		ag.skillsLearner = NewSkillsLearner(rc.Home, prov, model, learnerLoader.AllSkillDirs()...)
+		ag.skillsLearner = NewSkillsLearner(rc.Home, prov, model, rc.Thinking, learnerLoader.AllSkillDirs()...)
 		if fullCfg.SkillsLearner.MinToolCalls > 0 {
 			ag.skillsLearner.minToolCalls = fullCfg.SkillsLearner.MinToolCalls
 		}
@@ -503,6 +503,7 @@ type RuntimeSpec struct {
 	MaxTokens         int     `json:"maxTokens"`
 	Temperature       float64 `json:"temperature"`
 	MaxToolIterations int     `json:"maxToolIterations"`
+	Thinking          string  `json:"thinking,omitempty"`
 }
 
 // RuntimeSpec returns the non-secret runtime knobs that affect model latency.
@@ -513,6 +514,7 @@ func (a *Agent) RuntimeSpec() RuntimeSpec {
 		MaxTokens:         a.maxTokens,
 		Temperature:       a.temperature,
 		MaxToolIterations: a.maxToolIterations,
+		Thinking:          a.thinking,
 	}
 }
 
@@ -549,7 +551,7 @@ func (a *Agent) handleMessageWithoutTools(
 		emitEvent(ctx, ChatEvent{Type: "done"})
 		return noProviderMsg
 	}
-	resp, err := a.provider.Chat(ctx, llmMessages, nil, a.model, a.maxTokens, a.temperature)
+	resp, err := a.provider.Chat(ctx, llmMessages, nil, a.model, a.maxTokens, a.temperature, a.thinking)
 
 	hcAfter := &HookContext{AgentName: a.name, Point: AfterModelCall, Messages: messages, Response: resp, Error: err, StartTime: hcBefore.StartTime, ChatID: msg.ChatID, UserID: a.ownerUserID}
 	a.hooks.Run(ctx, hcAfter)
@@ -639,7 +641,7 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 
 	// Context compaction: check if session messages are too large
 	sessionMsgs := sess.GetMessages()
-	compactResult, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model)
+	compactResult, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model, a.thinking)
 	if err != nil {
 		slog.Warn("compaction error", "agent", a.name, "error", err)
 	}
@@ -694,7 +696,7 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 			emitEvent(ctx, ChatEvent{Type: "done"})
 			return noProviderMsg
 		}
-		resp, err := a.provider.Chat(ctx, llmMessages, toolDefs, a.model, a.maxTokens, a.temperature)
+		resp, err := a.provider.Chat(ctx, llmMessages, toolDefs, a.model, a.maxTokens, a.temperature, a.thinking)
 
 		// Hook: AfterModelCall
 		hcAfter := &HookContext{AgentName: a.name, Point: AfterModelCall, Messages: messages, Response: resp, Error: err, StartTime: hcBefore.StartTime, ChatID: msg.ChatID, UserID: a.ownerUserID}
@@ -949,7 +951,7 @@ func (a *Agent) runPostTurn(ctx context.Context, messages []provider.Message, to
 		if model == "" {
 			model = a.model
 		}
-		go AutoPersistMemory(ctx, a.memory, a.provider, model, messages)
+		go AutoPersistMemory(ctx, a.memory, a.provider, model, a.thinking, messages)
 	}
 
 	// Skills learner
@@ -1008,7 +1010,7 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 	sess.Append(userMsg)
 
 	sessionMsgs := sess.GetMessages()
-	compactResult, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model)
+	compactResult, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model, a.thinking)
 	if err != nil {
 		slog.Warn("compaction error", "agent", a.name, "error", err)
 	}
@@ -1038,7 +1040,7 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 		hcBefore := &HookContext{AgentName: a.name, Point: BeforeModelCall, Messages: messages, ChatID: msg.ChatID, UserID: a.ownerUserID}
 		a.hooks.Run(ctx, hcBefore)
 
-		resp, err := a.provider.Chat(ctx, messages, toolDefs, a.model, a.maxTokens, a.temperature)
+		resp, err := a.provider.Chat(ctx, messages, toolDefs, a.model, a.maxTokens, a.temperature, a.thinking)
 
 		hcAfter := &HookContext{AgentName: a.name, Point: AfterModelCall, Messages: messages, Response: resp, Error: err, StartTime: hcBefore.StartTime, ChatID: msg.ChatID, UserID: a.ownerUserID}
 		a.hooks.Run(ctx, hcAfter)

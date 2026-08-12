@@ -46,12 +46,13 @@ type apiMessage struct {
 }
 
 type chatRequest struct {
-	Model       string            `json:"model"`
-	Messages    []json.RawMessage `json:"messages"`
-	Tools       []Tool            `json:"tools,omitempty"`
-	MaxTokens   int               `json:"max_tokens,omitempty"`
-	Temperature float64           `json:"temperature,omitempty"`
-	Stream      bool              `json:"stream"`
+	Model          string            `json:"model"`
+	Messages       []json.RawMessage `json:"messages"`
+	Tools          []Tool            `json:"tools,omitempty"`
+	MaxTokens      int               `json:"max_tokens,omitempty"`
+	Temperature    float64           `json:"temperature,omitempty"`
+	Stream         bool              `json:"stream"`
+	EnableThinking *bool             `json:"enable_thinking,omitempty"`
 }
 
 // toAPIMessages converts provider Messages to wire-format apiMessages,
@@ -105,13 +106,17 @@ type sseResponse struct {
 	Choices []sseChoice `json:"choices"`
 }
 
-func (p *OpenAIProvider) buildRequest(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, stream bool) (*http.Request, error) {
+func (p *OpenAIProvider) buildRequest(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, stream bool, thinking string) (*http.Request, error) {
 	req := chatRequest{
 		Model:       StripProviderPrefix(model),
 		Messages:    toAPIMessages(messages),
 		MaxTokens:   maxTokens,
 		Temperature: temperature,
 		Stream:      stream,
+	}
+	if thinking == "off" {
+		off := false
+		req.EnableThinking = &off
 	}
 	if len(tools) > 0 {
 		req.Tools = tools
@@ -123,7 +128,7 @@ func (p *OpenAIProvider) buildRequest(ctx context.Context, messages []Message, t
 	}
 
 	url := p.apiBase + "/chat/completions"
-	slog.Info("openai request", "url", url, "model", req.Model)
+	slog.Info("openai request", "url", url, "model", req.Model, "enableThinking", thinking == "off")
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -133,8 +138,8 @@ func (p *OpenAIProvider) buildRequest(ctx context.Context, messages []Message, t
 	return httpReq, nil
 }
 
-func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64) (*Response, error) {
-	httpReq, err := p.buildRequest(ctx, messages, tools, model, maxTokens, temperature, true)
+func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, thinking string) (*Response, error) {
+	httpReq, err := p.buildRequest(ctx, messages, tools, model, maxTokens, temperature, true, thinking)
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +159,8 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, tools []T
 }
 
 // ChatStream returns a StreamReader that yields chunks as they arrive from the LLM.
-func (p *OpenAIProvider) ChatStream(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64) (*StreamReader, error) {
-	httpReq, err := p.buildRequest(ctx, messages, tools, model, maxTokens, temperature, true)
+func (p *OpenAIProvider) ChatStream(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, thinking string) (*StreamReader, error) {
+	httpReq, err := p.buildRequest(ctx, messages, tools, model, maxTokens, temperature, true, thinking)
 	if err != nil {
 		return nil, err
 	}

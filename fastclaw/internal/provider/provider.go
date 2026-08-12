@@ -169,8 +169,8 @@ func (r *StreamReader) SetErr(err error) {
 
 // Provider is the LLM provider interface.
 type Provider interface {
-	Chat(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64) (*Response, error)
-	ChatStream(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64) (*StreamReader, error)
+	Chat(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, thinking string) (*Response, error)
+	ChatStream(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, thinking string) (*StreamReader, error)
 }
 
 // StripProviderPrefix removes the "provider/" prefix from a model string.

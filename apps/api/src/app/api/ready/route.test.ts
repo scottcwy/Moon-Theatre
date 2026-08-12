@@ -17,6 +17,7 @@ interface ReadyResponseBody {
       agentId?: string;
       maxTokens?: number;
       maxToolIterations?: number;
+      thinking?: string;
       error?: string;
     };
   };
@@ -133,6 +134,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
         maxTokens: 768,
         temperature: 0.7,
         maxToolIterations: 0,
+        thinking: 'off',
       }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -148,6 +150,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
       agentId: 'agt_speed',
       maxTokens: 768,
       maxToolIterations: 0,
+      thinking: 'off',
     }));
   });
 
@@ -163,6 +166,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
         maxTokens: 768,
         temperature: 0.7,
         maxToolIterations: 0,
+        thinking: 'off',
       }));
     vi.stubGlobal('fetch', fetchMock);
     dbExecuteMock.mockRejectedValueOnce(new Error('connection refused'));
@@ -179,4 +183,65 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
     }));
     expect(body.checks.fastclaw).toEqual(expect.objectContaining({ ok: true }));
   });
+
+  it('fails readiness when the FastClaw agent has model-level thinking enabled', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_thinking_on');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+      .mockResolvedValueOnce(Response.json({
+        id: 'agt_thinking_on',
+        model: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
+        maxTokens: 768,
+        temperature: 0.7,
+        maxToolIterations: 0,
+        thinking: 'adaptive',
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(503);
+    expect(body.checks.fastclaw).toEqual(expect.objectContaining({
+      ok: false,
+      agentId: 'agt_thinking_on',
+      maxTokens: 768,
+      maxToolIterations: 0,
+      thinking: 'adaptive',
+      error: 'FastClaw agent must disable model-level thinking: thinking=adaptive; required thinking="off"',
+    }));
+  });
+
+  it('fails readiness when the FastClaw agent runtime spec omits thinking', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_no_thinking');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+      .mockResolvedValueOnce(Response.json({
+        id: 'agt_no_thinking',
+        model: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
+        maxTokens: 768,
+        temperature: 0.7,
+        maxToolIterations: 0,
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(503);
+    expect(body.checks.fastclaw).toEqual(expect.objectContaining({
+      ok: false,
+      agentId: 'agt_no_thinking',
+      maxTokens: 768,
+      maxToolIterations: 0,
+      error: 'FastClaw agent must disable model-level thinking: thinking=missing; required thinking="off"',
+    }));
+  });
+
 });

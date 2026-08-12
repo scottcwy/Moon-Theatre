@@ -20,7 +20,8 @@ data:
           "model": "siliconflow/deepseek-ai/DeepSeek-V4-Flash",
           "maxTokens": 768,
           "temperature": 0.7,
-          "maxToolIterations": 0
+          "maxToolIterations": 0,
+          "thinking": "off"
         },
         "list": []
       },

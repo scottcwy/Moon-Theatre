@@ -52,6 +52,7 @@ type anthropicRequest struct {
 	Temperature float64            `json:"temperature,omitempty"`
 	Stream      bool               `json:"stream"`
 	Tools       []anthropicTool    `json:"tools,omitempty"`
+	Thinking    map[string]any     `json:"thinking,omitempty"`
 }
 
 // toAnthropicMessages converts provider Messages to Anthropic wire format.
@@ -218,7 +219,7 @@ func thinkingBlockFor(m Message) map[string]interface{} {
 	return nil
 }
 
-func (p *AnthropicProvider) buildRequest(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, stream bool) (*http.Request, error) {
+func (p *AnthropicProvider) buildRequest(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, stream bool, thinking string) (*http.Request, error) {
 	system, anthropicMsgs := toAnthropicMessages(messages)
 
 	if maxTokens <= 0 {
@@ -232,6 +233,9 @@ func (p *AnthropicProvider) buildRequest(ctx context.Context, messages []Message
 		MaxTokens:   maxTokens,
 		Temperature: temperature,
 		Stream:      stream,
+	}
+	if thinking == "off" {
+		req.Thinking = map[string]any{"type": "disabled"}
 	}
 
 	if len(tools) > 0 {
@@ -250,7 +254,7 @@ func (p *AnthropicProvider) buildRequest(ctx context.Context, messages []Message
 	}
 
 	url := p.apiBase + "/v1/messages"
-	slog.Info("anthropic request", "url", url, "model", req.Model)
+	slog.Info("anthropic request", "url", url, "model", req.Model, "enableThinking", thinking == "off")
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -294,8 +298,8 @@ type anthropicDeltaContent struct {
 	Signature   string `json:"signature,omitempty"`
 }
 
-func (p *AnthropicProvider) Chat(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64) (*Response, error) {
-	httpReq, err := p.buildRequest(ctx, messages, tools, model, maxTokens, temperature, true)
+func (p *AnthropicProvider) Chat(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, thinking string) (*Response, error) {
+	httpReq, err := p.buildRequest(ctx, messages, tools, model, maxTokens, temperature, true, thinking)
 	if err != nil {
 		return nil, err
 	}
@@ -314,8 +318,8 @@ func (p *AnthropicProvider) Chat(ctx context.Context, messages []Message, tools 
 	return p.parseSSE(resp.Body)
 }
 
-func (p *AnthropicProvider) ChatStream(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64) (*StreamReader, error) {
-	httpReq, err := p.buildRequest(ctx, messages, tools, model, maxTokens, temperature, true)
+func (p *AnthropicProvider) ChatStream(ctx context.Context, messages []Message, tools []Tool, model string, maxTokens int, temperature float64, thinking string) (*StreamReader, error) {
+	httpReq, err := p.buildRequest(ctx, messages, tools, model, maxTokens, temperature, true, thinking)
 	if err != nil {
 		return nil, err
 	}

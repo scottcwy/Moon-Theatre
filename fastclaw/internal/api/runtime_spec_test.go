@@ -39,6 +39,7 @@ func (p *runtimeSpecProvider) Chat(
 	string,
 	int,
 	float64,
+	string,
 ) (*provider.Response, error) {
 	return &provider.Response{Content: "ok"}, nil
 }
@@ -50,6 +51,7 @@ func (p *runtimeSpecProvider) ChatStream(
 	string,
 	int,
 	float64,
+	string,
 ) (*provider.StreamReader, error) {
 	ch := make(chan provider.StreamChunk, 1)
 	close(ch)
@@ -64,6 +66,7 @@ func TestHandleAgentRuntimeSpecReturnsNonSecretRuntimeConfig(t *testing.T) {
 		MaxTokens:         768,
 		Temperature:       0.7,
 		MaxToolIterations: 1,
+		Thinking:          "off",
 	}}, &runtimeSpecProvider{}, bus.New(), agent.WithUserID("u_test"))
 	if err != nil {
 		t.Fatal(err)
@@ -102,6 +105,9 @@ func TestHandleAgentRuntimeSpecReturnsNonSecretRuntimeConfig(t *testing.T) {
 	}
 	if body["maxToolIterations"] != float64(1) {
 		t.Fatalf("maxToolIterations = %v", body["maxToolIterations"])
+	}
+	if body["thinking"] != "off" {
+		t.Fatalf("thinking = %v, want off", body["thinking"])
 	}
 	if _, ok := body["providers"]; ok {
 		t.Fatal("runtime spec leaked providers")
@@ -159,6 +165,7 @@ func TestHandleAgentRuntimeSpecRejectsApikeyWithoutAgentAccess(t *testing.T) {
 		MaxTokens:         768,
 		Temperature:       0.7,
 		MaxToolIterations: 1,
+		Thinking:          "off",
 	}}, &runtimeSpecProvider{}, bus.New(), agent.WithUserID("u_test"))
 	if err != nil {
 		t.Fatal(err)

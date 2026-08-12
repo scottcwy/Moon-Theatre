@@ -138,3 +138,11 @@ test('env examples keep model routing DeepSeek-only (Spec 5: Qwen 停用，不�
     assert.match(envExample, /^FASTCLAW_FALLBACK_ENABLED=false$/m, `${file}: FASTCLAW_FALLBACK_ENABLED must stay false (no fallback configured)`);
   }
 });
+
+test('FastClaw deploy configs default agents to model-level thinking off', () => {
+  for (const file of ['fastclaw/deploy/helm/fastclaw/templates/configmap.yaml', 'fastclaw/deploy/k8s/gateway.yml']) {
+    const config = readRepoFile(file);
+    assert.match(config, /"maxToolIterations": 0/, `${file}: agents.defaults must keep maxToolIterations=0`);
+    assert.match(config, /"thinking": "off"/, `${file}: agents.defaults must set thinking=off (model-level thinking disabled)`);
+  }
+});

@@ -52,6 +52,7 @@ async function checkFastClaw(): Promise<{
   agentId?: string;
   maxTokens?: number;
   maxToolIterations?: number;
+  thinking?: string;
   error?: string;
 }> {
   if (!config.fastclawBaseUrl || !config.fastclawApiKey) {
@@ -84,7 +85,7 @@ async function checkFastClaw(): Promise<{
       };
     }
 
-    const { maxTokens, maxToolIterations } = agentSpec;
+    const { maxTokens, maxToolIterations, thinking } = agentSpec;
     if (maxTokens > CHAT_AGENT_MAX_TOKENS || maxToolIterations !== CHAT_AGENT_MAX_TOOL_ITERATIONS) {
       return {
         ok: false,
@@ -96,12 +97,27 @@ async function checkFastClaw(): Promise<{
       };
     }
 
+    // Model-level thinking must be explicitly off; missing or any other
+    // value fails closed so an unconfigured FastClaw never ships silently.
+    if (thinking !== 'off') {
+      return {
+        ok: false,
+        configured: true,
+        agentId: config.fastclawAgentId,
+        maxTokens,
+        maxToolIterations,
+        thinking,
+        error: `FastClaw agent must disable model-level thinking: thinking=${thinking ?? 'missing'}; required thinking="off"`,
+      };
+    }
+
     return {
       ok: true,
       configured: true,
       agentId: config.fastclawAgentId,
       maxTokens,
       maxToolIterations,
+      thinking,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'FastClaw readiness check failed';
@@ -115,7 +131,7 @@ async function fetchFastClawAgentRuntimeSpec(
   agentId: string,
   signal: AbortSignal,
 ): Promise<
-  | { ok: true; maxTokens: number; maxToolIterations: number }
+  | { ok: true; maxTokens: number; maxToolIterations: number; thinking?: string }
   | { ok: false; error: string }
 > {
   const response = await fetch(`${config.fastclawBaseUrl}/v1/agents/${encodeURIComponent(agentId)}/runtime-spec`, {
@@ -133,6 +149,7 @@ async function fetchFastClawAgentRuntimeSpec(
   const spec = await response.json() as {
     maxTokens?: unknown;
     maxToolIterations?: unknown;
+    thinking?: unknown;
   };
   if (typeof spec.maxTokens !== 'number' || typeof spec.maxToolIterations !== 'number') {
     return { ok: false, error: 'FastClaw runtime spec is missing maxTokens or maxToolIterations' };
@@ -142,5 +159,6 @@ async function fetchFastClawAgentRuntimeSpec(
     ok: true,
     maxTokens: spec.maxTokens,
     maxToolIterations: spec.maxToolIterations,
+    thinking: typeof spec.thinking === 'string' ? spec.thinking : undefined,
   };
 }

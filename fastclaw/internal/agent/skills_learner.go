@@ -17,16 +17,18 @@ type SkillsLearner struct {
 	workspace    string
 	provider     provider.Provider
 	model        string
+	thinking     string
 	minToolCalls int    // minimum tool calls to consider extracting (default: 3)
 	skillDirs    []string // directories to search for the skill-learner skill
 }
 
 // NewSkillsLearner creates a new SkillsLearner.
-func NewSkillsLearner(workspace string, p provider.Provider, model string, skillDirs ...string) *SkillsLearner {
+func NewSkillsLearner(workspace string, p provider.Provider, model string, thinking string, skillDirs ...string) *SkillsLearner {
 	return &SkillsLearner{
 		workspace:    workspace,
 		provider:     p,
 		model:        model,
+		thinking:     thinking,
 		minToolCalls: 3,
 		skillDirs:    skillDirs,
 	}
@@ -141,7 +143,7 @@ func (sl *SkillsLearner) extractSkill(ctx context.Context, messages []provider.M
 		{Role: "user", Content: sb.String()},
 	}
 
-	resp, err := sl.provider.Chat(ctx, extractMsgs, nil, sl.model, 1024, 0.3)
+	resp, err := sl.provider.Chat(ctx, extractMsgs, nil, sl.model, 1024, 0.3, sl.thinking)
 	if err != nil {
 		return nil, err
 	}

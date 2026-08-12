@@ -44,7 +44,7 @@ type CompactResult struct {
 // Step 1 (Pruning): For messages older than PruneTurnAge, strip tool result content.
 // Step 2 (Compression): If still over threshold after pruning, summarize older messages
 // using the LLM and write full history to a log file.
-func CompactMessages(messages []provider.Message, workspace string, prov provider.Provider, model string) (*CompactResult, error) {
+func CompactMessages(messages []provider.Message, workspace string, prov provider.Provider, model string, thinking string) (*CompactResult, error) {
 	tokens := EstimateTokens(messages)
 	if tokens < DefaultTokenThreshold {
 		return &CompactResult{Messages: messages}, nil
@@ -73,7 +73,7 @@ func CompactMessages(messages []provider.Message, workspace string, prov provide
 	}
 
 	// Step 2: Compression - summarize older messages
-	compressed, err := compressOlderMessages(pruned, prov, model)
+	compressed, err := compressOlderMessages(pruned, prov, model, thinking)
 	if err != nil {
 		slog.Warn("compression failed, using pruned messages", "error", err)
 		return &CompactResult{
@@ -117,7 +117,7 @@ func pruneOldToolResults(messages []provider.Message) []provider.Message {
 }
 
 // compressOlderMessages asks the LLM to summarize older messages into a compact summary.
-func compressOlderMessages(messages []provider.Message, prov provider.Provider, model string) ([]provider.Message, error) {
+func compressOlderMessages(messages []provider.Message, prov provider.Provider, model string, thinking string) ([]provider.Message, error) {
 	if len(messages) <= PruneTurnAge {
 		return messages, nil
 	}
@@ -142,7 +142,7 @@ func compressOlderMessages(messages []provider.Message, prov provider.Provider, 
 		},
 	}
 
-	resp, err := prov.Chat(nil, summaryPrompt, nil, model, 2048, 0.3)
+	resp, err := prov.Chat(nil, summaryPrompt, nil, model, 2048, 0.3, thinking)
 	if err != nil {
 		return nil, fmt.Errorf("summarize conversation: %w", err)
 	}

@@ -21,6 +21,7 @@ func (p *captureProvider) Chat(
 	_ string,
 	_ int,
 	_ float64,
+	_ string,
 ) (*provider.Response, error) {
 	p.messages = append([]provider.Message(nil), messages...)
 	p.tools = append([]provider.Tool(nil), toolDefs...)
@@ -34,6 +35,7 @@ func (p *captureProvider) ChatStream(
 	string,
 	int,
 	float64,
+	string,
 ) (*provider.StreamReader, error) {
 	ch := make(chan provider.StreamChunk, 1)
 	close(ch)
