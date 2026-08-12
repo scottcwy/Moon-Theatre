@@ -104,6 +104,7 @@ rtk pnpm build:miniapp:prod
 - 等价旧方式：`rtk API_BASE_URL="https://api.offergo.xz.cn" pnpm --filter @juben-sha/miniapp build:weapp` + `verify:weapp`；`API_BASE_URL` 环境变量仍可临时覆盖 `hosts.json`（供 CI 或紧急切换使用），优先级高于配置文件。
 - 生产域名变更时，只改 `hosts.json` 的 `prod` 后重新构建上传即可；后端镜像域名由服务器 `.env` 的 `CADDY_API_SITE_ADDRESS` 控制，与此无关。
 - 构建前确认域名已加入微信 request 合法域名；`verify:weapp` 会继续挡住占位 API 主机和 localhost。
+- `apps/miniapp/project.config.json` 的 `urlCheck: false` 只影响微信开发者工具内的本地请求校验，不影响发布包（体验版/正式版仍必须走合法域名）；如需工具内严格校验，改 `project.private.config.json`（不入库）。`uploadWithSourceMap: false` 保证上传包不带 sourcemap。
 
 ## 6. 回滚
 
