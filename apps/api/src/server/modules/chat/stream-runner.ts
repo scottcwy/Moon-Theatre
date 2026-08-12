@@ -73,10 +73,6 @@ async function handleProtocolProbeIfNeeded(input: {
   return createProtocolProbeResponse(input.sessionId, saved.id, input.clientMessageId);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export interface ChatStreamInput {
   userId: string;
   characterId: string;

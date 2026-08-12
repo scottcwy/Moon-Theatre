@@ -23,7 +23,7 @@ vi.mock('../../../config/index.js', () => ({
   },
 }));
 
-function jsonResponse(body: unknown, ok = true, status = 200): Response {
+function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
@@ -87,7 +87,7 @@ describe('classifyChatScopeNonBlocking', () => {
   });
 
   it('falls back to in_scope and logs scope_classifier_failed on an upstream error', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'boom' }, false, 500));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'boom' }, 500));
     vi.stubGlobal('fetch', fetchMock);
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 

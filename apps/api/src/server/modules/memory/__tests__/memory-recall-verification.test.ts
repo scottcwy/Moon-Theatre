@@ -147,11 +147,9 @@ describe('memory 注入→回查验收（spec 5 验证矩阵）', () => {
 
     const hitCount = results.filter((r) => r.hit).length;
     const rate = hitCount / results.length;
-    // eslint-disable-next-line no-console
     console.log(`\n[recall-verification] 注入→回查 ${hitCount}/${results.length} = ${(rate * 100).toFixed(0)}%`);
     for (const r of results) {
-      // eslint-disable-next-line no-console
-      console.log(`[recall-verification] ${r.hit ? 'HIT ' : 'MISS'} ${r.label} :: ${r.memoryContent}`);
+        console.log(`[recall-verification] ${r.hit ? 'HIT ' : 'MISS'} ${r.label} :: ${r.memoryContent}`);
     }
 
     expect(rate).toBeGreaterThanOrEqual(0.8);
