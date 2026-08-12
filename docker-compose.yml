@@ -90,6 +90,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_API_BASE=${OPENAI_API_BASE:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      - fastclaw-data:/data/.fastclaw
     networks:
       - juben-sha-network
 
@@ -113,6 +115,7 @@ services:
 
 volumes:
   postgres_data:
+  fastclaw-data:
   caddy_data:
   caddy_config:
 

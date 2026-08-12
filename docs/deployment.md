@@ -124,6 +124,8 @@ rtk docker compose up -d api fastclaw caddy
 
 业务聊天 Agent 需要按 V1 速度目标配置：`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`、`maxTokens <= 768`、`maxToolIterations = 0`。对话生成仅支持 DeepSeek agent：Qwen agent 必须停用/删除，`FASTCLAW_FALLBACK_ENABLED` 保持 `false`（不配置降级）。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；超过 `maxTokens=768` 或启用任何工具迭代都不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
 
+**数据持久化**：FastClaw 已挂载命名卷 `fastclaw-data`（容器内 `/data/.fastclaw`，sqlite 数据落该目录）。服务器旧容器若已有匿名卷数据，切换前必须先备份：`docker inspect juben-sha-fastclaw` 找到匿名卷 `Source` 路径，用 `docker cp` 或临时挂载导出备份后再切换命名卷；本地测试阶段无业务数据可直接切换。匿名卷在 `docker compose down -v` 时会被删除，切换命名卷后旧匿名卷数据不再挂载（未删除但不可见）。
+
 ## 8. v1.1 上线检查清单
 
 v1.1（聊天体验：剧本/自由模式、剧本目录、记忆作用域、回访留言）上线时按序执行。镜像 tag **由发布负责人填写**，仓库不预设具体值。
