@@ -1,3 +1,20 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+/**
+ * 自定义导航页（navigationStyle:'custom'）的页面布局从屏幕顶部开始（内容延伸进状态栏区域），
+ * boundingClientRect 的纵向坐标系随之上移，其底部边界的比较口径应为屏幕高而非可用窗口高。
+ * 通过编译产物 dist/<pagePath>.json 的 navigationStyle 判定。
+ */
+export function isCustomNavigationPage(distDir, pagePath) {
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(distDir, `${pagePath}.json`), 'utf8'));
+    return config.navigationStyle === 'custom';
+  } catch {
+    return false;
+  }
+}
+
 export function mergeOffsetAndSize(offset = {}, size = {}) {
   const left = Number(offset.left ?? 0);
   const top = Number(offset.top ?? 0);
@@ -19,6 +36,10 @@ export function rectanglesOverlap(a, b) {
     && a.right > b.left
     && a.top < b.bottom
     && a.bottom > b.top;
+}
+
+export function isRectBelow(rect, boundary, clearance = 0) {
+  return Number(rect.top) >= Number(boundary.bottom) + clearance;
 }
 
 export function isFullyOutsideViewport(rect, viewport) {

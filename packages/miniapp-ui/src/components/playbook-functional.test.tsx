@@ -245,7 +245,8 @@ describe('playbook component functional behavior', () => {
 
     const assistantBubble = renderElement(<ChatBubble role="assistant" characterName="白藏" mood="thinking" fallback typing content="" />);
     expect(assistantBubble.props.className).toContain('chat-bubble-row--assistant');
-    expect(textContent(assistantBubble)).toContain('正在输入...');
+    expect(findAll(assistantBubble, (node) => String(node.props.className ?? '').includes('chat-bubble__typing-dot'))).toHaveLength(3);
+    expect(textContent(assistantBubble)).not.toContain('正在输入');
     expect(textContent(assistantBubble)).toContain('思索中');
     expect(textContent(assistantBubble)).toContain('本地模式');
   });
@@ -306,7 +307,9 @@ describe('playbook component functional behavior', () => {
     const headerBond = createBondViewModel({ bondLevel: 2, bondExp: 20 });
     const header = renderElement(<CharacterHeader name="白藏" avatarUrl="/a.jpg" identity="狐神" bond={headerBond} points={12} onBack={onBack} />);
     expect(header.props.className).toContain('character-header');
-    expect(textContent(header)).toContain('20/200');
+    // 头部只保留等级名称徽章，不再渲染羁绊进度数字行。
+    expect(textContent(header)).toContain(headerBond.compactLevelLabel);
+    expect(textContent(header)).not.toContain('20/200');
     (findByClass(header, 'character-header__back').props.onTap as () => void)();
     expect(onBack).toHaveBeenCalledTimes(1);
 

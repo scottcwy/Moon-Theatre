@@ -19,28 +19,33 @@
   margin-top: $space-1;
 }
 
+// 角色气泡做成「纸面」：近白底 + 细描边 + 轻投影，和米白舞台底色拉开一层。
 .chat-bubble {
   max-width: 560rpx;
-  border-radius: 28rpx;
+  border-radius: $radius-md;
   padding: $space-3 $space-4;
-  background-color: $color-surface-container;
+  background-color: $color-surface;
+  border: 1rpx solid $color-outline-variant;
   box-sizing: border-box;
-  box-shadow: 0 4rpx 12rpx rgba(58, 7, 24, 0.035);
+  box-shadow: $shadow-subtle;
 }
 
+// 用户气泡用品牌红微渐变，顶部一道高光去塑料感。
 .chat-bubble--user {
-  background-color: $color-primary;
-  border-bottom-right-radius: 8rpx;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 42%), $color-primary;
+  border: none;
+  border-bottom-right-radius: $radius-xs;
 }
 
 .chat-bubble-row--assistant .chat-bubble {
-  border-top-left-radius: 8rpx;
+  border-top-left-radius: $radius-xs;
 }
 
 .chat-bubble--system {
   max-width: 520rpx;
   padding: $space-2 $space-4;
   background-color: $color-surface-container-low;
+  border: none;
   border-radius: $radius-full;
   box-shadow: none;
 }
@@ -60,6 +65,41 @@
 .chat-bubble--system .chat-bubble__text {
   font-size: $font-label-md;
   color: $color-outline;
+}
+
+// 角色「正在想」的三点呼吸。
+.chat-bubble__typing {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 8rpx 2rpx;
+}
+
+.chat-bubble__typing-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: $radius-full;
+  background-color: $color-outline;
+  animation: chat-bubble-typing 1.2s ease-in-out infinite;
+}
+
+.chat-bubble__typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-bubble__typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes chat-bubble-typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-6rpx);
+    opacity: 1;
+  }
 }
 
 .chat-bubble__meta {

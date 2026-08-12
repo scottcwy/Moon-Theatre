@@ -14,7 +14,7 @@ pnpm test:e2e:miniapp:ui
 Authenticated/mock API runtime UI checks use the fixed local mock server port compiled into the miniapp bundle:
 
 ```bash
-NODE_ENV=development DEV_AUTH_BYPASS=true API_BASE_URL=http://127.0.0.1:31877 pnpm --filter @juben-sha/miniapp build:weapp
+NODE_ENV=development DEV_AUTH_BYPASS=true API_BASE_URL=http://127.0.0.1:3000 pnpm --filter @juben-sha/miniapp build:weapp
 pnpm --filter @juben-sha/miniapp verify:weapp
 pnpm test:e2e:miniapp:ui:auth
 ```

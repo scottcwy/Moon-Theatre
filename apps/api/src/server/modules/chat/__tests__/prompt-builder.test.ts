@@ -278,3 +278,105 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('用户喜欢猫');
   });
 });
+
+// ── NEW: 回查摘要（clean history 用户自述偏好） ──
+
+describe('extractUserRecap', () => {
+  it('returns recap lines for the most recent preference messages (max 2)', () => {
+    const { extractUserRecap } = await import('../prompt-builder.js');
+    const recaps = extractUserRecap([
+      { role: 'user', content: '今天天气不错' },
+      { role: 'assistant', content: '是啊，适合出门。' },
+      { role: 'user', content: '我喜欢吃草莓' },
+      { role: 'assistant', content: '草莓很好吃。' },
+      { role: 'user', content: '我来自江南' },
+    ]);
+
+    expect(recaps).toEqual([
+      '用户最近提到「我来自江南」',
+      '用户最近提到「我喜欢吃草莓」',
+    ]);
+  });
+
+  it('skips assistant messages and non-preference user messages', () => {
+    const { extractUserRecap } = await import('../prompt-builder.js');
+    const recaps = extractUserRecap([
+      { role: 'assistant', content: '我喜欢安静，但这是角色的话。' },
+      { role: 'user', content: '随便聊聊' },
+      { role: 'user', content: '我是做药材生意的' },
+    ]);
+
+    expect(recaps).toEqual(['用户最近提到「我是做药材生意的」']);
+  });
+
+  it('deduplicates identical recap snippets', () => {
+    const { extractUserRecap } = await import('../prompt-builder.js');
+    const recaps = extractUserRecap([
+      { role: 'user', content: '我喜欢草莓' },
+      { role: 'user', content: '我喜欢草莓' },
+    ]);
+
+    expect(recaps).toEqual(['用户最近提到「我喜欢草莓」']);
+  });
+
+  it('truncates long messages with an ellipsis', () => {
+    const { extractUserRecap } = await import('../prompt-builder.js');
+    const long = '我喜欢' + '很长的描述'.repeat(20);
+    const recaps = extractUserRecap([{ role: 'user', content: long }]);
+
+    expect(recaps).toHaveLength(1);
+    expect(recaps[0]!.startsWith('用户最近提到「')).toBe(true);
+    expect(recaps[0]!.endsWith('…」')).toBe(true);
+    expect(recaps[0]!.length).toBeLessThan(long.length + 20);
+  });
+
+  it('returns empty when history has no matching user messages', () => {
+    const { extractUserRecap } = await import('../prompt-builder.js');
+    const recaps = extractUserRecap([
+      { role: 'user', content: '北门的结界裂了' },
+      { role: 'assistant', content: '我去看看。' },
+    ]);
+
+    expect(recaps).toEqual([]);
+  });
+});
+
+describe('buildSystemPrompt 已知信息块', () => {
+  it('merges memories and recap into the same 已知信息 block', () => {
+    const character = makeCharacter();
+    const script = makeScript();
+    const prompt = buildSystemPrompt(character, script, {
+      memories: [
+        { type: 'user_info', content: '用户喜欢「草莓」' },
+      ],
+      userRecap: ['用户最近提到「我喜欢吃草莓」'],
+    });
+
+    expect(prompt).toContain('已知信息：');
+    expect(prompt).toContain('[记忆-user_info] 用户喜欢「草莓」');
+    expect(prompt).toContain('用户最近提到「我喜欢吃草莓」');
+
+    const block = prompt.split('\n\n').find((s) => s.startsWith('已知信息：'));
+    expect(block).toContain('[记忆-user_info] 用户喜欢「草莓」\n用户最近提到「我喜欢吃草莓」');
+  });
+
+  it('injects recap even without memories', () => {
+    const character = makeCharacter();
+    const prompt = buildSystemPrompt(character, null, {
+      userRecap: ['用户最近提到「我来自江南」'],
+    });
+
+    expect(prompt).toContain('已知信息：');
+    expect(prompt).toContain('用户最近提到「我来自江南」');
+  });
+
+  it('does not inject empty 已知信息 block', () => {
+    const character = makeCharacter();
+    const prompt = buildSystemPrompt(character, null, {
+      memories: [],
+      userRecap: [],
+    });
+
+    expect(prompt).not.toContain('已知信息：');
+  });
+});

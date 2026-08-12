@@ -3,6 +3,8 @@ import type { Script, CharacterWithPrompts } from './service.js';
 
 export interface PromptContext {
   memories?: Array<{ type: string; content: string }>;
+  /** 从 clean history 提取的最近用户自述偏好摘要，与 memories 共用「已知信息」块。 */
+  userRecap?: string[];
   bondLevel?: number;
   bondExp?: number;
   mode?: 'script' | 'free';
@@ -23,6 +25,35 @@ const FREE_MODE_RULES = [
   '可以闲聊日常话题、回答用户问题、讨论角色世界观设定中的一般性内容，但不要主动引导用户回到剧本情节。',
   '如果用户主动提起剧本相关话题，可以自然回应，但仍不强制推动剧情进展。',
 ].join('\n');
+
+// 用户自述偏好类消息（含具体事实），用于回查摘要：从 clean history 提取最近 1-2 条。
+const USER_RECAP_PATTERN = /(?:我喜欢|我讨厌|我害怕|我担心|我期待|我来自|我住在|我叫|我是|我的名字|我的过去|我以前|我曾经)/;
+
+const USER_RECAP_MAX_LINES = 2;
+const USER_RECAP_SNIPPET_MAX = 80;
+
+/**
+ * 从 clean history 提取最近 1-2 条用户自述偏好类消息，生成回查摘要行。
+ * 与 memories 注入共用「已知信息」块；相同内容去重，不重复注入。
+ */
+export function extractUserRecap(
+  cleanHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+): string[] {
+  const seen = new Set<string>();
+  const recaps: string[] = [];
+  for (let i = cleanHistory.length - 1; i >= 0 && recaps.length < USER_RECAP_MAX_LINES; i -= 1) {
+    const message = cleanHistory[i];
+    if (!message || message.role !== 'user') continue;
+    if (!USER_RECAP_PATTERN.test(message.content)) continue;
+    const snippet = message.content.length > USER_RECAP_SNIPPET_MAX
+      ? `${message.content.slice(0, USER_RECAP_SNIPPET_MAX)}…`
+      : message.content;
+    if (seen.has(snippet)) continue;
+    seen.add(snippet);
+    recaps.push(`用户最近提到「${snippet}」`);
+  }
+  return recaps;
+}
 
 export function buildSystemPrompt(
   character: CharacterWithPrompts,
@@ -74,11 +105,12 @@ export function buildSystemPrompt(
     parts.push(prompts[0].outputFormatPrompt);
   }
 
-  if (context?.memories && context.memories.length > 0) {
-    const memoryLines = context.memories.map(
-      (m) => `[记忆-${m.type}] ${m.content}`
-    );
-    parts.push('已知信息：\n' + memoryLines.join('\n'));
+  const memoryLines = (context?.memories ?? []).map(
+    (m) => `[记忆-${m.type}] ${m.content}`
+  );
+  const recapLines = context?.userRecap ?? [];
+  if (memoryLines.length > 0 || recapLines.length > 0) {
+    parts.push('已知信息：\n' + [...memoryLines, ...recapLines].join('\n'));
   }
 
   return parts.join('\n\n');

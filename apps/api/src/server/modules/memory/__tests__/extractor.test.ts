@@ -29,6 +29,26 @@ describe('extractCandidateMemories', () => {
       expect(userInfo!.content).toContain('药材');
     });
 
+    it('keeps concrete preference content instead of generic fixed string', () => {
+      const result = extractCandidateMemories(
+        '我喜欢吃草莓，最喜欢下雨天。记住这一点。',
+        '记住了，你爱吃草莓。',
+      );
+      const userInfo = extractFirstOfType(result, 'user_info');
+      expect(userInfo).toBeDefined();
+      expect(userInfo!.content).toContain('草莓');
+      expect(userInfo!.content).toContain('用户喜欢');
+      expect(userInfo!.content).not.toContain('用户表达了偏好/情感倾向');
+    });
+
+    it('keeps concrete past-experience content instead of generic fixed string', () => {
+      const result = extractCandidateMemories('我以前在江南水乡长大', '江南的雨确实很温柔。');
+      const userInfo = extractFirstOfType(result, 'user_info');
+      expect(userInfo).toBeDefined();
+      expect(userInfo!.content).toContain('江南水乡');
+      expect(userInfo!.content).not.toContain('用户提及过往经历');
+    });
+
     it('does not attribute assistant statements to user_info', () => {
       const result = extractCandidateMemories('今天天气不错', '我叫李明，我是这里的守卫。');
       const userInfo = extractFirstOfType(result, 'user_info');
@@ -59,41 +79,79 @@ describe('extractCandidateMemories', () => {
   });
 
   describe('story patterns', () => {
-    it('detects garden-related event mentions', () => {
+    it('extracts user-provided plot facts with concrete content', () => {
       const result = extractCandidateMemories('月见庭院的红线为什么一直响', '那是狐嫁契约留下的铃铛。');
       const story = extractFirstOfType(result, 'story');
       expect(story).toBeDefined();
       expect(story!.content).toContain('月见庭院');
+      expect(story!.content).not.toContain('月见庭院中的事件被讨论');
     });
 
-    it('detects key plot keywords', () => {
+    it('captures the specific location/clue the user provided', () => {
+      const result = extractCandidateMemories('北门的结界裂了', '我去查看一下。');
+      const story = extractFirstOfType(result, 'story');
+      expect(story).toBeDefined();
+      expect(story!.content).toContain('北门');
+      expect(story!.content).toContain('结界');
+      expect(story!.content).not.toContain('被提及');
+    });
+
+    it('does NOT extract story from assistant text alone', () => {
       const result = extractCandidateMemories('有什么线索吗', '我在北门发现了一页新娘名册。');
       const story = extractFirstOfType(result, 'story');
-      expect(story).toBeDefined();
+      expect(story).toBeUndefined();
     });
 
-    it('detects quest/mission mentions', () => {
+    it('does NOT fall back to story for plain chat without plot keywords', () => {
       const result = extractCandidateMemories('有什么需要我做的吗', '是的，我有一项任务要委托给你。');
       const story = extractFirstOfType(result, 'story');
+      expect(story).toBeUndefined();
+    });
+  });
+
+  describe('meta command guard', () => {
+    it('does not store meta instructions as story', () => {
+      const result = extractCandidateMemories('以后回复不要带情绪标签。', '好的。');
+      const story = extractFirstOfType(result, 'story');
+      expect(story).toBeUndefined();
+      expect(result.length).toBe(0);
+    });
+
+    it('does not misfire on normal dialogue with only one side of the combined rule', () => {
+      // 「不要」命中指令词，但无 回复/输出/回答/格式/协议 类词，不判为 meta。
+      const result = extractCandidateMemories('你不要走，北门的结界还需要你。', '我不走。');
+      const story = extractFirstOfType(result, 'story');
       expect(story).toBeDefined();
-      expect(story!.content).toContain('任务');
+      expect(story!.content).toContain('北门');
+    });
+
+    it('does not treat 「请用茶」 as a meta instruction', () => {
+      // 「请用」命中指令词，但无 回复/输出/回答/格式/协议 类词；且无剧情关键词，不落兜底 story。
+      const result = extractCandidateMemories('请用茶，慢慢说。', '好茶。');
+      const story = extractFirstOfType(result, 'story');
+      expect(story).toBeUndefined();
     });
   });
 
   describe('fallback behavior', () => {
-    it('returns fallback story memory when no pattern matches', () => {
+    it('keyword-hit user text always yields a story memory (pattern or fallback)', () => {
+      const result = extractCandidateMemories('北门那边好像出事了', '我马上去看看。');
+      const story = extractFirstOfType(result, 'story');
+      expect(story).toBeDefined();
+      expect(story!.content).toContain('北门');
+    });
+
+    it('returns no memory for empty/no-keyword chat', () => {
       const result = extractCandidateMemories('嗯', '嗯。');
-      expect(result.length).toBeGreaterThan(0);
-      expect(result[0]!.type).toBe('story');
-      expect(result[0]!.content).toContain('用户说');
+      expect(result.length).toBe(0);
     });
   });
 
   describe('max candidates limit', () => {
-    it('returns at most 3 candidates per turn', () => {
+    it('returns at most 2 candidates per turn', () => {
       const longText = '我叫张三，我来自北方，我是做药材生意的。月见庭院的铃铛很响，我需要你的帮助，我信任你。';
       const result = extractCandidateMemories(longText, '好的，我帮你调查。');
-      expect(result.length).toBeLessThanOrEqual(3);
+      expect(result.length).toBeLessThanOrEqual(2);
     });
   });
 });

@@ -3,10 +3,7 @@
 .character-header {
   display: flex;
   align-items: center;
-  padding: $space-3 $space-4;
-  padding-top: calc($status-bar-height + $space-3);
-  // 自定义导航下右上角是微信胶囊（约 87px 宽 + 边距），预留 100px 避免遮挡积分徽章。
-  padding-right: calc(100px + $space-4);
+  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-3}) $space-4 $space-3;
   background-color: $color-background;
   box-sizing: border-box;
 }
@@ -33,7 +30,7 @@
 .character-header__name {
   display: block;
   margin-right: $space-2;
-  font-size: 40rpx;
+  font-size: $font-headline-md;
   line-height: 1.12;
   font-weight: 800;
   color: $color-primary;
@@ -50,13 +47,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.character-header__bond-exp {
-  display: block;
-  margin-top: 4rpx;
-  font-size: $font-label-sm;
-  color: $color-on-surface-variant;
 }
 
 .character-header__points {

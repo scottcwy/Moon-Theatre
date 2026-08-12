@@ -15,9 +15,9 @@ describe('home hot scripts layout', () => {
     expect(styleSource).toContain('.theater-home__script-scroll');
   });
 
-  it('keeps gallery cards at a glanceable width with a halved fixed height', () => {
-    expect(styleSource).toContain('flex: 0 0 64%');
-    expect(styleSource).toContain('height: 260rpx');
+  it('keeps gallery cards image-led with a deliberate peek of the next story', () => {
+    expect(styleSource).toContain('flex: 0 0 72%');
+    expect(styleSource).toContain('height: 288rpx');
   });
 
   it('shows only the script title on gallery cards, clamped to 2 lines', () => {
@@ -31,6 +31,15 @@ describe('home hot scripts layout', () => {
   it('renders page dots only when more than one script exists', () => {
     expect(source).toContain('scripts.length > 1 &&');
     expect(source).toContain('theater-home__script-dot');
+  });
+
+  it('uses a quieter material surface rhythm on the home page', () => {
+    expect(styleSource).not.toContain('linear-gradient(180deg, rgba(255, 247, 248, 0.72)');
+    expect(styleSource).toContain('background-color: $color-surface-container-low');
+    expect(styleSource).toContain('border-radius: 32rpx');
+    expect(styleSource).not.toContain('transition: width');
+    expect(styleSource).toContain('transition: transform 160ms cubic-bezier(0.2, 0, 0, 1)');
+    expect(styleSource).toContain('transform: scaleX(1.75)');
   });
 
   it('resets to the first card after a search without adding autoplay', () => {

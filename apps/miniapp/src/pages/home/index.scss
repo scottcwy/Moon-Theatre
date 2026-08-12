@@ -8,27 +8,27 @@
 }
 
 .theater-home__settings-button {
-  width: 64rpx;
-  height: 64rpx;
+  width: 56rpx;
+  height: 56rpx;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba($color-surface-container-low, 0.92);
-  box-shadow: 0 8rpx 18rpx rgba(58, 7, 24, 0.06);
+  background-color: transparent;
 }
 
 .theater-home__settings {
   color: $color-primary;
-  font-size: 34rpx;
+  font-size: 32rpx;
   line-height: 1;
 }
 
 .theater-home__hero-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: $space-4;
+  gap: $space-3;
+  margin-bottom: $space-3;
 }
 
 .theater-home__hero-heading {
@@ -38,29 +38,28 @@
 }
 
 .theater-home__hero-kicker {
-  margin-bottom: $space-2;
+  margin-bottom: $space-1;
   color: $color-secondary;
-  font-size: $font-label-md;
-  font-weight: 800;
+  font-size: $font-label-sm;
+  font-weight: 700;
   line-height: 1.2;
   letter-spacing: 3rpx;
 }
 
 .theater-home__hero-title {
   color: $color-on-surface;
-  font-size: $font-title-md;
-  font-weight: 800;
+  font-size: 40rpx;
+  font-weight: 700;
   line-height: 1.2;
 }
 
 .theater-home__mode-hint {
   display: block;
-  margin: -12rpx 0 $space-3;
-  padding-right: 2rpx;
+  margin: 0 0 $space-3;
   color: rgba($color-on-surface-variant, 0.72);
   font-size: 22rpx;
   line-height: 1.4;
-  text-align: right;
+  text-align: left;
 }
 
 /* 剧本模式滑动开关：左侧「剧本」文字常显（设置行形态）+ 右侧 88×52 标准小轨道。
@@ -96,7 +95,7 @@
 
 .theater-home__mode-switch-label {
   color: $color-on-surface;
-  font-size: $font-label-md;
+  font-size: $font-label-sm;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -121,14 +120,14 @@
 
 .theater-home__brand {
   color: $color-primary;
-  font-size: 36rpx;
-  font-weight: 800;
+  font-size: 34rpx;
+  font-weight: 700;
   line-height: 1.1;
 }
 
 .theater-home__topbar {
-  background: rgba($color-background, 0.96);
-  box-shadow: 0 8rpx 24rpx rgba(58, 7, 24, 0.06);
+  background-color: $color-background;
+  border-bottom: 1rpx solid rgba($color-outline-variant, 0.34);
 }
 
 .theater-home__topbar .top-bar__content {
@@ -149,9 +148,7 @@
 .theater-home__content {
   min-height: 100vh;
   padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-3}) $page-padding-h calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
-  background:
-    linear-gradient(180deg, rgba(255, 247, 248, 0.72) 0%, rgba(255, 251, 248, 0) 360rpx),
-    $color-background;
+  background-color: $color-background;
   box-sizing: border-box;
 }
 
@@ -161,11 +158,14 @@
 }
 
 .theater-home__hero-section {
-  margin-top: $space-2;
+  margin-top: $space-3;
 }
 
 .theater-home__script-search {
   margin-bottom: $space-4;
+  border-color: transparent;
+  background-color: $color-surface-container-low;
+  box-shadow: none;
 }
 
 .theater-home__script-state {
@@ -191,24 +191,26 @@
   height: 12rpx;
   border-radius: $radius-full;
   background-color: $color-outline-variant;
-  transition: width 160ms cubic-bezier(0.2, 0, 0, 1),
+  transform: scaleX(1);
+  transform-origin: center;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1),
     background-color 160ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .theater-home__script-dot--active {
-  width: 24rpx;
+  transform: scaleX(1.75);
   background-color: $color-primary;
 }
 
 .theater-home__hero-card {
   position: relative;
-  flex: 0 0 64%;
-  height: 260rpx;
+  flex: 0 0 72%;
+  height: 288rpx;
   margin-right: $space-3;
-  border-radius: $radius-lg;
+  border-radius: 32rpx;
   overflow: hidden;
-  background: #1c1117;
-  box-shadow: $shadow-card;
+  background-color: $color-bottom-action-dark;
+  box-shadow: $shadow-subtle;
   transform: translateZ(0);
 }
 
@@ -237,16 +239,16 @@
 
 .theater-home__hero-content {
   position: absolute;
-  left: $space-5;
-  right: $space-5;
+  left: $space-4;
+  right: $space-4;
   bottom: $space-4;
 }
 
 .theater-home__hero-card-title {
   display: -webkit-box;
   color: $color-on-primary;
-  font-size: $font-title-lg;
-  font-weight: 800;
+  font-size: 36rpx;
+  font-weight: 700;
   line-height: 1.24;
   overflow: hidden;
   text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
@@ -257,7 +259,7 @@
 .theater-home__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: $space-4 $space-3;
+  gap: $space-5 $space-3;
 }
 
 .theater-home__poster-card {
@@ -266,13 +268,15 @@
 
 .theater-home__poster-card .character-poster-card__poster {
   aspect-ratio: 1 / 1.28;
-  border-radius: $radius-md;
+  border-radius: 32rpx;
   background-color: $color-surface-container-low;
+  box-shadow: $shadow-subtle;
 }
 
 .theater-home__poster-card .character-poster-card__badge {
   background-color: rgba(255, 251, 248, 0.9);
-  border: 2rpx solid rgba(139, 66, 88, 0.16);
+  border: 0;
+  box-shadow: $shadow-subtle;
 }
 
 .theater-home__poster-card .character-poster-card__badge-text {

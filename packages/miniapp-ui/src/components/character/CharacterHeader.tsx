@@ -11,8 +11,6 @@ interface CharacterHeaderProps {
   identity?: string;
   avatarUrl?: string;
   bondLevel?: number;
-  bondExp?: number;
-  bondMaxExp?: number;
   bond?: BondViewModel;
   points?: number | null;
   onPointsTap?: () => void;
@@ -24,16 +22,12 @@ export function CharacterHeader({
   identity,
   avatarUrl,
   bondLevel = 1,
-  bondExp,
-  bondMaxExp,
   bond,
   points = null,
   onPointsTap,
   onBack,
 }: CharacterHeaderProps) {
   const displayLabel = bond?.compactLevelLabel ?? bondLevelName(bondLevel);
-  const progressText = bond?.progressLabel
-    ?? (typeof bondExp === 'number' && bondMaxExp !== undefined ? `${bondExp}/${bondMaxExp}` : undefined);
 
   return (
     <View className="character-header">
@@ -44,9 +38,6 @@ export function CharacterHeader({
           <Text className="character-header__name">{name}</Text>
           <Badge tone="primary">{displayLabel}</Badge>
         </View>
-        {progressText && (
-          <Text className="character-header__bond-exp">{progressText}</Text>
-        )}
         {identity && <Text className="character-header__identity">{identity}</Text>}
       </View>
       <PointsBadge points={points} className="character-header__points" onTap={onPointsTap} />

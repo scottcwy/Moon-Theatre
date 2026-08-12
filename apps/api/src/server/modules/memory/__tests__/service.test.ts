@@ -7,11 +7,14 @@ const orderByMock = vi.fn();
 const insertMock = vi.fn();
 const valuesMock = vi.fn();
 const insertReturningMock = vi.fn();
+const deleteMock = vi.fn();
+const deleteWhereMock = vi.fn();
 
 vi.mock('../../../db/index.js', () => ({
   db: {
     select: selectMock,
     insert: insertMock,
+    delete: deleteMock,
   },
 }));
 
@@ -153,6 +156,9 @@ describe('extractAndUpsertMemories', () => {
     valuesMock.mockReturnValue({ returning: insertReturningMock });
     insertReturningMock.mockResolvedValue([]);
 
+    deleteMock.mockReturnValue({ where: deleteWhereMock });
+    deleteWhereMock.mockResolvedValue(undefined);
+
     extractCandidateMemoriesMock.mockReturnValue([]);
   });
 
@@ -253,7 +259,7 @@ describe('extractAndUpsertMemories', () => {
 
   it('script mode allows story writes', async () => {
     extractCandidateMemoriesMock.mockReturnValue([
-      { type: 'story', content: '月见庭院中的事件被讨论。' },
+      { type: 'story', content: '用户提到剧情：「北门的结界裂了」' },
     ]);
     selectWhereMock.mockResolvedValue([]);
     insertReturningMock.mockResolvedValue([
@@ -261,7 +267,7 @@ describe('extractAndUpsertMemories', () => {
     ]);
 
     const { extractAndUpsertMemories } = await import('../service.js');
-    const result = await extractAndUpsertMemories('user-1', 'char-1', '月见庭院', '是的', 'script', 'script-1');
+    const result = await extractAndUpsertMemories('user-1', 'char-1', '北门的结界裂了', '我去看看', 'script', 'script-1');
 
     expect(result).toHaveLength(1);
     expect(result[0]!.type).toBe('story');
@@ -362,5 +368,201 @@ describe('extractAndUpsertMemories', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]!.scope).toBe('shared');
+  });
+});
+
+describe('extractAndUpsertMemories dedup & replacement', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    selectMock.mockReturnValue({ from: fromMock });
+    fromMock.mockReturnValue({ where: selectWhereMock });
+    selectWhereMock.mockReturnValue({ orderBy: orderByMock });
+    orderByMock.mockResolvedValue([]);
+
+    insertMock.mockReturnValue({ values: valuesMock });
+    valuesMock.mockReturnValue({ returning: insertReturningMock });
+    insertReturningMock.mockResolvedValue([]);
+
+    deleteMock.mockReturnValue({ where: deleteWhereMock });
+    deleteWhereMock.mockResolvedValue(undefined);
+
+    extractCandidateMemoriesMock.mockReturnValue([]);
+  });
+
+  it('replaces obsolete generic fixed string with the concrete fact (delete + insert)', async () => {
+    extractCandidateMemoriesMock.mockReturnValue([
+      { type: 'user_info', content: '用户喜欢「吃草莓」' },
+    ]);
+    selectWhereMock.mockResolvedValue([
+      makeMemoryRow({
+        id: 'mem-generic',
+        type: 'user_info',
+        scope: 'shared',
+        scriptId: null,
+        content: '用户表达了偏好/情感倾向。',
+      }),
+    ]);
+    insertReturningMock.mockResolvedValue([
+      makeMemoryRow({ id: 'mem-new', type: 'user_info', content: '用户喜欢「吃草莓」' }),
+    ]);
+
+    const { extractAndUpsertMemories } = await import('../service.js');
+    const result = await extractAndUpsertMemories('user-1', 'char-1', '我喜欢吃草莓', '好');
+
+    expect(deleteMock).toHaveBeenCalled();
+    expect(deleteWhereMock).toHaveBeenCalledWith({
+      type: 'inArray',
+      col: 'memories.id',
+      vals: ['mem-generic'],
+    });
+    expect(valuesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        type: 'user_info',
+        content: '用户喜欢「吃草莓」',
+        scope: 'shared',
+        scriptId: null,
+      }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.content).toBe('用户喜欢「吃草莓」');
+  });
+
+  it('replaces wording variants with the new value (保留新值)', async () => {
+    extractCandidateMemoriesMock.mockReturnValue([
+      { type: 'user_info', content: '用户喜欢「草莓」和雨天' },
+    ]);
+    selectWhereMock.mockResolvedValue([
+      makeMemoryRow({
+        id: 'mem-old',
+        type: 'user_info',
+        scope: 'shared',
+        scriptId: null,
+        content: '用户喜欢「草莓」',
+      }),
+    ]);
+    insertReturningMock.mockResolvedValue([
+      makeMemoryRow({ id: 'mem-new', type: 'user_info', content: '用户喜欢「草莓」和雨天' }),
+    ]);
+
+    const { extractAndUpsertMemories } = await import('../service.js');
+    const result = await extractAndUpsertMemories('user-1', 'char-1', '我喜欢草莓和雨天', '好');
+
+    expect(deleteWhereMock).toHaveBeenCalledWith({
+      type: 'inArray',
+      col: 'memories.id',
+      vals: ['mem-old'],
+    });
+    expect(valuesMock).toHaveBeenCalledWith([
+      expect.objectContaining({ content: '用户喜欢「草莓」和雨天' }),
+    ]);
+    expect(result).toHaveLength(1);
+  });
+
+  it('keeps exact-match memory without delete or insert', async () => {
+    extractCandidateMemoriesMock.mockReturnValue([
+      { type: 'user_info', content: '用户喜欢「吃草莓」' },
+    ]);
+    selectWhereMock.mockResolvedValue([
+      makeMemoryRow({
+        id: 'mem-same',
+        type: 'user_info',
+        scope: 'shared',
+        scriptId: null,
+        content: '用户喜欢「吃草莓」',
+      }),
+    ]);
+
+    const { extractAndUpsertMemories } = await import('../service.js');
+    const result = await extractAndUpsertMemories('user-1', 'char-1', '我喜欢吃草莓', '好');
+
+    expect(result).toHaveLength(0);
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('cleans obsolete generic rows even when the concrete fact already exists', async () => {
+    extractCandidateMemoriesMock.mockReturnValue([
+      { type: 'user_info', content: '用户喜欢「吃草莓」' },
+    ]);
+    selectWhereMock.mockResolvedValue([
+      makeMemoryRow({
+        id: 'mem-concrete',
+        type: 'user_info',
+        scope: 'shared',
+        scriptId: null,
+        content: '用户喜欢「吃草莓」',
+      }),
+      makeMemoryRow({
+        id: 'mem-generic',
+        type: 'user_info',
+        scope: 'shared',
+        scriptId: null,
+        content: '用户表达了偏好/情感倾向。',
+      }),
+    ]);
+
+    const { extractAndUpsertMemories } = await import('../service.js');
+    const result = await extractAndUpsertMemories('user-1', 'char-1', '我喜欢吃草莓', '好');
+
+    expect(result).toHaveLength(0);
+    expect(deleteWhereMock).toHaveBeenCalledWith({
+      type: 'inArray',
+      col: 'memories.id',
+      vals: ['mem-generic'],
+    });
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('skips obsolete generic candidates defensively (no garbage resurrection)', async () => {
+    extractCandidateMemoriesMock.mockReturnValue([
+      { type: 'user_info', content: '用户表达了偏好/情感倾向。' },
+    ]);
+    selectWhereMock.mockResolvedValue([]);
+
+    const { extractAndUpsertMemories } = await import('../service.js');
+    const result = await extractAndUpsertMemories('user-1', 'char-1', '我喜欢吃草莓', '好');
+
+    expect(result).toHaveLength(0);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('replaces obsolete story garbage with the concrete story fact', async () => {
+    extractCandidateMemoriesMock.mockReturnValue([
+      { type: 'story', content: '用户提到剧情：「北门的结界裂了」' },
+    ]);
+    selectWhereMock.mockResolvedValue([
+      makeMemoryRow({
+        id: 'mem-junk',
+        type: 'story',
+        scope: 'script',
+        scriptId: 'script-1',
+        content: '地点「在北门下那具无名尸骨身旁断」被提及。',
+      }),
+    ]);
+    insertReturningMock.mockResolvedValue([
+      makeMemoryRow({
+        id: 'mem-story',
+        type: 'story',
+        scope: 'script',
+        scriptId: 'script-1',
+        content: '用户提到剧情：「北门的结界裂了」',
+      }),
+    ]);
+
+    const { extractAndUpsertMemories } = await import('../service.js');
+    const result = await extractAndUpsertMemories(
+      'user-1', 'char-1', '北门的结界裂了', '我去看看', 'script', 'script-1',
+    );
+
+    expect(deleteWhereMock).toHaveBeenCalledWith({
+      type: 'inArray',
+      col: 'memories.id',
+      vals: ['mem-junk'],
+    });
+    expect(valuesMock).toHaveBeenCalledWith([
+      expect.objectContaining({ type: 'story', scope: 'script', scriptId: 'script-1' }),
+    ]);
+    expect(result).toHaveLength(1);
   });
 });

@@ -1,5 +1,6 @@
 import { ScrollView, Text, View } from '@tarojs/components';
 import Taro, { useRouter, useUnload } from '@tarojs/taro';
+import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CharacterHeader,
@@ -16,6 +17,7 @@ import { api, isLoggedIn, streamChat } from '../../services/api';
 import { getCharacterGender } from '../../services/character-gender';
 import type { StreamCallbacks } from '../../services/api';
 import { navigateBackOrHome } from '../../utils/navigation';
+import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import { getCharacterAvatarUrl } from '../home/index.model';
 import { buildReturnMessagesReadBody, RETURN_MESSAGES_READ_PATH } from './list.model';
 import {
@@ -150,6 +152,9 @@ export default function Chat() {
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [streamError, setStreamError] = useState('');
+  const [topBarStyle, setTopBarStyle] = useState<Record<string, string>>(
+    getTopBarStyle(calculateTopBarMetrics()),
+  );
   const { needsLogin, requireAuth, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
   const sessionIdRef = useRef<string | undefined>(routeSessionId);
@@ -314,6 +319,19 @@ export default function Chat() {
       abortActiveStream();
     };
   }, [abortActiveStream]);
+
+  useEffect(() => {
+    try {
+      const windowInfo = Taro.getWindowInfo();
+      const capsuleInfo = Taro.getMenuButtonBoundingClientRect();
+      setTopBarStyle(getTopBarStyle(calculateTopBarMetrics(
+        { windowWidth: windowInfo.windowWidth, statusBarHeight: windowInfo.statusBarHeight },
+        capsuleInfo,
+      )));
+    } catch {
+      setTopBarStyle(getTopBarStyle(calculateTopBarMetrics()));
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -655,7 +673,7 @@ export default function Chat() {
   }
 
   return (
-    <View className="chat-page">
+    <View className="chat-page" style={topBarStyle as CSSProperties}>
       <CharacterHeader
         name={character.name}
         identity={character.identity}
@@ -759,7 +777,7 @@ export default function Chat() {
             </View>
           ))}
           {shouldRenderStandaloneTypingIndicator(sending, messages) && (
-            <ChatBubble role="assistant" content="正在输入..." avatarUrl={characterAvatarUrl} characterName={character.name} />
+            <ChatBubble role="assistant" content="" typing avatarUrl={characterAvatarUrl} characterName={character.name} />
           )}
         </View>
       </ScrollView>

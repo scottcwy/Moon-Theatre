@@ -39,4 +39,15 @@ describe('WeChat DevTools warning regressions', () => {
     expect(chatStyles).toMatch(/&__messages\s*\{[\s\S]*?padding:\s*0;/);
     expect(chatStyles).toMatch(/&__messages-content\s*\{[\s\S]*?padding:\s*\$space-4;/);
   });
+
+  it('positions chat header content below the measured WeChat capsule', () => {
+    const chatPage = readSrc('pages/chat/index.tsx');
+    expect(chatPage).toContain('calculateTopBarMetrics');
+    expect(chatPage).toContain('getMenuButtonBoundingClientRect');
+    expect(chatPage).toContain('style={topBarStyle as CSSProperties}');
+
+    const headerStyles = readMiniappUiSrc('components/character/CharacterHeader.scss');
+    expect(headerStyles).toContain('var(--topbar-total-height');
+    expect(headerStyles).not.toContain('padding-right: calc(100px');
+  });
 });

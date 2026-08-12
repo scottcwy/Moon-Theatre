@@ -19,12 +19,18 @@
 .chat-input-bar__input-wrap {
   flex: 1;
   min-height: 80rpx;
+  border: 2rpx solid transparent;
   border-radius: $radius-full;
   padding: 0 $space-4;
   background-color: $color-surface-container;
   display: flex;
   align-items: center;
   box-sizing: border-box;
+  transition: border-color 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.chat-input-bar__input-wrap--focused {
+  border-color: $color-primary;
 }
 
 .chat-input-bar__input {
@@ -42,6 +48,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.chat-input-bar__send:active {
+  transform: scale(0.9);
 }
 
 .chat-input-bar__send--disabled {

@@ -5,6 +5,8 @@ import { Launcher } from '@weapp-vite/miniprogram-automator';
 import { resolveWechatDevtoolsCli } from './wechat-devtools.mjs';
 import {
   buildElementFailures,
+  isCustomNavigationPage,
+  isRectBelow,
   mergeOffsetAndSize,
   rectanglesOverlap,
 } from './runtime-ui-checks.mjs';
@@ -191,7 +193,7 @@ const PAGE_CHECKS = [
           if (!title.includes('流氓叙事')) {
             throw new Error(`expected 流氓叙事 script title, got ${title || 'none'}`);
           }
-          const cards = await page.$('.character-poster-card');
+          const cards = await page.$$('.character-poster-card');
           if (cards.length !== 9) {
             throw new Error(`expected 9 character posters, got ${cards.length}`);
           }
@@ -249,6 +251,23 @@ const PAGE_CHECKS = [
     ],
     assertions: [
       {
+        label: 'chat header content starts below the WeChat capsule',
+        run: async (page) => {
+          const root = await page.$('.chat-page');
+          const rootStyle = root ? String(await root.attribute('style').catch(() => '')) : '';
+          const totalHeightMatch = rootStyle.match(/--topbar-total-height:\s*([\d.]+)px/);
+          const avatar = await getElementBox(page, '.character-header .character-avatar');
+          const points = await getElementBox(page, '.character-header__points');
+          assert(totalHeightMatch, `chat page is missing measured topbar height: ${rootStyle || 'no style'}`);
+          assert(avatar, 'chat header avatar is missing');
+          assert(points, 'chat header points badge is missing');
+          const topbar = { bottom: Number(totalHeightMatch[1]) };
+          console.log(`    [capsule-fit] topbarBottom=${topbar.bottom}, avatarTop=${avatar.rect.top}, pointsTop=${points.rect.top}`);
+          assert(isRectBelow(avatar.rect, topbar, 8), `avatar top ${avatar.rect.top} is not below topbar bottom ${topbar.bottom}`);
+          assert(isRectBelow(points.rect, topbar, 8), `points top ${points.rect.top} is not below topbar bottom ${topbar.bottom}`);
+        },
+      },
+      {
         label: 'moon-tower script chat shows script scope and a moon-tower line',
         run: async (page) => {
           const scopeLabel = await page.$('.chat-page__scope-label');
@@ -256,7 +275,7 @@ const PAGE_CHECKS = [
           if (scopeText !== '剧本模式') {
             throw new Error(`expected 剧本模式 scope label, got ${scopeText || 'none'}`);
           }
-          const bubbles = await page.$('.chat-bubble__text');
+          const bubbles = await page.$$('.chat-bubble__text');
           const texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
           if (!texts.some((text) => text.includes('布雷诺'))) {
             throw new Error(`expected a moon-tower line in history, got ${texts.join(' | ') || 'none'}`);
@@ -596,9 +615,11 @@ async function getFirstElementBox(page, selectors) {
 async function getViewport(miniProgram, page) {
   const systemInfo = await miniProgram.systemInfo().catch(() => null);
   if (systemInfo?.windowWidth && systemInfo?.windowHeight) {
+    // 自定义导航页布局原点含状态栏区域，rect 底边应和屏幕高比较；系统导航页维持可用窗口高。
+    const useScreenHeight = systemInfo.screenHeight && isCustomNavigationPage(distDir, page.path);
     return {
       width: Number(systemInfo.windowWidth),
-      height: Number(systemInfo.windowHeight),
+      height: Number(useScreenHeight ? systemInfo.screenHeight : systemInfo.windowHeight),
     };
   }
 
@@ -656,6 +677,9 @@ async function checkRequiredElement(page, viewport, requirement) {
 async function checkBottomElement(page, viewport, requirement) {
   const box = await getElementBox(page, requirement.selector);
   if (!box) return [];
+
+  // 取证底边实测位置：贴底元素应 ≈ 视口高，防止「放宽视口口径」掩盖真实溢出。
+  console.log(`    [bottom-fit] ${requirement.selector}: bottom=${box.rect.bottom}, viewportHeight=${viewport.height}`);
 
   return buildElementFailures({
     label: requirement.label,

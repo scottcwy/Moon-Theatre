@@ -33,6 +33,28 @@ function normalizeTextContent(text: string): string {
   return text.trim().slice(0, 500);
 }
 
+// 旧 extractor 固定输出的泛化条目（无实体内容），视为过时：
+// 写入新的具体事实时 delete + insert（或 enabled=false），避免新旧并存。
+const OBSOLETE_CONTENT_PATTERNS = [
+  /^用户表达了偏好\/情感倾向。$/,
+  /^用户提及过往经历。$/,
+  /^月见庭院中的事件被讨论。$/,
+  /^关键剧情元素被提及。$/,
+  /^地点「.+」被提及。$/,
+  /^任务\/请求被提及：「.+」。$/,
+];
+
+function isObsoleteContent(content: string): boolean {
+  return OBSOLETE_CONTENT_PATTERNS.some((pattern) => pattern.test(content));
+}
+
+// 前缀/包含相似：视为同一条事实的措辞变体（如「用户喜欢「草莓」」
+// 与「用户喜欢「草莓」和雨天」），替换时保留新值。
+function isWordingVariant(a: string, b: string): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  return a.includes(b) || b.includes(a);
+}
+
 export async function extractAndUpsertMemories(
   userId: string,
   characterId: string,
@@ -70,15 +92,7 @@ export async function extractAndUpsertMemories(
       )
     );
 
-  const memoryKey = (memory: {
-    type: string;
-    scope: string;
-    scriptId: string | null;
-    content: string;
-  }) => `${memory.type}::${memory.scope}::${memory.scriptId ?? ''}::${memory.content}`;
-
-  const existingContents = new Set(existing.map(memoryKey));
-
+  const toDelete: string[] = [];
   const toInsert: Array<{
     userId: string;
     characterId: string;
@@ -89,26 +103,72 @@ export async function extractAndUpsertMemories(
   }> = [];
 
   for (const candidate of filteredCandidates) {
+    // 新 extractor 不再产出泛化固定串；防御性跳过，避免旧垃圾复活。
+    if (isObsoleteContent(candidate.content)) continue;
+
     const isStoryType = candidate.type === 'story';
     const scope = isStoryType ? 'script' : 'shared';
     const candidateScriptId = isStoryType ? scriptId! : null;
-    const key = memoryKey({
+
+    // 已计划删除的旧行不再视为有效 peer。
+    const peers = existing.filter(
+      (row) =>
+        !toDelete.includes(row.id) &&
+        row.type === candidate.type &&
+        row.scope === scope &&
+        row.scriptId === candidateScriptId,
+    );
+
+    // 同轮内已计划写入相同内容：跳过，不重复插入。
+    if (toInsert.some(
+      (pending) =>
+        pending.type === candidate.type &&
+        pending.scope === scope &&
+        pending.scriptId === candidateScriptId &&
+        pending.content === candidate.content,
+    )) {
+      continue;
+    }
+
+    // 同轮内已计划的变体：移除旧计划，保留新值。
+    for (let i = toInsert.length - 1; i >= 0; i -= 1) {
+      const pending = toInsert[i];
+      if (!pending) continue;
+      if (
+        pending.type === candidate.type &&
+        pending.scope === scope &&
+        pending.scriptId === candidateScriptId &&
+        isWordingVariant(pending.content, candidate.content)
+      ) {
+        toInsert.splice(i, 1);
+      }
+    }
+
+    const exactPeer = peers.find((row) => row.content === candidate.content);
+
+    // 全等去重保留：内容相同不重复写入，但仍清理同组过时/变体旧条目。
+    // 变体/泛化替换：删除旧条目后插入新值（保留新值）。
+    for (const peer of peers) {
+      if (peer.id === exactPeer?.id) continue;
+      if (isObsoleteContent(peer.content) || isWordingVariant(peer.content, candidate.content)) {
+        toDelete.push(peer.id);
+      }
+    }
+
+    if (exactPeer) continue;
+
+    toInsert.push({
+      userId,
+      characterId,
       type: candidate.type,
+      content: normalizeTextContent(candidate.content),
       scope,
       scriptId: candidateScriptId,
-      content: candidate.content,
     });
-    if (!existingContents.has(key)) {
-      toInsert.push({
-        userId,
-        characterId,
-        type: candidate.type,
-        content: normalizeTextContent(candidate.content),
-        scope,
-        scriptId: candidateScriptId,
-      });
-      existingContents.add(key);
-    }
+  }
+
+  if (toDelete.length > 0) {
+    await db.delete(memories).where(inArray(memories.id, toDelete));
   }
 
   if (toInsert.length === 0) return [];

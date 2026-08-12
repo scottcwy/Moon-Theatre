@@ -1,6 +1,6 @@
 import http from 'node:http';
 
-export const DEFAULT_MOCK_API_PORT = 31877;
+export const DEFAULT_MOCK_API_PORT = 3000;
 
 const now = '2026-07-09T10:00:00+08:00';
 

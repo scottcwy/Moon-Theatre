@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildElementFailures,
+  isRectBelow,
   mergeOffsetAndSize,
   rectanglesOverlap,
 } from './runtime-ui-checks.mjs';
@@ -70,5 +71,12 @@ describe('runtime UI E2E layout checks', () => {
       { left: 0, top: 0, right: 100, bottom: 60, width: 100, height: 60 },
       { left: 20, top: 50, right: 120, bottom: 140, width: 100, height: 90 },
     )).toBe(true);
+  });
+
+  it('requires custom-header content to start below the system capsule', () => {
+    const capsule = { top: 59, bottom: 91, left: 287, right: 374, width: 87, height: 32 };
+
+    expect(isRectBelow({ top: 103 }, capsule, 8)).toBe(true);
+    expect(isRectBelow({ top: 95 }, capsule, 8)).toBe(false);
   });
 });

@@ -24,6 +24,7 @@ import {
   SessionScopeMismatchError,
 } from './index.js';
 import type { ChatMode } from './index.js';
+import { extractUserRecap } from './prompt-builder.js';
 import { sanitizeAssistantOutput } from './output-sanitizer.js';
 import { classifyChatScope } from './scope-classifier.js';
 import { runChatCompletionEffects } from './workflow.js';
@@ -126,8 +127,8 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           });
           return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
         }
-        const promptContext = await buildPromptContext(userId, characterId, character, scope);
         const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
+        const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory);
         return createPreparedGenerationResponse({
           requestStartedAt,
           userId,
@@ -164,8 +165,8 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           });
           return createBlockedInputResponse(resolved.sessionId, saved.id, clientMessageId);
         }
-        const promptContext = await buildPromptContext(userId, characterId, character, scope);
         const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
+        const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory);
         return createPreparedGenerationResponse({
           requestStartedAt,
           userId,
@@ -214,8 +215,8 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     return createBlockedInputResponse(session.id, saved.id);
   }
 
-  const promptContext = await buildPromptContext(userId, characterId, character, session);
   const cleanHistory = await getCleanHistoryMessages(userId, session.id, clientMessageId);
+  const promptContext = await buildPromptContext(userId, characterId, character, session, cleanHistory);
 
   return createPreparedGenerationResponse({
     requestStartedAt,
@@ -363,6 +364,7 @@ async function buildPromptContext(
   characterId: string,
   character: NonNullable<Awaited<ReturnType<typeof getCharacterWithPrompts>>>,
   scope: { mode: ChatMode; scriptId: string | null },
+  cleanHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
 ): Promise<{ systemPrompt: string; scriptTitle?: string; worldSetting?: string }> {
   const script = scope.mode === 'script' && scope.scriptId
     ? await getScriptById(scope.scriptId)
@@ -383,6 +385,7 @@ async function buildPromptContext(
       mode: scope.mode,
       preferredName: user?.preferredName ?? undefined,
       memories: existingMemories.map((m) => ({ type: m.type, content: m.content })),
+      userRecap: extractUserRecap(cleanHistory),
       bondLevel: existingRelationship?.bondLevel,
       bondExp: existingRelationship?.bondExp,
     }),

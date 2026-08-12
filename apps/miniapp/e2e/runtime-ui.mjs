@@ -5,6 +5,7 @@ import { Launcher } from '@weapp-vite/miniprogram-automator';
 import { resolveWechatDevtoolsCli } from './wechat-devtools.mjs';
 import {
   buildElementFailures,
+  isCustomNavigationPage,
   mergeOffsetAndSize,
   rectanglesOverlap,
 } from './runtime-ui-checks.mjs';
@@ -13,6 +14,7 @@ const currentFile = fileURLToPath(import.meta.url);
 const e2eDir = path.dirname(currentFile);
 const projectRoot = path.resolve(e2eDir, '..');
 const appJsonPath = path.join(projectRoot, 'dist', 'app.json');
+const distDir = path.join(projectRoot, 'dist');
 const artifactRoot = path.join(e2eDir, 'artifacts', 'runtime-ui');
 const reportPath = path.join(artifactRoot, 'report.json');
 
@@ -215,9 +217,11 @@ async function getFirstElementBox(page, selectors) {
 async function getViewport(miniProgram, page) {
   const systemInfo = await miniProgram.systemInfo().catch(() => null);
   if (systemInfo?.windowWidth && systemInfo?.windowHeight) {
+    // 自定义导航页布局原点含状态栏区域，rect 底边应和屏幕高比较；系统导航页维持可用窗口高。
+    const useScreenHeight = systemInfo.screenHeight && isCustomNavigationPage(distDir, page.path);
     return {
       width: Number(systemInfo.windowWidth),
-      height: Number(systemInfo.windowHeight),
+      height: Number(useScreenHeight ? systemInfo.screenHeight : systemInfo.windowHeight),
     };
   }
 
