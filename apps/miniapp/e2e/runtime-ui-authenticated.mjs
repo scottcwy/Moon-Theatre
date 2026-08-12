@@ -24,6 +24,13 @@ const mockApiBaseUrl = `http://127.0.0.1:${DEFAULT_MOCK_API_PORT}`;
 const artifactRoot = path.join(e2eDir, 'artifacts', 'runtime-ui-authenticated');
 const reportPath = path.join(artifactRoot, 'report.json');
 
+// 与 apps/miniapp/src/pages/home/index.model.ts 的 CHARACTER_GENDER_VARIANTS 保持一致：
+// 有男女双版本海报的角色在选角页按变体展开为多张卡片（其余角色 1 张）。
+const SCRIPT_SELECT_GENDER_VARIANTS = {
+  程聿怀: ['male', 'female'],
+  羌青瓷: ['male', 'female'],
+};
+
 const PAGE_CHECKS = [
   {
     name: 'auth-home',
@@ -186,16 +193,22 @@ const PAGE_CHECKS = [
     ],
     assertions: [
       {
-        label: 'moon-tower script select shows the script title and all nine character posters',
+        label: 'moon-tower script select shows the script title and all character posters (gender variants expanded)',
         run: async (page) => {
           const titleBox = await getElementBox(page, '.script-select__title');
           const title = titleBox?.text ?? '';
           if (!title.includes('流氓叙事')) {
             throw new Error(`expected 流氓叙事 script title, got ${title || 'none'}`);
           }
+          const scriptRes = await fetch(`${mockApiBaseUrl}/api/scripts/script-moon-tower`);
+          const scriptData = await scriptRes.json();
+          const expectedCardCount = (scriptData.characters ?? []).reduce(
+            (count, character) => count + Math.max(1, SCRIPT_SELECT_GENDER_VARIANTS[character.name]?.length ?? 0),
+            0,
+          );
           const cards = await page.$$('.character-poster-card');
-          if (cards.length !== 9) {
-            throw new Error(`expected 9 character posters, got ${cards.length}`);
+          if (cards.length !== expectedCardCount) {
+            throw new Error(`expected ${expectedCardCount} character posters (gender variants expanded), got ${cards.length}`);
           }
           const names = await Promise.all(cards.map((card) => card.text().catch(() => '')));
           if (!names.some((text) => text.includes('程聿怀'))) {
@@ -253,7 +266,7 @@ const PAGE_CHECKS = [
       {
         label: 'chat header content starts below the WeChat capsule',
         run: async (page) => {
-          const root = await page.$('.chat-page');
+          const root = await page.$$('.chat-page');
           const rootStyle = root ? String(await root.attribute('style').catch(() => '')) : '';
           const totalHeightMatch = rootStyle.match(/--topbar-total-height:\s*([\d.]+)px/);
           const avatar = await getElementBox(page, '.character-header .character-avatar');
@@ -270,7 +283,7 @@ const PAGE_CHECKS = [
       {
         label: 'moon-tower script chat shows script scope and a moon-tower line',
         run: async (page) => {
-          const scopeLabel = await page.$('.chat-page__scope-label');
+          const scopeLabel = await page.$$('.chat-page__scope-label');
           const scopeText = scopeLabel ? await scopeLabel.text().catch(() => '') : '';
           if (scopeText !== '剧本模式') {
             throw new Error(`expected 剧本模式 scope label, got ${scopeText || 'none'}`);
@@ -372,7 +385,7 @@ const PAGE_CHECKS = [
       {
         label: 'scope label shows 自由模式 and history includes the return message once',
         run: async (page) => {
-          const scopeLabel = await page.$('.chat-page__scope-label');
+          const scopeLabel = await page.$$('.chat-page__scope-label');
           const scopeText = scopeLabel ? await scopeLabel.text().catch(() => '') : '';
           assert(scopeText === '自由聊天', `Expected 自由聊天 scope label, got ${scopeText || 'none'}`);
           const bubbles = await page.$$('.chat-bubble__text');
@@ -573,7 +586,7 @@ async function waitForAnySelector(page, selectors, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     for (const selector of selectors) {
-      const element = await page.$(selector);
+      const element = await page.$$(selector);
       if (element) return { selector, element };
     }
     await page.waitFor(250);
@@ -588,7 +601,7 @@ async function waitForSelector(page, selector, timeoutMs = 10000) {
 }
 
 async function getElementBox(page, selector) {
-  const element = await page.$(selector);
+  const element = await page.$$(selector);
   if (!element) return null;
 
   const [offset, size, text] = await Promise.all([
@@ -738,7 +751,7 @@ async function switchFreeHistoryToEmptyScript(_miniProgram, page) {
   const deadline = Date.now() + 10000;
   let scopeLabel = '';
   while (Date.now() < deadline) {
-    const label = await page.$('.chat-page__scope-label');
+    const label = await page.$$('.chat-page__scope-label');
     scopeLabel = label ? await label.text().catch(() => '') : '';
     if (scopeLabel === '剧本模式') break;
     await page.waitFor(250);

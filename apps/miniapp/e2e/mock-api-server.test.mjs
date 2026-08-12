@@ -146,6 +146,138 @@ describe('authenticated miniapp mock API server', () => {
     }
   });
 
+  describe('A7 stream scenarios (ported from overnight chat-mock)', () => {
+    // 读取流式响应体；partial-then-disconnect 销毁连接时返回已收到的部分。
+    async function readStreamText(response) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let text = '';
+      while (true) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) break;
+          text += decoder.decode(value, { stream: true });
+        } catch {
+          break;
+        }
+      }
+      return text;
+    }
+
+    function streamPost(server, clientMessageId) {
+      return fetch(`${server.baseUrl}/api/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: 'hakuzo',
+          message: '月下见',
+          modelTier: 'standard',
+          clientMessageId,
+          mode: 'script',
+          scriptId: 'script-moon-garden',
+        }),
+      });
+    }
+
+    it('partial-then-disconnect: partial delta only, no done after disconnect', async () => {
+      const server = await startMockApiServer({ port: 0, chatMode: 'partial-then-disconnect' });
+      try {
+        const body = await readStreamText(await streamPost(server, 'p1'));
+        expect(body).toContain('这句话才说了半');
+        expect(body).not.toContain('"type":"done"');
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('silent-then-respond: error after streamDelayMs, no delta/done (stall contract)', async () => {
+      const server = await startMockApiServer({ port: 0, chatMode: 'silent-then-respond', streamDelayMs: 30 });
+      try {
+        const started = Date.now();
+        const body = await readStreamText(await streamPost(server, 'p2'));
+        expect(Date.now() - started).toBeGreaterThanOrEqual(20);
+        expect(body).toContain('"code":"upstream_incomplete"');
+        expect(body).not.toContain('"type":"delta"');
+        expect(body).not.toContain('"type":"done"');
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('success-slow: multiple deltas then done, deltaDelayMs controls pacing', async () => {
+      const server = await startMockApiServer({ port: 0, chatMode: 'success-slow', deltaDelayMs: 20 });
+      try {
+        const body = await readStreamText(await streamPost(server, 'p3'));
+        for (const piece of ['庭院的铃', '声又响了', '，你听。']) {
+          expect(body).toContain(piece);
+        }
+        expect(body).toContain('"type":"done"');
+        const doneLine = body.split('\n').find((line) => line.includes('"type":"done"'));
+        expect(JSON.parse(doneLine).bondExp).toBe(342);
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('error-event: generation_failed error event', async () => {
+      const server = await startMockApiServer({ port: 0, chatMode: 'error-event' });
+      try {
+        const body = await readStreamText(await streamPost(server, 'p4'));
+        expect(body).toContain('"code":"generation_failed"');
+        expect(body).not.toContain('"type":"done"');
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('streamDelayMs injection is applied and accepts large values without an upper bound', async () => {
+      // 20s+ 实跑留给 Spec 2 合入后的 E2E（s8 新增 20s 断流用例）；这里验证注入机制与无上限配置。
+      const fast = await startMockApiServer({ port: 0, chatMode: 'success', streamDelayMs: 60 });
+      try {
+        const started = Date.now();
+        const body = await readStreamText(await streamPost(fast, 'p5'));
+        expect(Date.now() - started).toBeGreaterThanOrEqual(40);
+        expect(body).toContain('"type":"done"');
+      } finally {
+        await fast.close();
+      }
+
+      const large = await startMockApiServer({ port: 0, chatMode: 'success', streamDelayMs: 20000 });
+      await large.close();
+    });
+
+    it('by-client-id recover returns assistant message', async () => {
+      const server = await startMockApiServer({ port: 0, byClientIdMode: 'recover' });
+      try {
+        const data = await fetch(`${server.baseUrl}/api/chat/messages/by-client-id?clientMessageId=c1`).then(readJson);
+        expect(data.assistantMessage.content).toBe('服务端恢复的消息。');
+        expect(data.clientMessageId).toBe('c1');
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('by-client-id in-progress returns user message without assistant message', async () => {
+      const server = await startMockApiServer({ port: 0, byClientIdMode: 'in-progress' });
+      try {
+        const data = await fetch(`${server.baseUrl}/api/chat/messages/by-client-id?clientMessageId=c2`).then(readJson);
+        expect(data.assistantMessage).toBeNull();
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('by-client-id default miss returns 404', async () => {
+      const server = await startMockApiServer({ port: 0 });
+      try {
+        const response = await fetch(`${server.baseUrl}/api/chat/messages/by-client-id?clientMessageId=c3`);
+        expect(response.status).toBe(404);
+      } finally {
+        await server.close();
+      }
+    });
+  });
+
   it('serves frequent characters with identity and successfulTurnCount when sort=turn_count', async () => {
     const server = await startMockApiServer({ port: 0 });
 

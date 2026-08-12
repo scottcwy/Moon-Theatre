@@ -91,7 +91,7 @@ export default function PlaybookPage() {
               levelLabel="Lv.3"
               timeLabel="刚刚"
               preview="铃音，今夜的月很满。若你愿意，我会亲自带你穿过第一重鸟居。"
-              unread
+              unreadCount={1}
             />
             <ChatSessionRow
               characterName="贺茂清玄"

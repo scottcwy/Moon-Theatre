@@ -263,14 +263,6 @@ function json(res, statusCode, data) {
   res.end(`${JSON.stringify(data)}\n`);
 }
 
-function text(res, statusCode, body) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'text/plain; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-  });
-  res.end(body);
-}
-
 function getRequestBody(req) {
   return new Promise((resolve) => {
     let raw = '';
@@ -323,7 +315,84 @@ function createOrder(orderId, packageId) {
   };
 }
 
-function routeRequest({ req, res, url, body, options, orders, readReturnMessageCharacters }) {
+/**
+ * 聊天流 mock 场景（A7 移植自 e2e/artifacts/overnight/scripts/chat-mock.mjs）：
+ *  - chatMode: success | insufficient-points | stream-error | success-slow |
+ *              partial-then-disconnect | silent-then-respond | error-event
+ *  - streamDelayMs 支持任意延迟（含 >=20s，供看门狗 20s 断流用例注入）；
+ *    stall 场景（partial-then-disconnect / silent-then-respond）不写 delta/done。
+ *  - deltaDelayMs 控制 success-slow 各 delta 之间间隔。
+ * 默认行为与历史一致：success 一次性写 delta+done；其余未知模式回 upstream_error 事件。
+ */
+async function handleChatStream(req, res, body, options) {
+  if (options.streamDelayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, options.streamDelayMs));
+  }
+
+  if (options.chatMode === 'insufficient-points') {
+    json(res, 402, { error: 'insufficient_points' });
+    return;
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+  });
+  const writeLine = (obj) => res.write(`${JSON.stringify(obj)}\n`);
+  const doneEvent = () => ({
+    type: 'done',
+    messageId: 'assistant-mock-1',
+    sessionId: 'session-hakuzo',
+    clientMessageId: body?.clientMessageId,
+    mode: body?.mode || 'script',
+    mood: 'neutral',
+    bondLevel: 4,
+    bondExp: 342,
+    balanceAfter: Math.max(0, options.balancePoints - 1),
+  });
+
+  switch (options.chatMode) {
+    case 'success':
+      writeLine({ type: 'delta', content: '我听见了。' });
+      writeLine(doneEvent());
+      res.end();
+      break;
+    case 'success-slow':
+      for (const piece of ['庭院的铃', '声又响了', '，你听。']) {
+        if (res.destroyed || res.writableEnded) break;
+        writeLine({ type: 'delta', content: piece });
+        if (options.deltaDelayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, options.deltaDelayMs));
+        }
+      }
+      if (!res.destroyed && !res.writableEnded) {
+        writeLine(doneEvent());
+        res.end();
+      }
+      break;
+    case 'partial-then-disconnect':
+      // 部分 delta 后断流：不写 done，直接销毁连接（模拟 upstream_incomplete）。
+      writeLine({ type: 'delta', content: '这句话才说了半' });
+      setTimeout(() => res.destroy(), 150);
+      break;
+    case 'silent-then-respond':
+      // 首字节延迟 streamDelayMs 后只回 error，不写 delta/done（stall 契约）。
+      writeLine({ type: 'error', code: 'upstream_incomplete', message: 'no delta received' });
+      res.end();
+      break;
+    case 'error-event':
+      writeLine({ type: 'error', code: 'generation_failed', message: 'generation failed' });
+      res.end();
+      break;
+    case 'stream-error':
+    default:
+      writeLine({ type: 'error', code: 'upstream_error', message: 'FastClaw request failed' });
+      res.end();
+      break;
+  }
+}
+
+async function routeRequest({ req, res, url, body, options, orders, readReturnMessageCharacters }) {
   const pathname = url.pathname;
 
   if (req.method === 'OPTIONS') {
@@ -554,7 +623,7 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
       if (requestedCharacterId === 'hakuzo-free-only') return [];
       if (requestedMode === 'free') {
         // 白藏的自由会话（Module 7 留言投递目标）存在即返回；其他角色无自由会话。
-        return requestedCharacterId === 'hakuzo' ? [{ ...hakuzoFreeSession, unreadCount: 1 }] : [];
+        return requestedCharacterId === 'hakuzo' ? [{ ...hakuzoFreeSession }] : [];
       }
       if (requestedCharacterId === 'chengyuhuai') {
         // 流氓叙事剧本会话：程聿怀（脚本模式）链路。
@@ -570,7 +639,6 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
           canSend: true,
           lastMessage: '你问的这件案子，我查了很久。',
           updatedAt: now,
-          unreadCount: 0,
         }];
       }
       return [
@@ -586,7 +654,6 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
           canSend: true,
           lastMessage: '铃声响起时，北门的月光会替你照路。',
           updatedAt: now,
-          unreadCount: 1,
         },
       ];
     })();
@@ -785,39 +852,42 @@ function routeRequest({ req, res, url, body, options, orders, readReturnMessageC
   }
 
   if (req.method === 'GET' && pathname === '/api/chat/messages/by-client-id') {
+    const clientMessageId = url.searchParams.get('clientMessageId') ?? 'unknown';
+    if (options.byClientIdMode === 'recover') {
+      json(res, 200, {
+        sessionId: 'session-hakuzo',
+        clientMessageId,
+        mode: 'script',
+        scriptId: 'script-moon-garden',
+        userMessage: { id: 'user-mock-1', content: '测试消息', createdAt: '2026-07-09T10:00:00+08:00', outOfScope: false, excludedFromContext: false },
+        assistantMessage: {
+          id: 'assistant-mock-1',
+          content: '服务端恢复的消息。',
+          mood: 'neutral',
+          createdAt: '2026-07-09T10:00:01+08:00',
+          outOfScope: false,
+          excludedFromContext: false,
+        },
+      });
+      return;
+    }
+    if (options.byClientIdMode === 'in-progress') {
+      json(res, 200, {
+        sessionId: 'session-hakuzo',
+        clientMessageId,
+        mode: 'script',
+        scriptId: 'script-moon-garden',
+        userMessage: { id: 'user-mock-1', content: '测试消息', createdAt: '2026-07-09T10:00:00+08:00', outOfScope: false, excludedFromContext: false },
+        assistantMessage: null,
+      });
+      return;
+    }
     json(res, 404, { error: 'mock reconciliation miss' });
     return;
   }
 
   if (req.method === 'POST' && pathname === '/api/chat/stream') {
-    if (options.chatMode === 'success') {
-      text(res, 200, [
-        JSON.stringify({ type: 'delta', content: '我听见了。' }),
-        JSON.stringify({
-          type: 'done',
-          messageId: 'assistant-mock-1',
-          sessionId: 'session-hakuzo',
-          clientMessageId: body?.clientMessageId,
-          mode: body?.mode || 'script',
-          mood: 'neutral',
-          bondLevel: 4,
-          bondExp: 342,
-          balanceAfter: Math.max(0, options.balancePoints - 1),
-        }),
-      ].join('\n') + '\n');
-      return;
-    }
-
-    if (options.chatMode === 'insufficient-points') {
-      json(res, 402, { error: 'insufficient_points' });
-      return;
-    }
-
-    text(res, 200, `${JSON.stringify({
-      type: 'error',
-      code: 'upstream_error',
-      message: 'FastClaw request failed',
-    })}\n`);
+    await handleChatStream(req, res, body, options);
     return;
   }
 
@@ -829,6 +899,9 @@ export async function startMockApiServer(config = {}) {
     port: DEFAULT_MOCK_API_PORT,
     balancePoints: 0,
     chatMode: 'stream-error',
+    streamDelayMs: 0,
+    deltaDelayMs: 0,
+    byClientIdMode: 'miss',
     ...config,
   };
   const requests = [];
@@ -847,7 +920,7 @@ export async function startMockApiServer(config = {}) {
     });
 
     try {
-      routeRequest({ req, res, url, body, options, orders, readReturnMessageCharacters });
+      await routeRequest({ req, res, url, body, options, orders, readReturnMessageCharacters });
     } catch (error) {
       json(res, 500, {
         error: error instanceof Error ? error.message : String(error),
