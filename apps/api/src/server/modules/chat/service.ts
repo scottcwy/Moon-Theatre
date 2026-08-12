@@ -170,19 +170,22 @@ export interface CharacterWithPrompts {
 }
 
 export async function getCharacterWithPrompts(characterId: string): Promise<CharacterWithPrompts | null> {
-  const [character] = await db
-    .select()
-    .from(characters)
-    .where(and(eq(characters.id, characterId), eq(characters.status, 'active')))
-    .limit(1);
+  // P2-2：characters 与 characterPrompts 互不依赖，并行发出；角色不存在时 prompts 结果丢弃（成本可接受）。
+  const [characterRows, promptRows] = await Promise.all([
+    db
+      .select()
+      .from(characters)
+      .where(and(eq(characters.id, characterId), eq(characters.status, 'active')))
+      .limit(1),
+    db
+      .select()
+      .from(characterPrompts)
+      .where(eq(characterPrompts.characterId, characterId)),
+  ]);
+  const [character] = characterRows;
   if (!character) return null;
 
-  const prompts = await db
-    .select()
-    .from(characterPrompts)
-    .where(eq(characterPrompts.characterId, characterId));
-
-  return { ...character, prompts: prompts.length > 0 ? prompts : null };
+  return { ...character, prompts: promptRows.length > 0 ? promptRows : null };
 }
 
 export async function getScriptById(scriptId: string): Promise<Script | null> {
