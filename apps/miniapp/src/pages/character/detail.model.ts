@@ -2,7 +2,7 @@ import type { ChatMode } from '../../types';
 
 export function getCharacterDefaultMode(availableModes: ChatMode[], lastUsedMode: ChatMode | null): ChatMode {
   if (lastUsedMode && availableModes.includes(lastUsedMode)) return lastUsedMode;
-  return availableModes.includes('script') ? 'script' : 'free';
+  return availableModes.includes('free') ? 'free' : 'script';
 }
 
 export function buildCharacterChatUrl(characterId: string, mode: ChatMode, scriptId?: string): string {

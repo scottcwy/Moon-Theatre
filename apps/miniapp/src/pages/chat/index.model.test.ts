@@ -79,10 +79,11 @@ describe('chat message rendering helpers', () => {
     expect(shouldRenderStandaloneTypingIndicator(false, [{ role: 'user', content: '你好' }])).toBe(false);
   });
 
-  it('uses the persisted last mode when available and otherwise prefers script mode', () => {
+  it('uses the persisted last mode when available and otherwise prefers free mode', () => {
     expect(getDefaultChatMode(['script', 'free'], 'free')).toBe('free');
-    expect(getDefaultChatMode(['script', 'free'], null)).toBe('script');
+    expect(getDefaultChatMode(['script', 'free'], null)).toBe('free');
     expect(getDefaultChatMode(['free'], 'script')).toBe('free');
+    expect(getDefaultChatMode(['script'], null)).toBe('script');
   });
 
   it('preserves active character script metadata when restoring a free session', () => {

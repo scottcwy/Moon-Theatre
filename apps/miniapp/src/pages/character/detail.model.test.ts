@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildCharacterChatUrl, getCharacterDefaultMode } from './detail.model';
 
 describe('character detail chat entry helpers', () => {
-  it('uses lastUsedMode only when that mode is still available', () => {
+  it('uses lastUsedMode only when that mode is still available and otherwise prefers free', () => {
     expect(getCharacterDefaultMode(['script', 'free'], 'free')).toBe('free');
     expect(getCharacterDefaultMode(['free'], 'script')).toBe('free');
-    expect(getCharacterDefaultMode(['script', 'free'], null)).toBe('script');
+    expect(getCharacterDefaultMode(['script', 'free'], null)).toBe('free');
+    expect(getCharacterDefaultMode(['script'], null)).toBe('script');
   });
 
   it('builds explicit script and free chat routes', () => {
