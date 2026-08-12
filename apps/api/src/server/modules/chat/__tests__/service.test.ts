@@ -592,6 +592,20 @@ describe('resolveClientTurn', () => {
 
   // ── Existing tests (updated for mode-aware mocks) ──
 
+  it('does not re-query characters when mode/scriptId are provided (stream path)', async () => {
+    // runChatStream 传已解析 scope（4.3）：legacy 推断路径不可达，characters 不重复查询
+    selectLimitMock.mockResolvedValueOnce([sessionRow()]); // findOrCreateSession 命中现有会话
+    insertReturningMock.mockResolvedValueOnce([{ id: 'msg-created', generationAttempt: 1 }]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(baseInput);
+
+    expect(result.status).toBe('created');
+    expect(
+      selectWhereMock.mock.calls.filter(([conditions]) => JSON.stringify(conditions).includes('characters.id')),
+    ).toHaveLength(0);
+  });
+
   it('unique constraint (23505) on insert -> re-read with assistant -> replay', async () => {
     orderByMock.mockResolvedValueOnce([]);
     selectLimitMock.mockResolvedValueOnce([sessionRow()]);
@@ -1029,6 +1043,10 @@ describe('findOrCreateSession boundary validation', () => {
     const result = await findOrCreateSession('user-1', 'char-1', 'casual', undefined, 'script', 'script-1');
     expect(result.mode).toBe('script');
     expect(result.scriptId).toBe('script-1');
+    // 4.3：mode/scriptId 由调用方传入后不再重查 characters（legacy 推断已删除）
+    expect(
+      selectWhereMock.mock.calls.filter(([conditions]) => JSON.stringify(conditions).includes('characters.id')),
+    ).toHaveLength(0);
   });
 
   it('allows free mode without scriptId (no throw)', async () => {

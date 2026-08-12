@@ -445,6 +445,30 @@ describe('runChatStream', () => {
       'script',
       'script-1',
     );
+    // 4.3：会话脚本与角色当前脚本相同 → scripts 全请求只查 1 次（buildPromptContext 复用）
+    expect(getScriptByIdMock).toHaveBeenCalledTimes(1);
+    expect(getScriptByIdMock).toHaveBeenCalledWith('script-1');
+  });
+
+  it('loads the script once on the new-session path and passes resolved scope to resolveClientTurn', async () => {
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    await readEvents(response);
+
+    // 4.3：scripts 只查一次（resolveRequestScope 内），buildPromptContext 复用不再查询
+    expect(getScriptByIdMock).toHaveBeenCalledTimes(1);
+    expect(getScriptByIdMock).toHaveBeenCalledWith('script-1');
+    // resolveClientTurn 收到已解析 scope，legacy 推断（重查 characters）不再触发
+    expect(resolveClientTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'script',
+      scriptId: 'script-1',
+    }));
   });
 
   it('finalizes successful generated turns through the lifecycle service', async () => {
