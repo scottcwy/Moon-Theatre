@@ -1,8 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { dbExecuteMock } = vi.hoisted(() => ({ dbExecuteMock: vi.fn() }));
+
+vi.mock('@/server/db/index.js', () => ({
+  db: { execute: dbExecuteMock },
+}));
 
 interface ReadyResponseBody {
   status: string;
   checks: {
+    api: { ok: boolean };
+    db: { ok: boolean; error?: string };
     fastclaw: {
       ok: boolean;
       configured: boolean;
@@ -20,6 +28,11 @@ async function loadRoute() {
 }
 
 describe('GET /api/ready FastClaw chat speed guard', () => {
+  beforeEach(() => {
+    // DB mock 默认通过：未配置 reject 时 execute 返回 undefined，await 即成功。
+    dbExecuteMock.mockReset();
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
@@ -136,5 +149,34 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
       maxTokens: 768,
       maxToolIterations: 0,
     }));
+  });
+
+  it('fails readiness with 503 and db.ok=false when the database is unreachable', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_db_down');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+      .mockResolvedValueOnce(Response.json({
+        id: 'agt_db_down',
+        model: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
+        maxTokens: 768,
+        temperature: 0.7,
+        maxToolIterations: 0,
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+    dbExecuteMock.mockRejectedValueOnce(new Error('connection refused'));
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('not_ready');
+    expect(body.checks.db).toEqual(expect.objectContaining({
+      ok: false,
+      error: 'connection refused',
+    }));
+    expect(body.checks.fastclaw).toEqual(expect.objectContaining({ ok: true }));
   });
 });
