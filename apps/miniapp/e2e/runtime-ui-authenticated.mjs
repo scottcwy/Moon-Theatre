@@ -266,7 +266,7 @@ const PAGE_CHECKS = [
       {
         label: 'chat header content starts below the WeChat capsule',
         run: async (page) => {
-          const root = await page.$$('.chat-page');
+          const root = await page.$('.chat-page');
           const rootStyle = root ? String(await root.attribute('style').catch(() => '')) : '';
           const totalHeightMatch = rootStyle.match(/--topbar-total-height:\s*([\d.]+)px/);
           const avatar = await getElementBox(page, '.character-header .character-avatar');
@@ -283,7 +283,7 @@ const PAGE_CHECKS = [
       {
         label: 'moon-tower script chat shows script scope and a moon-tower line',
         run: async (page) => {
-          const scopeLabel = await page.$$('.chat-page__scope-label');
+          const scopeLabel = await page.$('.chat-page__scope-label');
           const scopeText = scopeLabel ? await scopeLabel.text().catch(() => '') : '';
           if (scopeText !== '剧本模式') {
             throw new Error(`expected 剧本模式 scope label, got ${scopeText || 'none'}`);
@@ -385,7 +385,7 @@ const PAGE_CHECKS = [
       {
         label: 'scope label shows 自由模式 and history includes the return message once',
         run: async (page) => {
-          const scopeLabel = await page.$$('.chat-page__scope-label');
+          const scopeLabel = await page.$('.chat-page__scope-label');
           const scopeText = scopeLabel ? await scopeLabel.text().catch(() => '') : '';
           assert(scopeText === '自由聊天', `Expected 自由聊天 scope label, got ${scopeText || 'none'}`);
           const bubbles = await page.$$('.chat-bubble__text');
@@ -586,7 +586,7 @@ async function waitForAnySelector(page, selectors, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     for (const selector of selectors) {
-      const element = await page.$$(selector);
+      const element = await page.$(selector);
       if (element) return { selector, element };
     }
     await page.waitFor(250);
@@ -601,7 +601,7 @@ async function waitForSelector(page, selector, timeoutMs = 10000) {
 }
 
 async function getElementBox(page, selector) {
-  const element = await page.$$(selector);
+  const element = await page.$(selector);
   if (!element) return null;
 
   const [offset, size, text] = await Promise.all([
@@ -751,7 +751,7 @@ async function switchFreeHistoryToEmptyScript(_miniProgram, page) {
   const deadline = Date.now() + 10000;
   let scopeLabel = '';
   while (Date.now() < deadline) {
-    const label = await page.$$('.chat-page__scope-label');
+    const label = await page.$('.chat-page__scope-label');
     scopeLabel = label ? await label.text().catch(() => '') : '';
     if (scopeLabel === '剧本模式') break;
     await page.waitFor(250);
