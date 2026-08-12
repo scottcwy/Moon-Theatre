@@ -103,6 +103,29 @@ test('FastClaw Go-only Dockerfile does not build the Web UI', () => {
   assert.doesNotMatch(dockerfile, /web-builder/);
 });
 
+test('compose provides fastclaw persistence, healthchecks, log rotation and TZ (production readiness)', () => {
+  const compose = readRepoFile('docker-compose.yml');
+
+  assert.match(compose, /fastclaw-data:\/data\/\.fastclaw/);
+  assert.match(compose, /^\s+fastclaw-data:$/m);
+  assert.match(compose, /x-logging: &default-logging/);
+  assert.match(compose, /logging: \*default-logging/);
+  assert.match(compose, /max-size: "10m"/);
+  assert.match(compose, /max-file: "5"/);
+  assert.match(compose, /TZ=Asia\/Shanghai/);
+
+  const apiBlock = compose.slice(compose.indexOf('  api:\n'), compose.indexOf('  api-migrate:'));
+  const fastclawBlock = compose.slice(compose.indexOf('  fastclaw:'), compose.indexOf('  caddy:'));
+  assert.match(apiBlock, /healthcheck:/, 'api must define a healthcheck');
+  assert.match(apiBlock, /condition: service_healthy/, 'api must wait for fastclaw to be healthy');
+  assert.match(fastclawBlock, /healthcheck:/, 'fastclaw must define a healthcheck');
+});
+
+test('backup artifacts stay out of git and Docker build context', () => {
+  assert.match(readRepoFile('.gitignore'), /(^|\n)backups\/($|\n)/);
+  assert.match(readRepoFile('.dockerignore'), /(^|\n)backups($|\n)/);
+});
+
 test('env examples keep model routing DeepSeek-only (Spec 5: Qwen 停用，不配置降级)', () => {
   for (const file of ['.env.example', 'apps/api/.env.example']) {
     const envExample = readRepoFile(file);

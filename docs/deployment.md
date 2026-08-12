@@ -85,7 +85,7 @@ rtk curl -fsS https://api.your-domain.com/api/health
 rtk curl -fsS https://api.your-domain.com/api/ready
 ```
 
-`/api/health` 只表示 API 进程存活。`/api/ready` 当前检查 FastClaw 配置、FastClaw `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec。业务聊天 Agent 若超过 `maxTokens=768` 或 `maxToolIterations` 不等于 `0`，readiness 会返回 `503`。后续还应补数据库连接和关键生产配置完整性检查。
+`/api/health` 只表示 API 进程存活。`/api/ready` 检查 API 进程、Postgres 连通（`select 1`，5 秒超时）、FastClaw 配置与 `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec；任一检查失败返回 `503` 且 `status=not_ready`。业务聊天 Agent 若超过 `maxTokens=768` 或 `maxToolIterations` 不等于 `0`，readiness 会返回 `503`。
 
 ## 5. 小程序生产构建
 
@@ -174,7 +174,7 @@ rtk docker compose exec -T postgres pg_restore -U postgres -d juben_sha --clean 
 
 v1.1（聊天体验：剧本/自由模式、剧本目录、记忆作用域、回访留言）上线时按序执行。镜像 tag **由发布负责人填写**，仓库不预设具体值。
 
-1. 构建并推送 `api` / `api-tools` / `fastclaw` 新镜像（`linux/amd64`）：登录腾讯云 CCR 后，按仓库构建流程产出三个新镜像并推送（tag 由发布负责人填写，例如日期 + 提交短哈希，但不得沿用 07-06 快照 tag）。
+1. 构建并推送 `api` / `api-tools` / `fastclaw` 新镜像（`linux/amd64`）：按第 3 节 buildx 命令产出三个新镜像并推送（tag 由发布负责人填写，例如日期 + 提交短哈希，但不得沿用 07-06 快照 tag）。
 2. 在服务器根 `.env` 更新 `API_IMAGE` / `API_TOOLS_IMAGE` / `FASTCLAW_IMAGE` 为步骤 1 的新 tag。
 3. 拉取并启动：
 
@@ -194,3 +194,13 @@ rtk pnpm build:miniapp:prod
 6. 上线后执行第 4 节健康检查（`/api/health`、`/api/ready`）与小程序关键链路联调。
 
 > 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0009`；当前已推送镜像仍为 07-06 快照（见第 3 节）。`docs/版本说明-dev.md` 只引用本节与第 3 节，不复制镜像信息。
+
+## 10. 附录 A：微信后台上线清单（非仓库操作，人工执行）
+
+1. request 合法域名 `https://api.offergo.xz.cn` 已配置（`apps/miniapp/config/hosts.json` 的 `prod` 已入库）。
+2. 用户隐私保护指引：收集 openid、聊天内容、头像昵称等，须在微信公众平台提交。
+3. 小程序类目与资质（AI 聊天 / 角色扮演类目要求以平台审核为准）。
+4. UGC 内容安全：项目已有本地 blocked-keywords + 输出过滤；确认是否需接 `msgSecCheck` 或用户协议兜底。
+5. 体验版真机验证：`urlCheck: false` 仅开发者工具生效，体验版/正式版必须走合法域名。
+6. 主包体积：当前 <2MB（历史提交 `bf01332`），无自动断言，上线前在开发者工具人工核对；如需自动护栏另开条目。
+7. `TEST_USER_INITIAL_POINTS`：测试版可临时赠点，正式版必须为 `0`。
