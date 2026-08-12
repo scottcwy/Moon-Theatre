@@ -92,3 +92,16 @@ test('FastClaw Go-only Dockerfile does not build the Web UI', () => {
   assert.doesNotMatch(dockerfile, /pnpm build/);
   assert.doesNotMatch(dockerfile, /web-builder/);
 });
+
+test('env examples keep model routing DeepSeek-only (Spec 5: Qwen 停用，不配置降级)', () => {
+  for (const file of ['.env.example', 'apps/api/.env.example']) {
+    const envExample = readRepoFile(file);
+    const lines = envExample.split('\n');
+    const agentIndex = lines.findIndex((line) => line.startsWith('FASTCLAW_AGENT_ID='));
+    assert.ok(agentIndex >= 0, `${file} must define FASTCLAW_AGENT_ID`);
+    const agentComment = lines[agentIndex - 1] || '';
+    assert.match(agentComment, /DeepSeek/, `${file}: FASTCLAW_AGENT_ID must be documented as DeepSeek-only`);
+    assert.match(agentComment, /Qwen 停用/, `${file}: FASTCLAW_AGENT_ID must document Qwen as disabled`);
+    assert.match(envExample, /^FASTCLAW_FALLBACK_ENABLED=false$/m, `${file}: FASTCLAW_FALLBACK_ENABLED must stay false (no fallback configured)`);
+  }
+});

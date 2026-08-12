@@ -26,8 +26,9 @@ rtk cp .env.example .env
 - `DATABASE_URL`: API 使用的数据库连接串，密码必须和 `POSTGRES_PASSWORD` 一致。
 - `JWT_SECRET`: 长随机字符串。
 - `WECHAT_APP_ID`, `WECHAT_APP_SECRET`: 小程序登录使用。
-- `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。`FASTCLAW_AGENT_ID` 必须指向专用业务聊天 Agent，且 `FASTCLAW_API_KEY` 必须有访问该 Agent 的权限。
+- `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。`FASTCLAW_AGENT_ID` 必须指向专用业务聊天 Agent，且 `FASTCLAW_API_KEY` 必须有访问该 Agent 的权限。对话生成仅支持 DeepSeek agent（`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`）；Qwen agent 已停用，不配置降级（Spec 5）。
 - `FASTCLAW_TIMEOUT_MS`: API 调 FastClaw 的超时，默认 `120000`。
+- `FASTCLAW_FALLBACK_ENABLED`: 必须保持 `false`（Spec 5：Qwen 停用，不配置降级）。
 - `CHAT_EFFECTS_ASYNC_ENABLED`: 聊天 effects 异步开关，默认 `false`。设为 `true` 后，记忆、羁绊、成就/称号后台执行，聊天 `done` 只同步保证核心字段。
 - `PAYMENT_PROVIDER` 和支付服务商参数。
 - `ADMIN_USER_IDS`, `ADMIN_BASIC_AUTH_USER`, `ADMIN_BASIC_AUTH_PASSWORD`。
@@ -109,7 +110,7 @@ rtk docker compose up -d api fastclaw caddy
 
 当前部署只使用 FastClaw Go 后端能力。`fastclaw/Dockerfile.minimal` 不执行 Web UI 构建；它使用仓库内已提交的最小嵌入页（`fastclaw/internal/setup/web/index.html`）以满足 Go `embed` 编译约束（全量 Web UI 构建走 `fastclaw/Dockerfile` / `make build-web`，产物同样落到 `internal/setup/web/`）。FastClaw API key、agent 和模型 provider 仍需要在真实环境中完成初始化和联调。业务 API 调用 FastClaw 的 OpenAI-compatible `/v1/chat/completions` 时，角色上下文通过 `system` message 作为 request-scoped system prompt 传入。
 
-业务聊天 Agent 需要按 V1 速度目标配置：`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`、`maxTokens <= 768`、`maxToolIterations = 0`。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；超过 `maxTokens=768` 或启用任何工具迭代都不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
+业务聊天 Agent 需要按 V1 速度目标配置：`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`、`maxTokens <= 768`、`maxToolIterations = 0`。对话生成仅支持 DeepSeek agent：Qwen agent 必须停用/删除，`FASTCLAW_FALLBACK_ENABLED` 保持 `false`（不配置降级）。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；超过 `maxTokens=768` 或启用任何工具迭代都不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
 
 ## 8. v1.1 上线检查清单
 

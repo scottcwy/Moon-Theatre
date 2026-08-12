@@ -313,7 +313,7 @@ ChatStreamRunner
 V1 Chat Speed Fix 只优化小程序业务聊天 `/api/chat/stream`：
 
 - `FASTCLAW_TIMEOUT_MS` 默认 `120000`，避免 FastClaw 生成被 30 秒外层 abort 打断。
-- 聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 0`，默认 runtime 模型为 `siliconflow/deepseek-ai/DeepSeek-V4-Flash`。这是 FastClaw Agent 运行配置约束，不改变 OpenAI-compatible `/v1/chat/completions` 通用 API 语义。
+- 聊天 Agent 配置必须限制 `maxTokens <= 768`、`maxToolIterations = 0`，默认 runtime 模型为 `siliconflow/deepseek-ai/DeepSeek-V4-Flash`。对话生成仅支持 DeepSeek agent：Qwen agent 已停用，`FASTCLAW_FALLBACK_ENABLED` 保持 `false`（不配置降级，Spec 5）。这是 FastClaw Agent 运行配置约束，不改变 OpenAI-compatible `/v1/chat/completions` 通用 API 语义。
 - 业务 prompt 明确要求默认回复 80-180 个中文字符，剧情推进或用户明确要求时最多 300 个中文字符。
 - 输出审核策略、FastClaw ReAct 架构、同步扣点/退款和 `model_usage_logs` 强一致边界不变。
 - 不新增队列服务，不做逐 token 展示。
@@ -327,7 +327,7 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - adapter 只暴露业务后端需要的少量方法，不把 FastClaw 原始协议扩散到 route 或业务 service。
 - 请求体、鉴权头、流式响应格式和错误格式需要有 contract test 或联调脚本固定。
 - 生产环境必须设置明确的调用超时；超时、非 2xx、流解析失败都要进入模型调用日志或服务日志。
-- fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。
+- fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。当前生产不配置降级（Spec 5：`FASTCLAW_FALLBACK_ENABLED=false`）。
 - 当前 adapter 调用 `${FASTCLAW_BASE_URL}/v1/chat/completions`，使用 `Authorization: Bearer ${FASTCLAW_API_KEY}`，解析 OpenAI SSE 兼容的 `data: ...` 和 `[DONE]`。
 - 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
 - 当前 adapter 支持 `x-fastclaw-agent-id` 与 `x-fastclaw-session-key` 请求头。

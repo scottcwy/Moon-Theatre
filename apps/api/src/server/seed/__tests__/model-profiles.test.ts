@@ -78,4 +78,29 @@ describe('model profile seed', () => {
       }),
     });
   });
+
+  it('seeds every tier as DeepSeek-V4-Flash and enabled (Spec 5: Qwen 停用，casual 必须可用)', async () => {
+    const { seedModelProfiles } = await import('../index.js');
+
+    await seedModelProfiles();
+
+    const seeded = valuesMock.mock.calls[0]?.[0] as Array<{
+      tier: string;
+      modelName: string;
+      enabled: boolean;
+    }>;
+
+    expect(seeded).toBeDefined();
+    expect(seeded.map((profile) => profile.tier).sort()).toEqual([
+      'casual',
+      'immersive',
+      'standard',
+    ]);
+    for (const profile of seeded) {
+      expect(profile.modelName).toBe('deepseek-ai/DeepSeek-V4-Flash');
+      expect(profile.enabled).toBe(true);
+    }
+    // 前端 getInitialModelTier() 恒发 casual：casual 档必须保持可用，否则服务端对不可用档直接 400。
+    expect(seeded.find((profile) => profile.tier === 'casual')?.enabled).toBe(true);
+  });
 });
