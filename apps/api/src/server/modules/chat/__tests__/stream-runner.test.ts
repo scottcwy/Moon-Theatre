@@ -23,7 +23,7 @@ const getChatSessionScopeMock = vi.fn();
 const findOrCreateSessionMock = vi.fn();
 const saveUserMessageMock = vi.fn();
 const getCleanHistoryMessagesMock = vi.fn();
-const classifyChatScopeMock = vi.fn();
+const classifyChatScopeNonBlockingMock = vi.fn();
 const runChatCompletionEffectsMock = vi.fn();
 const resolveClientTurnMock = vi.fn();
 const saveAssistantForTurnMock = vi.fn();
@@ -125,16 +125,21 @@ vi.mock('../index.js', async () => {
 
 vi.mock('../output-sanitizer.js', async () => {
   const actual = await vi.importActual<typeof import('../output-sanitizer.js')>('../output-sanitizer.js');
-  return { sanitizeAssistantOutput: actual.sanitizeAssistantOutput };
+  return { sanitizeAssistantOutput: actual.sanitizeAssistantOutput, createStreamingOutputCleaner: actual.createStreamingOutputCleaner };
 });
 
 vi.mock('../workflow.js', () => ({
   runChatCompletionEffects: runChatCompletionEffectsMock,
 }));
 
-vi.mock('../scope-classifier.js', () => ({
-  classifyChatScope: classifyChatScopeMock,
-}));
+vi.mock('../scope-classifier.js', async () => {
+  const actual = await vi.importActual<typeof import('../scope-classifier.js')>('../scope-classifier.js');
+  return {
+    classifyChatScope: actual.classifyChatScope,
+    classifyChatScopeNonBlocking: classifyChatScopeNonBlockingMock,
+    settleScopeWithinGrace: actual.settleScopeWithinGrace,
+  };
+});
 
 async function readEvents(response: Response): Promise<Array<Record<string, unknown>>> {
   const text = await response.text();
@@ -192,7 +197,7 @@ function setupHappyPath() {
   findOrCreateSessionMock.mockResolvedValue({ id: 'session-1', mode: 'script', scriptId: 'script-1' });
   saveUserMessageMock.mockResolvedValue({ id: 'user-message-1', generationAttempt: 1 });
   getCleanHistoryMessagesMock.mockResolvedValue([]);
-  classifyChatScopeMock.mockResolvedValue('in_scope');
+  classifyChatScopeNonBlockingMock.mockResolvedValue({ classification: 'in_scope', settledInGrace: true });
   checkInputMock.mockResolvedValue({ blocked: false });
   checkOutputMock.mockResolvedValue({ blocked: false });
   getOrCreateWalletMock.mockResolvedValue(undefined);
@@ -318,7 +323,7 @@ describe('runChatStream', () => {
     });
     await readEvents(response);
 
-    expect(classifyChatScopeMock).not.toHaveBeenCalled();
+    expect(classifyChatScopeNonBlockingMock).not.toHaveBeenCalled();
   });
 
   it('rejects a retired script before resolving a turn or consuming points', async () => {
@@ -615,7 +620,7 @@ describe('runChatStream', () => {
   });
 
   it('discards out-of-scope drafts, refunds points, records usage, and skips effects', async () => {
-    classifyChatScopeMock.mockResolvedValue('out_of_scope');
+    classifyChatScopeNonBlockingMock.mockResolvedValue({ classification: 'out_of_scope', settledInGrace: true });
 
     const { runChatStream } = await import('../stream-runner.js');
 
@@ -653,6 +658,126 @@ describe('runChatStream', () => {
     expect(refundConsumedPointsMock).toHaveBeenCalledWith('user-1', 3, 'refund_user-message-1_1');
     expect(markTurnOutOfScopeMock).not.toHaveBeenCalled();
     expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
+  });
+
+  it('starts scope classification before generation and without assistantDraft', async () => {
+    classifyChatScopeNonBlockingMock.mockResolvedValue({ classification: 'in_scope', settledInGrace: true });
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+
+    expect(classifyChatScopeNonBlockingMock).toHaveBeenCalledTimes(1);
+    const classifyCall = classifyChatScopeNonBlockingMock.mock.calls[0]![0]!;
+    expect(classifyCall).toMatchObject({
+      userMessage: '你好',
+      characterName: '铃音',
+      characterIdentity: '巫女',
+      scriptTitle: '月见庭院',
+      worldSetting: '庭院',
+    });
+    expect(classifyCall).not.toHaveProperty('assistantDraft');
+    expect(classifyChatScopeNonBlockingMock.mock.invocationCallOrder[0]!).toBeLessThan(streamChatMock.mock.invocationCallOrder[0]!);
+    expect(events.find((event) => event.type === 'done')).toBeDefined();
+  });
+
+  it('releases in_scope and logs grace expiry when classification exceeds the grace window', async () => {
+    const pending = deferred<{ classification: 'in_scope'; settledInGrace: boolean }>();
+    classifyChatScopeNonBlockingMock.mockReturnValue(pending.promise);
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    try {
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '你好',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      const events = await readEvents(response);
+
+      const done = events.find((event) => event.type === 'done');
+      expect(done).toBeDefined();
+      expect(done).not.toHaveProperty('outOfScope');
+      expect(events.some((event) => event.type === 'delta' && event.content === '你好，今晚月色很好。')).toBe(true);
+      expect(infoSpy).toHaveBeenCalledWith(expect.objectContaining({
+        event: 'scope_classifier_grace_expired',
+        sessionId: 'session-1',
+        userMessageId: 'user-message-1',
+        clientMessageId: 'client-1',
+      }));
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('streams generation deltas incrementally with incremental_buffered mode', async () => {
+    streamChatMock.mockImplementation(async function* () {
+      yield { type: 'delta' as const, content: '你好，' };
+      yield { type: 'delta' as const, content: '今晚月色很好。[情绪: Happy]' };
+      yield { type: 'done' as const, fallback: false };
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+
+    expect(response.headers.get('X-Stream-Mode')).toBe('incremental-buffered');
+    const status = events.find((event) => event.type === 'status');
+    expect(status).toMatchObject({ type: 'status', mode: 'incremental_buffered', stage: 'generating' });
+    const deltas = events.filter((event) => event.type === 'delta').map((event) => event.content as string);
+    expect(deltas).toEqual(['你好，', '今晚月色很好。']);
+    expect(deltas.join('')).toBe('你好，今晚月色很好。');
+    const done = events.find((event) => event.type === 'done');
+    expect(done).toMatchObject({ mood: 'happy' });
+    expect(done).not.toHaveProperty('content');
+    expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      content: '你好，今晚月色很好。',
+      mood: 'happy',
+    }));
+  });
+
+  it('appends a correction delta and done.content when streamed output is blocked', async () => {
+    checkOutputMock.mockResolvedValue({ blocked: true, matchedKeyword: '赌博' });
+    streamChatMock.mockImplementation(streamWith('这条回复提到赌博。[情绪: Sad]'));
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    const events = await readEvents(response);
+
+    const deltas = events.filter((event) => event.type === 'delta').map((event) => event.content as string);
+    expect(deltas).toContain('这条回复提到赌博。');
+    expect(deltas).toContain('（内容已按安全规则调整）');
+    const done = events.find((event) => event.type === 'done');
+    expect(done).toMatchObject({
+      blocked: true,
+      content: '回复触发了安全机制，该消息已被替换。',
+    });
+    expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      content: '回复触发了安全机制，该消息已被替换。',
+      mood: null,
+      excludedFromContext: true,
+    }));
+    expect(refundConsumedPointsMock).toHaveBeenCalledWith('user-1', 3, 'refund_user-message-1_1');
   });
 
   it('blocked input with clientMessageId saves assistant fallback with the same clientMessageId', async () => {

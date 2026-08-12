@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeAssistantOutput } from '../output-sanitizer.js';
+import { createStreamingOutputCleaner, sanitizeAssistantOutput } from '../output-sanitizer.js';
 
 describe('sanitizeAssistantOutput', () => {
   it('removes explicit thinking blocks and internal labels from model output', () => {
@@ -66,5 +66,39 @@ describe('sanitizeAssistantOutput', () => {
 
     const story = '线索上写着 Raven Hotel，白藏没有解释，只把纸条推回你手边。';
     expect(sanitizeAssistantOutput(story)).toBe(story);
+  });
+});
+
+describe('createStreamingOutputCleaner', () => {
+  it('strips a mood tag in a single chunk without adding trailing newlines', () => {
+    const cleaner = createStreamingOutputCleaner();
+    expect(cleaner.push('你好，今晚月色很好。[情绪: Happy]')).toBe('你好，今晚月色很好。');
+  });
+
+  it('completes a mood tag that spans chunks and strips it', () => {
+    const cleaner = createStreamingOutputCleaner();
+    expect(cleaner.push('你好，[情绪: Ha')).toBe('你好，');
+    expect(cleaner.push('ppy]')).toBe('');
+  });
+
+  it('emits partial lines immediately so the first token is not buffered', () => {
+    const cleaner = createStreamingOutputCleaner();
+    expect(cleaner.push('你')).toBe('你');
+    expect(cleaner.push('好。')).toBe('好。');
+  });
+
+  it('strips a complete internal think block within one chunk', () => {
+    const cleaner = createStreamingOutputCleaner();
+    expect(cleaner.push('<think>我应该表现出悲伤。</think>你好。')).toBe('你好。');
+  });
+
+  it('strips complete internal labeled lines and keeps normal text', () => {
+    const cleaner = createStreamingOutputCleaner();
+    expect(cleaner.push('analysis: 内部推理\n白藏抬眸。')).toBe('白藏抬眸。');
+  });
+
+  it('preserves normal roleplay stage directions and angle-bracket dialogue', () => {
+    const cleaner = createStreamingOutputCleaner();
+    expect(cleaner.push('白藏垂眸。[他没有立刻回答]\n他说：<北门还不能开>。')).toBe('白藏垂眸。[他没有立刻回答]\n他说：<北门还不能开>。');
   });
 });

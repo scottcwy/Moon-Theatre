@@ -4,7 +4,8 @@ import type { ChatMode } from '../types';
 const BASE_URL = API_BASE_URL;
 const DEV_TOKEN = 'dev-auth-bypass-token';
 const API_REQUEST_TIMEOUT_MS = 30000;
-const CHAT_STREAM_REQUEST_TIMEOUT_MS = 130000;
+const CHAT_STREAM_REQUEST_TIMEOUT_MS = 150000;
+const STREAM_STALLED_TIMEOUT_MS = 15000;
 const IDEMPOTENT_REQUEST_MAX_ATTEMPTS = 2;
 const IDEMPOTENT_REQUEST_RETRY_DELAY_MS = 300;
 const API_DEBUG_LOG_PREFIX = '[api]';
@@ -267,6 +268,7 @@ export interface StreamCallbacks {
     fallback?: boolean;
     replayed?: boolean;
     blocked?: boolean;
+    content?: string;
     outOfScope?: boolean;
     bondLevel?: number;
     bondExp?: number;
@@ -424,9 +426,13 @@ export function streamChat(
   const token = getToken() || '';
   let buffer = '';
   let receivedChunk = false;
+  let finished = false;
+  let stalled = false;
   const chunkDecoder = createChunkDecoder();
 
   const processStreamText = (text: string) => {
+    if (finished) return;
+    restartHeartbeat();
     buffer += text;
 
     const lines = buffer.split('\n');
@@ -441,6 +447,8 @@ export function streamChat(
         if (parsed.type === 'delta' && parsed.content) {
           callbacks.onDelta(parsed.content);
         } else if (parsed.type === 'done') {
+          clearHeartbeat();
+          finished = true;
           callbacks.onDone({
             messageId: parsed.messageId,
             sessionId: parsed.sessionId,
@@ -450,6 +458,7 @@ export function streamChat(
             fallback: parsed.fallback,
             replayed: parsed.replayed,
             blocked: parsed.blocked,
+            content: parsed.content,
             outOfScope: parsed.outOfScope,
             bondLevel: parsed.bondLevel,
             bondExp: parsed.bondExp,
@@ -460,6 +469,8 @@ export function streamChat(
             balanceAfter: parsed.balanceAfter,
           });
         } else if (parsed.type === 'error') {
+          clearHeartbeat();
+          finished = true;
           callbacks.onError(parsed.code || parsed.message || 'unknown');
         }
       } catch {
@@ -480,17 +491,24 @@ export function streamChat(
     responseType: 'text',
     timeout: CHAT_STREAM_REQUEST_TIMEOUT_MS,
     success(res) {
+      if (stalled || finished) return;
       if (res.statusCode === 401) {
+        clearHeartbeat();
+        finished = true;
         clearAuth();
         if (callbacks.onAuthExpired) callbacks.onAuthExpired();
         else callbacks.onError('auth_expired');
         return;
       }
       if (res.statusCode === 402) {
+        clearHeartbeat();
+        finished = true;
         callbacks.onError(getStreamErrorCode(res.data, 'insufficient_points'));
         return;
       }
       if (res.statusCode >= 400) {
+        clearHeartbeat();
+        finished = true;
         callbacks.onError(getStreamErrorCode(res.data, 'unknown'));
         return;
       }
@@ -499,21 +517,52 @@ export function streamChat(
       if (data) {
         processStreamText(data.endsWith('\n') ? data : `${data}\n`);
       }
+      clearHeartbeat();
+      finished = true;
     },
     fail(err) {
+      if (stalled) return;
+      clearHeartbeat();
+      finished = true;
       const message = err.errMsg || 'Stream request failed';
       callbacks.onError(message);
     },
   });
 
   requestTask.onChunkReceived((res) => {
+    if (stalled || finished) return;
     receivedChunk = true;
     const chunk = decodeChunk(res.data, chunkDecoder);
     processStreamText(chunk);
   });
 
+  let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+  const clearHeartbeat = () => {
+    if (heartbeatTimer !== null) {
+      clearTimeout(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  };
+  const restartHeartbeat = () => {
+    clearHeartbeat();
+    heartbeatTimer = setTimeout(() => {
+      // 契约（chat-audit rev3 §4 P1-1）：15s 无任何数据且未 done → onError('stream_stalled') 并 abort；
+      // stall 后不再送达 delta/done，客户端对迟到回调做忽略。
+      stalled = true;
+      finished = true;
+      callbacks.onError('stream_stalled');
+      requestTask.abort();
+    }, STREAM_STALLED_TIMEOUT_MS);
+  };
+
+  restartHeartbeat();
+
   return {
-    abort: () => requestTask.abort(),
+    abort: () => {
+      clearHeartbeat();
+      finished = true;
+      requestTask.abort();
+    },
   };
 }
 

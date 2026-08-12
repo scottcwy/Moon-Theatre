@@ -558,6 +558,7 @@ export default function Chat() {
         updateAssistantPlaceholder(tempAssistantId, (current) => ({
           ...current,
           id: result.messageId,
+          content: result.content ?? current.content,
           mood: result.mood as MoodType | undefined,
           fallback: result.fallback,
         }));

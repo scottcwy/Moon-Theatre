@@ -69,7 +69,7 @@
 3. Client Message ID 是一次发送尝试的幂等与恢复标识。
 4. clean history 只包含已完成且未被排除的消息。
 5. 钱包扣点和退款继续使用独立幂等键。
-6. 输出审核继续采用 moderated-buffered，不恢复逐 token 展示。
+6. ~~输出审核继续采用 moderated-buffered，不恢复逐 token 展示~~（已被 `2026-08-12-chat-streaming-incremental-output-spec.md` 冻结修订：改为 incremental-buffered，边生成边按行净化下发 delta，生成结束后对已发送全文复核输出过滤；逐 token 展示仍未恢复，但首字/首段提前到生成早期）。
 7. 关系数据继续以 userId + characterId 为唯一边界。
 
 本 SPEC 对既有设计作出两项明确修订：

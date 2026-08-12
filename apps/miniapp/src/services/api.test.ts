@@ -497,6 +497,133 @@ describe('miniapp api client', () => {
       },
     );
 
-    expect(requestOptions.timeout).toBe(130000);
+    expect(requestOptions.timeout).toBe(150000);
+  });
+
+  it('emits stream_stalled and aborts after 15s without any chunk and ignores late callbacks', async () => {
+    vi.useFakeTimers();
+    try {
+      const { setToken, streamChat } = await import('./api');
+      setToken('auth-token');
+
+      let chunkHandler: ((res: { data: string }) => void) | undefined;
+      const abortMock = vi.fn();
+      requestMock.mockReturnValue({
+        onChunkReceived: vi.fn((handler: (res: { data: string }) => void) => {
+          chunkHandler = handler;
+        }),
+        abort: abortMock,
+      });
+
+      const onDelta = vi.fn();
+      const onDone = vi.fn();
+      const onError = vi.fn();
+      streamChat(
+        {
+          characterId: 'character-id',
+          message: '你好',
+          modelTier: 'standard',
+          mode: 'free',
+        },
+        { onDelta, onDone, onError },
+      );
+
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(onError).toHaveBeenCalledWith('stream_stalled');
+      expect(abortMock).toHaveBeenCalledTimes(1);
+
+      // 迟到回调（stall 后 mock 仍写 delta/done）必须被忽略
+      chunkHandler?.({
+        data: JSON.stringify({ type: 'delta', content: '迟到的内容' }) + '\n',
+      });
+      chunkHandler?.({
+        data: JSON.stringify({ type: 'done', messageId: 'message-id', sessionId: 'session-id' }) + '\n',
+      });
+      expect(onDelta).not.toHaveBeenCalled();
+      expect(onDone).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('resets the stall heartbeat whenever any chunk arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      const { setToken, streamChat } = await import('./api');
+      setToken('auth-token');
+
+      let chunkHandler: ((res: { data: string }) => void) | undefined;
+      requestMock.mockReturnValue({
+        onChunkReceived: vi.fn((handler: (res: { data: string }) => void) => {
+          chunkHandler = handler;
+        }),
+        abort: vi.fn(),
+      });
+
+      const onDelta = vi.fn();
+      const onError = vi.fn();
+      streamChat(
+        {
+          characterId: 'character-id',
+          message: '你好',
+          modelTier: 'standard',
+          mode: 'free',
+        },
+        { onDelta, onDone: vi.fn(), onError },
+      );
+
+      chunkHandler?.({ data: JSON.stringify({ type: 'delta', content: '第一段' }) + '\n' });
+      await vi.advanceTimersByTimeAsync(14000);
+      chunkHandler?.({ data: JSON.stringify({ type: 'delta', content: '第二段' }) + '\n' });
+      await vi.advanceTimersByTimeAsync(14000);
+      expect(onError).not.toHaveBeenCalled();
+      expect(onDelta).toHaveBeenCalledWith('第一段');
+      expect(onDelta).toHaveBeenCalledWith('第二段');
+
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(onError).toHaveBeenCalledWith('stream_stalled');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('passes done.content through for blocked outputs', async () => {
+    const { setToken, streamChat } = await import('./api');
+    setToken('auth-token');
+
+    let chunkHandler: ((res: { data: string }) => void) | undefined;
+    requestMock.mockReturnValue({
+      onChunkReceived: vi.fn((handler: (res: { data: string }) => void) => {
+        chunkHandler = handler;
+      }),
+      abort: vi.fn(),
+    });
+
+    const onDone = vi.fn();
+    streamChat(
+      {
+        characterId: 'character-id',
+        message: '你好',
+        modelTier: 'standard',
+        mode: 'free',
+      },
+      { onDelta: vi.fn(), onDone, onError: vi.fn() },
+    );
+
+    chunkHandler?.({
+      data: JSON.stringify({
+        type: 'done',
+        messageId: 'message-id',
+        sessionId: 'session-id',
+        blocked: true,
+        content: '回复触发了安全机制，该消息已被替换。',
+      }) + '\n',
+    });
+
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({
+      blocked: true,
+      content: '回复触发了安全机制，该消息已被替换。',
+    }));
   });
 });

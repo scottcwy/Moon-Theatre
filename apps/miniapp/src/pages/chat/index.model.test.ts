@@ -53,6 +53,7 @@ describe('chat message rendering helpers', () => {
     expect(getFriendlyStreamErrorMessage('client_message_id_collision')).toBe('这次发送状态发生冲突，请重新发送一条新消息。');
     expect(getFriendlyStreamErrorMessage('input_blocked')).toBe('这条内容无法发送，请换一种表达后再试。');
     expect(getFriendlyStreamErrorMessage('output_filtered')).toBe('这次回复未通过安全检查，请换个问题再试。');
+    expect(getFriendlyStreamErrorMessage('stream_stalled')).toBe('回复被中断，已为你保留以上内容');
   });
 
   it('never returns raw unknown English stream messages', () => {
@@ -135,6 +136,7 @@ describe('chat message rendering helpers', () => {
     expect(shouldReconcileStreamError('timeout')).toBe(true);
     expect(shouldReconcileStreamError('upstream_error')).toBe(true);
     expect(shouldReconcileStreamError('in_progress')).toBe(true);
+    expect(shouldReconcileStreamError('stream_stalled')).toBe(true);
     expect(shouldReconcileStreamError('script_unavailable')).toBe(false);
     expect(shouldReconcileStreamError('session_scope_mismatch')).toBe(false);
     expect(shouldReconcileStreamError('client_message_id_collision')).toBe(false);

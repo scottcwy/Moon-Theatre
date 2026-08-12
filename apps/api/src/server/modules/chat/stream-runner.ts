@@ -25,8 +25,8 @@ import {
 } from './index.js';
 import type { ChatMode } from './index.js';
 import { extractUserRecap } from './prompt-builder.js';
-import { sanitizeAssistantOutput } from './output-sanitizer.js';
-import { classifyChatScope } from './scope-classifier.js';
+import { createStreamingOutputCleaner, sanitizeAssistantOutput } from './output-sanitizer.js';
+import { classifyChatScopeNonBlocking, settleScopeWithinGrace, type ScopeClassification } from './scope-classifier.js';
 import { runChatCompletionEffects } from './workflow.js';
 
 const OUT_OF_SCOPE_FALLBACK = '这个问题超出了当前角色和剧情能可靠回应的范围。我们可以换成和角色、线索或当前剧情更相关的问题继续。';
@@ -46,7 +46,7 @@ export const STREAM_HEADERS = {
   'Content-Type': 'application/x-ndjson',
   'Cache-Control': 'no-cache',
   Connection: 'keep-alive',
-  'X-Stream-Mode': 'moderated-buffered',
+  'X-Stream-Mode': 'incremental-buffered',
 };
 
 export async function runChatStream(input: ChatStreamInput): Promise<Response> {
@@ -503,6 +503,8 @@ function createGenerationResponse(input: {
   const stream = new ReadableStream({
     async start(controller) {
       let fullContent = '';
+      let sentContent = '';
+      const streamingCleaner = createStreamingOutputCleaner();
       let usedFallback = !isFastClawConfigured();
       let balanceAfter = input.initialBalanceAfter;
       let generationMs = 0;
@@ -511,7 +513,18 @@ function createGenerationResponse(input: {
       let effectsScheduledMs = 0;
 
       try {
-        controller.enqueue(encoder.encode(JSON.stringify({ type: 'status', mode: 'moderated_buffered', stage: 'generating' }) + '\n'));
+        controller.enqueue(encoder.encode(JSON.stringify({ type: 'status', mode: 'incremental_buffered', stage: 'generating' }) + '\n'));
+
+        // 分类与主生成并行：生成前用「用户消息 + 角色 + 剧本」发起（无草稿），生成结束后只等宽限期。
+        const scopeClassificationPromise = input.mode === 'script'
+          ? classifyChatScopeNonBlocking({
+              userMessage: input.userMessage,
+              characterName: input.characterName,
+              characterIdentity: input.characterIdentity,
+              scriptTitle: input.scriptTitle,
+              worldSetting: input.worldSetting,
+            })
+          : null;
 
         const generationStartedAt = Date.now();
         for await (const event of streamChat(input.systemPrompt, input.userMessage, {
@@ -519,6 +532,11 @@ function createGenerationResponse(input: {
         })) {
           if (event.type === 'delta') {
             fullContent += event.content;
+            const cleanedChunk = streamingCleaner.push(event.content);
+            if (cleanedChunk) {
+              sentContent += cleanedChunk;
+              controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: cleanedChunk }) + '\n'));
+            }
           } else if (event.type === 'done') {
             usedFallback = event.fallback;
             break;
@@ -556,25 +574,17 @@ function createGenerationResponse(input: {
         const sanitizedText = sanitizeAssistantOutput(fullContent);
         const { mood, cleanedText } = parseMood(sanitizedText);
 
-        let scopeClassification: 'in_scope' | 'out_of_scope' = 'in_scope';
-        if (input.mode === 'script') {
-          try {
-            const classification = await classifyChatScope({
-              userMessage: input.userMessage,
-              assistantDraft: cleanedText,
-              characterName: input.characterName,
-              characterIdentity: input.characterIdentity,
-              scriptTitle: input.scriptTitle,
-              worldSetting: input.worldSetting,
-            });
-            scopeClassification = classification === 'out_of_scope' ? 'out_of_scope' : 'in_scope';
-          } catch (err) {
-            console.warn({
-              event: 'scope_classifier_failed',
+        let scopeClassification: ScopeClassification = 'in_scope';
+        if (input.mode === 'script' && scopeClassificationPromise) {
+          const outcome = await settleScopeWithinGrace(scopeClassificationPromise);
+          if (outcome.settledInGrace) {
+            scopeClassification = outcome.classification === 'out_of_scope' ? 'out_of_scope' : 'in_scope';
+          } else {
+            console.info({
+              event: 'scope_classifier_grace_expired',
               sessionId: input.sessionId,
               userMessageId: input.userMessageId,
               clientMessageId: input.clientMessageId,
-              error: err instanceof Error ? err.message : String(err),
             });
           }
         }
@@ -639,7 +649,7 @@ function createGenerationResponse(input: {
           return;
         }
 
-        const outputCheck = await checkOutput(cleanedText, input.sessionId);
+        const outputCheck = await checkOutput(sentContent, input.sessionId);
         const blocked = outputCheck.blocked;
         const finalContent = blocked ? '回复触发了安全机制，该消息已被替换。' : cleanedText;
         const finalMood = blocked ? null : (mood ?? 'neutral');
@@ -703,7 +713,10 @@ function createGenerationResponse(input: {
           blocked,
         });
 
-        controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: finalContent }) + '\n'));
+        if (blocked) {
+          // 已展示内容在复核后命中过滤：追加修正提示，done.content 携带落库 finalContent 供客户端覆盖
+          controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: '（内容已按安全规则调整）' }) + '\n'));
+        }
         controller.enqueue(encoder.encode(JSON.stringify({
           type: 'done',
           messageId: saved.id,
@@ -711,7 +724,7 @@ function createGenerationResponse(input: {
           mode: input.mode,
           ...(finalMood ? { mood: finalMood } : {}),
           ...(usedFallback ? { fallback: true } : {}),
-          ...(blocked ? { blocked: true } : {}),
+          ...(blocked ? { blocked: true, content: finalContent } : {}),
           ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
           ...(saved.bondLevel !== undefined ? { bondLevel: saved.bondLevel } : {}),
           ...(saved.bondExp !== undefined ? { bondExp: saved.bondExp } : {}),
