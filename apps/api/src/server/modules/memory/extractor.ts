@@ -20,8 +20,9 @@ const USER_INFO_PATTERNS: Array<{ regex: RegExp; extract: (match: RegExpMatchArr
   },
   {
     // 保留具体偏好内容，不再落泛化固定串（如「用户表达了偏好/情感倾向。」）。
+    // 模板输出「用户喜欢「草莓」」：动词去掉「我」，与 spec 4.1-1 口径一致。
     regex: /(我喜欢|我讨厌|我害怕|我担心|我期待)(.{2,30}?)(?:。|，|$)/,
-    extract: (m) => `用户${m[1]}「${m[2]!.trim()}」`,
+    extract: (m) => `用户${m[1]!.replace(/^我/, '')}「${m[2]!.trim()}」`,
   },
   {
     regex: /(?:我的过去|我以前|我曾经)(.{2,40}?)(?:。|，|$)/,

@@ -49,10 +49,20 @@ function isObsoleteContent(content: string): boolean {
 }
 
 // 前缀/包含相似：视为同一条事实的措辞变体（如「用户喜欢「草莓」」
-// 与「用户喜欢「草莓」和雨天」），替换时保留新值。
+// 与「用户喜欢「草莓」和雨天」、story 片段「北门的结界裂了」与
+// 「北门的结界裂了，还听到铃铛声」），替换时保留新值。
+// 比较前剥掉模板「」包裹：story 模板把整句片段包进「」，
+// 追加细节会落在右引号前，导致带引号的字符串包含判断失效。
+function stripQuoteWrappers(text: string): string {
+  return text.replace(/「|」/g, '');
+}
+
 function isWordingVariant(a: string, b: string): boolean {
   if (a.length === 0 || b.length === 0) return false;
-  return a.includes(b) || b.includes(a);
+  const normalizedA = stripQuoteWrappers(a);
+  const normalizedB = stripQuoteWrappers(b);
+  if (normalizedA.length === 0 || normalizedB.length === 0) return false;
+  return normalizedA.includes(normalizedB) || normalizedB.includes(normalizedA);
 }
 
 export async function extractAndUpsertMemories(

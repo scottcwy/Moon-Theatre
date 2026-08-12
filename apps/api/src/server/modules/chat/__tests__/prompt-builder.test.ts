@@ -282,7 +282,7 @@ describe('buildSystemPrompt', () => {
 // ── NEW: 回查摘要（clean history 用户自述偏好） ──
 
 describe('extractUserRecap', () => {
-  it('returns recap lines for the most recent preference messages (max 2)', () => {
+  it('returns recap lines for the most recent preference messages (max 2)', async () => {
     const { extractUserRecap } = await import('../prompt-builder.js');
     const recaps = extractUserRecap([
       { role: 'user', content: '今天天气不错' },
@@ -298,7 +298,7 @@ describe('extractUserRecap', () => {
     ]);
   });
 
-  it('skips assistant messages and non-preference user messages', () => {
+  it('skips assistant messages and non-preference user messages', async () => {
     const { extractUserRecap } = await import('../prompt-builder.js');
     const recaps = extractUserRecap([
       { role: 'assistant', content: '我喜欢安静，但这是角色的话。' },
@@ -309,7 +309,7 @@ describe('extractUserRecap', () => {
     expect(recaps).toEqual(['用户最近提到「我是做药材生意的」']);
   });
 
-  it('deduplicates identical recap snippets', () => {
+  it('deduplicates identical recap snippets', async () => {
     const { extractUserRecap } = await import('../prompt-builder.js');
     const recaps = extractUserRecap([
       { role: 'user', content: '我喜欢草莓' },
@@ -319,7 +319,7 @@ describe('extractUserRecap', () => {
     expect(recaps).toEqual(['用户最近提到「我喜欢草莓」']);
   });
 
-  it('truncates long messages with an ellipsis', () => {
+  it('truncates long messages with an ellipsis', async () => {
     const { extractUserRecap } = await import('../prompt-builder.js');
     const long = '我喜欢' + '很长的描述'.repeat(20);
     const recaps = extractUserRecap([{ role: 'user', content: long }]);
@@ -330,7 +330,7 @@ describe('extractUserRecap', () => {
     expect(recaps[0]!.length).toBeLessThan(long.length + 20);
   });
 
-  it('returns empty when history has no matching user messages', () => {
+  it('returns empty when history has no matching user messages', async () => {
     const { extractUserRecap } = await import('../prompt-builder.js');
     const recaps = extractUserRecap([
       { role: 'user', content: '北门的结界裂了' },

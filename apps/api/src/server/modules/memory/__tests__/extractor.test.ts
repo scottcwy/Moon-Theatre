@@ -36,8 +36,7 @@ describe('extractCandidateMemories', () => {
       );
       const userInfo = extractFirstOfType(result, 'user_info');
       expect(userInfo).toBeDefined();
-      expect(userInfo!.content).toContain('草莓');
-      expect(userInfo!.content).toContain('用户喜欢');
+      expect(userInfo!.content).toBe('用户喜欢「吃草莓」');
       expect(userInfo!.content).not.toContain('用户表达了偏好/情感倾向');
     });
 

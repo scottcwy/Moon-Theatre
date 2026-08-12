@@ -199,7 +199,7 @@ describe('extractAndUpsertMemories', () => {
 
   it('writes story as script scope with current scriptId', async () => {
     extractCandidateMemoriesMock.mockReturnValue([
-      { type: 'story', content: '月见庭院中的事件被讨论。' },
+      { type: 'story', content: '用户提到剧情：「月见庭院的红线」' },
     ]);
     selectWhereMock.mockResolvedValue([]);
     insertReturningMock.mockResolvedValue([
