@@ -157,7 +157,7 @@ rtk node scripts/backup-postgres.mjs
 列档检查：
 
 ```bash
-rtk docker compose exec -T postgres pg_restore --list - < backups/juben-sha-<时间戳>.dump
+rtk docker compose exec -T postgres pg_restore --list < backups/juben-sha-<时间戳>.dump
 ```
 
 还原（覆盖式，谨慎执行）：
