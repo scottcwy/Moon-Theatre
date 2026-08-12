@@ -1,3 +1,5 @@
+import { buildCharacterChatUrl } from '../character/detail.model';
+
 /** 聊天搜索防抖：输入停止后延迟多少毫秒发起请求。 */
 export const CHAT_SEARCH_DEBOUNCE_MS = 250;
 
@@ -33,8 +35,13 @@ export function buildCharacterChatsUrl(query: string, page = 1, limit = 20): str
   return `/api/chat/characters?${params.join('&')}`;
 }
 
-export function getCharacterChatUrl(latestSessionId: string): string {
-  return `/pages/chat/index?sessionId=${encodeURIComponent(latestSessionId)}`;
+/**
+ * 聊天列表点击角色 → 一律进入自由聊天（mode=free）。
+ * 留言（红点正文）写入该角色 active 自由会话，自由入口保证红点正文在历史流可见；
+ * 不再用 latestSessionId 直达「最近会话」（可能落在剧本模式导致红点正文不可见）。
+ */
+export function getCharacterChatUrl(characterId: string): string {
+  return buildCharacterChatUrl(characterId, 'free');
 }
 
 // 回访留言契约已上移至 services/return-messages（tab 红点轮询也要用），此处 re-export 保持旧引用不断。

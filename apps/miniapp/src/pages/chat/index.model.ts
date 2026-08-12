@@ -78,8 +78,7 @@ export function getFriendlyStreamErrorMessage(message: string): string {
 
 export function getDefaultChatMode(availableModes: ChatMode[], lastUsedMode: ChatMode | null): ChatMode {
   if (lastUsedMode && availableModes.includes(lastUsedMode)) return lastUsedMode;
-  if (availableModes.includes('script')) return 'script';
-  return 'free';
+  return availableModes.includes('free') ? 'free' : 'script';
 }
 
 export interface CharacterScriptMetadata {

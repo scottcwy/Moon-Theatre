@@ -136,7 +136,7 @@ export default function Chat() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sessionId, setSessionId] = useState<string | undefined>(routeSessionId);
+  const [, setSessionId] = useState<string | undefined>(routeSessionId);
   const [mode, setMode] = useState<ChatMode>(routeMode || 'script');
   const [scriptId, setScriptId] = useState<string | undefined>(routeScriptId);
   const [scriptTitle, setScriptTitle] = useState('');
@@ -324,6 +324,40 @@ export default function Chat() {
     }
   }, [handleAuthError, setScope]);
 
+  const loadScopeHistory = useCallback(async (
+    characterId: string,
+    targetScope: { mode: ChatMode; scriptId?: string; scriptTitle?: string },
+  ): Promise<boolean> => {
+    try {
+      const params = [
+        `characterId=${encodeURIComponent(characterId)}`,
+        `mode=${targetScope.mode}`,
+        'page=1',
+        'limit=1',
+      ];
+      if (targetScope.scriptId) params.push(`scriptId=${encodeURIComponent(targetScope.scriptId)}`);
+      const data = await api.get<{ sessions: SessionListItem[] }>(`/api/chat/sessions?${params.join('&')}`);
+      if (!mountedRef.current) return false;
+      const existing = data.sessions[0];
+      if (existing) {
+        const history = await loadSessionHistory(existing.id);
+        return history !== null;
+      }
+      // 无该模式会话：空会话起步（starter questions），保持 scope 为该模式。
+      setMessages([]);
+      setHistoryError('');
+      setScope(targetScope);
+      setCanSend(true);
+      setHasSuccessfulTurn(false);
+      return true;
+    } catch (err) {
+      if (mountedRef.current && !handleAuthError(err)) {
+        setHistoryError('历史对话加载失败，请重试');
+      }
+      return false;
+    }
+  }, [handleAuthError, loadSessionHistory, setScope]);
+
   const refreshCharacterRelationship = useCallback(async () => {
     const characterId = character?.id || routeCharacterId;
     if (!characterId) return;
@@ -392,8 +426,17 @@ export default function Chat() {
         return;
       }
       markReturnMessagesRead(routeCharacterId);
-      await loadCharacterDetail(routeCharacterId, true);
-      if (!isCancelled()) void loadBalance();
+      const data = await loadCharacterDetail(routeCharacterId, true);
+      if (!isCancelled()) {
+        // 进入即按 scope 加载该模式历史（复用 loadScopeHistory，模式切换同路径），
+        // 修复「剧本入口不加载历史、空白起步」；失败不阻断页面，走 historyError 错误态。
+        await loadScopeHistory(routeCharacterId, {
+          mode: modeRef.current,
+          scriptId: scriptIdRef.current,
+          scriptTitle: modeRef.current === 'script' ? data.script?.title : undefined,
+        });
+        void loadBalance();
+      }
     } catch (err) {
       if (!isCancelled() && !handleAuthError(err)) {
         setPageError(err instanceof Error && /模式|剧本信息/.test(err.message) ? err.message : '无法进入当前对话，请稍后重试');
@@ -401,7 +444,7 @@ export default function Chat() {
     } finally {
       if (!isCancelled()) setPageLoading(false);
     }
-  }, [handleAuthError, loadBalance, loadCharacterDetail, loadSessionHistory, markReturnMessagesRead, routeCharacterId, routeSessionId, verifyAuth]);
+  }, [handleAuthError, loadBalance, loadCharacterDetail, loadScopeHistory, loadSessionHistory, markReturnMessagesRead, routeCharacterId, routeSessionId, verifyAuth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -440,35 +483,14 @@ export default function Chat() {
       Taro.showToast({ title: '当前没有可用剧本', icon: 'none' });
       return;
     }
-    const targetScriptId = targetScope.scriptId;
 
     setScopeSwitching(true);
     scopeSwitchingRef.current = true;
     setStreamError('');
     setMessages((current) => current.filter((message) => !(message.role === 'assistant' && message.id.startsWith('assistant-'))));
     try {
-      const params = [
-        `characterId=${encodeURIComponent(character.id)}`,
-        `mode=${targetMode}`,
-        'page=1',
-        'limit=1',
-      ];
-      if (targetScriptId) params.push(`scriptId=${encodeURIComponent(targetScriptId)}`);
-      const data = await api.get<{ sessions: SessionListItem[] }>(`/api/chat/sessions?${params.join('&')}`);
-      const existing = data.sessions[0];
-      if (existing) {
-        await loadSessionHistory(existing.id);
-      } else {
-        setMessages([]);
-        setHistoryError('');
-        setScope(targetScope);
-        setCanSend(true);
-        setHasSuccessfulTurn(false);
-      }
-    } catch (err) {
-      if (!handleAuthError(err)) {
-        setStreamError('切换聊天模式失败，请稍后重试');
-      }
+      // 与进入时同路径：按 scope 查会话并加载历史，行为等价并消除重复查询逻辑。
+      await loadScopeHistory(character.id, targetScope);
     } finally {
       setScopeSwitching(false);
       scopeSwitchingRef.current = false;
@@ -488,6 +510,22 @@ export default function Chat() {
     // 与 boot 共用 loadPage：错误文案以 boot 的 /模式|剧本信息/ 映射为权威。
     void loadPage({ verifyFirst: false });
   };
+
+  const retryHistoryLoad = useCallback(() => {
+    // 有目标会话（sessionId 入口/流错误 reconcile）直接重载该会话；
+    // 否则按当前 scope 重新查会话并加载历史（scope 入口/模式切换失败的重试）。
+    if (sessionIdRef.current) {
+      void loadSessionHistory(sessionIdRef.current);
+      return;
+    }
+    if (character?.id && modeRef.current) {
+      void loadScopeHistory(character.id, {
+        mode: modeRef.current,
+        scriptId: scriptIdRef.current,
+        scriptTitle: modeRef.current === 'script' ? character.script?.title : undefined,
+      });
+    }
+  }, [character?.id, character?.script?.title, loadScopeHistory, loadSessionHistory]);
 
   const reconcileFailedSend = useCallback(async (clientMessageId: string, fallbackMessage: string, tempAssistantId: string) => {
     try {
@@ -770,7 +808,7 @@ export default function Chat() {
               tone="error"
               icon="!"
               primaryText="重新加载"
-              onPrimary={sessionId ? () => { void loadSessionHistory(sessionId); } : undefined}
+              onPrimary={retryHistoryLoad}
             />
           )}
 

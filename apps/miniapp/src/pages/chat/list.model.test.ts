@@ -33,9 +33,9 @@ describe('chat list display helpers', () => {
     expect(buildCharacterChatsUrl('月 光', 2, 10)).toBe('/api/chat/characters?page=2&limit=10&q=%E6%9C%88%20%E5%85%89');
   });
 
-  it('opens the latest persisted mode session from a character entry', () => {
-    expect(getCharacterChatUrl('session-free')).toBe('/pages/chat/index?sessionId=session-free');
-    expect(getCharacterChatUrl('session/with space')).toBe('/pages/chat/index?sessionId=session%2Fwith%20space');
+  it('opens the free-mode chat entry from a character id', () => {
+    expect(getCharacterChatUrl('character-id')).toBe('/pages/chat/index?characterId=character-id&mode=free');
+    expect(getCharacterChatUrl('character/id with space')).toBe('/pages/chat/index?characterId=character%2Fid%20with%20space&mode=free');
   });
 });
 
