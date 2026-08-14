@@ -87,6 +87,28 @@ describe('generateReturnMessageContent', () => {
     vi.unstubAllEnvs();
   });
 
+  it('角色 Agent 架构下 agentId 缺失时抛错（fail-closed），不调用 streamChat', async () => {
+    vi.resetModules();
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+
+    const { generateReturnMessageContent: roleplayGenerate } = await import('../generator.js');
+
+    await expect(roleplayGenerate({ ...character, agentId: null })).rejects.toThrow(/agentId/i);
+    expect(mockStreamChat).not.toHaveBeenCalled();
+  });
+
+  it('非开关模式下 agentId 缺失不影响旧路径（仍直拼角色 prompt 生成）', async () => {
+    mockStream([
+      { type: 'delta', content: '回来吧。' },
+      { type: 'done', fallback: false },
+    ]);
+
+    const content = await generateReturnMessageContent({ ...character, agentId: null });
+
+    expect(content).toBe('回来吧。');
+    expect(mockStreamChat).toHaveBeenCalledTimes(1);
+  });
+
   it('超过 200 字符时按码点截断到 200，不切坏代理对', async () => {
     const longText = '😀'.repeat(250);
     mockStream([

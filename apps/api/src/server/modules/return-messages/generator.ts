@@ -38,31 +38,41 @@ export interface ReturnMessageGenerationTarget {
  * 生成一条角色回访留言。
  * 开关内：走角色 Agent（agentId + userId + scope=free + noPersist），不再直拼角色 prompt；
  * 关闭开关：保持现状（角色 prompt + 固定指令）。
- * 失败/超时/空内容时用运营模板兜底。永不抛错、永不返回空字符串。
+ * 失败/超时/空内容时用运营模板兜底。永不返回空字符串。
+ * 唯一例外：开关内 agentId 缺失属数据完整性错误，直接抛错（fail-closed），
+ * 绝不回退默认 agent 调 FastClaw（FastClaw resolveAgent 对缺 agent-id 静默降级，角色身份会丢失）。
  */
 export async function generateReturnMessageContent(target: ReturnMessageGenerationTarget): Promise<string> {
+  // systemPrompt/options 为纯本地构造，放在 try 之外：网络失败/超时才走模板兜底，
+  // 而 roleplay 模式下 agentId 缺失属数据完整性错误，必须抛错（fail-closed），
+  // 绝不 `?? undefined` 直传让 FastClaw 静默回退默认 agent（角色身份丢失）。
+  let systemPrompt: string;
+  let options: Parameters<typeof streamChat>[2] = { timeoutMs: RETURN_MESSAGE_TIMEOUT_MS };
+  if (config.useRoleplayAgents) {
+    if (!target.agentId) {
+      throw new Error(
+        `Cannot generate roleplay return message: agentId is missing for character "${target.characterName}"`,
+      );
+    }
+    systemPrompt = RETURN_MESSAGE_ROLEPLAY_SYSTEM_CONTEXT;
+    options = {
+      timeoutMs: RETURN_MESSAGE_TIMEOUT_MS,
+      agentId: target.agentId,
+      userId: target.userId,
+      scope: 'free',
+      noPersist: true,
+      ...(target.sessionKey ? { sessionId: target.sessionKey } : {}),
+    };
+  } else {
+    systemPrompt = [target.systemPrompt, target.personalityPrompt]
+      .filter((part): part is string => Boolean(part))
+      .join('\n\n');
+  }
+
   const deltas: string[] = [];
   let sawDone = false;
 
   try {
-    let systemPrompt: string;
-    let options: Parameters<typeof streamChat>[2] = { timeoutMs: RETURN_MESSAGE_TIMEOUT_MS };
-    if (config.useRoleplayAgents) {
-      systemPrompt = RETURN_MESSAGE_ROLEPLAY_SYSTEM_CONTEXT;
-      options = {
-        timeoutMs: RETURN_MESSAGE_TIMEOUT_MS,
-        agentId: target.agentId ?? undefined,
-        userId: target.userId,
-        scope: 'free',
-        noPersist: true,
-        ...(target.sessionKey ? { sessionId: target.sessionKey } : {}),
-      };
-    } else {
-      systemPrompt = [target.systemPrompt, target.personalityPrompt]
-        .filter((part): part is string => Boolean(part))
-        .join('\n\n');
-    }
-
     for await (const event of streamChat(systemPrompt, FIXED_RETURN_MESSAGE_INSTRUCTIONS, options)) {
       if (event.type === 'delta') {
         deltas.push(event.content);

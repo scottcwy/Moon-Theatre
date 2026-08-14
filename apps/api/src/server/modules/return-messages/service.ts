@@ -325,26 +325,23 @@ async function deliverReturnMessage(
     // FastClaw 端按 messageId 幂等（重复 append 静默跳过）；失败抛错回滚整笔投递，
     // 下次 sweep/check 重试（窗口记录未提交，不会出现「账本有、会话无」的孤儿留言）。
     if (config.useRoleplayAgents) {
+      // fail-closed：seed 契约保证 characters.agent_id 19/19，缺失属于数据问题；
+      // 抛错回滚整笔投递（不写账本、不 append），绝不静默跳过留下「账本有、会话无」孤儿留言。
       if (!agentId) {
-        // seed 契约保证 characters.agent_id 19/19；缺失属于数据问题，显式告警而非静默。
-        console.warn({
-          event: 'return_message_append_skipped_no_agent_id',
-          userId,
-          characterId,
-          sessionId,
-        });
-      } else {
-        await appendSessionMessage({
-          agentId,
-          userId,
-          scope: 'free',
-          sessionKey: sessionId,
-          role: 'assistant',
-          content,
-          messageId: message.id,
-          timeoutMs: RETURN_MESSAGE_TIMEOUT_MS,
-        });
+        throw new Error(
+          `Cannot deliver roleplay return message: agentId is missing for character ${characterId}`,
+        );
       }
+      await appendSessionMessage({
+        agentId,
+        userId,
+        scope: 'free',
+        sessionKey: sessionId,
+        role: 'assistant',
+        content,
+        messageId: message.id,
+        timeoutMs: RETURN_MESSAGE_TIMEOUT_MS,
+      });
     }
 
     return true;

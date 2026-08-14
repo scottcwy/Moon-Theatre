@@ -487,6 +487,25 @@ describe('generateForWindow', () => {
     await expect(generateForWindow('user-1', 'char-1', 'recent', windowStart)).rejects.toThrow('append failed');
   });
 
+  it('角色 Agent 架构下 agentId 缺失时抛错回滚（fail-closed），不 append、不再 warn+跳过', async () => {
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { generateForWindow } = await import('../service.js');
+    limitOnce([{ ...characterRow, agentId: null }]); // character lookup（agentId 缺失）
+    insertReturningMock
+      .mockResolvedValueOnce([{ id: 'crm-1' }]) // delivery metadata（先占位）
+      .mockResolvedValueOnce([{ id: 'session-1' }]) // create free session
+      .mockResolvedValueOnce([{ id: 'message-1' }]); // write message
+    mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
+
+    await expect(generateForWindow('user-1', 'char-1', 'recent', windowStart)).rejects.toThrow(/agentId/i);
+    expect(mockAppendSessionMessage).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'return_message_append_skipped_no_agent_id' }),
+    );
+    warnSpy.mockRestore();
+  });
+
   it('delivers into the existing active free session without creating a new one', async () => {
     const { generateForWindow } = await import('../service.js');
     limitOnce([characterRow]); // character prompt lookup
