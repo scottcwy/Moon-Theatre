@@ -31,6 +31,10 @@ type Memory struct {
 	store     MemoryStore
 	userID    string
 	agentID   string
+	// scope is the roleplay memory scope (F7): "" (legacy), "free", or
+	// "script:<id>". It selects the agent_files filename namespace
+	// (shared/MEMORY.md vs script_<id>/MEMORY.md) for roleplay agents.
+	scope string
 }
 
 func NewMemory(workspace string) *Memory {
@@ -50,6 +54,9 @@ func NewMemoryWithStoreForUser(workspace string, st MemoryStore, userID, agentID
 // the store layer scope correctly. The store falls back to DefaultUserID
 // when no user is on the context, but going through here is explicit and
 // keeps callers from accidentally writing under "".
+// SetScope configures the roleplay memory scope for filename routing.
+func (m *Memory) SetScope(scope string) { m.scope = scope }
+
 func (m *Memory) ctx() context.Context {
 	if m.userID == "" {
 		return context.Background()

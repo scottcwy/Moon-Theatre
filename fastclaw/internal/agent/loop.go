@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/codeany-ai/open-agent-sdk-go/costtracker"
@@ -63,15 +65,109 @@ type Agent struct {
 	workspaceStore workspace.Store
 	skillsLearner  *SkillsLearner
 	turnCount      int
-	engine         *sdkEngine
-	costTracker    *costtracker.Tracker
-	agentID        string
+	turnMu         sync.Mutex // serializes the legacy (non-roleplay) turnCount (F2 P0)
+	// perUserCtx caches roleplay per-(userID, scopeKey) contexts (F2):
+	// memory, sessions and turnCount are isolated per chatter+scope,
+	// lazily created on first turn. Non-roleplay agents never use it.
+	perUserCtx sync.Map // key userCtxKey, value *userContext
+	// sessionStoreFactory builds a session store bound to the chatter
+	// userID so per-chatter session managers persist under the chatter
+	// row (F2/F8 ownership).
+	sessionStoreFactory func(userID string) session.SessionStore
+	engine              *sdkEngine
+	costTracker         *costtracker.Tracker
+	agentID             string
 	// sandboxPool is the per-user (agent + session) sandbox pool. Set
 	// once at boot/hot-reload by attachSandboxToAgents; bindSession
 	// pulls a session-scoped executor from it at the top of every turn
 	// so concurrent sessions of the same agent get isolated containers
 	// + isolated /workspace mounts.
 	sandboxPool sandbox.ExecutorPool
+}
+
+// userCtxKey identifies a roleplay agent's per-user context.
+type userCtxKey struct {
+	userID   string
+	scopeKey string
+}
+
+// userContext is the per-(userID, scopeKey) state a roleplay agent keeps:
+// its own scope-routed Memory, its own session manager (store user_id =
+// chatter, so F8 ownership checks work), and its own turn counter
+// (AutoPersist trigger).
+type userContext struct {
+	memory    *Memory
+	sessions  *session.Manager
+	turnMu    sync.Mutex
+	turnCount int
+}
+
+// scopeKey maps a validated F1 scope to the agent_files namespace used by
+// F7: "free" (or empty) -> "shared", "script:<id>" -> "script_<id>".
+func scopeKey(scope string) string {
+	if scope == "" || scope == "free" {
+		return "shared"
+	}
+	if strings.HasPrefix(scope, "script:") {
+		return "script_" + strings.TrimPrefix(scope, "script:")
+	}
+	return scope
+}
+
+// resolveUserContext returns the per-(userID, scopeKey) context for a
+// roleplay turn, lazily creating it on first use. Non-roleplay agents
+// return nil and keep using the agent-level (owner) sessions/memory so
+// legacy behavior is unchanged.
+func (a *Agent) resolveUserContext(msg bus.InboundMessage) *userContext {
+	if !a.roleplay || msg.UserID == "" {
+		return nil
+	}
+	key := userCtxKey{userID: msg.UserID, scopeKey: scopeKey(msg.Scope)}
+	if v, ok := a.perUserCtx.Load(key); ok {
+		return v.(*userContext)
+	}
+	uc := &userContext{
+		memory:   a.newUserMemory(msg.UserID, msg.Scope),
+		sessions: a.newUserSessionManager(msg.UserID),
+	}
+	actual, _ := a.perUserCtx.LoadOrStore(key, uc)
+	return actual.(*userContext)
+}
+
+func (a *Agent) newUserMemory(userID, scope string) *Memory {
+	var m *Memory
+	if a.memoryStore != nil {
+		m = NewMemoryWithStoreForUser(a.homePath, a.memoryStore, userID, a.name)
+	} else {
+		m = NewMemory(filepath.Join(a.homePath, "users", userID))
+	}
+	m.SetScope(scope)
+	return m
+}
+
+func (a *Agent) newUserSessionManager(userID string) *session.Manager {
+	dataDir := filepath.Join(a.homePath, "sessions", userID)
+	if a.sessionStoreFactory != nil {
+		return session.NewManagerWithStoreForUser(dataDir, a.sessionStoreFactory(userID), userID, a.name)
+	}
+	return session.NewManager(dataDir)
+}
+
+// turnContextBuilder returns the ContextBuilder for one turn. Roleplay
+// agents get a shallow copy stamped with the chatter userID + that user's
+// Memory so identity files read chatter-first with owner fallback (F3)
+// and long-term memory is per-user / scope-routed (F7). Non-roleplay
+// agents reuse the base builder (legacy behavior). Copying per turn also
+// keeps the per-user view consistent with hot reloads of a.ctxBuilder
+// (ReloadWorkspaceFiles / refreshSkillsFromStore).
+func (a *Agent) turnContextBuilder(uc *userContext, msg bus.InboundMessage) *ContextBuilder {
+	if uc == nil {
+		return a.ctxBuilder
+	}
+	cb := *a.ctxBuilder
+	cb.userID = msg.UserID
+	cb.memory = uc.memory
+	return &cb
 }
 
 // SetSandboxPool wires the per-(agent,session) executor pool. Called by
@@ -572,6 +668,7 @@ func (a *Agent) turnMessages(systemPrompt, override string, sessionMsgs []provid
 func (a *Agent) handleMessageWithoutTools(
 	ctx context.Context,
 	msg bus.InboundMessage,
+	uc *userContext,
 	sess *session.Session,
 	messages []provider.Message,
 ) string {
@@ -612,7 +709,7 @@ func (a *Agent) handleMessageWithoutTools(
 	sess.Append(assistantMsg)
 	emitEvent(ctx, ChatEvent{Type: "content", Data: map[string]any{"content": resp.Content}})
 	emitEvent(ctx, ChatEvent{Type: "done"})
-	a.runPostTurn(ctx, append(messages, assistantMsg), 0)
+	a.runPostTurn(ctx, uc, append(messages, assistantMsg), 0)
 	return resp.Content
 }
 
@@ -626,7 +723,13 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	}
 
 	a.refreshSkillsFromStore()
-	sess := a.sessions.Get(msg.Channel, msg.ChatID)
+	uc := a.resolveUserContext(msg)
+	var sess *session.Session
+	if uc != nil {
+		sess = uc.sessions.Get(msg.Channel, msg.ChatID)
+	} else {
+		sess = a.sessions.Get(msg.Channel, msg.ChatID)
+	}
 	// Bind the registry to this chat's session so workspace.Store reads
 	// + writes get session-scoped paths and (when a sandbox pool is
 	// wired) the executor used by exec/read_file/list_dir is tied to a
@@ -646,7 +749,8 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	// Hook: BeforeSystemPrompt
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: BeforeSystemPrompt, UserID: a.ownerUserID})
 
-	systemPrompt := a.ctxBuilder.BuildSystemPrompt()
+	cb := a.turnContextBuilder(uc, msg)
+	systemPrompt := cb.BuildSystemPrompt()
 	if !a.roleplay {
 		systemPrompt = selectSystemPrompt(systemPrompt, msg.SystemPromptOverride)
 	}
@@ -697,7 +801,7 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	messages := a.turnMessages(systemPrompt, msg.SystemPromptOverride, sessionMsgs)
 
 	if a.maxToolIterations == 0 {
-		return a.handleMessageWithoutTools(ctx, msg, sess, messages)
+		return a.handleMessageWithoutTools(ctx, msg, uc, sess, messages)
 	}
 	toolDefs := a.registry.Definitions()
 
@@ -753,7 +857,7 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 			sess.Append(provider.Message{Role: "assistant", Content: resp.Content, Thinking: resp.Thinking, Timestamp: time.Now().UnixMilli(), RawAssistant: resp.RawAssistant})
 			emitEvent(ctx, ChatEvent{Type: "content", Data: map[string]any{"content": resp.Content}})
 			emitEvent(ctx, ChatEvent{Type: "done"})
-			a.runPostTurn(ctx, messages, totalToolCalls)
+			a.runPostTurn(ctx, uc, messages, totalToolCalls)
 			return resp.Content
 		}
 
@@ -911,7 +1015,7 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 		}
 	}
 
-	a.runPostTurn(ctx, messages, totalToolCalls)
+	a.runPostTurn(ctx, uc, messages, totalToolCalls)
 	slog.Warn("max tool iterations reached", "agent", a.name, "max", a.maxToolIterations)
 	return "I've reached the maximum number of tool iterations. Here's what I have so far."
 }
@@ -962,8 +1066,23 @@ func padOrphanToolResults(sess *session.Session) {
 }
 
 // runPostTurn fires PostTurn hooks and handles auto-persist and skills learning.
-func (a *Agent) runPostTurn(ctx context.Context, messages []provider.Message, toolCallCount int) {
-	a.turnCount++
+// Roleplay turns pass their per-(userID, scopeKey) userContext so the turn
+// counter (and AutoPersist) stay per-user (F2); nil means legacy non-roleplay
+// and uses the agent-level counter, now guarded by a.turnMu (F2 P0 — the old
+// unlocked increment was a data race under concurrent turns).
+func (a *Agent) runPostTurn(ctx context.Context, uc *userContext, messages []provider.Message, toolCallCount int) {
+	var turnCount int
+	if uc != nil {
+		uc.turnMu.Lock()
+		uc.turnCount++
+		turnCount = uc.turnCount
+		uc.turnMu.Unlock()
+	} else {
+		a.turnMu.Lock()
+		a.turnCount++
+		turnCount = a.turnCount
+		a.turnMu.Unlock()
+	}
 
 	// Index user/assistant messages in FTS
 	if a.ftsStore != nil {
@@ -979,19 +1098,23 @@ func (a *Agent) runPostTurn(ctx context.Context, messages []provider.Message, to
 		AgentName:     a.name,
 		Point:         PostTurn,
 		Messages:      messages,
-		TurnCount:     a.turnCount,
+		TurnCount:     turnCount,
 		ToolCallCount: toolCallCount,
 		Workspace:     a.homePath,
 		UserID:        a.ownerUserID,
 	})
 
-	// Auto-persist memory every N turns
-	if a.memoryCfg.AutoPersist.Enabled && a.turnCount%a.memoryCfg.AutoPersist.EveryNTurns == 0 {
+	// Auto-persist memory every N turns (per-user counter for roleplay)
+	if a.memoryCfg.AutoPersist.Enabled && turnCount%a.memoryCfg.AutoPersist.EveryNTurns == 0 {
 		model := a.memoryCfg.AutoPersist.Model
 		if model == "" {
 			model = a.model
 		}
-		go AutoPersistMemory(ctx, a.memory, a.provider, model, a.thinking, messages)
+		mem := a.memory
+		if uc != nil {
+			mem = uc.memory
+		}
+		go AutoPersistMemory(ctx, mem, a.provider, model, a.thinking, messages)
 	}
 
 	// Skills learner
@@ -1019,10 +1142,17 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 	}
 
 	a.refreshSkillsFromStore()
-	sess := a.sessions.Get(msg.Channel, msg.ChatID)
+	uc := a.resolveUserContext(msg)
+	var sess *session.Session
+	if uc != nil {
+		sess = uc.sessions.Get(msg.Channel, msg.ChatID)
+	} else {
+		sess = a.sessions.Get(msg.Channel, msg.ChatID)
+	}
 	a.bindSession(ctx, msg.ChatID)
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: BeforeSystemPrompt, UserID: a.ownerUserID})
-	systemPrompt := a.ctxBuilder.BuildSystemPrompt()
+	cb := a.turnContextBuilder(uc, msg)
+	systemPrompt := cb.BuildSystemPrompt()
 	if !a.roleplay {
 		systemPrompt = selectSystemPrompt(systemPrompt, msg.SystemPromptOverride)
 	}
@@ -1065,7 +1195,7 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 	messages := a.turnMessages(systemPrompt, msg.SystemPromptOverride, sessionMsgs)
 
 	if a.maxToolIterations == 0 {
-		return a.stringStream(a.handleMessageWithoutTools(ctx, msg, sess, messages))
+		return a.stringStream(a.handleMessageWithoutTools(ctx, msg, uc, sess, messages))
 	}
 	toolDefs := a.registry.Definitions()
 
@@ -1257,6 +1387,12 @@ func (a *Agent) ReloadWorkspaceFiles() {
 	if a.memoryStore != nil {
 		a.ctxBuilder.store = a.memoryStore
 		a.ctxBuilder.agentID = a.name
+		// F2: NewContextBuilder leaves userID empty; without re-setting
+		// it the store reads fall back to an empty user_id and then to
+		// pod-local FS, losing per-user identity/memory rows. The base
+		// builder is owner-scoped; roleplay turns stamp the chatter onto
+		// a per-turn shallow copy (turnContextBuilder).
+		a.ctxBuilder.userID = a.ownerUserID
 	}
 }
 

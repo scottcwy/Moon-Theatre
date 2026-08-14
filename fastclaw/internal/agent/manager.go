@@ -39,15 +39,25 @@ func providerForAgent(rc config.ResolvedAgent, shared provider.Provider) provide
 type ManagerOption func(*managerOpts)
 
 type managerOpts struct {
-	sessionStore    session.SessionStore
-	memoryStore     MemoryStore
-	workspaceStore  workspace.Store
-	userID          string
-	globalSkillsCfg config.SkillsCfg
+	sessionStore        session.SessionStore
+	sessionStoreFactory func(userID string) session.SessionStore
+	memoryStore         MemoryStore
+	workspaceStore      workspace.Store
+	userID              string
+	globalSkillsCfg     config.SkillsCfg
 }
 
 func WithSessionStore(st session.SessionStore) ManagerOption {
 	return func(o *managerOpts) { o.sessionStore = st }
+}
+
+// WithSessionStoreFactory supplies a per-chatter session store builder
+// (F2). Roleplay agents lazily construct per-(userID, scopeKey) session
+// managers whose store user_id is the chatter, so sessions.user_id lands
+// on the chatter row (F8 ownership checks depend on this). The factory
+// receives the chatter userID and must return a store scoped to it.
+func WithSessionStoreFactory(f func(userID string) session.SessionStore) ManagerOption {
+	return func(o *managerOpts) { o.sessionStoreFactory = f }
 }
 
 func WithMemoryStore(st MemoryStore) ManagerOption {
@@ -151,6 +161,7 @@ func (m *Manager) buildAgent(rc config.ResolvedAgent, prov provider.Provider, mb
 	if m.opts.sessionStore != nil {
 		ag.sessions = session.NewManagerWithStoreForUser(rc.Home+"/sessions", m.opts.sessionStore, m.uid, rc.ID)
 	}
+	ag.sessionStoreFactory = m.opts.sessionStoreFactory
 	if m.opts.memoryStore != nil {
 		ag.memory = NewMemoryWithStoreForUser(rc.Home, m.opts.memoryStore, m.uid, rc.ID)
 		ag.ctxBuilder.store = m.opts.memoryStore

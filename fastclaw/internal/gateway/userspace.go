@@ -431,7 +431,15 @@ func loadUserSpace(ctx context.Context, userID string, mb *bus.MessageBus, st st
 		agent.WithUserID(userID),
 		agent.WithGlobalSkillsCfg(cfg.Skills),
 		agent.WithSessionStore(session.NewStoreAdapter(st, userID)),
-		agent.WithMemoryStore(agent.NewMemoryStoreAdapter(st)),
+		// F2 per-chatter session injection: roleplay agents build a
+		// session manager per (userID, scopeKey) lazily, with the store
+		// user_id = chatter so sessions.user_id lands on the chatter
+		// row (F8 ownership checks depend on this). The owner adapter
+		// above stays for non-roleplay agents (legacy behavior).
+		agent.WithSessionStoreFactory(func(chatter string) session.SessionStore {
+			return session.NewStoreAdapter(st, chatter)
+		}),
+		agent.WithMemoryStore(agent.NewMemoryStoreAdapter(st, userID)),
 	}
 	if ws != nil {
 		managerOpts = append(managerOpts, agent.WithWorkspaceStore(ws))
