@@ -40,6 +40,7 @@ type Agent struct {
 	temperature       float64
 	maxToolIterations int
 	thinking          string
+	roleplay          bool
 	homePath          string // agent's home: SOUL.md, sessions, memory, skills
 	workspacePath     string // working dir where agent creates user files
 	homeDir           string // FastClaw root, ~/.fastclaw
@@ -249,6 +250,7 @@ func NewAgentWithSkillsCfg(rc config.ResolvedAgent, prov provider.Provider, mb *
 		temperature:       rc.Temperature,
 		maxToolIterations: rc.MaxToolIterations,
 		thinking:          rc.Thinking,
+		roleplay:          rc.Roleplay,
 		homePath:          rc.Home,
 		workspacePath:     workspace,
 		homeDir:           homeDir,
@@ -260,6 +262,8 @@ func NewAgentWithSkillsCfg(rc config.ResolvedAgent, prov provider.Provider, mb *
 	}
 
 	// Connect MCP servers and register their tools
+	ag.SetRoleplay(rc.Roleplay)
+
 	if len(rc.MCPServers) > 0 {
 		mcpMgr := mcp.NewManager(rc.MCPServers)
 		ag.mcpMgr = mcpMgr
@@ -504,6 +508,7 @@ type RuntimeSpec struct {
 	Temperature       float64 `json:"temperature"`
 	MaxToolIterations int     `json:"maxToolIterations"`
 	Thinking          string  `json:"thinking,omitempty"`
+	Roleplay          bool    `json:"roleplay"`
 }
 
 // RuntimeSpec returns the non-secret runtime knobs that affect model latency.
@@ -515,6 +520,25 @@ func (a *Agent) RuntimeSpec() RuntimeSpec {
 		Temperature:       a.temperature,
 		MaxToolIterations: a.maxToolIterations,
 		Thinking:          a.thinking,
+		Roleplay:          a.roleplay,
+	}
+}
+
+// IsRoleplay reports whether this agent runs in roleplay mode (F4). Roleplay
+// agents get per-(userID, scopeKey) contexts, no runtime/tool preamble in the
+// system prompt, and request-scoped system prompts as Turn Context instead of
+// wholesale replacement.
+func (a *Agent) IsRoleplay() bool {
+	return a.roleplay
+}
+
+// SetRoleplay flips roleplay mode on the agent and its context builder. Used
+// by hot-reload paths (UpdateConfig) that rebuild runtime knobs without
+// recreating the Agent.
+func (a *Agent) SetRoleplay(b bool) {
+	a.roleplay = b
+	if a.ctxBuilder != nil {
+		a.ctxBuilder.SetRoleplay(b)
 	}
 }
 
@@ -528,6 +552,21 @@ func selectSystemPrompt(defaultPrompt string, override string) string {
 		return defaultPrompt
 	}
 	return override
+}
+
+// turnMessages assembles the provider message list for one turn. Roleplay
+// agents (F4) treat the request-scoped SystemPromptOverride as Turn Context:
+// the base system prompt stays, and the override is inserted as an additional
+// system-role message between the prompt and the history — never as a user
+// message (which would pollute user-side semantics). Non-roleplay keeps the
+// legacy replace behavior via selectSystemPrompt.
+func (a *Agent) turnMessages(systemPrompt, override string, sessionMsgs []provider.Message) []provider.Message {
+	messages := make([]provider.Message, 0, len(sessionMsgs)+2)
+	messages = append(messages, provider.Message{Role: "system", Content: systemPrompt})
+	if a.roleplay && strings.TrimSpace(override) != "" {
+		messages = append(messages, provider.Message{Role: "system", Content: override})
+	}
+	return append(messages, sessionMsgs...)
 }
 
 func (a *Agent) handleMessageWithoutTools(
@@ -607,7 +646,10 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	// Hook: BeforeSystemPrompt
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: BeforeSystemPrompt, UserID: a.ownerUserID})
 
-	systemPrompt := selectSystemPrompt(a.ctxBuilder.BuildSystemPrompt(), msg.SystemPromptOverride)
+	systemPrompt := a.ctxBuilder.BuildSystemPrompt()
+	if !a.roleplay {
+		systemPrompt = selectSystemPrompt(systemPrompt, msg.SystemPromptOverride)
+	}
 
 	// Hook: AfterSystemPrompt
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: AfterSystemPrompt, UserID: a.ownerUserID})
@@ -652,9 +694,7 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 		slog.Info("context compacted", "agent", a.name, "log_file", compactResult.LogFile)
 	}
 
-	messages := make([]provider.Message, 0, len(sessionMsgs)+1)
-	messages = append(messages, provider.Message{Role: "system", Content: systemPrompt})
-	messages = append(messages, sessionMsgs...)
+	messages := a.turnMessages(systemPrompt, msg.SystemPromptOverride, sessionMsgs)
 
 	if a.maxToolIterations == 0 {
 		return a.handleMessageWithoutTools(ctx, msg, sess, messages)
@@ -982,7 +1022,10 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 	sess := a.sessions.Get(msg.Channel, msg.ChatID)
 	a.bindSession(ctx, msg.ChatID)
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: BeforeSystemPrompt, UserID: a.ownerUserID})
-	systemPrompt := selectSystemPrompt(a.ctxBuilder.BuildSystemPrompt(), msg.SystemPromptOverride)
+	systemPrompt := a.ctxBuilder.BuildSystemPrompt()
+	if !a.roleplay {
+		systemPrompt = selectSystemPrompt(systemPrompt, msg.SystemPromptOverride)
+	}
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: AfterSystemPrompt, UserID: a.ownerUserID})
 
 	// Store raw user message — same multi-image flatten as HandleMessage.
@@ -1019,9 +1062,7 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 		sessionMsgs = compactResult.Messages
 	}
 
-	messages := make([]provider.Message, 0, len(sessionMsgs)+1)
-	messages = append(messages, provider.Message{Role: "system", Content: systemPrompt})
-	messages = append(messages, sessionMsgs...)
+	messages := a.turnMessages(systemPrompt, msg.SystemPromptOverride, sessionMsgs)
 
 	if a.maxToolIterations == 0 {
 		return a.stringStream(a.handleMessageWithoutTools(ctx, msg, sess, messages))
@@ -1163,6 +1204,7 @@ func (a *Agent) UpdateConfig(rc config.ResolvedAgent) {
 	a.maxTokens = rc.MaxTokens
 	a.temperature = rc.Temperature
 	a.maxToolIterations = rc.MaxToolIterations
+	a.SetRoleplay(rc.Roleplay)
 	// Sandbox flags drive the system prompt's "Working Directory" / "home
 	// dir" description and the sandbox-capabilities block. Without this
 	// propagation an agent that existed before sandbox was enabled keeps

@@ -8,6 +8,7 @@ type InboundMessage struct {
 	UserID               string   // user identifier
 	OwnerUserID          string   // fastclaw user that owns the agent (for multi-user routing)
 	MessageID            string   // unique message identifier within the chat
+	Scope                string   // memory scope: "free" | "script:<scriptId>" (roleplay agents, F1/F7)
 	Text                 string   // message text
 	SystemPromptOverride string   // optional request-scoped system prompt for OpenAI-compatible API calls
 	PeerKind             string   // "group" or "dm"

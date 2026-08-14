@@ -159,3 +159,86 @@ func TestMergedAgentConfigEntryOverridesDefaultThinking(t *testing.T) {
 		t.Fatalf("thinking = %q, want adaptive from entry override", resolved.Thinking)
 	}
 }
+
+func TestAgentEntryUnmarshalRoleplay(t *testing.T) {
+	var e AgentEntry
+	if err := json.Unmarshal([]byte(`{"id":"agt_rp","roleplay":true}`), &e); err != nil {
+		t.Fatal(err)
+	}
+	if !e.Roleplay {
+		t.Fatal("Roleplay = false, want true")
+	}
+	if !e.HasRoleplay() {
+		t.Fatal("HasRoleplay = false, want true")
+	}
+}
+
+func TestAgentEntryUnmarshalExplicitFalseRoleplay(t *testing.T) {
+	var e AgentEntry
+	if err := json.Unmarshal([]byte(`{"id":"agt_rp","roleplay":false}`), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Roleplay {
+		t.Fatal("Roleplay = true, want explicit false")
+	}
+	if !e.HasRoleplay() {
+		t.Fatal("HasRoleplay = false for explicit false, want true (must be able to clear a roleplay default)")
+	}
+}
+
+func TestAgentEntryUnmarshalMissingRoleplay(t *testing.T) {
+	var e AgentEntry
+	if err := json.Unmarshal([]byte(`{"id":"agt_rp"}`), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.HasRoleplay() {
+		t.Fatal("HasRoleplay = true when roleplay was never configured")
+	}
+}
+
+func TestAgentDefaultsHasRoleplay(t *testing.T) {
+	var d AgentDefaults
+	if err := json.Unmarshal([]byte(`{"roleplay":false}`), &d); err != nil {
+		t.Fatal(err)
+	}
+	if !d.HasRoleplay() {
+		t.Fatal("HasRoleplay = false for explicit false default, want true")
+	}
+}
+
+func TestMergedAgentConfigRoleplayFromEntry(t *testing.T) {
+	cfg := &Config{}
+	resolved := cfg.MergedAgentConfig(AgentEntry{ID: "agt_rp", Roleplay: true, roleplaySet: true})
+	if !resolved.Roleplay {
+		t.Fatal("resolved.Roleplay = false, want true from agent entry")
+	}
+}
+
+func TestMergedAgentConfigRoleplayFromDefaults(t *testing.T) {
+	var cfg Config
+	if err := json.Unmarshal([]byte(`{"agents":{"defaults":{"roleplay":true}}}`), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	resolved := cfg.MergedAgentConfig(AgentEntry{ID: "agt_rp"})
+	if !resolved.Roleplay {
+		t.Fatal("resolved.Roleplay = false, want true from defaults")
+	}
+}
+
+func TestAgentDefaultsMarshalKeepsExplicitFalseRoleplay(t *testing.T) {
+	var defaults AgentDefaults
+	if err := json.Unmarshal([]byte(`{"roleplay":false}`), &defaults); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(defaults)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := got["roleplay"]; !ok || v != false {
+		t.Fatalf("marshaled roleplay = %v (present=%v), want explicit false", v, ok)
+	}
+}

@@ -142,6 +142,11 @@ func (m *Manager) buildAgent(rc config.ResolvedAgent, prov provider.Provider, mb
 	// zero-value SkillsCfg, which is why FAL_KEY / REPLICATE_API_TOKEN
 	// were never reaching the sandbox.
 	ag := NewAgentWithSkillsCfg(rc, providerForAgent(rc, prov), mb, homeDir, m.opts.globalSkillsCfg)
+	// Roleplay passthrough (F1/F4): NewAgentWithSkillsCfg already copies
+	// rc.Roleplay onto the Agent + context builder; keep the explicit call
+	// here so hot-reload/onboarding paths that construct agents via
+	// buildAgent never drift from the resolved config.
+	ag.SetRoleplay(rc.Roleplay)
 	ag.SetOwnerUserID(m.uid)
 	if m.opts.sessionStore != nil {
 		ag.sessions = session.NewManagerWithStoreForUser(rc.Home+"/sessions", m.opts.sessionStore, m.uid, rc.ID)

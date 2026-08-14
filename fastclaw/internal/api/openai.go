@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/fastclaw-ai/fastclaw/internal/agent"
@@ -65,6 +66,62 @@ type completionUsage struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
+// Header contract (F1): x-fastclaw-user-id identifies the chatter (falls
+// back to the agent owner for non-roleplay agents), x-fastclaw-scope selects
+// the memory namespace (free | script:<scriptId>), x-fastclaw-message-id
+// carries the product clientMessageId for session-level dedup (F9).
+const (
+	fastClawUserIDHeader    = "x-fastclaw-user-id"
+	fastClawScopeHeader     = "x-fastclaw-scope"
+	fastClawMessageIDHeader = "x-fastclaw-message-id"
+	fastClawNoPersistHeader = "x-fastclaw-no-persist"
+)
+
+// userIDRe and scopeScriptRe enforce the frozen header grammar. scriptId is
+// embedded into agent_files filenames (script_<id>/MEMORY.md), so the regex
+// is deliberately narrow to block path injection and cross-script chatter.
+var (
+	userIDRe      = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	scopeScriptRe = regexp.MustCompile(`^script:[A-Za-z0-9_-]{1,64}$`)
+)
+
+const userIDMaxLen = 64
+
+func validUserID(s string) bool {
+	return s != "" && len(s) <= userIDMaxLen && userIDRe.MatchString(s)
+}
+
+func validScope(s string) bool {
+	return s == "free" || scopeScriptRe.MatchString(s)
+}
+
+// resolveUserAndScope applies the F1 roleplay gate: roleplay agents require a
+// valid user-id and scope (400 handled by caller); non-roleplay agents fall
+// back to the agent owner / no-scope so legacy API clients keep working
+// during the compatibility window.
+func (s *Server) resolveUserAndScope(ag *agent.Agent, space *UserSpaceView, r *http.Request) (userID, scope string, errMsg string) {
+	userID = r.Header.Get(fastClawUserIDHeader)
+	scope = r.Header.Get(fastClawScopeHeader)
+	if ag.IsRoleplay() {
+		if !validUserID(userID) {
+			return "", "", "x-fastclaw-user-id is required for roleplay agents (non-empty, <=64 chars, [A-Za-z0-9_-])"
+		}
+		if !validScope(scope) {
+			return "", "", "x-fastclaw-scope is required for roleplay agents (free | script:<scriptId>, scriptId 1-64 chars [A-Za-z0-9_-])"
+		}
+		return userID, scope, ""
+	}
+	// Non-roleplay: keep legacy behavior. Missing/invalid headers fall back
+	// to the agent owner / no-scope instead of rejecting the request.
+	if !validUserID(userID) {
+		userID = space.UserID
+	}
+	if !validScope(scope) {
+		scope = ""
+	}
+	return userID, scope, ""
+}
+
 // HandleChatCompletions handles POST /v1/chat/completions.
 func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	var req chatCompletionRequest
@@ -101,6 +158,14 @@ func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, scope, gateErr := s.resolveUserAndScope(ag, space, r)
+	if gateErr != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error": map[string]string{"message": gateErr, "type": "invalid_request_error"},
+		})
+		return
+	}
+
 	// Build session key from header
 	sessionKey := r.Header.Get("x-fastclaw-session-key")
 	if sessionKey == "" {
@@ -132,7 +197,9 @@ func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	msg := bus.InboundMessage{
 		Channel:              "api",
 		ChatID:               sessionKey,
-		UserID:               "api-user",
+		UserID:               userID,
+		MessageID:            r.Header.Get(fastClawMessageIDHeader),
+		Scope:                scope,
 		Text:                 userText,
 		SystemPromptOverride: systemText,
 		PeerKind:             "dm",
@@ -141,6 +208,8 @@ func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	slog.Info("chat completion request",
 		"agent", ag.Name(),
 		"session", sessionKey,
+		"user", userID,
+		"scope", scope,
 		"stream", req.Stream != nil && *req.Stream,
 	)
 

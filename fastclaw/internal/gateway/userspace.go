@@ -312,6 +312,9 @@ func (sp *UserSpace) EnsureAgent(ctx context.Context, st store.Store, mb *bus.Me
 		if ovr.PolicyPreset != "" {
 			rc.PolicyPreset = ovr.PolicyPreset
 		}
+		if ovr.HasRoleplay() {
+			rc.Roleplay = ovr.Roleplay
+		}
 	}
 	ensureAgentHome(rc)
 	if ws != nil {
@@ -399,6 +402,9 @@ func loadUserSpace(ctx context.Context, userID string, mb *bus.MessageBus, st st
 			}
 			if agentOverride.PolicyPreset != "" {
 				rc.PolicyPreset = agentOverride.PolicyPreset
+			}
+			if agentOverride.HasRoleplay() {
+				rc.Roleplay = agentOverride.Roleplay
 			}
 		}
 		ensureAgentHome(rc)

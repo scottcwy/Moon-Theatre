@@ -190,3 +190,84 @@ func TestHandleAgentRuntimeSpecRejectsApikeyWithoutAgentAccess(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestHandleAgentRuntimeSpecExposesRoleplay(t *testing.T) {
+	mgr, err := agent.NewManager([]config.ResolvedAgent{{
+		ID:                "agt_roleplay",
+		Home:              t.TempDir(),
+		Model:             "openrouter/test-model",
+		MaxTokens:         768,
+		Temperature:       0.7,
+		MaxToolIterations: 0,
+		Roleplay:          true,
+	}}, &runtimeSpecProvider{}, bus.New(), agent.WithUserID("u_test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := NewServer(&runtimeSpecResolver{space: &UserSpaceView{
+		UserID: "u_test",
+		Agents: mgr,
+	}}, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/agents/agt_roleplay/runtime-spec", nil)
+	req.SetPathValue("id", "agt_roleplay")
+	req = req.WithContext(auth.WithIdentity(req.Context(), auth.Identity{
+		UserID:       "u_test",
+		AuthMethod:   "apikey",
+		APIKeyAgents: []string{"agt_roleplay"},
+	}))
+	rec := httptest.NewRecorder()
+
+	server.HandleAgentRuntimeSpec(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["roleplay"] != true {
+		t.Fatalf("roleplay = %v, want true", body["roleplay"])
+	}
+}
+
+func TestHandleAgentRuntimeSpecExposesNonRoleplayFalse(t *testing.T) {
+	mgr, err := agent.NewManager([]config.ResolvedAgent{{
+		ID:                "agt_legacy",
+		Home:              t.TempDir(),
+		Model:             "openrouter/test-model",
+		MaxTokens:         768,
+		Temperature:       0.7,
+		MaxToolIterations: 0,
+	}}, &runtimeSpecProvider{}, bus.New(), agent.WithUserID("u_test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := NewServer(&runtimeSpecResolver{space: &UserSpaceView{
+		UserID: "u_test",
+		Agents: mgr,
+	}}, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/agents/agt_legacy/runtime-spec", nil)
+	req.SetPathValue("id", "agt_legacy")
+	req = req.WithContext(auth.WithIdentity(req.Context(), auth.Identity{
+		UserID:       "u_test",
+		AuthMethod:   "apikey",
+		APIKeyAgents: []string{"agt_legacy"},
+	}))
+	rec := httptest.NewRecorder()
+
+	server.HandleAgentRuntimeSpec(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["roleplay"] != false {
+		t.Fatalf("roleplay = %v, want false", body["roleplay"])
+	}
+}

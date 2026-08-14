@@ -329,14 +329,17 @@ type AgentDefaults struct {
 	MaxToolIterations int     `json:"maxToolIterations,omitempty"`
 	Thinking          string  `json:"thinking,omitempty"`
 	PolicyPreset      string  `json:"policy,omitempty"`
+	Roleplay          bool    `json:"roleplay,omitempty"`
 
 	maxToolIterationsSet bool
+	roleplaySet          bool
 }
 
 func (d *AgentDefaults) UnmarshalJSON(data []byte) error {
 	type alias AgentDefaults
 	aux := &struct {
-		MaxToolIterations *int `json:"maxToolIterations"`
+		MaxToolIterations *int  `json:"maxToolIterations"`
+		Roleplay          *bool `json:"roleplay"`
 		*alias
 	}{
 		alias: (*alias)(d),
@@ -347,6 +350,10 @@ func (d *AgentDefaults) UnmarshalJSON(data []byte) error {
 	if aux.MaxToolIterations != nil {
 		d.MaxToolIterations = *aux.MaxToolIterations
 		d.maxToolIterationsSet = true
+	}
+	if aux.Roleplay != nil {
+		d.Roleplay = *aux.Roleplay
+		d.roleplaySet = true
 	}
 	return nil
 }
@@ -371,6 +378,9 @@ func (d AgentDefaults) MarshalJSON() ([]byte, error) {
 	if d.PolicyPreset != "" {
 		m["policy"] = d.PolicyPreset
 	}
+	if d.roleplaySet {
+		m["roleplay"] = d.Roleplay
+	}
 	return json.Marshal(m)
 }
 
@@ -379,6 +389,13 @@ func (d AgentDefaults) MarshalJSON() ([]byte, error) {
 // constructors keep their old ergonomics.
 func (d AgentDefaults) HasMaxToolIterations() bool {
 	return d.maxToolIterationsSet || d.MaxToolIterations != 0
+}
+
+// HasRoleplay reports whether roleplay was explicitly configured. An
+// explicit `false` still counts — without this, a per-agent override of
+// `roleplay:false` could not clear a roleplay default.
+func (d AgentDefaults) HasRoleplay() bool {
+	return d.roleplaySet || d.Roleplay
 }
 
 // AgentEntry is the in-memory shape of one agent row, used during
@@ -400,14 +417,17 @@ type AgentEntry struct {
 	Thinking          string                     `json:"thinking,omitempty"`
 	Sandbox           SandboxCfg                 `json:"sandbox,omitempty"`
 	PolicyPreset      string                     `json:"policy,omitempty"`
+	Roleplay          bool                       `json:"roleplay,omitempty"`
 
 	maxToolIterationsSet bool
+	roleplaySet          bool
 }
 
 func (e *AgentEntry) UnmarshalJSON(data []byte) error {
 	type alias AgentEntry
 	aux := &struct {
-		MaxToolIterations *int `json:"maxToolIterations"`
+		MaxToolIterations *int  `json:"maxToolIterations"`
+		Roleplay          *bool `json:"roleplay"`
 		*alias
 	}{
 		alias: (*alias)(e),
@@ -419,11 +439,20 @@ func (e *AgentEntry) UnmarshalJSON(data []byte) error {
 		e.MaxToolIterations = *aux.MaxToolIterations
 		e.maxToolIterationsSet = true
 	}
+	if aux.Roleplay != nil {
+		e.Roleplay = *aux.Roleplay
+		e.roleplaySet = true
+	}
 	return nil
 }
 
 func (e AgentEntry) HasMaxToolIterations() bool {
 	return e.maxToolIterationsSet || e.MaxToolIterations != 0
+}
+
+// HasRoleplay mirrors AgentDefaults.HasRoleplay for agent entries.
+func (e AgentEntry) HasRoleplay() bool {
+	return e.roleplaySet || e.Roleplay
 }
 
 // ChannelConfig holds per-channel runtime configuration. Built by the
@@ -587,6 +616,7 @@ type ResolvedAgent struct {
 	Temperature       float64
 	MaxToolIterations int
 	Thinking          string
+	Roleplay          bool
 	Skills            SkillsConfig
 	MCPServers        map[string]MCPServerConfig
 	Sandbox           SandboxCfg
@@ -696,6 +726,7 @@ func (cfg *Config) MergedAgentConfig(entry AgentEntry) ResolvedAgent {
 		Temperature:       cfg.Agents.Defaults.Temperature,
 		MaxToolIterations: cfg.Agents.Defaults.MaxToolIterations,
 		Thinking:          cfg.Agents.Defaults.Thinking,
+		Roleplay:          cfg.Agents.Defaults.Roleplay,
 		Sandbox:           cfg.Sandbox,
 		PolicyPreset:      cfg.Agents.Defaults.PolicyPreset,
 	}
@@ -717,6 +748,9 @@ func (cfg *Config) MergedAgentConfig(entry AgentEntry) ResolvedAgent {
 	}
 	if entry.PolicyPreset != "" {
 		resolved.PolicyPreset = entry.PolicyPreset
+	}
+	if entry.roleplaySet {
+		resolved.Roleplay = entry.Roleplay
 	}
 
 	if len(cfg.MCPServers) > 0 {

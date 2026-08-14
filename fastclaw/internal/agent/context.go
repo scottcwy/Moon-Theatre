@@ -23,11 +23,20 @@ var bootstrapFiles = []string{
 	"IDENTITY.md",
 }
 
+// roleplayBootstrapFiles is the F4 subset loaded for roleplay agents:
+// the identity persona (SOUL/IDENTITY) and the per-user profile (USER).
+// AGENTS/BOOTSTRAP/HEARTBEAT/TOOLS are runtime-agent guidance and are
+// skipped so the roleplay system prompt stays strictly in-character.
+var roleplayBootstrapFiles = []string{
+	"SOUL.md",
+	"USER.md",
+	"IDENTITY.md",
+}
 
 // GroupContext holds information about the group chat environment for system prompt injection.
 type GroupContext struct {
 	BotUsername string   // this agent's bot username
-	Teammates  []string // other agent names in the group
+	Teammates   []string // other agent names in the group
 }
 
 // ContextBuilder assembles the system prompt and runtime context.
@@ -40,9 +49,10 @@ type ContextBuilder struct {
 	thinking       string // off, low, medium, high, adaptive
 	sandboxEnabled bool
 	sandboxBackend string
-	store   MemoryStore
-	userID  string
-	agentID string
+	roleplay       bool // roleplay mode: no runtime/tool preamble, no skills, no self-update
+	store          MemoryStore
+	userID         string
+	agentID        string
 }
 
 // ctx returns a context tagged with this builder's user, used when reading
@@ -119,10 +129,12 @@ relative path, the runtime automatically places it in the right directory:
 - Every other relative path resolves against the working directory above.
 So to update your own identity, just pass "IDENTITY.md"; to save a document
 for the user, pass a meaningful filename like "report.md".`, runtime.GOOS, runtime.GOARCH, workdir, homeDesc)
-	parts = append(parts, runtimeInfo)
+	if !cb.roleplay {
+		parts = append(parts, runtimeInfo)
+	}
 
 	// 2. Sandbox capabilities (auto-injected when sandbox is enabled)
-	if cb.sandboxEnabled {
+	if !cb.roleplay && cb.sandboxEnabled {
 		sandboxPrompt := `# Code Execution Environment
 You have access to a sandbox environment for executing code. Key rules:
 - When the user asks you to write a script, calculate something, or process data, **always execute it immediately** using the exec tool. Do NOT just show code.
@@ -192,7 +204,11 @@ with open('/tmp/output.png', 'rb') as f:
 	}
 
 	// 3. Bootstrap files
-	for _, name := range bootstrapFiles {
+	names := bootstrapFiles
+	if cb.roleplay {
+		names = roleplayBootstrapFiles
+	}
+	for _, name := range names {
 		content := cb.loadFile(name)
 		if content != "" {
 			parts = append(parts, fmt.Sprintf("# %s\n%s", name, content))
@@ -200,7 +216,7 @@ with open('/tmp/output.png', 'rb') as f:
 	}
 
 	// 4. Skills
-	if cb.skillsSummary != "" {
+	if !cb.roleplay && cb.skillsSummary != "" {
 		parts = append(parts, fmt.Sprintf("# Skills\n%s", cb.skillsSummary))
 	}
 
@@ -211,7 +227,7 @@ with open('/tmp/output.png', 'rb') as f:
 	}
 
 	// 5. Group chat awareness
-	if cb.groupCtx != nil {
+	if !cb.roleplay && cb.groupCtx != nil {
 		groupInfo := fmt.Sprintf(`# Group Chat
 You are in a group chat. Your bot username is @%s.
 Other agents in this group: %s.
@@ -233,13 +249,15 @@ Messages from other bots will appear as "[BotName]: message" in the conversation
 	}
 
 	// 7. Self-updating workspace files guidance
-	parts = append(parts, `# Workspace Self-Update
+	if !cb.roleplay {
+		parts = append(parts, `# Workspace Self-Update
 You have the ability to update workspace files to maintain knowledge over time:
 - MEMORY.md: Update when you learn important facts, user preferences, or key decisions. This file is loaded into your context every conversation.
 - USER.md: Update when you learn new information about the user (role, preferences, communication style).
 - HEARTBEAT.md: Update to add/remove periodic tasks you should check on.
 - TOOLS.md: Update if you discover new tool usage patterns worth documenting.
 Use the write_file tool to update these files when appropriate. Keep entries concise and useful.`)
+	}
 
 	return strings.Join(parts, "\n\n---\n\n")
 }
@@ -262,6 +280,14 @@ func (cb *ContextBuilder) SetGroupContext(gc *GroupContext) {
 // SetThinking configures the thinking/reasoning level.
 func (cb *ContextBuilder) SetThinking(level string) {
 	cb.thinking = level
+}
+
+// SetRoleplay switches the builder into roleplay mode (F4). Roleplay agents
+// get a minimal system prompt: bootstrap files (SOUL/IDENTITY/USER) +
+// long-term memory + optional thinking — no runtime preamble, sandbox,
+// skills, group-chat, or workspace self-update guidance.
+func (cb *ContextBuilder) SetRoleplay(b bool) {
+	cb.roleplay = b
 }
 
 func (cb *ContextBuilder) buildThinkingPrompt() string {
