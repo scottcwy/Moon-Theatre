@@ -7,6 +7,63 @@ const CHAT_AGENT_MAX_TOKENS = 768;
 const CHAT_AGENT_MAX_TOOL_ITERATIONS = 0;
 const DB_CHECK_TIMEOUT_MS = 5000;
 
+// Frozen 19 role agent slugs (Spec §6/§8/§9.2 sentinel; shared with track C
+// and scripts/provision-roleplay-agents.mjs — cross-checked by
+// scripts/provision-roleplay-agents.test.mjs).
+const ROLE_AGENT_SLUGS = [
+  'role-baizang',
+  'role-hemaoqingxuan',
+  'role-yuedaoling',
+  'role-jiuyuan',
+  'role-chengyuhuai',
+  'role-jiangbojia',
+  'role-chengzouliu',
+  'role-miaohongmo',
+  'role-dailila',
+  'role-yisa',
+  'role-qiangqingci',
+  'role-aoding',
+  'role-aqi',
+  'role-nanchuang',
+  'role-fuxiao',
+  'role-cenyilan',
+  'role-jicanghai',
+  'role-zhihe',
+  'role-yeshangqiu',
+];
+
+interface FastClawAgentSpec {
+  maxTokens: number;
+  maxToolIterations: number;
+  thinking?: string;
+  roleplay?: boolean;
+}
+
+interface RoleplayAgentCheck {
+  ok: boolean;
+  agentId: string;
+  maxTokens?: number;
+  maxToolIterations?: number;
+  thinking?: string;
+  roleplay?: boolean;
+  error?: string;
+}
+
+interface FastClawCheckResult {
+  ok: boolean;
+  configured: boolean;
+  agentId?: string;
+  maxTokens?: number;
+  maxToolIterations?: number;
+  thinking?: string;
+  roleplay?: boolean;
+  roleplayMode?: boolean;
+  roleplayAgentsChecked?: number;
+  agents?: Record<string, RoleplayAgentCheck>;
+  defaultAgent?: RoleplayAgentCheck;
+  error?: string;
+}
+
 export async function GET() {
   const checks = {
     api: { ok: true },
@@ -46,21 +103,71 @@ async function checkDatabase(): Promise<{ ok: boolean; error?: string }> {
   }
 }
 
-async function checkFastClaw(): Promise<{
-  ok: boolean;
-  configured: boolean;
-  agentId?: string;
-  maxTokens?: number;
-  maxToolIterations?: number;
-  thinking?: string;
-  error?: string;
-}> {
+function validateAgentSpec(
+  spec: FastClawAgentSpec,
+  options: { requireRoleplay: boolean; requireNonRoleplay: boolean },
+): { ok: true; maxTokens: number; maxToolIterations: number; thinking?: string; roleplay?: boolean }
+  | { ok: false; maxTokens?: number; maxToolIterations?: number; thinking?: string; roleplay?: boolean; error: string } {
+  const { maxTokens, maxToolIterations, thinking, roleplay } = spec;
+
+  if (maxTokens > CHAT_AGENT_MAX_TOKENS || maxToolIterations !== CHAT_AGENT_MAX_TOOL_ITERATIONS) {
+    return {
+      ok: false,
+      maxTokens,
+      maxToolIterations,
+      thinking,
+      roleplay,
+      error: `FastClaw agent exceeds chat runtime limits: maxTokens=${maxTokens}, maxToolIterations=${maxToolIterations}; required maxTokens<=${CHAT_AGENT_MAX_TOKENS} and maxToolIterations=${CHAT_AGENT_MAX_TOOL_ITERATIONS}`,
+    };
+  }
+
+  // Model-level thinking must be explicitly off; missing or any other
+  // value fails closed so an unconfigured FastClaw never ships silently.
+  if (thinking !== 'off') {
+    return {
+      ok: false,
+      maxTokens,
+      maxToolIterations,
+      thinking,
+      roleplay,
+      error: `FastClaw agent must disable model-level thinking: thinking=${thinking ?? 'missing'}; required thinking="off"`,
+    };
+  }
+
+  if (options.requireRoleplay && roleplay !== true) {
+    return {
+      ok: false,
+      maxTokens,
+      maxToolIterations,
+      thinking,
+      roleplay,
+      error: `FastClaw roleplay agent must run in roleplay mode: roleplay=${roleplay === undefined ? 'missing' : String(roleplay)}; required roleplay=true`,
+    };
+  }
+
+  if (options.requireNonRoleplay && roleplay === true) {
+    return {
+      ok: false,
+      maxTokens,
+      maxToolIterations,
+      thinking,
+      roleplay,
+      error: `FastClaw default agent must stay non-roleplay: roleplay=true; provisioning must not overwrite the legacy default agent`,
+    };
+  }
+
+  return { ok: true, maxTokens, maxToolIterations, thinking, roleplay };
+}
+
+async function checkFastClaw(): Promise<FastClawCheckResult> {
   if (!config.fastclawBaseUrl || !config.fastclawApiKey) {
     return { ok: false, configured: false, error: 'FASTCLAW_BASE_URL and FASTCLAW_API_KEY are required' };
   }
   if (!config.fastclawAgentId) {
     return { ok: false, configured: true, error: 'FASTCLAW_AGENT_ID is required for business chat readiness' };
   }
+
+  const roleplayMode = process.env.USE_ROLEPLAY_AGENTS === 'true';
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), Math.min(config.fastclawTimeoutMs, 5000));
@@ -75,49 +182,44 @@ async function checkFastClaw(): Promise<{
       return { ok: false, configured: true, error: `FastClaw readyz returned ${response.status}` };
     }
 
-    const agentSpec = await fetchFastClawAgentRuntimeSpec(config.fastclawAgentId, controller.signal);
-    if (!agentSpec.ok) {
-      return {
-        ok: false,
-        configured: true,
-        agentId: config.fastclawAgentId,
-        error: agentSpec.error,
-      };
+    if (!roleplayMode) {
+      return checkLegacyFastClaw(controller.signal);
     }
 
-    const { maxTokens, maxToolIterations, thinking } = agentSpec;
-    if (maxTokens > CHAT_AGENT_MAX_TOKENS || maxToolIterations !== CHAT_AGENT_MAX_TOOL_ITERATIONS) {
-      return {
-        ok: false,
-        configured: true,
-        agentId: config.fastclawAgentId,
-        maxTokens,
-        maxToolIterations,
-        error: `FastClaw agent exceeds chat runtime limits: maxTokens=${maxTokens}, maxToolIterations=${maxToolIterations}; required maxTokens<=${CHAT_AGENT_MAX_TOKENS} and maxToolIterations=${CHAT_AGENT_MAX_TOOL_ITERATIONS}`,
-      };
+    // Roleplay sentinel (Spec §9.2): all 19 role agents must exist with
+    // roleplay=true and thinking="off"; the legacy default agent must still
+    // exist and stay non-roleplay (Spec §9.1).
+    const [defaultAgent, roleAgentChecks] = await Promise.all([
+      checkSingleAgent(config.fastclawAgentId, controller.signal, {
+        requireRoleplay: false,
+        requireNonRoleplay: true,
+      }),
+      Promise.all(
+        ROLE_AGENT_SLUGS.map(async (slug) => {
+          const check = await checkSingleAgent(slug, controller.signal, {
+            requireRoleplay: true,
+            requireNonRoleplay: false,
+          });
+          return { slug, check };
+        }),
+      ),
+    ]);
+
+    const agents: Record<string, RoleplayAgentCheck> = {};
+    for (const { slug, check } of roleAgentChecks) {
+      agents[slug] = check;
     }
 
-    // Model-level thinking must be explicitly off; missing or any other
-    // value fails closed so an unconfigured FastClaw never ships silently.
-    if (thinking !== 'off') {
-      return {
-        ok: false,
-        configured: true,
-        agentId: config.fastclawAgentId,
-        maxTokens,
-        maxToolIterations,
-        thinking,
-        error: `FastClaw agent must disable model-level thinking: thinking=${thinking ?? 'missing'}; required thinking="off"`,
-      };
-    }
-
+    const failed = [...Object.values(agents), defaultAgent].filter((check) => !check.ok);
     return {
-      ok: true,
+      ok: failed.length === 0,
       configured: true,
       agentId: config.fastclawAgentId,
-      maxTokens,
-      maxToolIterations,
-      thinking,
+      roleplayMode: true,
+      roleplayAgentsChecked: ROLE_AGENT_SLUGS.length,
+      agents,
+      defaultAgent,
+      error: failed.length > 0 ? summarizeRoleplayFailures(agents, defaultAgent, failed.length) : undefined,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'FastClaw readiness check failed';
@@ -127,11 +229,92 @@ async function checkFastClaw(): Promise<{
   }
 }
 
+async function checkLegacyFastClaw(signal: AbortSignal): Promise<FastClawCheckResult> {
+  const agentSpec = await fetchFastClawAgentRuntimeSpec(config.fastclawAgentId, signal);
+  if (!agentSpec.ok) {
+    return {
+      ok: false,
+      configured: true,
+      agentId: config.fastclawAgentId,
+      error: agentSpec.error,
+    };
+  }
+
+  const result = validateAgentSpec(agentSpec.spec, {
+    requireRoleplay: false,
+    requireNonRoleplay: false,
+  });
+  if (!result.ok) {
+    return {
+      ok: false,
+      configured: true,
+      agentId: config.fastclawAgentId,
+      maxTokens: result.maxTokens,
+      maxToolIterations: result.maxToolIterations,
+      thinking: result.thinking,
+      error: result.error,
+    };
+  }
+
+  return {
+    ok: true,
+    configured: true,
+    agentId: config.fastclawAgentId,
+    maxTokens: result.maxTokens,
+    maxToolIterations: result.maxToolIterations,
+    thinking: result.thinking,
+  };
+}
+
+async function checkSingleAgent(
+  agentId: string,
+  signal: AbortSignal,
+  options: { requireRoleplay: boolean; requireNonRoleplay: boolean },
+): Promise<RoleplayAgentCheck> {
+  const agentSpec = await fetchFastClawAgentRuntimeSpec(agentId, signal);
+  if (!agentSpec.ok) {
+    return { ok: false, agentId, error: agentSpec.error };
+  }
+  const result = validateAgentSpec(agentSpec.spec, options);
+  if (!result.ok) {
+    return {
+      ok: false,
+      agentId,
+      maxTokens: result.maxTokens,
+      maxToolIterations: result.maxToolIterations,
+      thinking: result.thinking,
+      roleplay: result.roleplay,
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    agentId,
+    maxTokens: result.maxTokens,
+    maxToolIterations: result.maxToolIterations,
+    thinking: result.thinking,
+    roleplay: result.roleplay,
+  };
+}
+
+function summarizeRoleplayFailures(
+  agents: Record<string, RoleplayAgentCheck>,
+  defaultAgent: RoleplayAgentCheck,
+  failedCount: number,
+): string {
+  const names: string[] = [];
+  for (const [slug, check] of Object.entries(agents)) {
+    if (!check.ok) names.push(`${slug}: ${check.error}`);
+  }
+  if (!defaultAgent.ok) names.push(`${defaultAgent.agentId}: ${defaultAgent.error}`);
+  return `roleplay readiness failed (${failedCount}): ${names.join('; ')}`;
+}
+
 async function fetchFastClawAgentRuntimeSpec(
   agentId: string,
   signal: AbortSignal,
 ): Promise<
-  | { ok: true; maxTokens: number; maxToolIterations: number; thinking?: string }
+  | { ok: true; spec: FastClawAgentSpec }
   | { ok: false; error: string }
 > {
   const response = await fetch(`${config.fastclawBaseUrl}/v1/agents/${encodeURIComponent(agentId)}/runtime-spec`, {
@@ -150,6 +333,7 @@ async function fetchFastClawAgentRuntimeSpec(
     maxTokens?: unknown;
     maxToolIterations?: unknown;
     thinking?: unknown;
+    roleplay?: unknown;
   };
   if (typeof spec.maxTokens !== 'number' || typeof spec.maxToolIterations !== 'number') {
     return { ok: false, error: 'FastClaw runtime spec is missing maxTokens or maxToolIterations' };
@@ -157,8 +341,11 @@ async function fetchFastClawAgentRuntimeSpec(
 
   return {
     ok: true,
-    maxTokens: spec.maxTokens,
-    maxToolIterations: spec.maxToolIterations,
-    thinking: typeof spec.thinking === 'string' ? spec.thinking : undefined,
+    spec: {
+      maxTokens: spec.maxTokens,
+      maxToolIterations: spec.maxToolIterations,
+      thinking: typeof spec.thinking === 'string' ? spec.thinking : undefined,
+      roleplay: typeof spec.roleplay === 'boolean' ? spec.roleplay : undefined,
+    },
   };
 }

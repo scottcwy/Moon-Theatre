@@ -21,7 +21,7 @@
     "test:e2e:miniapp": "pnpm --filter @juben-sha/miniapp test:e2e:smoke",
     "test:e2e:miniapp:ui": "pnpm --filter @juben-sha/miniapp test:e2e:ui",
     "test:e2e:miniapp:ui:auth": "pnpm --filter @juben-sha/miniapp test:e2e:ui:auth",
-    "test:dev-script": "node --test scripts/dev.test.mjs",
+    "test:dev-script": "node --test scripts/dev.test.mjs scripts/provision-roleplay-agents.test.mjs",
     "test:deploy-config": "node --test scripts/deploy-config.test.mjs",
     "dev:miniapp:lan": "pnpm --filter @juben-sha/miniapp dev:weapp:lan",
     "build:miniapp:prod": "pnpm --filter @juben-sha/miniapp build:weapp:prod"
