@@ -303,27 +303,7 @@ func (sp *UserSpace) EnsureAgent(ctx context.Context, st store.Store, mb *bus.Me
 		var ovr config.AgentDefaults
 		blob, _ := json.Marshal(cfgRec.Data)
 		_ = json.Unmarshal(blob, &ovr)
-		if ovr.Model != "" {
-			rc.Model = ovr.Model
-		}
-		if ovr.MaxTokens > 0 {
-			rc.MaxTokens = ovr.MaxTokens
-		}
-		if ovr.Temperature > 0 {
-			rc.Temperature = ovr.Temperature
-		}
-		if ovr.HasMaxToolIterations() {
-			rc.MaxToolIterations = ovr.MaxToolIterations
-		}
-		if ovr.Thinking != "" {
-			rc.Thinking = ovr.Thinking
-		}
-		if ovr.PolicyPreset != "" {
-			rc.PolicyPreset = ovr.PolicyPreset
-		}
-		if ovr.HasRoleplay() {
-			rc.Roleplay = ovr.Roleplay
-		}
+		applyAgentDefaults(&rc, ovr)
 	}
 	ensureAgentHome(rc)
 	if ws != nil {
@@ -347,6 +327,52 @@ func (sp *UserSpace) EnsureAgent(ctx context.Context, st store.Store, mb *bus.Me
 	slog.Info("agent injected into foreign user space",
 		"caller", sp.UserID, "agent", rc.ID, "owner", rec.UserID)
 	return nil
+}
+
+// applyAgentDefaults layers one agent-scope agents.defaults override on
+// top of a resolved agent. It must be called with a pointer into the slice
+// that is later handed to agent.NewManager: mutating a range-loop copy is a
+// no-op on the caller's slice (the contract bug this replaces).
+func applyAgentDefaults(rc *config.ResolvedAgent, ovr config.AgentDefaults) {
+	if ovr.Model != "" {
+		rc.Model = ovr.Model
+	}
+	if ovr.MaxTokens > 0 {
+		rc.MaxTokens = ovr.MaxTokens
+	}
+	if ovr.Temperature > 0 {
+		rc.Temperature = ovr.Temperature
+	}
+	if ovr.HasMaxToolIterations() {
+		rc.MaxToolIterations = ovr.MaxToolIterations
+	}
+	if ovr.Thinking != "" {
+		rc.Thinking = ovr.Thinking
+	}
+	if ovr.PolicyPreset != "" {
+		rc.PolicyPreset = ovr.PolicyPreset
+	}
+	if ovr.HasRoleplay() {
+		rc.Roleplay = ovr.Roleplay
+	}
+}
+
+// applyAgentScopedDefaults layers each agent's scope=agent agents.defaults
+// row on top of the resolved slice, in place. We read the agent-scope row
+// directly (not via SettingInto system+user, which would re-merge those
+// layers and clobber the user-scoped Model already in cfg.Agents.Defaults).
+// loadUserSpace passes the same slice to agent.NewManager, so overrides must
+// be written back into the slice itself.
+func applyAgentScopedDefaults(ctx context.Context, st store.Store, resolved []config.ResolvedAgent) {
+	for i := range resolved {
+		rc := &resolved[i]
+		var agentOverride config.AgentDefaults
+		if rec, err := st.GetConfigByName(ctx, store.KindSetting, store.ScopeAgent, rc.ID, "agents.defaults"); err == nil && rec != nil {
+			blob, _ := json.Marshal(rec.Data)
+			_ = json.Unmarshal(blob, &agentOverride)
+			applyAgentDefaults(rc, agentOverride)
+		}
+	}
 }
 
 // loadUserSpace builds a UserSpace by:
@@ -384,39 +410,13 @@ func loadUserSpace(ctx context.Context, userID string, mb *bus.MessageBus, st st
 		entries = append(entries, config.AgentEntry{ID: ar.ID, UserID: ar.UserID})
 	}
 	resolved := config.ResolveAgents(cfg, entries)
-	for _, rc := range resolved {
-		// Layer the agent-scope agents.defaults on top of the
-		// system→user merge that ResolveAgents already applied. We
-		// read the agent-scope row directly (not via SettingInto
-		// system+user, which would re-merge those layers and clobber
-		// the user-scoped Model already in cfg.Agents.Defaults).
-		var agentOverride config.AgentDefaults
-		if rec, err := st.GetConfigByName(ctx, store.KindSetting, store.ScopeAgent, rc.ID, "agents.defaults"); err == nil && rec != nil {
-			blob, _ := json.Marshal(rec.Data)
-			_ = json.Unmarshal(blob, &agentOverride)
-			if agentOverride.Model != "" {
-				rc.Model = agentOverride.Model
-			}
-			if agentOverride.MaxTokens > 0 {
-				rc.MaxTokens = agentOverride.MaxTokens
-			}
-			if agentOverride.Temperature > 0 {
-				rc.Temperature = agentOverride.Temperature
-			}
-			if agentOverride.HasMaxToolIterations() {
-				rc.MaxToolIterations = agentOverride.MaxToolIterations
-			}
-			if agentOverride.Thinking != "" {
-				rc.Thinking = agentOverride.Thinking
-			}
-			if agentOverride.PolicyPreset != "" {
-				rc.PolicyPreset = agentOverride.PolicyPreset
-			}
-			if agentOverride.HasRoleplay() {
-				rc.Roleplay = agentOverride.Roleplay
-			}
-		}
-		ensureAgentHome(rc)
+	// Layer the agent-scope agents.defaults on top of the system→user
+	// merge that ResolveAgents already applied, writing back into the
+	// resolved slice that NewManager receives below.
+	applyAgentScopedDefaults(ctx, st, resolved)
+	for i := range resolved {
+		rc := &resolved[i]
+		ensureAgentHome(*rc)
 		if ws != nil {
 			if err := skills.HydrateSkillsDown(
 				ctx, ws, rc.ID, filepath.Join(rc.Home, "skills"),
