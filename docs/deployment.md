@@ -125,6 +125,8 @@ rtk docker compose up -d api fastclaw caddy
 
 业务聊天 Agent 需要按 V1 速度目标配置：`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`、`maxTokens <= 768`、`maxToolIterations = 0`、`thinking = "off"`（模型级思考关闭，向 SiliconFlow 下发 `enable_thinking: false`，降低 TTFT/整轮延迟）。对话生成仅支持 DeepSeek agent：Qwen agent 必须停用/删除，`FASTCLAW_FALLBACK_ENABLED` 保持 `false`（不配置降级）。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；超过 `maxTokens=768`、启用任何工具迭代或 `thinking` 不等于 `"off"`（缺失/非 off）都不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
 
+**CORS 允许头清单**：FastClaw `handleCORS`（`fastclaw/internal/api/server.go`）允许 `Authorization, Content-Type, x-fastclaw-agent-id, x-fastclaw-session-key, x-fastclaw-user-id, x-fastclaw-scope, x-fastclaw-message-id, x-fastclaw-no-persist`（2026-08-14 fastclaw-roleplay-agent-architecture Spec F1 头契约；新增请求头随 apps/api 切换同步生效）。
+
 **数据持久化**：FastClaw 已挂载命名卷 `fastclaw-data`（容器内 `/data/.fastclaw`，sqlite 数据落该目录）。服务器旧容器若已有匿名卷数据，切换前必须先备份：`docker inspect juben-sha-fastclaw` 找到匿名卷 `Source` 路径，用 `docker cp` 或临时挂载导出备份后再切换命名卷；本地测试阶段无业务数据可直接切换。匿名卷在 `docker compose down -v` 时会被删除，切换命名卷后旧匿名卷数据不再挂载（未删除但不可见）。
 
 ## 8. 备份与恢复
@@ -196,6 +198,8 @@ rtk pnpm build:miniapp:prod
 > 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0009`；当前已推送镜像仍为 07-06 快照（见第 3 节）。`docs/版本说明-dev.md` 只引用本节与第 3 节，不复制镜像信息。
 
 > 注（fastclaw-disable-model-thinking 发布顺序）：FastClaw 新镜像（含 `thinking=off` 请求参数）必须先于 apps/api（含新 ready 校验）发布，并确认 agent 配置 `thinking="off"` 已生效（`GET /v1/agents/{id}/runtime-spec` 返回 `thinking=off`）；回滚顺序相反（先回 apps/api 再回 FastClaw 镜像与配置）。旧 FastClaw（runtime-spec 无 `thinking`）遇新 ready 校验会失败，属安全失败；新 FastClaw + 旧 apps/api 直接通过，属可接受（旧版无此要求），非回归。
+
+> 注（fastclaw-roleplay-agent-architecture 发布/回滚，2026-08-14）：下一架构版本（`docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`，revision 4，冻结）上线顺序为：FastClaw 补丁（F1–F5/F7–F10）→ 脚本 provisioning 创建/更新 19 个 roleplay agent（旧默认 agent 保留且保持非 roleplay）→ apps/api 切换（`USE_ROLEPLAY_AGENTS=false` 可一键回退）→ 小流量/全量。回滚顺序与第 6 节一致：**先 apps/api 再 FastClaw**——旧 FastClaw + 新 apps/api 时 `resolveAgent` 会静默回退默认/首个 agent 造成角色错乱，`/api/ready` 的 19-agent 校验作为回滚窗口哨兵；发布/回滚前备份 FastClaw `fastclaw-data` 卷（见第 7 节）。
 
 ## 10. 附录 A：微信后台上线清单（非仓库操作，人工执行）
 

@@ -6,6 +6,8 @@
 适用版本：聊天体验迭代 V1.1 之后
 变更标识：chat-memory-fact-persistence
 
+> **取代标注（2026-08-14）**：本文档冻结的整条记忆管线（`extractor.ts`/`service.ts` 抽取、`memories` 表持久化、回查摘要注入）被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）取代——记忆唯一事实源迁移到 FastClaw `agent_files`（per-user 多租户 + scope 分文件），API `memories` 表退役（不迁移存量数据）；本 Spec 不再实施。
+
 ## 1. 文档目的与冻结边界
 
 本文档冻结「记忆抽取保留具体事实、story 记忆去污染、回查可召回」的实现边界。它改变记忆抽取/去重规则与回查上下文注入，**不改变 memories 表结构、不改变记忆作用域（shared/script）语义、不改变记忆注入 Prompt 的格式**。

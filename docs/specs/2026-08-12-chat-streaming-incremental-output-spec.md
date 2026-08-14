@@ -6,6 +6,8 @@
 适用版本：聊天体验迭代 V1.1 之后
 变更标识：chat-streaming-incremental-output
 
+> **修订标注（2026-08-14）**：本 Spec 的 TTFT≤1.5s（P50）目标与 roleplay 假流（TTFT=全量生成）冲突，被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）修订——该目标口径不适用于 roleplay agent（缓冲式输出，首字延迟=全量生成时间）；后续真流式另开 Spec 时重评。
+
 ## 1. 文档目的与冻结边界
 
 本文档冻结「客户端首字渲染从『整轮完成』提前到『生成开始』」的实现边界。它改变 API 对客户端的流式输出时序，**不改变 done 事件字段、不改变消息落库、不改变计费与幂等**。
@@ -31,7 +33,7 @@ revision 1 澄清（依据 2026-08-12 审核）：done 事件**仅新增可选 `
 ## 3. 目标与非目标
 
 目标：
-- 客户端首字/首段在生成早期到达（目标 TTFT ≤1.5s，P50）；
+- 客户端首字/首段在生成早期到达（目标 TTFT ≤1.5s，P50）（**修订：2026-08-14 架构 Spec 明确 roleplay agent 为缓冲式输出，TTFT=全量生成，本目标不适用于 roleplay agent；真流式另开 Spec 时重评**）；
 - 断流/超时在 15s 内有明确提示；
 - 保留关键词输出过滤能力（当前 0 命中，风险低但能力不删）。
 
@@ -76,6 +78,8 @@ revision 1 澄清（依据 2026-08-12 审核）：done 事件**仅新增可选 `
 | blocked 关键词仍可拦截 | 插入 blocked 关键词样本，确认修正提示出现且落库不含关键词 | vitest + 真实样本 |
 | done 事件字段/幂等/计费不变 | 既有 stream-runner/service 测试全绿 + 重放测试 | `pnpm --filter @juben-sha/api test` |
 | 无回归 | `pnpm --filter @juben-sha/api test`、`pnpm --filter @juben-sha/miniapp test`、typecheck | CI |
+
+> **验收重评（2026-08-14）**：roleplay agent 走缓冲式输出（首字延迟=全量生成），矩阵中「客户端 TTFT ≤1.5s（P50）」目标不适用；真流式另开 Spec 时按新口径重设。
 
 ## 5.1 发布与回滚
 

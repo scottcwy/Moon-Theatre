@@ -6,13 +6,15 @@
 适用版本：聊天体验迭代 V1.1 之后
 变更标识：chat-output-protocol-sanitization
 
+> **修订标注（2026-08-14）**：本 Spec 的 `isProtocolProbe` 预检短路被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）修订为「放行 agent 角色化处理」（硬安全拦截 `checkInput.blocked` 除外）；泄漏验收（protocolLeaks=0）保留。
+
 ## 1. 文档目的与冻结边界
 
 本文档冻结「最终回复不再包含内部消息结构」的实现边界。它扩展 `output-sanitizer` 的清理能力并增加「要求改变回复协议」类输入的预检，**不改变 OOS 兜底文案、不改变 done 事件字段、不改变其他 sanitizer 已有规则**。
 
 冻结：
 - sanitizer 对 JSON 块/内部字段的剥离规则；
-- 改协议类输入的预检与短路；
+- 改协议类输入的预检与短路（**修订：2026-08-14 改为放行 agent 角色化处理，预检不再短路；硬安全拦截 `checkInput.blocked` 除外**）；
 - 命中可观测计数。
 
 不冻结：剥离后追加的提示文案（可迭代）、分类器 prompt。
@@ -52,6 +54,8 @@
 
 ### 4.2 改协议类输入预检（`stream-runner.ts` 输入段）
 
+> **修订（2026-08-14）**：本节的预检短路不再实施——改协议类输入放行给 roleplay agent 角色化处理（agent 依 SOUL.md safety 指引化解）；`checkInput.blocked` 硬安全拦截维持短接。以下原方案保留作为历史设计，不再作为实现依据。
+
 - 在 `checkInput` 之后新增轻量预检函数 `isProtocolProbe(message)`（不进 scope-classifier，避免与 Spec 1 冲突），并在 `runChatStream` 的**三处 checkInput 调用点之后统一调用**（`stream-runner.ts:116` acquired_existing、L154 created、L204 新会话；抽公共函数避免三处复制）：
   - 命中规则（revision 1 收窄，避免误伤正常请求）：
     - **强命中**：消息包含 `JSON|json|mood|content|协议`（不要求组合），或 `（回复|输出|回答）` 且 `（格式|标签|标记）` 同时命中；
@@ -81,6 +85,8 @@
 | 正常角色对白不受影响 | 全量回归矩阵泄漏率与基线一致（<1%） | phase-a |
 | 命中可观测 | 日志出现 `output_sanitizer_hit` / `errorCode=output_json_block` | API console |
 | 无回归 | `pnpm --filter @juben-sha/api test`、`pnpm --filter @juben-sha/api typecheck` | CI |
+
+> **验收重评（2026-08-14）**：预检短路不再实施；越界/改协议预检按 2026-08-14 架构 Spec 放行 agent 角色化处理（硬安全 `checkInput.blocked` 除外），`protocolLeaks=0` 泄漏验收保留。
 
 ## 5.1 发布与回滚
 

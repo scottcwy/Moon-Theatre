@@ -5,6 +5,8 @@
 > 基线：`main` HEAD `e791f6e`（已含 Spec 1-5：scope classifier 去阻塞 / 增量放行 / 记忆 / 输出加固 / 模型路由）
 > 来源：`apps/miniapp/e2e/artifacts/overnight/e2e-report.md` §3 架构问题（P2-2，首 token 串行 DB 链 + 重复查询）
 
+> **修订标注（2026-08-14）**：本 Spec 的首 token 并行化链路基于旧「API 组装 system prompt + clean history」链路，被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）部分取代——新链路下 FastClaw 会话持有生成上下文、API 只发动态上下文 system + 当前用户消息、API 侧 clean history 组装删除；本 Spec 需按新链路重评/部分被取代。
+
 ## 1. 目标
 
 把 `/api/chat/stream` 首 token 之前的串行 DB 链并行化并消除重复查询，降低首字延迟（TTFT），**不改变任何对外行为**（流事件、错误码、计费与幂等语义）。
@@ -12,7 +14,7 @@
 ## 2. 范围与边界
 
 范围内：
-- `apps/api/src/server/modules/chat/stream-runner.ts`（`runChatStream` 前置链、`resolveRequestScope`、`buildPromptContext` 的脚本查询复用）
+- `apps/api/src/server/modules/chat/stream-runner.ts`（`runChatStream` 前置链、`resolveRequestScope`、`buildPromptContext` 的脚本查询复用）（**修订：`buildPromptContext`/clean history 组装随 2026-08-14 架构 Spec 删除，该项需按新链路重评**）
 - `apps/api/src/server/modules/chat/service.ts`（`getCharacterWithPrompts` 并行、`findOrCreateSession` 去重、`resolveClientTurn` legacy 去重）
 - 相关 `__tests__/*`
 
@@ -32,8 +34,8 @@
 4. `findOrCreateSession`（:259）——内部**重查 `characters.scriptId`**（`service.ts:276`）
 5. `saveUserMessage`（:267）
 6. `checkInput`（:269，依赖 userMsg.id）
-7. `getCleanHistoryMessages`（:292，依赖 sessionId）
-8. `buildPromptContext`（:293）——内部 `getScriptById(scope.scriptId)`（:444，与 :322/:352 可能重复）
+7. `getCleanHistoryMessages`（:292，依赖 sessionId）（**修订：2026-08-14 架构 Spec 删除 clean history 组装，本项不再适用**）
+8. `buildPromptContext`（:293）——内部 `getScriptById(scope.scriptId)`（:444，与 :322/:352 可能重复）（**修订：同上，本项随新链路重评**）
 9. wallet：`getOrCreateWallet` → `getBalance` → `consumePoints`（:396-403，consume 依赖 userMsgId）
 
 重复查询统计（单请求）：
@@ -58,7 +60,7 @@
 ### 4.3 重复查询去重
 - `findOrCreateSession`（service.ts:276）：不再重查 `characters.scriptId`，由调用方传入已加载的 `character.scriptId`（new-session 路径）或保持现状的 sessionId 路径。
 - `resolveClientTurn` legacy 路径（service.ts:664）：复用已加载 character（或明确该路径在并行化后已不可达则删）。
-- `buildPromptContext`（stream-runner.ts:444）：session 路径下 `getScriptById(scope.scriptId)` 若在 `resolveRequestScope` 已取过（:352 同一脚本），通过参数复用，消除第 3 次查询；new-session 路径 `:322` 与 `:444` 同一脚本同样复用。
+- `buildPromptContext`（stream-runner.ts:444）：session 路径下 `getScriptById(scope.scriptId)` 若在 `resolveRequestScope` 已取过（:352 同一脚本），通过参数复用，消除第 3 次查询；new-session 路径 `:322` 与 `:444` 同一脚本同样复用。（**修订：`buildPromptContext` 随 2026-08-14 架构 Spec 删除；剩余 DB 前置链并行化（profile/character/wallet/scope）仍按新链路重评后实施**）
 
 ### 4.4 指标
 - `chat_stream_latency.prepareMs` 是既有字段（stream-runner 已输出），本 spec 验收以此对比基线（P50/P90），不改事件结构。

@@ -1,5 +1,7 @@
 # 剧本杀角色扮演小程序技术 SPEC v1 正式版
 
+> **修订标注（2026-08-14）**：本文档 §7.3「当前 adapter 支持 x-fastclaw-session-key 请求头」为文档漂移（adapter 实际未发送该头），且 §7.4「记忆由业务后端结构化管理，不依赖 Agent 内部 Markdown 记忆作为唯一来源」被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）推翻；相应小节已按 2026-08-14 架构 Spec 修订（见 §7.3/§7.4）。
+
 ## 1. 文档目的
 
 本文档用于固化第一版技术方案，作为后续 PRD、接口设计、数据库设计、工程初始化、开发排期和验收的依据。
@@ -330,14 +332,14 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。当前生产不配置降级（Spec 5：`FASTCLAW_FALLBACK_ENABLED=false`）。
 - 当前 adapter 调用 `${FASTCLAW_BASE_URL}/v1/chat/completions`，使用 `Authorization: Bearer ${FASTCLAW_API_KEY}`，解析 OpenAI SSE 兼容的 `data: ...` 和 `[DONE]`。
 - 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
-- 当前 adapter 支持 `x-fastclaw-agent-id` 与 `x-fastclaw-session-key` 请求头。
+- 当前 adapter 实际只发送 `x-fastclaw-agent-id`，**不发送 `x-fastclaw-session-key`**（原表述为文档漂移，2026-08-14 架构 Spec §2.3/§11 修正）；新链路将补齐 `x-fastclaw-user-id`/`x-fastclaw-session-key`/`x-fastclaw-scope`/`x-fastclaw-message-id`/`x-fastclaw-no-persist` 请求头契约。
 - 当前 FastClaw API 暴露 `GET /v1/agents/{id}/runtime-spec`，只返回 `id`、`model`、`maxTokens`、`temperature`、`maxToolIterations`、`thinking` 等非敏感运行参数。
 - 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、`${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations = 0`、`thinking = "off"`（缺失或非 off 不通过）；`/api/health` 只表示 API 进程存活。
 - 当前 readiness 尚未检查数据库连接和生产关键配置完整性，生产部署验收仍需补强。
 
 ### 7.4 长期记忆
 
-记忆由业务后端结构化管理，不依赖 Agent 内部 Markdown 记忆作为唯一来源。
+记忆唯一事实源迁移到 FastClaw `agent_files`（per-user 多租户隔离 + scope 分文件）；API `memories` 表退役（不迁移存量数据），业务后端不再结构化管理记忆（2026-08-14 架构 Spec 修订，本条被推翻）。
 
 记忆类型：
 
@@ -357,7 +359,7 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 
 admin 需要支持列表筛选、禁用和覆盖错误记忆；相关 route、service 和测试属于 V1 后端验收项。
 
-抽取规则（2026-08-12 `chat-memory-fact-persistence-spec` 冻结修订）：story 只从用户消息提取、每轮候选上限 2 条；user_info/过往经历落具体事实模板（如「用户喜欢「草莓」」），不再落无实体泛化固定串；meta 指令（命中「回复/输出/回答/格式/协议」且「不要/去掉/移除/请用/以后」的组合）不落 story；service 对旧泛化条目/措辞变体执行删除+替换（保留新值）。
+抽取规则（2026-08-12 `chat-memory-fact-persistence-spec` 冻结修订）：story 只从用户消息提取、每轮候选上限 2 条；user_info/过往经历落具体事实模板（如「用户喜欢「草莓」」），不再落无实体泛化固定串；meta 指令（命中「回复/输出/回答/格式/协议」且「不要/去掉/移除/请用/以后」的组合）不落 story；service 对旧泛化条目/措辞变体执行删除+替换（保留新值）。（**修订：2026-08-14 架构 Spec 将记忆管线整体退役，本节规则不再实施**）
 
 ### 7.5 羁绊、称号、成就
 

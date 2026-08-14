@@ -6,6 +6,8 @@
 适用版本：V1.1 内测修复版
 变更标识：chat-experience-iteration-v1-1
 
+> **修订标注（2026-08-14）**：本 Spec §7「FastClaw 只执行请求携带的 system message 和 clean history」被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）修订；§10「输入拦截/预检/越界消息必须 excludedFromContext」部分修订——`checkInput.blocked` 维持短接与 excluded 不变；改协议预检与越界改为放行 agent 角色化处理。
+
 ## 1. 文档目的与冻结边界
 
 本文档将产品 SPEC 中已经确认的 V1.1 用户行为映射为当前代码库可实施的技术设计，覆盖 P0 和 P1 两个交付阶段。
@@ -164,9 +166,9 @@ Taro 微信小程序
 - 小程序负责页面、输入、状态展示和恢复触发。
 - Next.js API 负责身份、会话作用域、上下文、Prompt、幂等、计费、审核和最终业务状态。
 - Postgres 保存所有可恢复业务事实。
-- FastClaw 只执行当前请求携带的 system message 和 clean history。
+- FastClaw 会话持有生成上下文（历史 + compaction）；API 每轮只发动态上下文 system message + 当前用户消息（2026-08-14 架构 Spec 修订）。
 
-不允许小程序直接决定已有会话属于哪个模式，也不允许 FastClaw 的内部 session history 参与产品上下文。
+不允许小程序直接决定已有会话属于哪个模式；FastClaw 的内部 session history 持有产品聊天生成上下文（2026-08-14 架构 Spec 修订）。
 
 ## 8. 数据模型
 
@@ -578,7 +580,7 @@ Free Conversation Mode：
 
 记忆和成就继续由 chat effect workflow 处理，可异步执行。bond 不再由普通异步 effect 调度。
 
-输入拦截、改协议预检、输出过滤和剧情越界产生的用户消息及系统替代消息必须标记 excludedFromContext，避免安全提示或不完整回合进入后续角色上下文。
+输入拦截（`checkInput.blocked`）产生的用户消息及系统替代消息维持短接与 `excludedFromContext=true`（现状不变，合规边界）；改协议预检与剧情越界改为放行 agent 角色化处理（不再从生成上下文剔除，标记保留为 UI/审计）；输出过滤不变（2026-08-14 架构 Spec 修订）。
 
 ### 10.4 失败、重试与恢复
 
