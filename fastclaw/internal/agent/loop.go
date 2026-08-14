@@ -899,6 +899,13 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	}
 
 	messages := a.turnMessages(systemPrompt, msg.SystemPromptOverride, sessionMsgs)
+	if msg.NoPersist {
+		// F10 read-only generation: the current user message joins the
+		// provider context in memory only (last message). It is never
+		// appended to the target session, so no session write, no
+		// AutoPersist, and no turnCount.
+		messages = append(messages, userMsg)
+	}
 
 	// F10 no-persist always uses the pure-text path: generation must not
 	// mutate the target session through tool results.
@@ -1327,6 +1334,13 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 	}
 
 	messages := a.turnMessages(systemPrompt, msg.SystemPromptOverride, sessionMsgs)
+	if msg.NoPersist {
+		// F10 read-only generation: the current user message joins the
+		// provider context in memory only (last message). It is never
+		// appended to the target session, so no session write, no
+		// AutoPersist, and no turnCount.
+		messages = append(messages, userMsg)
+	}
 
 	// F10 no-persist always uses the pure-text path: generation must not
 	// mutate the target session through tool results.

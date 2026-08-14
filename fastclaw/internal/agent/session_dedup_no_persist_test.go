@@ -89,6 +89,12 @@ func TestNoPersistStreamDoesNotMutateTargetSession(t *testing.T) {
 	if len(prov.messages) < 3 {
 		t.Fatalf("provider messages = %d, want history fed to context", len(prov.messages))
 	}
+	// F10: the current no-persist message must be the final provider
+	// message (memory only) so generation is not detached from the
+	// request.
+	if last := prov.messages[len(prov.messages)-1]; last.Role != "user" || last.Content != "回访生成" {
+		t.Fatalf("last provider message = %+v, want user %q (current message in context)", last, "回访生成")
+	}
 }
 
 func TestNoPersistWithoutSessionKeyCreatesNoRow(t *testing.T) {
@@ -108,6 +114,12 @@ func TestNoPersistWithoutSessionKeyCreatesNoRow(t *testing.T) {
 	sessDB.mu.Unlock()
 	if rows != 0 {
 		t.Fatalf("no-persist without a session key created %d session rows, want 0 (no orphan row)", rows)
+	}
+	if len(prov.messages) == 0 {
+		t.Fatal("provider received no messages")
+	}
+	if last := prov.messages[len(prov.messages)-1]; last.Role != "user" || last.Content != "回访生成无目标会话" {
+		t.Fatalf("last provider message = %+v, want user %q (no session key must still feed current message)", last, "回访生成无目标会话")
 	}
 }
 
@@ -142,5 +154,8 @@ func TestNoPersistHandleMessageSkipsAppendAndTurnCount(t *testing.T) {
 	uc.turnMu.Unlock()
 	if n != 1 {
 		t.Fatalf("turnCount = %d, want 1", n)
+	}
+	if last := prov.messages[len(prov.messages)-1]; last.Role != "user" || last.Content != "回访生成非流式" {
+		t.Fatalf("last provider message = %+v, want user %q (current message in context)", last, "回访生成非流式")
 	}
 }
