@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StreamEvent } from '../../fastclaw/adapter.js';
 import { fallbackReturnMessageTemplates, returnMessageTemplates } from '../../../seed/return-message-templates.js';
 import {
@@ -14,9 +14,11 @@ vi.mock('../../fastclaw/adapter.js', () => ({
 }));
 
 const character = {
-  name: '白藏',
+  characterName: '白藏',
   systemPrompt: '你是白藏，月见庭院的狐神。',
   personalityPrompt: '白藏会认真回应用户的情绪。',
+  agentId: 'role-baizang',
+  userId: 'user-1',
 };
 
 function mockStream(events: StreamEvent[]): void {
@@ -29,6 +31,10 @@ function mockStream(events: StreamEvent[]): void {
 
 beforeEach(() => {
   mockStreamChat.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('generateReturnMessageContent', () => {
@@ -58,6 +64,29 @@ describe('generateReturnMessageContent', () => {
     expect(options).toEqual({ timeoutMs: RETURN_MESSAGE_TIMEOUT_MS });
   });
 
+  it('角色 Agent 架构（USE_ROLEPLAY_AGENTS=true）不再直拼角色 prompt，并传 agentId/userId/scope=free/noPersist', async () => {
+    vi.resetModules();
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    mockStream([{ type: 'done', fallback: false }]);
+
+    const { generateReturnMessageContent: roleplayGenerate } = await import('../generator.js');
+    await roleplayGenerate(character);
+
+    expect(mockStreamChat).toHaveBeenCalledTimes(1);
+    const [systemPrompt, userMessage, options] = mockStreamChat.mock.calls[0]!;
+    expect(systemPrompt).not.toContain(character.systemPrompt);
+    expect(systemPrompt).not.toContain(character.personalityPrompt);
+    expect(userMessage).toContain('回访');
+    expect(options).toEqual({
+      timeoutMs: RETURN_MESSAGE_TIMEOUT_MS,
+      agentId: 'role-baizang',
+      userId: 'user-1',
+      scope: 'free',
+      noPersist: true,
+    });
+    vi.unstubAllEnvs();
+  });
+
   it('超过 200 字符时按码点截断到 200，不切坏代理对', async () => {
     const longText = '😀'.repeat(250);
     mockStream([
@@ -76,7 +105,7 @@ describe('generateReturnMessageContent', () => {
 
     const content = await generateReturnMessageContent(character);
 
-    expect(content).toBe(returnMessageTemplates[character.name]?.[0]);
+    expect(content).toBe(returnMessageTemplates[character.characterName]?.[0]);
     expect(content.length).toBeGreaterThan(0);
   });
 
@@ -88,7 +117,7 @@ describe('generateReturnMessageContent', () => {
 
     const content = await generateReturnMessageContent(character);
 
-    expect(content).toBe(returnMessageTemplates[character.name]?.[0]);
+    expect(content).toBe(returnMessageTemplates[character.characterName]?.[0]);
     expect(content).not.toContain('[情绪');
   });
 
@@ -97,7 +126,7 @@ describe('generateReturnMessageContent', () => {
 
     const content = await generateReturnMessageContent(character);
 
-    expect(content).toBe(returnMessageTemplates[character.name]?.[0]);
+    expect(content).toBe(returnMessageTemplates[character.characterName]?.[0]);
     expect(content.length).toBeGreaterThan(0);
   });
 
@@ -108,13 +137,13 @@ describe('generateReturnMessageContent', () => {
 
     const content = await generateReturnMessageContent(character);
 
-    expect(content).toBe(returnMessageTemplates[character.name]?.[0]);
+    expect(content).toBe(returnMessageTemplates[character.characterName]?.[0]);
   });
 
   it('无角色模板时使用通用兜底模板', async () => {
     mockStream([{ type: 'error', code: 'unknown', message: 'boom' }]);
 
-    const content = await generateReturnMessageContent({ ...character, name: '不存在的角色' });
+    const content = await generateReturnMessageContent({ ...character, characterName: '不存在的角色' });
 
     expect(content).toBe(fallbackReturnMessageTemplates[0]);
     expect(content.length).toBeGreaterThan(0);

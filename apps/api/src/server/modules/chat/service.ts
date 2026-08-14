@@ -158,6 +158,7 @@ export interface CharacterWithPrompts {
   description: string;
   scriptId: string | null;
   initialRelationship: string;
+  agentId: string | null;
   status: string;
   prompts: Array<{
     id: string;

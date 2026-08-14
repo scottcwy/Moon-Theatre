@@ -58,6 +58,11 @@ async function handleProtocolProbeIfNeeded(input: {
   message: string;
   clientMessageId?: string;
 }): Promise<Response | null> {
+  // 角色 Agent 架构：改协议预检改为放行 agent 角色化处理（Spec §6/§11），
+  // 不再用固定文案短路；硬安全拦截（checkInput.blocked）维持短接在调用方处理。
+  if (config.useRoleplayAgents) {
+    return null;
+  }
   if (!PROTOCOL_PROBE_ENABLED || !isProtocolProbe(input.message)) {
     return null;
   }
@@ -188,7 +193,9 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
         if (probeResponse) {
           return probeResponse;
         }
-        const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
+        const cleanHistory = config.useRoleplayAgents
+          ? []
+          : await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
         const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory, scope.script);
         return createPreparedGenerationResponse({
           requestStartedAt,
@@ -205,6 +212,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           worldSetting: promptContext.worldSetting,
           characterName: character.name,
           characterIdentity: character.identity,
+          agentId: character.agentId ?? null,
           cleanHistory,
           clientMessageId,
           generationAttempt: resolved.generationAttempt,
@@ -235,7 +243,9 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
         if (probeResponse) {
           return probeResponse;
         }
-        const cleanHistory = await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
+        const cleanHistory = config.useRoleplayAgents
+          ? []
+          : await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
         const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory, scope.script);
         return createPreparedGenerationResponse({
           requestStartedAt,
@@ -252,6 +262,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           worldSetting: promptContext.worldSetting,
           characterName: character.name,
           characterIdentity: character.identity,
+          agentId: character.agentId ?? null,
           cleanHistory,
           clientMessageId,
           generationAttempt: resolved.generationAttempt,
@@ -295,7 +306,9 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     return probeResponse;
   }
 
-  const cleanHistory = await getCleanHistoryMessages(userId, session.id, clientMessageId);
+  const cleanHistory = config.useRoleplayAgents
+    ? []
+    : await getCleanHistoryMessages(userId, session.id, clientMessageId);
   const promptContext = await buildPromptContext(userId, characterId, character, session, cleanHistory, scope.script);
 
   return createPreparedGenerationResponse({
@@ -313,6 +326,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     worldSetting: promptContext.worldSetting,
     characterName: character.name,
     characterIdentity: character.identity,
+    agentId: character.agentId ?? null,
     cleanHistory,
     clientMessageId,
     generationAttempt: userMsg.generationAttempt,
@@ -398,6 +412,7 @@ async function createPreparedGenerationResponse(input: {
   worldSetting?: string;
   characterName: string;
   characterIdentity: string;
+  agentId: string | null;
   cleanHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   clientMessageId?: string;
   generationAttempt: number;
@@ -436,6 +451,7 @@ async function createPreparedGenerationResponse(input: {
     worldSetting: input.worldSetting,
     characterName: input.characterName,
     characterIdentity: input.characterIdentity,
+    agentId: input.agentId,
     messages,
     clientMessageId: input.clientMessageId,
     generationAttempt: input.generationAttempt,
@@ -453,8 +469,12 @@ async function buildPromptContext(
   script: Script | null,
 ): Promise<{ systemPrompt: string; scriptTitle?: string; worldSetting?: string }> {
   // P2-2 4.3：script 由 resolveRequestScope 已加载并随 scope 传入，不再重复查询 scripts。
+  // 角色 Agent 架构：记忆唯一事实源在 FastClaw，API 不再取 memories（开关内置空）；
+  // 回查摘要随 clean history 一起退役（开关内 clean history 为 []，extractUserRecap 不再调用）。
   const [existingMemories, existingRelationship, user] = await Promise.all([
-    getEnabledMemories(userId, characterId, scope.mode, scope.scriptId),
+    config.useRoleplayAgents
+      ? Promise.resolve(null)
+      : getEnabledMemories(userId, characterId, scope.mode, scope.scriptId),
     getRelationship(userId, characterId),
     db
       .select({ preferredName: users.preferredName })
@@ -468,8 +488,12 @@ async function buildPromptContext(
     systemPrompt: buildSystemPrompt(character, script, {
       mode: scope.mode,
       preferredName: user?.preferredName ?? undefined,
-      memories: existingMemories.map((m) => ({ type: m.type, content: m.content })),
-      userRecap: extractUserRecap(cleanHistory),
+      ...(config.useRoleplayAgents
+        ? {}
+        : {
+            memories: (existingMemories ?? []).map((m) => ({ type: m.type, content: m.content })),
+            userRecap: extractUserRecap(cleanHistory),
+          }),
       bondLevel: existingRelationship?.bondLevel,
       bondExp: existingRelationship?.bondExp,
     }),
@@ -602,6 +626,7 @@ function createGenerationResponse(input: {
   worldSetting?: string;
   characterName: string;
   characterIdentity: string;
+  agentId: string | null;
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   clientMessageId?: string;
   generationAttempt: number;
@@ -638,6 +663,15 @@ function createGenerationResponse(input: {
         const generationStartedAt = Date.now();
         for await (const event of streamChat(input.systemPrompt, input.userMessage, {
           messages: input.messages,
+          // 角色 Agent 请求头契约（Spec §8）：agentId/userId/sessionKey/scope/messageId。
+          // clean history 在开关内为 []，messages 恒为 [system(动态上下文), user(当前消息)]。
+          ...(config.useRoleplayAgents ? {
+            agentId: input.agentId ?? undefined,
+            userId: input.userId,
+            sessionId: input.sessionId,
+            scope: input.mode === 'script' && input.scriptId ? `script:${input.scriptId}` : 'free',
+            ...(input.clientMessageId ? { messageId: input.clientMessageId } : {}),
+          } : {}),
         })) {
           if (event.type === 'delta') {
             fullContent += event.content;
@@ -704,7 +738,11 @@ function createGenerationResponse(input: {
           }
         }
 
-        if (scopeClassification === 'out_of_scope') {
+        const isOutOfScope = scopeClassification === 'out_of_scope';
+        // 关闭开关（现状）：越界用固定文案替换生成内容、退款、excludedFromContext。
+        // 开关内（角色 Agent）：越界放行 agent 角色化处理——保留生成内容、退款（平台承担）、
+        // 保留 outOfScope 状态标记与审计（Spec §6 计费行）；不加羁绊/成就（AC-P0-07）。
+        if (isOutOfScope && !config.useRoleplayAgents) {
           const saveStartedAt = Date.now();
           const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
           balanceAfter = refundResult.balanceAfter;
@@ -774,7 +812,7 @@ function createGenerationResponse(input: {
         moderationMs = Date.now() - moderationStartedAt;
 
         const saveStartedAt = Date.now();
-        if (blocked) {
+        if (blocked || isOutOfScope) {
           const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
           balanceAfter = refundResult.balanceAfter;
         }
@@ -784,15 +822,16 @@ function createGenerationResponse(input: {
           content: finalContent,
           mood: finalMood,
           ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
+          ...(isOutOfScope ? { outOfScope: true } : {}),
           ...(blocked ? { excludedFromContext: true } : {}),
           usage: {
             userId: input.userId,
             characterId: input.characterId,
             modelTier: input.modelTier,
             modelName: input.modelName,
-            walletTransactionId: blocked ? null : input.walletTransactionId,
-            status: blocked ? 'filtered' : 'success',
-            pointsConsumed: blocked ? 0 : input.pointsPerCall,
+            walletTransactionId: blocked ? null : (isOutOfScope ? null : input.walletTransactionId),
+            status: blocked ? 'filtered' : isOutOfScope ? 'out_of_scope' : 'success',
+            pointsConsumed: blocked || isOutOfScope ? 0 : input.pointsPerCall,
             ...(sanitizerResult.jsonBlockStripped ? { errorCode: 'output_json_block' } : {}),
           },
         });
@@ -810,7 +849,7 @@ function createGenerationResponse(input: {
           mode: input.mode,
           scriptId: input.scriptId,
         };
-        const effects = blocked
+        const effects = blocked || isOutOfScope
           ? { bond: null, unlockedAchievements: [], unlockedTitles: [] }
           : config.chatEffectsAsyncEnabled
             ? scheduleChatCompletionEffects(effectContext)
@@ -828,9 +867,21 @@ function createGenerationResponse(input: {
           saveMs,
           effectsScheduledMs,
           totalUntilDoneMs: Date.now() - input.requestStartedAt,
-          effectsAsync: config.chatEffectsAsyncEnabled && !blocked,
+          effectsAsync: config.chatEffectsAsyncEnabled && !blocked && !isOutOfScope,
           blocked,
+          ...(isOutOfScope ? { outOfScope: true } : {}),
         });
+
+        if (isOutOfScope) {
+          console.info({
+            event: 'chat_turn_out_of_scope',
+            sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+            assistantMessageId: saved.id,
+            clientMessageId: input.clientMessageId,
+            roleplay: true,
+          });
+        }
 
         if (blocked) {
           // 已展示内容在复核后命中过滤：追加修正提示，done.content 携带落库 finalContent 供客户端覆盖
@@ -843,7 +894,7 @@ function createGenerationResponse(input: {
           mode: input.mode,
           ...(finalMood ? { mood: finalMood } : {}),
           ...(usedFallback ? { fallback: true } : {}),
-          ...(blocked ? { blocked: true, content: finalContent } : sanitizerResult.jsonBlockStripped ? { content: finalContent } : {}),
+          ...(blocked ? { blocked: true, content: finalContent } : isOutOfScope ? { outOfScope: true, content: finalContent } : sanitizerResult.jsonBlockStripped ? { content: finalContent } : {}),
           ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
           ...(saved.bondLevel !== undefined ? { bondLevel: saved.bondLevel } : {}),
           ...(saved.bondExp !== undefined ? { bondExp: saved.bondExp } : {}),

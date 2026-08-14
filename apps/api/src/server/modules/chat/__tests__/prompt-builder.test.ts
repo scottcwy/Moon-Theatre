@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { buildSystemPrompt } from '../prompt-builder.js';
 import type { Script, CharacterWithPrompts } from '../service.js';
 
@@ -11,6 +11,7 @@ function makeCharacter(overrides: Partial<CharacterWithPrompts> = {}): Character
     description: 'A test character',
     scriptId: 'script-1',
     initialRelationship: 'neutral',
+    agentId: 'role-baizang',
     status: 'active',
     prompts: [
       {
@@ -261,6 +262,32 @@ describe('buildSystemPrompt', () => {
   });
 
   // ── NEW: Free mode + story memories still render (caller pre-filters) ──
+
+  it('USE_ROLEPLAY_AGENTS=true strips character prompts, memories and recap (dynamic context only)', async () => {
+    vi.resetModules();
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const { buildSystemPrompt: roleplayBuildSystemPrompt } = await import('../prompt-builder.js');
+    const prompt = roleplayBuildSystemPrompt(makeCharacter(), makeScript(), {
+      mode: 'script',
+      memories: [{ type: 'user_info', content: '用户喜欢猫。' }],
+      userRecap: ['用户最近提到「我喜欢草莓」'],
+      bondLevel: 2,
+      bondExp: 150,
+      preferredName: '小红',
+    });
+
+    expect(prompt).not.toContain('You are a helpful assistant.');
+    expect(prompt).not.toContain('You are in a coffee shop.');
+    expect(prompt).not.toContain('Keep conversations appropriate.');
+    expect(prompt).not.toContain('已知信息：');
+    expect(prompt).not.toContain('用户最近提到');
+    // 动态上下文保留：生产护栏 + 剧本世界观 + 羁绊 + 称呼
+    expect(prompt).toContain('剧本：Test Script');
+    expect(prompt).toContain('A mysterious world.');
+    expect(prompt).toContain('当前羁绊等级：');
+    expect(prompt).toContain('用户希望被称为「小红」');
+    vi.unstubAllEnvs();
+  });
 
   it('free mode renders whatever memories are passed (caller responsibility to filter)', () => {
     const character = makeCharacter();

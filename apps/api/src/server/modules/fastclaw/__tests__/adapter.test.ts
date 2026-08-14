@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { isFastClawConfigured, streamChat } from '../adapter.js';
+import { isFastClawConfigured, streamChat, appendSessionMessage } from '../adapter.js';
 import type { StreamEvent } from '../adapter.js';
 
 async function collectStream(
@@ -125,7 +125,7 @@ describe('streamChat FastClaw integration', () => {
     ]);
   });
 
-  it('forwards API-built messages exactly and does not send product chat session headers', async () => {
+  it('forwards API-built messages exactly and maps sessionId to x-fastclaw-session-key', async () => {
     const fetchMock = vi.fn().mockResolvedValue(mockSseResponse(['data: [DONE]\n\n']));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -159,9 +159,128 @@ describe('streamChat FastClaw integration', () => {
     );
     const [, init] = fetchMock.mock.calls[0] ?? [];
     expect(init).toBeDefined();
-    expect(init?.headers).not.toHaveProperty('x-fastclaw-session-key');
+    // Spec §8：传入 sessionId 时映射到 x-fastclaw-session-key（chat_sessions.id）。
+    expect(init?.headers).toHaveProperty('x-fastclaw-session-key', 'chat-session-123');
     const request = JSON.parse(String(init?.body));
     expect(request.messages).toEqual(apiBuiltMessages);
+  });
+
+  it('sends the roleplay agent header contract (user-id/session-key/scope/message-id/no-persist)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockSseResponse(['data: [DONE]\n\n']));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { streamChat: configuredStreamChat } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+    });
+
+    await collectEvents(configuredStreamChat('动态上下文', '你好', {
+      agentId: 'role-baizang',
+      userId: 'user-1',
+      sessionId: 'chat-session-123',
+      scope: 'script:script-1',
+      messageId: 'client-msg-1',
+      noPersist: true,
+    }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://fastclaw:18953/v1/chat/completions',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'x-fastclaw-agent-id': 'role-baizang',
+          'x-fastclaw-user-id': 'user-1',
+          'x-fastclaw-session-key': 'chat-session-123',
+          'x-fastclaw-scope': 'script:script-1',
+          'x-fastclaw-message-id': 'client-msg-1',
+          'x-fastclaw-no-persist': 'true',
+        }),
+      }),
+    );
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    const request = JSON.parse(String(init?.body));
+    expect(request.messages).toEqual([
+      { role: 'system', content: '动态上下文' },
+      { role: 'user', content: '你好' },
+    ]);
+  });
+
+  it('omits optional roleplay headers when not provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockSseResponse(['data: [DONE]\n\n']));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { streamChat: configuredStreamChat } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+      FASTCLAW_AGENT_ID: 'default-agent',
+    });
+
+    await collectEvents(configuredStreamChat('system', '你好', { agentId: 'default-agent' }));
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.headers).not.toHaveProperty('x-fastclaw-user-id');
+    expect(init?.headers).not.toHaveProperty('x-fastclaw-session-key');
+    expect(init?.headers).not.toHaveProperty('x-fastclaw-scope');
+    expect(init?.headers).not.toHaveProperty('x-fastclaw-message-id');
+    expect(init?.headers).not.toHaveProperty('x-fastclaw-no-persist');
+  });
+
+  it('appendSessionMessage POSTs to the session endpoint with the F8 contract', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { appendSessionMessage: configuredAppend } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+    });
+
+    await configuredAppend({
+      agentId: 'role-baizang',
+      userId: 'user-1',
+      scope: 'free',
+      sessionKey: 'chat-session-123',
+      role: 'assistant',
+      content: '回来吧。',
+      messageId: 'message-uuid-1',
+      timeoutMs: 15_000,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://fastclaw:18953/v1/sessions/chat-session-123/messages',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer fc_test',
+          'x-fastclaw-agent-id': 'role-baizang',
+          'x-fastclaw-user-id': 'user-1',
+          'x-fastclaw-scope': 'free',
+        }),
+      }),
+    );
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      role: 'assistant',
+      content: '回来吧。',
+      messageId: 'message-uuid-1',
+    });
+  });
+
+  it('appendSessionMessage throws on non-ok status', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('forbidden', { status: 403 })));
+
+    const { appendSessionMessage: configuredAppend } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+    });
+
+    await expect(configuredAppend({
+      agentId: 'role-baizang',
+      userId: 'user-1',
+      scope: 'free',
+      sessionKey: 'chat-session-123',
+      role: 'assistant',
+      content: '回来吧。',
+      messageId: 'message-uuid-1',
+    })).rejects.toThrow('FastClaw append responded with status 403');
   });
 
   it('lets the configured FastClaw agent choose the model instead of overriding it', async () => {

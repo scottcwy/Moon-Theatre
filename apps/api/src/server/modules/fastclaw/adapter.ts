@@ -27,6 +27,14 @@ export interface StreamChatOptions {
   model?: string;
   // Per-call timeout override; defaults to config.fastclawTimeoutMs.
   timeoutMs?: number;
+  // 角色 Agent 请求头契约（Spec §8）：product userId → x-fastclaw-user-id。
+  userId?: string;
+  // 记忆 scope：'free' | 'script:<scriptId>' → x-fastclaw-scope。
+  scope?: string;
+  // 产品 clientMessageId（可选）→ x-fastclaw-message-id，会话级去重（F9）。
+  messageId?: string;
+  // 回访生成不落库（F10）：x-fastclaw-no-persist: true。
+  noPersist?: boolean;
 }
 
 export function isFastClawConfigured(): boolean {
@@ -49,6 +57,22 @@ export async function* streamChat(
       const agentId = options.agentId || config.fastclawAgentId;
       if (agentId) {
         headers['x-fastclaw-agent-id'] = agentId;
+      }
+      // 角色 Agent 请求头契约（Spec §8）：所有头均可选，缺省时保持旧行为。
+      if (options.userId) {
+        headers['x-fastclaw-user-id'] = options.userId;
+      }
+      if (options.sessionId) {
+        headers['x-fastclaw-session-key'] = options.sessionId;
+      }
+      if (options.scope) {
+        headers['x-fastclaw-scope'] = options.scope;
+      }
+      if (options.messageId) {
+        headers['x-fastclaw-message-id'] = options.messageId;
+      }
+      if (options.noPersist) {
+        headers['x-fastclaw-no-persist'] = 'true';
       }
       const messages = options.messages ?? [
         { role: 'system' as const, content: systemPrompt },
@@ -122,6 +146,58 @@ export async function* streamChat(
     }
   } else {
     yield* fallbackStream(userMessage);
+  }
+}
+
+export interface AppendSessionMessageInput {
+  agentId: string;
+  userId: string;
+  scope: string;
+  sessionKey: string;
+  role: 'assistant';
+  content: string;
+  /** 产品 messages.id（UUID），F8 幂等键（与 F9 clientMessageId 是两个 ID 空间）。 */
+  messageId: string;
+  timeoutMs?: number;
+}
+
+/**
+ * F8 回访留言 append：POST /v1/sessions/{key}/messages。
+ * 只写入会话，不触发生成/AutoPersist/扣点/羁绊；messageId 幂等（重复 append 静默跳过）。
+ * 失败抛错（调用方决定是否重试）；FastClaw 未配置时抛错。
+ */
+export async function appendSessionMessage(input: AppendSessionMessageInput): Promise<void> {
+  if (!isFastClawConfigured()) {
+    throw new Error('FastClaw is not configured');
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), input.timeoutMs ?? config.fastclawTimeoutMs);
+  try {
+    const response = await fetch(
+      `${config.fastclawBaseUrl}/v1/sessions/${encodeURIComponent(input.sessionKey)}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.fastclawApiKey}`,
+          'x-fastclaw-agent-id': input.agentId,
+          'x-fastclaw-user-id': input.userId,
+          'x-fastclaw-scope': input.scope,
+        },
+        body: JSON.stringify({
+          role: input.role,
+          content: input.content,
+          messageId: input.messageId,
+        }),
+        signal: controller.signal,
+      },
+    );
+
+    if (!response.ok) {
+      throw new FastClawStreamError('upstream_error', `FastClaw append responded with status ${response.status}`);
+    }
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
