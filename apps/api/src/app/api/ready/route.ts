@@ -1,7 +1,8 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { config } from '@/server/config/index.js';
 import { db } from '@/server/db/index.js';
+import { characters } from '@/server/db/schema.js';
 
 const CHAT_AGENT_MAX_TOKENS = 768;
 const CHAT_AGENT_MAX_TOOL_ITERATIONS = 0;
@@ -31,6 +32,21 @@ const ROLE_AGENT_SLUGS = [
   'role-zhihe',
   'role-yeshangqiu',
 ];
+
+interface RoleplayAgentsCheck {
+  ok: boolean;
+  expectedCount: number;
+  foundCount?: number;
+  missingAgentIds?: string[];
+  duplicateAgentIds?: string[];
+  unknownAgentIds?: string[];
+}
+
+interface DatabaseCheckResult {
+  ok: boolean;
+  error?: string;
+  roleplayAgents?: RoleplayAgentsCheck;
+}
 
 interface FastClawAgentSpec {
   maxTokens: number;
@@ -65,9 +81,10 @@ interface FastClawCheckResult {
 }
 
 export async function GET() {
+  const roleplayMode = process.env.USE_ROLEPLAY_AGENTS === 'true';
   const checks = {
     api: { ok: true },
-    db: await checkDatabase(),
+    db: await checkDatabase(roleplayMode),
     fastclaw: await checkFastClaw(),
   };
   const ok = Object.values(checks).every((check) => check.ok);
@@ -82,7 +99,7 @@ export async function GET() {
   );
 }
 
-async function checkDatabase(): Promise<{ ok: boolean; error?: string }> {
+async function checkDatabase(requireRoleplayAgents: boolean): Promise<DatabaseCheckResult> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(
@@ -94,13 +111,78 @@ async function checkDatabase(): Promise<{ ok: boolean; error?: string }> {
   try {
     // postgres.js 默认 connect_timeout 30s；ready 不能卡 30s，统一 5s 超时口径。
     await Promise.race([db.execute(sql`select 1`), timeout]);
-    return { ok: true };
+    if (!requireRoleplayAgents) {
+      return { ok: true };
+    }
+
+    // Roleplay sentinel (Spec §9.2): the characters table must map all 19
+    // active roles to the frozen agent slugs; a missing/duplicate/unknown
+    // agent_id would silently fall back to the default agent in chat.
+    const rows = await Promise.race([
+      db.select({ agentId: characters.agentId }).from(characters).where(eq(characters.status, 'active')),
+      timeout,
+    ]);
+    const roleplayAgents = validateRoleplayAgentIds(rows);
+    if (!roleplayAgents.ok) {
+      return { ok: false, roleplayAgents, error: describeRoleplayAgentsFailure(roleplayAgents) };
+    }
+    return { ok: true, roleplayAgents };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'DB readiness check failed';
     return { ok: false, error: message };
   } finally {
     clearTimeout(timer);
   }
+}
+
+function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): RoleplayAgentsCheck {
+  const expectedCount = ROLE_AGENT_SLUGS.length;
+  const expected = new Set(ROLE_AGENT_SLUGS);
+  const found = new Set<string>();
+  const counts = new Map<string, number>();
+  let nullCount = 0;
+
+  for (const row of rows) {
+    if (!row.agentId) {
+      nullCount += 1;
+      continue;
+    }
+    counts.set(row.agentId, (counts.get(row.agentId) ?? 0) + 1);
+    found.add(row.agentId);
+  }
+
+  const missingAgentIds = ROLE_AGENT_SLUGS.filter((slug) => !found.has(slug));
+  const duplicateAgentIds = [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([agentId]) => agentId);
+  const unknownAgentIds = [...found].filter((agentId) => !expected.has(agentId)).sort();
+
+  const ok =
+    rows.length === expectedCount &&
+    nullCount === 0 &&
+    missingAgentIds.length === 0 &&
+    duplicateAgentIds.length === 0 &&
+    unknownAgentIds.length === 0;
+
+  return {
+    ok,
+    expectedCount,
+    foundCount: rows.length,
+    ...(missingAgentIds.length > 0 ? { missingAgentIds } : {}),
+    ...(duplicateAgentIds.length > 0 ? { duplicateAgentIds } : {}),
+    ...(unknownAgentIds.length > 0 ? { unknownAgentIds } : {}),
+  };
+}
+
+function describeRoleplayAgentsFailure(check: RoleplayAgentsCheck): string {
+  const parts: string[] = [];
+  if (check.foundCount !== check.expectedCount) {
+    parts.push(`expected exactly ${check.expectedCount} active characters, found ${check.foundCount}`);
+  }
+  if (check.missingAgentIds) parts.push(`missingAgentIds=${JSON.stringify(check.missingAgentIds)}`);
+  if (check.duplicateAgentIds) parts.push(`duplicateAgentIds=${JSON.stringify(check.duplicateAgentIds)}`);
+  if (check.unknownAgentIds) parts.push(`unknownAgentIds=${JSON.stringify(check.unknownAgentIds)}`);
+  return `roleplay agents check failed: ${parts.join('; ')}`;
 }
 
 function validateAgentSpec(

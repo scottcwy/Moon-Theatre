@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { dbExecuteMock } = vi.hoisted(() => ({ dbExecuteMock: vi.fn() }));
+const { dbExecuteMock, dbSelectMock } = vi.hoisted(() => ({
+  dbExecuteMock: vi.fn(),
+  dbSelectMock: vi.fn(),
+}));
 
 vi.mock('@/server/db/index.js', () => ({
-  db: { execute: dbExecuteMock },
+  db: { execute: dbExecuteMock, select: dbSelectMock },
 }));
 
 interface RoleplayAgentCheck {
@@ -20,7 +23,18 @@ interface ReadyResponseBody {
   status: string;
   checks: {
     api: { ok: boolean };
-    db: { ok: boolean; error?: string };
+    db: {
+      ok: boolean;
+      error?: string;
+      roleplayAgents?: {
+        ok: boolean;
+        expectedCount: number;
+        foundCount?: number;
+        missingAgentIds?: string[];
+        duplicateAgentIds?: string[];
+        unknownAgentIds?: string[];
+      };
+    };
     fastclaw: {
       ok: boolean;
       configured: boolean;
@@ -94,6 +108,18 @@ function allRoleSpecs() {
   return specs;
 }
 
+function allAgentIdRows() {
+  return ROLE_AGENT_SLUGS.map((agentId) => ({ agentId }));
+}
+
+function selectChain(rows: Array<{ agentId: string | null }>) {
+  return {
+    from: vi.fn(() => ({
+      where: vi.fn(async () => rows),
+    })),
+  };
+}
+
 async function loadRoute() {
   vi.resetModules();
   return import('./route.js');
@@ -101,8 +127,11 @@ async function loadRoute() {
 
 describe('GET /api/ready FastClaw chat speed guard', () => {
   beforeEach(() => {
-    // DB mock 默认通过：未配置 reject 时 execute 返回 undefined，await 即成功。
+    // DB mock 默认通过：未配置 reject 时 execute 返回 undefined，await 即成功；
+    // roleplay 模式下 select 默认返回 19 个 agent_id 全齐的行。
     dbExecuteMock.mockReset();
+    dbSelectMock.mockReset();
+    dbSelectMock.mockImplementation(() => selectChain(allAgentIdRows()));
   });
 
   afterEach(() => {
@@ -506,5 +535,160 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
       error: 'FASTCLAW_AGENT_ID is required for business chat readiness',
     }));
   });
+
+  it('passes readiness in roleplay mode when all 19 active characters have agent_id', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_7c8acb3dde163e04bb');
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const specs = allRoleSpecs();
+    specs['agt_7c8acb3dde163e04bb'] = roleSpec('agt_7c8acb3dde163e04bb', { roleplay: false });
+    vi.stubGlobal('fetch', mockRoleplayFetch(specs));
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('ready');
+    expect(body.checks.db).toEqual(expect.objectContaining({
+      ok: true,
+      roleplayAgents: expect.objectContaining({
+        ok: true,
+        expectedCount: 19,
+        foundCount: 19,
+      }),
+    }));
+  });
+
+  it('fails readiness in roleplay mode when an active character has no agent_id', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_7c8acb3dde163e04bb');
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const specs = allRoleSpecs();
+    specs['agt_7c8acb3dde163e04bb'] = roleSpec('agt_7c8acb3dde163e04bb', { roleplay: false });
+    vi.stubGlobal('fetch', mockRoleplayFetch(specs));
+    dbSelectMock.mockImplementation(() => selectChain([
+      ...ROLE_AGENT_SLUGS.slice(0, 18).map((agentId) => ({ agentId })),
+      { agentId: null },
+    ]));
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('not_ready');
+    expect(body.checks.fastclaw.ok).toBe(true);
+    expect(body.checks.db).toEqual(expect.objectContaining({
+      ok: false,
+      roleplayAgents: expect.objectContaining({
+        ok: false,
+        expectedCount: 19,
+        foundCount: 19,
+        missingAgentIds: ['role-yeshangqiu'],
+      }),
+    }));
+    expect(body.checks.db.error).toContain('missingAgentIds=["role-yeshangqiu"]');
+  });
+
+  it('fails readiness in roleplay mode when an active character duplicates an agent_id', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_7c8acb3dde163e04bb');
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const specs = allRoleSpecs();
+    specs['agt_7c8acb3dde163e04bb'] = roleSpec('agt_7c8acb3dde163e04bb', { roleplay: false });
+    vi.stubGlobal('fetch', mockRoleplayFetch(specs));
+    dbSelectMock.mockImplementation(() => selectChain([
+      ...ROLE_AGENT_SLUGS.slice(0, 18).map((agentId) => ({ agentId })),
+      { agentId: 'role-baizang' },
+    ]));
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('not_ready');
+    expect(body.checks.fastclaw.ok).toBe(true);
+    expect(body.checks.db).toEqual(expect.objectContaining({
+      ok: false,
+      roleplayAgents: expect.objectContaining({
+        ok: false,
+        expectedCount: 19,
+        foundCount: 19,
+        duplicateAgentIds: ['role-baizang'],
+        missingAgentIds: ['role-yeshangqiu'],
+      }),
+    }));
+    expect(body.checks.db.error).toContain('duplicateAgentIds=["role-baizang"]');
+  });
+
+  it('fails readiness in roleplay mode when fewer than 19 active characters have agent_id', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_7c8acb3dde163e04bb');
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const specs = allRoleSpecs();
+    specs['agt_7c8acb3dde163e04bb'] = roleSpec('agt_7c8acb3dde163e04bb', { roleplay: false });
+    vi.stubGlobal('fetch', mockRoleplayFetch(specs));
+    dbSelectMock.mockImplementation(() => selectChain(
+      ROLE_AGENT_SLUGS.slice(0, 18).map((agentId) => ({ agentId })),
+    ));
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('not_ready');
+    expect(body.checks.fastclaw.ok).toBe(true);
+    expect(body.checks.db).toEqual(expect.objectContaining({
+      ok: false,
+      roleplayAgents: expect.objectContaining({
+        ok: false,
+        expectedCount: 19,
+        foundCount: 18,
+        missingAgentIds: ['role-yeshangqiu'],
+      }),
+    }));
+    expect(body.checks.db.error).toContain('expected exactly 19 active characters, found 18');
+  });
+
+  it('fails readiness in roleplay mode when an extra active character has an unknown agent_id', async () => {
+    vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
+    vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
+    vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_7c8acb3dde163e04bb');
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const specs = allRoleSpecs();
+    specs['agt_7c8acb3dde163e04bb'] = roleSpec('agt_7c8acb3dde163e04bb', { roleplay: false });
+    vi.stubGlobal('fetch', mockRoleplayFetch(specs));
+    dbSelectMock.mockImplementation(() => selectChain([
+      ...allAgentIdRows(),
+      { agentId: 'role-extra' },
+    ]));
+
+    const { GET } = await loadRoute();
+    const response = await GET();
+    const body = await response.json() as ReadyResponseBody;
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('not_ready');
+    expect(body.checks.fastclaw.ok).toBe(true);
+    expect(body.checks.db).toEqual(expect.objectContaining({
+      ok: false,
+      roleplayAgents: expect.objectContaining({
+        ok: false,
+        expectedCount: 19,
+        foundCount: 20,
+        unknownAgentIds: ['role-extra'],
+      }),
+    }));
+    expect(body.checks.db.error).toContain('unknownAgentIds=["role-extra"]');
+  });
+
+
 
 });
