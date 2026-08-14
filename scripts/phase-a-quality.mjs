@@ -444,8 +444,9 @@ function isOosRecord(r) {
 }
 
 function summarizeRecords(records, { dryRun, files }) {
-  // 只统计矩阵记录（含 ctx.scenario）；session-inspect/scope-mismatch 等非矩阵记录不计入。
-  const matrixRecords = records.filter((r) => r.ctx && r.ctx.scenario);
+  // 只统计矩阵记录（ctx.tag === 'matrix'）；session-inspect/scope-mismatch 等非矩阵记录不计入，
+  // 旧审计产物的 tag='long'（长对话）/ tag='dedup'（重复消息）也不计入，避免稀释矩阵验收口径。
+  const matrixRecords = records.filter((r) => r.ctx && r.ctx.scenario && r.ctx.tag === 'matrix');
   const valid = matrixRecords.filter((r) => !hasRequestError(r));
   const requestErrors = matrixRecords.length - valid.length;
 
@@ -480,7 +481,7 @@ function summarizeRecords(records, { dryRun, files }) {
   }));
 
   const issueKinds = {};
-  for (const r of records) {
+  for (const r of matrixRecords) {
     if (!r.issues) continue;
     for (const i of r.issues) issueKinds[i.kind] = (issueKinds[i.kind] || 0) + 1;
   }
@@ -490,7 +491,7 @@ function summarizeRecords(records, { dryRun, files }) {
     dryRun,
     source: files ? 'files' : (dryRun ? 'dry-run' : 'live'),
     files: files || null,
-    models: [...new Set(records.map((r) => r.model))],
+    models: [...new Set(matrixRecords.map((r) => r.model))],
     characters: [...new Set(valid.map((r) => r.ctx.character))],
     modes: [...new Set(valid.map((r) => r.ctx.mode))],
     records: { total: matrixRecords.length, requestErrors },

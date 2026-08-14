@@ -9,7 +9,7 @@
 | Spec 验收行 | harness 输出字段 | 判定 |
 |---|---|---|
 | 改协议-JSON 4/4 泄漏 → 0（output-protocol-sanitization §5） | `protocolLeaks.leaked`（`protocolLeaks.byKind` 明细） | = 0 |
-| 正常角色对白泄漏率与基线一致（<1%） | `protocolLeaks.leakRate` | < 1% |
+| 矩阵内全部有效记录泄漏率（覆盖越界/改协议/记忆等对抗场景；旧快照额外含长对话） | `protocolLeaks.leakRate` | 观察值；「正常角色对白 <1%」基线需完整场景集（承接/剧情/关系/日常），本版场景集不含，另行验证 |
 | OOS 召回不显著劣化：越界矩阵（6 角色 × script）OOS 命中率与 DS 基线 54% 偏差 ≤10pp（latency-scope-classifier §5） | `outOfScope.byModel.ds.hitRate`（`outOfScope.matrixRecords`/`hits`） | 落在 [44%, 64%] |
 | 记忆回查 ≥80% 答出草莓/雨天（memory-fact-persistence §5、fastclaw §10） | `memoryRecall.recallRate`（`pairs`/`hits`） | ≥ 80% |
 | 越界/改协议预检角色化，协议泄漏 = 0（fastclaw §10） | `boundaryMatrix[]`（每行 `protocolLeaks`/`identityBreaks`/`outOfScope`） | 逐行 `protocolLeaks=[]` |
@@ -59,6 +59,9 @@ node scripts/phase-a-quality.mjs --summarize .logs/phase-a-ds.jsonl .logs/phase-
 
 兼容审计快照旧产物（`phase-a-ds.jsonl` / `phase-a-qwen.jsonl`）：旧记录无顶层
 `outOfScope`/`memoryRecallHit`，从 `done.outOfScope` 与回查正文自动兜底推导。
+摘要只统计矩阵记录（`ctx.tag === 'matrix'`）；旧产物的长对话（`tag='long'`）与重复消息
+（`tag='dedup'`）记录不计入 `records`/`protocolLeaks`/`boundaryMatrix`，避免稀释验收口径。
+同一默认输出文件重复运行会**追加**记录（与审计快照行为一致）；需要干净产物时用 `--out` 指定新文件。
 
 ## 场景矩阵
 
