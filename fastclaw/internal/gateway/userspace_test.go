@@ -57,6 +57,12 @@ func TestApplyAgentScopedDefaultsWritesBackToSlice(t *testing.T) {
 			"roleplay":          true,
 			"thinking":          "off",
 			"maxToolIterations": 0,
+			"memory": map[string]interface{}{
+				"autoPersist": map[string]interface{}{
+					"enabled":     true,
+					"everyNTurns": 5,
+				},
+			},
 		}),
 	}}
 	cfg := &config.Config{}
@@ -78,8 +84,11 @@ func TestApplyAgentScopedDefaultsWritesBackToSlice(t *testing.T) {
 	if got.MaxToolIterations != 0 {
 		t.Fatalf("role-baizang maxToolIterations = %d, want 0", got.MaxToolIterations)
 	}
+	if !got.Memory.AutoPersist.Enabled || got.Memory.AutoPersist.EveryNTurns != 5 {
+		t.Fatalf("role-baizang Memory = %+v, want autoPersist enabled every 5 turns", got.Memory)
+	}
 	// Agent without a scope=agent row keeps the resolved defaults untouched.
-	if plain := resolved[1]; plain.Roleplay || plain.Thinking != "" || plain.MaxToolIterations != 20 {
+	if plain := resolved[1]; plain.Roleplay || plain.Thinking != "" || plain.MaxToolIterations != 20 || plain.Memory.AutoPersist.Enabled {
 		t.Fatalf("plain-agent unexpectedly overridden: %+v", plain)
 	}
 }
@@ -137,5 +146,35 @@ func TestLoadUserSpaceAppliesAgentScopedDefaults(t *testing.T) {
 	}
 	if spec.MaxToolIterations != 0 {
 		t.Fatalf("runtime-spec maxToolIterations = %d, want 0", spec.MaxToolIterations)
+	}
+}
+
+// TestApplyAgentDefaultsMergesAgentScopeMemory covers the P0 wiring: an
+// agent-scope agents.defaults row carrying memory.autoPersist must land on
+// the resolved agent's Memory so the gateway-built agent gets a non-zero
+// memoryCfg (runPostTurn gate F5/F7).
+func TestApplyAgentDefaultsMergesAgentScopeMemory(t *testing.T) {
+	var ovr config.AgentDefaults
+	if err := json.Unmarshal([]byte(`{"memory":{"autoPersist":{"enabled":true,"everyNTurns":5}}}`), &ovr); err != nil {
+		t.Fatalf("unmarshal override: %v", err)
+	}
+	rc := &config.ResolvedAgent{}
+	applyAgentDefaults(rc, ovr)
+	if !rc.Memory.AutoPersist.Enabled || rc.Memory.AutoPersist.EveryNTurns != 5 {
+		t.Fatalf("rc.Memory = %+v, want autoPersist enabled every 5 turns", rc.Memory)
+	}
+}
+
+// TestApplyAgentDefaultsAbsentMemoryLeavesResolvedUntouched guards legacy
+// drift: an agent-scope row without a `memory` key is a zero-value
+// AgentDefaults and must not clobber an already-resolved memory config.
+func TestApplyAgentDefaultsAbsentMemoryLeavesResolvedUntouched(t *testing.T) {
+	var ovr config.AgentDefaults
+	rc := &config.ResolvedAgent{Memory: config.MemoryCfg{
+		AutoPersist: config.AutoPersistCfg{Enabled: true, EveryNTurns: 7},
+	}}
+	applyAgentDefaults(rc, ovr)
+	if !rc.Memory.AutoPersist.Enabled || rc.Memory.AutoPersist.EveryNTurns != 7 {
+		t.Fatalf("absent agent-scope memory clobbered resolved memory: %+v", rc.Memory)
 	}
 }

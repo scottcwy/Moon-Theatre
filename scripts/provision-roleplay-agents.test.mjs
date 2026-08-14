@@ -231,6 +231,7 @@ describe('provision-roleplay-agents plan + merge', () => {
     assert.equal(merged.roleplay, true);
     assert.equal(merged.thinking, 'off');
     assert.equal(merged.maxToolIterations, 0);
+    assert.deepEqual(merged.memory, { autoPersist: { enabled: true, everyNTurns: 5 } });
   });
 
   it('configRowId matches FastClaw store deterministic id scheme', () => {
@@ -287,6 +288,7 @@ test('provision-roleplay-agents sqlite dry-run + apply idempotence', { skip: !ha
       roleplay: true,
       thinking: 'off',
       maxToolIterations: 0,
+      memory: { autoPersist: { enabled: true, everyNTurns: 5 } },
     });
 
     const soul = sqliteJson(
@@ -335,6 +337,7 @@ test('provision-roleplay-agents preserves existing model config on apply', { ski
     assert.equal(config.roleplay, true);
     assert.equal(config.thinking, 'off');
     assert.equal(config.maxToolIterations, 0);
+    assert.deepEqual(config.memory, { autoPersist: { enabled: true, everyNTurns: 5 } });
 
     // Second run must be a no-op.
     const second = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--apply']);

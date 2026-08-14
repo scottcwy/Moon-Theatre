@@ -5,8 +5,8 @@
 // apps/api/src/server/seed/story-data.ts, renders SOUL.md / IDENTITY.md /
 // USER.md, and syncs them as FastClaw agent_files owner rows (agents.user_id)
 // — never user_id='' template rows. Also upserts the agent-scope
-// `agents.defaults` config row (roleplay/thinking/maxToolIterations only;
-// model/maxTokens/temperature are never touched).
+// `agents.defaults` config row (roleplay/thinking/maxToolIterations/
+// memory.autoPersist only; model/maxTokens/temperature are never touched).
 //
 // Modes:
 //   default      dry-run: print the diff, write nothing, exit 0
@@ -60,7 +60,8 @@ export const ROLE_AGENT_SLUGS = Object.freeze(Object.values(ROLE_AGENT_BY_NAME))
 export const ROLE_SYSTEM_FILES = Object.freeze(['SOUL.md', 'IDENTITY.md', 'USER.md']);
 
 // Only these keys are written by provisioning (Spec §8: model/maxTokens/
-// temperature must NOT move). Roleplay/tools/heartbeat/skills defaults are
+// temperature must NOT move). Roleplay/memory.autoPersist/tools/heartbeat/
+// skills defaults are
 // enforced by the FastClaw roleplay kernel (F4); provisioning pins the
 // keys the runtime reads from the agent-scope agents.defaults row and that
 // /api/ready verifies via runtime-spec.
@@ -68,6 +69,15 @@ export const ROLEPLAY_AGENT_CONFIG = Object.freeze({
   roleplay: true,
   thinking: 'off',
   maxToolIterations: 0,
+  // Spec §8: roleplay agents auto-persist memory every 5 turns. Written at
+  // agent scope so the FastClaw gateway builds agents with a non-zero
+  // memoryCfg (F5/F7 AutoPersist path).
+  memory: {
+    autoPersist: {
+      enabled: true,
+      everyNTurns: 5,
+    },
+  },
 });
 
 export const USER_MD_TEMPLATE = [

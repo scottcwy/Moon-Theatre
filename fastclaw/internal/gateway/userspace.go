@@ -355,6 +355,23 @@ func applyAgentDefaults(rc *config.ResolvedAgent, ovr config.AgentDefaults) {
 	if ovr.HasRoleplay() {
 		rc.Roleplay = ovr.Roleplay
 	}
+	// Memory (F5/F7 auto-persist): only merge fields the agent-scope row
+	// explicitly carries, and only non-zero values — a zero-value
+	// AgentDefaults (no `memory` key) must never clobber an already
+	// resolved memory config (legacy drift guard). autoPersist.enabled is
+	// a deliberate enable-only merge: provisioning writes `true` for
+	// roleplay agents; opting out via `false` is not a supported surface.
+	if ovr.HasMemory() {
+		if ovr.Memory.AutoPersist.Enabled {
+			rc.Memory.AutoPersist.Enabled = true
+		}
+		if ovr.Memory.AutoPersist.EveryNTurns > 0 {
+			rc.Memory.AutoPersist.EveryNTurns = ovr.Memory.AutoPersist.EveryNTurns
+		}
+		if ovr.Memory.AutoPersist.Model != "" {
+			rc.Memory.AutoPersist.Model = ovr.Memory.AutoPersist.Model
+		}
+	}
 }
 
 // applyAgentScopedDefaults layers each agent's scope=agent agents.defaults

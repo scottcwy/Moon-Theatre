@@ -295,7 +295,8 @@ func NewAgent(rc config.ResolvedAgent, prov provider.Provider, mb *bus.MessageBu
 // NewAgentWithFullCfg creates a new Agent with full config support (memory, privacy, skills learner).
 func NewAgentWithFullCfg(rc config.ResolvedAgent, prov provider.Provider, mb *bus.MessageBus, homeDir string, fullCfg *config.Config) *Agent {
 	ag := NewAgentWithSkillsCfg(rc, prov, mb, homeDir, fullCfg.Skills)
-	ag.memoryCfg = fullCfg.Memory
+	// memoryCfg comes from rc.Memory (wired in NewAgentWithSkillsCfg);
+	// ResolveAgents/MergedAgentConfig copies cfg.Memory into rc.Memory.
 	ag.piiScrubEnabled = fullCfg.Privacy.PIIScrubbing.Enabled
 
 	// Set up FTS store if configured
@@ -328,11 +329,6 @@ func NewAgentWithFullCfg(rc config.ResolvedAgent, prov provider.Provider, mb *bu
 		if fullCfg.SkillsLearner.MinToolCalls > 0 {
 			ag.skillsLearner.minToolCalls = fullCfg.SkillsLearner.MinToolCalls
 		}
-	}
-
-	// Set memory auto-persist defaults
-	if ag.memoryCfg.AutoPersist.EveryNTurns == 0 {
-		ag.memoryCfg.AutoPersist.EveryNTurns = 5
 	}
 
 	return ag
@@ -399,6 +395,7 @@ func NewAgentWithSkillsCfg(rc config.ResolvedAgent, prov provider.Provider, mb *
 		registry:          registry,
 		sessions:          session.NewManager(rc.Home + "/sessions"),
 		memory:            memory,
+		memoryCfg:         rc.Memory,
 		ctxBuilder:        newContextBuilderWithSandbox(rc.Home, workspace, memory, skillsSummary, rc.Thinking, rc.Sandbox.Enabled, rc.Sandbox.Backend),
 		hooks:             hooks,
 		model:             rc.Model,
@@ -415,6 +412,14 @@ func NewAgentWithSkillsCfg(rc config.ResolvedAgent, prov provider.Provider, mb *
 		messageBus:        mb,
 		engine:            eng,
 		costTracker:       eng.costTracker,
+	}
+
+	// Auto-persist defaults: an omitted everyNTurns means every 5 turns
+	// (Spec §8). runPostTurn divides by EveryNTurns once enabled, so 0
+	// would panic — default before the gate can ever see it. Enabled stays
+	// false unless a config row explicitly turns it on (legacy unchanged).
+	if ag.memoryCfg.AutoPersist.EveryNTurns == 0 {
+		ag.memoryCfg.AutoPersist.EveryNTurns = 5
 	}
 
 	// Connect MCP servers and register their tools

@@ -242,3 +242,43 @@ func TestAgentDefaultsMarshalKeepsExplicitFalseRoleplay(t *testing.T) {
 		t.Fatalf("marshaled roleplay = %v (present=%v), want explicit false", v, ok)
 	}
 }
+
+func TestMergedAgentConfigCarriesMemory(t *testing.T) {
+	cfg := &Config{Memory: MemoryCfg{AutoPersist: AutoPersistCfg{Enabled: true, EveryNTurns: 5}}}
+	resolved := cfg.MergedAgentConfig(AgentEntry{ID: "agt_mem"})
+	if !resolved.Memory.AutoPersist.Enabled || resolved.Memory.AutoPersist.EveryNTurns != 5 {
+		t.Fatalf("resolved Memory = %+v, want autoPersist enabled every 5 turns", resolved.Memory)
+	}
+}
+
+func TestAgentDefaultsMemoryPresenceRoundTrip(t *testing.T) {
+	var d AgentDefaults
+	if err := json.Unmarshal([]byte(`{"memory":{"autoPersist":{"enabled":true,"everyNTurns":5}}}`), &d); err != nil {
+		t.Fatal(err)
+	}
+	if !d.HasMemory() {
+		t.Fatal("HasMemory() = false, want true for an explicit memory key")
+	}
+	if !d.Memory.AutoPersist.Enabled || d.Memory.AutoPersist.EveryNTurns != 5 {
+		t.Fatalf("Memory = %+v, want autoPersist enabled every 5 turns", d.Memory)
+	}
+
+	blob, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var round AgentDefaults
+	if err := json.Unmarshal(blob, &round); err != nil {
+		t.Fatal(err)
+	}
+	if !round.HasMemory() || !round.Memory.AutoPersist.Enabled || round.Memory.AutoPersist.EveryNTurns != 5 {
+		t.Fatalf("round-trip Memory = %+v (HasMemory=%v)", round.Memory, round.HasMemory())
+	}
+
+	// Absent memory key must not mark presence: a zero AgentDefaults must
+	// never clobber an already-resolved memory config.
+	var zero AgentDefaults
+	if zero.HasMemory() {
+		t.Fatal("zero AgentDefaults reports HasMemory() = true")
+	}
+}

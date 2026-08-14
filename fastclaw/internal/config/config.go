@@ -323,23 +323,26 @@ type AgentsConfig struct {
 }
 
 type AgentDefaults struct {
-	Model             string  `json:"model,omitempty"`
-	MaxTokens         int     `json:"maxTokens,omitempty"`
-	Temperature       float64 `json:"temperature,omitempty"`
-	MaxToolIterations int     `json:"maxToolIterations,omitempty"`
-	Thinking          string  `json:"thinking,omitempty"`
-	PolicyPreset      string  `json:"policy,omitempty"`
-	Roleplay          bool    `json:"roleplay,omitempty"`
+	Model             string    `json:"model,omitempty"`
+	MaxTokens         int       `json:"maxTokens,omitempty"`
+	Temperature       float64   `json:"temperature,omitempty"`
+	MaxToolIterations int       `json:"maxToolIterations,omitempty"`
+	Thinking          string    `json:"thinking,omitempty"`
+	PolicyPreset      string    `json:"policy,omitempty"`
+	Roleplay          bool      `json:"roleplay,omitempty"`
+	Memory            MemoryCfg `json:"memory,omitempty"`
 
 	maxToolIterationsSet bool
 	roleplaySet          bool
+	memorySet            bool
 }
 
 func (d *AgentDefaults) UnmarshalJSON(data []byte) error {
 	type alias AgentDefaults
 	aux := &struct {
-		MaxToolIterations *int  `json:"maxToolIterations"`
-		Roleplay          *bool `json:"roleplay"`
+		MaxToolIterations *int       `json:"maxToolIterations"`
+		Roleplay          *bool      `json:"roleplay"`
+		Memory            *MemoryCfg `json:"memory"`
 		*alias
 	}{
 		alias: (*alias)(d),
@@ -354,6 +357,10 @@ func (d *AgentDefaults) UnmarshalJSON(data []byte) error {
 	if aux.Roleplay != nil {
 		d.Roleplay = *aux.Roleplay
 		d.roleplaySet = true
+	}
+	if aux.Memory != nil {
+		d.Memory = *aux.Memory
+		d.memorySet = true
 	}
 	return nil
 }
@@ -381,6 +388,9 @@ func (d AgentDefaults) MarshalJSON() ([]byte, error) {
 	if d.roleplaySet {
 		m["roleplay"] = d.Roleplay
 	}
+	if d.HasMemory() {
+		m["memory"] = d.Memory
+	}
 	return json.Marshal(m)
 }
 
@@ -396,6 +406,13 @@ func (d AgentDefaults) HasMaxToolIterations() bool {
 // `roleplay:false` could not clear a roleplay default.
 func (d AgentDefaults) HasRoleplay() bool {
 	return d.roleplaySet || d.Roleplay
+}
+
+// HasMemory reports whether memory was explicitly configured on the
+// agent-scope row. A zero-value AgentDefaults (no `memory` key) must not
+// clobber an already-resolved memory config (legacy drift guard).
+func (d AgentDefaults) HasMemory() bool {
+	return d.memorySet
 }
 
 // AgentEntry is the in-memory shape of one agent row, used during
@@ -617,6 +634,7 @@ type ResolvedAgent struct {
 	MaxToolIterations int
 	Thinking          string
 	Roleplay          bool
+	Memory            MemoryCfg
 	Skills            SkillsConfig
 	MCPServers        map[string]MCPServerConfig
 	Sandbox           SandboxCfg
@@ -727,6 +745,7 @@ func (cfg *Config) MergedAgentConfig(entry AgentEntry) ResolvedAgent {
 		MaxToolIterations: cfg.Agents.Defaults.MaxToolIterations,
 		Thinking:          cfg.Agents.Defaults.Thinking,
 		Roleplay:          cfg.Agents.Defaults.Roleplay,
+		Memory:            cfg.Memory,
 		Sandbox:           cfg.Sandbox,
 		PolicyPreset:      cfg.Agents.Defaults.PolicyPreset,
 	}
