@@ -1,0 +1,1 @@
+ALTER TABLE "characters" ADD COLUMN "agent_id" varchar(64);

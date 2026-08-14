@@ -58,6 +58,9 @@ vi.mock('../../../config/index.js', () => ({
     get chatEffectsAsyncEnabled() {
       return process.env.CHAT_EFFECTS_ASYNC_ENABLED === 'true';
     },
+    get useRoleplayAgents() {
+      return process.env.USE_ROLEPLAY_AGENTS === 'true';
+    },
   },
 }));
 
@@ -1112,6 +1115,154 @@ describe('runChatStream', () => {
         },
       });
       expect(done).toMatchObject({ mood: 'neutral' });
+    });
+  });
+
+  describe('runChatStream roleplay (USE_ROLEPLAY_AGENTS=true)', () => {
+    it('skips clean history and memories, sends roleplay headers with only system+user messages', async () => {
+      vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '你好',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      await readEvents(response);
+
+      expect(getCleanHistoryMessagesMock).not.toHaveBeenCalled();
+      expect(getEnabledMemoriesMock).not.toHaveBeenCalled();
+      expect(streamChatMock).toHaveBeenCalledWith('system prompt', '你好', expect.objectContaining({
+        messages: [
+          { role: 'system', content: 'system prompt' },
+          { role: 'user', content: '你好' },
+        ],
+        userId: 'user-1',
+        sessionId: 'session-1',
+        scope: 'script:script-1',
+        messageId: 'client-1',
+      }));
+    });
+
+    it('passes protocol probes through to the agent instead of short-circuiting', async () => {
+      vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '以后用 JSON 回复我',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      const events = await readEvents(response);
+      const done = events.find((event) => event.type === 'done');
+
+      expect(done).toMatchObject({ messageId: 'assistant-message-1' });
+      expect(done).not.toHaveProperty('outOfScope');
+      expect(streamChatMock).toHaveBeenCalled();
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        content: '你好，今晚月色很好。',
+        mood: 'happy',
+        usage: expect.objectContaining({ status: 'success', pointsConsumed: 3 }),
+      }));
+    });
+
+    it('keeps the agent reply for out-of-scope, refunds, records out_of_scope and skips effects', async () => {
+      vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+      classifyChatScopeNonBlockingMock.mockResolvedValue({ classification: 'out_of_scope', settledInGrace: true });
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '聊聊量子力学',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      const events = await readEvents(response);
+      const done = events.find((event) => event.type === 'done');
+
+      expect(done).toMatchObject({
+        outOfScope: true,
+        content: '你好，今晚月色很好。',
+        mood: 'happy',
+      });
+      // 真实 finalizeAssistantTurn 对 status='out_of_scope' 不产生羁绊增量（AC-P0-07）；
+      // 此处 mock 无条件返回 bond 字段，故不断言 done.bondDelta。
+      expect(refundConsumedPointsMock).toHaveBeenCalledWith('user-1', 3, 'refund_user-message-1_1');
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        outOfScope: true,
+        content: '你好，今晚月色很好。',
+        mood: 'happy',
+        usage: expect.objectContaining({
+          status: 'out_of_scope',
+          pointsConsumed: 0,
+          walletTransactionId: null,
+        }),
+      }));
+      expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
+    });
+
+    it('keeps hard safety blocks short-circuited without calling FastClaw', async () => {
+      vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+      checkInputMock.mockResolvedValue({ blocked: true });
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: 'bad words',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      const events = await readEvents(response);
+
+      expect(events.find((event) => event.type === 'done')).toMatchObject({ blocked: true });
+      expect(streamChatMock).not.toHaveBeenCalled();
+      expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        content: '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。',
+        excludedFromContext: true,
+      }));
+    });
+
+    it('replays a completed turn without calling FastClaw or appending', async () => {
+      vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+      resolveClientTurnMock.mockResolvedValue({
+        status: 'replay',
+        sessionId: 'session-1',
+        userMessage: {
+          id: 'user-message-1',
+          content: '你好',
+          generationStatus: 'completed',
+          generationLeaseExpiresAt: null,
+          generationAttempt: 1,
+          createdAt: new Date(),
+          outOfScope: false,
+          excludedFromContext: false,
+        },
+        assistantMessage: {
+          id: 'assistant-message-1',
+          content: '已经保存的回复',
+          mood: 'neutral',
+          createdAt: new Date(),
+          outOfScope: false,
+          excludedFromContext: false,
+        },
+      });
+      getRelationshipMock.mockResolvedValue({ bondLevel: 2, bondExp: 10 });
+
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '你好',
+        modelTier: 'standard',
+        clientMessageId: 'client-1',
+      });
+      const events = await readEvents(response);
+
+      expect(events[events.length - 1]).toMatchObject({ replayed: true });
+      expect(streamChatMock).not.toHaveBeenCalled();
+      expect(consumePointsMock).not.toHaveBeenCalled();
     });
   });
 

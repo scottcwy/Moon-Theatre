@@ -1,4 +1,5 @@
 import { and, desc, eq, exists, isNull, sql } from 'drizzle-orm';
+import { config } from '../../config/index.js';
 import { db } from '../../db/index.js';
 import {
   characters,
@@ -9,7 +10,8 @@ import {
   relationships,
   users,
 } from '../../db/schema';
-import { generateReturnMessageContent } from './generator.js';
+import { appendSessionMessage } from '../fastclaw/adapter.js';
+import { generateReturnMessageContent, RETURN_MESSAGE_TIMEOUT_MS } from './generator.js';
 import { latestUserMessageAtSql } from '../chat/character-summary-service.js';
 
 const DAY_MS = 86_400_000;
@@ -269,6 +271,7 @@ async function deliverReturnMessage(
   content: string,
   reason: CandidateReason,
   windowStart: Date,
+  agentId: string | null,
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
     await lockReturnMessagesForCharacter(tx, userId, characterId);
@@ -318,6 +321,32 @@ async function deliverReturnMessage(
         eq(characterReturnMessages.windowStart, windowStart),
       ));
 
+    // 角色 Agent 架构：写库后调用 F8 append 到目标自由会话（messageId = messages.id）。
+    // FastClaw 端按 messageId 幂等（重复 append 静默跳过）；失败抛错回滚整笔投递，
+    // 下次 sweep/check 重试（窗口记录未提交，不会出现「账本有、会话无」的孤儿留言）。
+    if (config.useRoleplayAgents) {
+      if (!agentId) {
+        // seed 契约保证 characters.agent_id 19/19；缺失属于数据问题，显式告警而非静默。
+        console.warn({
+          event: 'return_message_append_skipped_no_agent_id',
+          userId,
+          characterId,
+          sessionId,
+        });
+      } else {
+        await appendSessionMessage({
+          agentId,
+          userId,
+          scope: 'free',
+          sessionKey: sessionId,
+          role: 'assistant',
+          content,
+          messageId: message.id,
+          timeoutMs: RETURN_MESSAGE_TIMEOUT_MS,
+        });
+      }
+    }
+
     return true;
   });
 }
@@ -332,6 +361,7 @@ export async function generateForWindow(
   const [character] = await db
     .select({
       name: characters.name,
+      agentId: characters.agentId,
       systemPrompt: characterPrompts.systemPrompt,
       personalityPrompt: characterPrompts.personalityPrompt,
     })
@@ -344,13 +374,22 @@ export async function generateForWindow(
     return false;
   }
 
+  // 目标自由会话 key（可选，仅角色 Agent 架构）：F10 只读获取上下文；无会话时不传（不建孤儿会话）。
+  // 关闭开关不发起该查询，保持现状路径零额外 DB 访问。
+  const existingSessionId = config.useRoleplayAgents
+    ? await getActiveFreeSessionId(userId, characterId, db)
+    : null;
+
   const content = await generateReturnMessageContent({
-    name: character.name,
+    characterName: character.name,
     systemPrompt: character.systemPrompt,
     personalityPrompt: character.personalityPrompt,
+    agentId: character.agentId ?? null,
+    userId,
+    sessionKey: existingSessionId,
   });
 
-  return deliverReturnMessage(userId, characterId, content, reason, windowStart);
+  return deliverReturnMessage(userId, characterId, content, reason, windowStart, character.agentId ?? null);
 }
 
 /**

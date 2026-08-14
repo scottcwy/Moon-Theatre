@@ -1,4 +1,5 @@
 import { bondLevelFromExp, bondLevelName } from '@juben-sha/shared';
+import { config } from '../../config/index.js';
 import type { Script, CharacterWithPrompts } from './service.js';
 
 export interface PromptContext {
@@ -89,28 +90,33 @@ export function buildSystemPrompt(
     parts.push(`当前羁绊等级：${levelName}`);
   }
 
-  if (prompts?.[0]?.systemPrompt) {
-    parts.push(prompts[0].systemPrompt);
-  }
-  if (prompts?.[0]?.personalityPrompt) {
-    parts.push(prompts[0].personalityPrompt);
-  }
-  if (!isFreeMode && prompts?.[0]?.scenarioPrompt) {
-    parts.push(prompts[0].scenarioPrompt);
-  }
-  if (prompts?.[0]?.safetyPrompt) {
-    parts.push(prompts[0].safetyPrompt);
-  }
-  if (prompts?.[0]?.outputFormatPrompt) {
-    parts.push(prompts[0].outputFormatPrompt);
-  }
+  // 角色 Agent 架构（USE_ROLEPLAY_AGENTS=true）：角色静态 prompt 由 FastClaw 角色卡
+  // （SOUL/IDENTITY/USER）承担，记忆唯一事实源在 FastClaw，API 每轮只发动态上下文。
+  // 关闭开关时保持现状：拼入角色 5 个 prompt 字段 + 记忆 + 回查摘要。
+  if (!config.useRoleplayAgents) {
+    if (prompts?.[0]?.systemPrompt) {
+      parts.push(prompts[0].systemPrompt);
+    }
+    if (prompts?.[0]?.personalityPrompt) {
+      parts.push(prompts[0].personalityPrompt);
+    }
+    if (!isFreeMode && prompts?.[0]?.scenarioPrompt) {
+      parts.push(prompts[0].scenarioPrompt);
+    }
+    if (prompts?.[0]?.safetyPrompt) {
+      parts.push(prompts[0].safetyPrompt);
+    }
+    if (prompts?.[0]?.outputFormatPrompt) {
+      parts.push(prompts[0].outputFormatPrompt);
+    }
 
-  const memoryLines = (context?.memories ?? []).map(
-    (m) => `[记忆-${m.type}] ${m.content}`
-  );
-  const recapLines = context?.userRecap ?? [];
-  if (memoryLines.length > 0 || recapLines.length > 0) {
-    parts.push('已知信息：\n' + [...memoryLines, ...recapLines].join('\n'));
+    const memoryLines = (context?.memories ?? []).map(
+      (m) => `[记忆-${m.type}] ${m.content}`
+    );
+    const recapLines = context?.userRecap ?? [];
+    if (memoryLines.length > 0 || recapLines.length > 0) {
+      parts.push('已知信息：\n' + [...memoryLines, ...recapLines].join('\n'));
+    }
   }
 
   return parts.join('\n\n');

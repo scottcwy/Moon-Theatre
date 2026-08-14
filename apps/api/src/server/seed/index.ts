@@ -245,6 +245,7 @@ async function upsertCharacter(scriptId: string, seedCharacter: (typeof seedChar
     description: seedCharacter.description,
     scriptId,
     initialRelationship: seedCharacter.initialRelationship,
+    agentId: seedCharacter.agentId,
     starterQuestions: {
       script: [...seedCharacter.starterQuestions.script],
       free: [...seedCharacter.starterQuestions.free],

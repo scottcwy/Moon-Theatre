@@ -51,6 +51,7 @@ describe('chat completion workflow', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     effectRunState.clear();
     insertMock.mockReturnValue({ values: valuesMock });
     valuesMock.mockReturnValue({ onConflictDoUpdate: onConflictDoUpdateMock });
@@ -211,5 +212,35 @@ describe('chat completion workflow', () => {
     expect(incrementBondExp).not.toHaveBeenCalled();
     expect(extractAndUpsertMemories).toHaveBeenCalledTimes(2);
     expect(unlockAchievementsForChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('USE_ROLEPLAY_AGENTS=true retires the memory effect (memories 增量=0) while achievements still run', async () => {
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const { extractAndUpsertMemories } = await import('../../memory/index.js');
+    const { unlockAchievementsForChat } = await import('../../achievements/index.js');
+    const { runChatCompletionEffects } = await import('../workflow.js');
+
+    vi.mocked(extractAndUpsertMemories).mockResolvedValue([]);
+    vi.mocked(unlockAchievementsForChat).mockResolvedValue({
+      unlockedAchievements: ['first_chat'],
+      unlockedTitles: ['入戏者'],
+    });
+
+    await expect(runChatCompletionEffects({
+      userId: 'user-1',
+      characterId: 'character-1',
+      userMessage: '你好',
+      assistantMessage: '你好。',
+      assistantMessageId: 'assistant-message-1',
+    })).resolves.toEqual({
+      bond: null,
+      unlockedAchievements: ['first_chat'],
+      unlockedTitles: ['入戏者'],
+    });
+
+    expect(extractAndUpsertMemories).not.toHaveBeenCalled();
+    expect(unlockAchievementsForChat).toHaveBeenCalledTimes(1);
+    // 记忆 effect 不再 claim chatEffectRuns：只有 achievement 一条 claim
+    expect(insertMock).toHaveBeenCalledTimes(1);
   });
 });

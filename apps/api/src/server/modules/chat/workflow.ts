@@ -1,4 +1,5 @@
 import { and, eq, lte, or } from 'drizzle-orm';
+import { config } from '../../config/index.js';
 import { db } from '../../db/index.js';
 import { chatEffectRuns } from '../../db/schema.js';
 import { extractAndUpsertMemories } from '../memory/index.js';
@@ -21,18 +22,22 @@ export async function runChatCompletionEffects(input: {
   mode?: 'script' | 'free';
   scriptId?: string | null;
 }): Promise<ChatCompletionEffectsResult> {
-  const memoryResultPromise = runEffect(
-    'memory',
-    input,
-    () => extractAndUpsertMemories(
-      input.userId,
-      input.characterId,
-      input.userMessage,
-      input.assistantMessage,
-      input.mode,
-      input.scriptId,
-    ),
-  );
+  // 角色 Agent 架构：记忆唯一事实源在 FastClaw，API memories 表不再写入（增量=0）。
+  // 关闭开关时保持现状：照常抽取并 upsert memories。
+  const memoryResultPromise = config.useRoleplayAgents
+    ? Promise.resolve({ status: 'skipped' as const })
+    : runEffect(
+        'memory',
+        input,
+        () => extractAndUpsertMemories(
+          input.userId,
+          input.characterId,
+          input.userMessage,
+          input.assistantMessage,
+          input.mode,
+          input.scriptId,
+        ),
+      );
   const [, achievementResult] = await Promise.all([
     memoryResultPromise,
     runEffect('achievement', input, () => unlockAchievementsForChat(input.userId)),

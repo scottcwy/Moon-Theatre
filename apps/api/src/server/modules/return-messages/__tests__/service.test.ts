@@ -19,8 +19,9 @@ const transactionMock = vi.fn();
 const executeMock = vi.fn();
 const existsMock = vi.fn();
 
-const { mockGenerateReturnMessageContent } = vi.hoisted(() => ({
+const { mockGenerateReturnMessageContent, mockAppendSessionMessage } = vi.hoisted(() => ({
   mockGenerateReturnMessageContent: vi.fn(),
+  mockAppendSessionMessage: vi.fn(),
 }));
 
 vi.mock('../../../db/index.js', () => ({
@@ -37,6 +38,7 @@ vi.mock('../../../db/schema', () => ({
     id: 'characters.id',
     name: 'characters.name',
     avatarUrl: 'characters.avatarUrl',
+    agentId: 'characters.agentId',
     status: 'characters.status',
   },
   characterPrompts: {
@@ -87,6 +89,11 @@ vi.mock('../../../db/schema', () => ({
 
 vi.mock('../generator.js', () => ({
   generateReturnMessageContent: mockGenerateReturnMessageContent,
+  RETURN_MESSAGE_TIMEOUT_MS: 15_000,
+}));
+
+vi.mock('../../fastclaw/adapter.js', () => ({
+  appendSessionMessage: mockAppendSessionMessage,
 }));
 
 vi.mock('drizzle-orm/pg-core', () => ({
@@ -119,6 +126,7 @@ function queryResult(rows: unknown[] = []): Promise<unknown[]> & {
 
 const characterRow = {
   name: '白藏',
+  agentId: 'role-baizang',
   systemPrompt: 'system prompt',
   personalityPrompt: 'personality prompt',
 };
@@ -146,7 +154,9 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   vi.useRealTimers();
+  vi.unstubAllEnvs();
   mockGenerateReturnMessageContent.mockResolvedValue('回来吧。');
+  mockAppendSessionMessage.mockResolvedValue(undefined);
 
   selectMock.mockReturnValue({ from: fromMock });
   fromMock.mockImplementation(() => ({
@@ -428,10 +438,53 @@ describe('generateForWindow', () => {
       { type: 'eq', left: 'characterPrompts.characterId', right: 'characters.id' },
     );
     expect(mockGenerateReturnMessageContent).toHaveBeenCalledWith({
-      name: '白藏',
+      characterName: '白藏',
       systemPrompt: 'system prompt',
       personalityPrompt: 'personality prompt',
+      agentId: 'role-baizang',
+      userId: 'user-1',
+      sessionKey: null,
     });
+  });
+
+  it('角色 Agent 架构（USE_ROLEPLAY_AGENTS=true）写库后调用 F8 append（messageId = messages.id）', async () => {
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const { generateForWindow } = await import('../service.js');
+    limitOnce([characterRow]); // character lookup（含 agentId）
+    insertReturningMock
+      .mockResolvedValueOnce([{ id: 'crm-1' }]) // delivery metadata（先占位）
+      .mockResolvedValueOnce([{ id: 'session-1' }]) // create free session
+      .mockResolvedValueOnce([{ id: 'message-1' }]); // write message
+    mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
+
+    const created = await generateForWindow('user-1', 'char-1', 'recent', windowStart);
+
+    expect(created).toBe(true);
+    expect(mockAppendSessionMessage).toHaveBeenCalledTimes(1);
+    expect(mockAppendSessionMessage).toHaveBeenCalledWith({
+      agentId: 'role-baizang',
+      userId: 'user-1',
+      scope: 'free',
+      sessionKey: 'session-1',
+      role: 'assistant',
+      content: '回来吧。',
+      messageId: 'message-1',
+      timeoutMs: 15_000,
+    });
+  });
+
+  it('角色 Agent 架构下 F8 append 失败时整笔投递抛错（回滚待重试），不留下孤儿留言', async () => {
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const { generateForWindow } = await import('../service.js');
+    limitOnce([characterRow]);
+    insertReturningMock
+      .mockResolvedValueOnce([{ id: 'crm-1' }])
+      .mockResolvedValueOnce([{ id: 'session-1' }])
+      .mockResolvedValueOnce([{ id: 'message-1' }]);
+    mockGenerateReturnMessageContent.mockResolvedValueOnce('回来吧。');
+    mockAppendSessionMessage.mockRejectedValueOnce(new Error('append failed'));
+
+    await expect(generateForWindow('user-1', 'char-1', 'recent', windowStart)).rejects.toThrow('append failed');
   });
 
   it('delivers into the existing active free session without creating a new one', async () => {

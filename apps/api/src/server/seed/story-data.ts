@@ -55,6 +55,7 @@ const yunyunScenarioPrompt =
 export const seedCharacters = [
   {
     name: '白藏',
+    agentId: 'role-baizang',
     scriptSlug: 'moon-garden',
     avatarUrl: '/assets/characters/hakuzo.jpg',
     identity: '月见庭院的狐神',
@@ -83,6 +84,7 @@ export const seedCharacters = [
   },
   {
     name: '贺茂清玄',
+    agentId: 'role-hemaoqingxuan',
     scriptSlug: 'moon-garden',
     avatarUrl: '/assets/characters/kiyoharu.jpg',
     identity: '奉命斩缘的阴阳师',
@@ -111,6 +113,7 @@ export const seedCharacters = [
   },
   {
     name: '月岛澪',
+    agentId: 'role-yuedaoling',
     scriptSlug: 'moon-garden',
     avatarUrl: '/assets/characters/mio.jpg',
     identity: '绘梦的病弱画师',
@@ -138,6 +141,7 @@ export const seedCharacters = [
   },
   {
     name: '久远',
+    agentId: 'role-jiuyuan',
     scriptSlug: 'moon-garden',
     avatarUrl: '/assets/characters/kuon.jpg',
     identity: '守北门的无言武士',
@@ -166,6 +170,7 @@ export const seedCharacters = [
   },
   {
     name: '程聿怀',
+    agentId: 'role-chengyuhuai',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/chengyuhuai.jpg',
     identity: '记者',
@@ -193,6 +198,7 @@ export const seedCharacters = [
   },
   {
     name: '蒋伯驾',
+    agentId: 'role-jiangbojia',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/jiangbojia.jpg',
     identity: '缪家家主',
@@ -220,6 +226,7 @@ export const seedCharacters = [
   },
   {
     name: '程走柳',
+    agentId: 'role-chengzouliu',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/chengzouliu.jpg',
     identity: '记者',
@@ -247,6 +254,7 @@ export const seedCharacters = [
   },
   {
     name: '缪宏谟',
+    agentId: 'role-miaohongmo',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/miaohongmo.jpg',
     identity: '眼科医生',
@@ -274,6 +282,7 @@ export const seedCharacters = [
   },
   {
     name: '黛利拉',
+    agentId: 'role-dailila',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/delilah.jpg',
     identity: '热烈如火的女孩',
@@ -301,6 +310,7 @@ export const seedCharacters = [
   },
   {
     name: '以撒',
+    agentId: 'role-yisa',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/isaac.jpg',
     identity: '布雷诺青年',
@@ -328,6 +338,7 @@ export const seedCharacters = [
   },
   {
     name: '羌青瓷',
+    agentId: 'role-qiangqingci',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/qiangqingci.jpg',
     identity: '金狮医院院长',
@@ -355,6 +366,7 @@ export const seedCharacters = [
   },
   {
     name: '奥丁',
+    agentId: 'role-aoding',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/odin.jpg',
     identity: '狂草帮帮主',
@@ -382,6 +394,7 @@ export const seedCharacters = [
   },
   {
     name: '阿奇',
+    agentId: 'role-aqi',
     scriptSlug: 'moon-tower',
     avatarUrl: '/assets/characters/archie.jpg',
     identity: '布雷族魔术师',
@@ -409,6 +422,7 @@ export const seedCharacters = [
   },
   {
     name: '南窗',
+    agentId: 'role-nanchuang',
     scriptSlug: 'yunyun',
     avatarUrl: '/assets/characters/nanchuang.jpg',
     identity: '云乡靛林讯使团团长',
@@ -436,6 +450,7 @@ export const seedCharacters = [
   },
   {
     name: '赋霄',
+    agentId: 'role-fuxiao',
     scriptSlug: 'yunyun',
     avatarUrl: '/assets/characters/fuxiao.jpg',
     identity: '云乡第一枪',
@@ -463,6 +478,7 @@ export const seedCharacters = [
   },
   {
     name: '岑奕岚',
+    agentId: 'role-cenyilan',
     scriptSlug: 'yunyun',
     avatarUrl: '/assets/characters/cenyilan.jpg',
     identity: '见习讯使',
@@ -490,6 +506,7 @@ export const seedCharacters = [
   },
   {
     name: '季沧海',
+    agentId: 'role-jicanghai',
     scriptSlug: 'yunyun',
     avatarUrl: '/assets/characters/jicanghai.jpg',
     identity: '云乡掌厨',
@@ -517,6 +534,7 @@ export const seedCharacters = [
   },
   {
     name: '知何',
+    agentId: 'role-zhihe',
     scriptSlug: 'yunyun',
     avatarUrl: '/assets/characters/zhihe.jpg',
     identity: '沉默的守护者',
@@ -544,6 +562,7 @@ export const seedCharacters = [
   },
   {
     name: '叶上秋',
+    agentId: 'role-yeshangqiu',
     scriptSlug: 'yunyun',
     avatarUrl: '/assets/characters/yeshangqiu.jpg',
     identity: '医药学者',

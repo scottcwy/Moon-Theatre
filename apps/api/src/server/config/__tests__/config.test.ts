@@ -92,4 +92,18 @@ describe('server config production validation', () => {
 
     expect(config.chatEffectsAsyncEnabled).toBe(true);
   });
+
+  it('disables roleplay agents by default (USE_ROLEPLAY_AGENTS unset → false)', async () => {
+    const { config } = await loadConfig();
+
+    expect(config.useRoleplayAgents).toBe(false);
+  });
+
+  it('enables roleplay agents only when USE_ROLEPLAY_AGENTS=true', async () => {
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+
+    const { config } = await loadConfig();
+
+    expect(config.useRoleplayAgents).toBe(true);
+  });
 });

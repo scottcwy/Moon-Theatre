@@ -12,6 +12,8 @@ const rawConfig = {
   fastclawAgentId: process.env.FASTCLAW_AGENT_ID || '',
   fastclawTimeoutMs: parseInt(process.env.FASTCLAW_TIMEOUT_MS || '120000', 10),
   fastclawFallbackEnabled: process.env.FASTCLAW_FALLBACK_ENABLED === 'true',
+  // 角色 Agent 架构总开关：默认 false 保持现状（单 agent + API 组装 system prompt）。
+  useRoleplayAgents: process.env.USE_ROLEPLAY_AGENTS === 'true',
   chatEffectsAsyncEnabled: process.env.CHAT_EFFECTS_ASYNC_ENABLED === 'true',
   paymentProvider: process.env.PAYMENT_PROVIDER || 'mock',
   paymentMerchantId: process.env.PAYMENT_MERCHANT_ID || '',
