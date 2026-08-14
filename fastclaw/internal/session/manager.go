@@ -17,15 +17,15 @@ import (
 
 // Session holds the message history for a channel_chat_id pair.
 type Session struct {
-	mu                sync.Mutex
-	Messages          []provider.Message
-	LastConsolidated  int // index of last consolidated message
-	filePath          string
-	snapshot          []provider.Message // undo snapshot
-	store             SessionStore
-	userID            string
-	agentID           string
-	sessionKey        string
+	mu               sync.Mutex
+	Messages         []provider.Message
+	LastConsolidated int // index of last consolidated message
+	filePath         string
+	snapshot         []provider.Message // undo snapshot
+	store            SessionStore
+	userID           string
+	agentID          string
+	sessionKey       string
 }
 
 // ctx returns a context tagged with this Session's user so the store layer
@@ -97,6 +97,13 @@ func sessionKey(channel, chatID string) string {
 	return channel + "_" + chatID
 }
 
+// StoreKey returns the canonical storage key for a (channel, chatID)
+// pair. Exported so the API layer and ownership checks can address the
+// same session_key the store rows use.
+func StoreKey(channel, chatID string) string {
+	return sessionKey(channel, chatID)
+}
+
 // Get returns or creates a session for the given channel and chat ID.
 //
 // In multi-replica deployments (store-backed mode), every Get() reloads
@@ -153,7 +160,54 @@ func (m *Manager) Get(channel, chatID string) *Session {
 func (s *Session) Append(msg provider.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.appendLocked(msg)
+}
 
+// AppendIfAbsent appends msg only when no existing message matches the
+// dedup key — role=user + Metadata.clientMessageId (F9) or role=assistant
+// + Metadata.messageId (F8). The check and the append run under s.mu, so
+// concurrent duplicate calls in one process cannot double-write. Returns
+// false when a duplicate was found (caller treats it as an idempotent
+// skip). The two ID spaces are deliberately distinct (F8/P1-C): a return
+// message (messageId) never collides with a chat user message
+// (clientMessageId).
+func (s *Session) AppendIfAbsent(msg provider.Message) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if msg.Metadata != nil {
+		switch msg.Role {
+		case "user":
+			if id, _ := msg.Metadata["clientMessageId"].(string); id != "" {
+				for _, m := range s.Messages {
+					if m.Role != "user" || m.Metadata == nil {
+						continue
+					}
+					if mid, _ := m.Metadata["clientMessageId"].(string); mid == id {
+						return false
+					}
+				}
+			}
+		case "assistant":
+			if id, _ := msg.Metadata["messageId"].(string); id != "" {
+				for _, m := range s.Messages {
+					if m.Role != "assistant" || m.Metadata == nil {
+						continue
+					}
+					if mid, _ := m.Metadata["messageId"].(string); mid == id {
+						return false
+					}
+				}
+			}
+		}
+	}
+
+	s.appendLocked(msg)
+	return true
+}
+
+// appendLocked persists msg under the caller-held s.mu.
+func (s *Session) appendLocked(msg provider.Message) {
 	// Auto-set timestamp if not provided
 	if msg.Timestamp == 0 {
 		msg.Timestamp = time.Now().UnixMilli()

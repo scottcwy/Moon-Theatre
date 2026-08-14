@@ -65,6 +65,11 @@ type Store interface {
 	ListSessions(ctx context.Context, userID, agentID string) ([]SessionMeta, error)
 	DeleteSession(ctx context.Context, userID, agentID, sessionKey string) error
 	RenameSession(ctx context.Context, userID, agentID, sessionKey, title string) error
+	// SessionTakenByOther reports whether any row exists for
+	// (agent_id, session_key) under a different user_id. Used by the F8
+	// append endpoint's ownership check (defense-in-depth; the API layer's
+	// chat_sessions.userId contract is the primary defense).
+	SessionTakenByOther(ctx context.Context, agentID, sessionKey, userID string) (bool, error)
 
 	// --- Agent files ---
 	//
@@ -231,7 +236,6 @@ type ConfigRecord struct {
 	UpdatedAt     time.Time              `json:"updatedAt"`
 }
 
-
 // CronJobRecord holds a scheduled job. agent_id is mandatory — the
 // executing identity is whoever currently owns the agent (looked up via
 // agents.user_id at fire time).
@@ -251,7 +255,6 @@ type CronJobRecord struct {
 	NextRun   *time.Time `json:"nextRun,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 }
-
 
 // StorageType identifies the storage backend.
 type StorageType string

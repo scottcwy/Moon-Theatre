@@ -87,7 +87,7 @@ func (f *fakeSessionDB) GetSession(ctx context.Context, userID, agentID, session
 	}
 	rec := &store.SessionRecord{Messages: make([]store.SessionMessage, 0, len(msgs))}
 	for _, m := range msgs {
-		rec.Messages = append(rec.Messages, store.SessionMessage{Role: m.Role, Content: m.Content, Timestamp: time.Now()})
+		rec.Messages = append(rec.Messages, store.SessionMessage{Role: m.Role, Content: m.Content, Metadata: m.Metadata, Timestamp: time.Now()})
 	}
 	return rec, nil
 }
@@ -97,7 +97,7 @@ func (f *fakeSessionDB) SaveSession(ctx context.Context, userID, agentID, sessio
 	defer f.mu.Unlock()
 	msgs := make([]provider.Message, 0, len(rec.Messages))
 	for _, m := range rec.Messages {
-		msgs = append(msgs, provider.Message{Role: m.Role, Content: m.Content})
+		msgs = append(msgs, provider.Message{Role: m.Role, Content: m.Content, Metadata: m.Metadata})
 	}
 	f.msgs[f.key(userID, agentID, sessionKey)] = msgs
 	return nil

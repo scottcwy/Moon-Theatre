@@ -1105,6 +1105,23 @@ func (d *DBStore) RenameSession(ctx context.Context, userID, agentID, sessionKey
 	return err
 }
 
+// SessionTakenByOther implements the F8 ownership probe: true when any
+// row for (agent_id, session_key) belongs to a different user_id.
+func (d *DBStore) SessionTakenByOther(ctx context.Context, agentID, sessionKey, userID string) (bool, error) {
+	var one int
+	err := d.db.QueryRowContext(ctx,
+		fmt.Sprintf(`SELECT 1 FROM sessions WHERE agent_id = %s AND session_key = %s AND user_id != %s LIMIT 1`,
+			d.ph(1), d.ph(2), d.ph(3)),
+		agentID, sessionKey, userID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // --- Agent files ---
 //
 // SOUL.md / IDENTITY.md / MEMORY.md / AGENTS.md / BOOTSTRAP.md / etc.

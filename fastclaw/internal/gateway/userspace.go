@@ -66,6 +66,15 @@ func ensureAgentHome(rc config.ResolvedAgent) {
 	}
 }
 
+// sessionOwnershipChecker adapts store.Store to agent.SessionOwnershipChecker
+// for the F8 append ownership probe (defense-in-depth; the API layer's
+// chat_sessions.userId contract is the primary defense).
+type sessionOwnershipChecker struct{ st store.Store }
+
+func (c sessionOwnershipChecker) SessionTakenByOther(ctx context.Context, agentID, sessionKey, userID string) (bool, error) {
+	return c.st.SessionTakenByOther(ctx, agentID, sessionKey, userID)
+}
+
 // globalSkillsDirPath returns ~/.fastclaw/skills.
 func globalSkillsDirPath() (string, error) {
 	home, err := config.HomeDir()
@@ -440,6 +449,7 @@ func loadUserSpace(ctx context.Context, userID string, mb *bus.MessageBus, st st
 			return session.NewStoreAdapter(st, chatter)
 		}),
 		agent.WithMemoryStore(agent.NewMemoryStoreAdapter(st, userID)),
+		agent.WithSessionOwnershipChecker(sessionOwnershipChecker{st: st}),
 	}
 	if ws != nil {
 		managerOpts = append(managerOpts, agent.WithWorkspaceStore(ws))

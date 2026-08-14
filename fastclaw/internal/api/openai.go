@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/fastclaw-ai/fastclaw/internal/agent"
@@ -166,9 +167,15 @@ func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build session key from header
+	// F10: no-persist marks read-only generation (回访生成不落库): no
+	// append, no AutoPersist, no turnCount, target session read-only.
+	noPersist := strings.EqualFold(r.Header.Get(fastClawNoPersistHeader), "true")
+
+	// Build session key from header. In no-persist mode a missing key
+	// must NOT synthesize an api-<nanos> key — that would create an
+	// orphan in-memory session; instead the turn runs with empty history.
 	sessionKey := r.Header.Get("x-fastclaw-session-key")
-	if sessionKey == "" {
+	if sessionKey == "" && !noPersist {
 		sessionKey = "api-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 
@@ -200,6 +207,7 @@ func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		UserID:               userID,
 		MessageID:            r.Header.Get(fastClawMessageIDHeader),
 		Scope:                scope,
+		NoPersist:            noPersist,
 		Text:                 userText,
 		SystemPromptOverride: systemText,
 		PeerKind:             "dm",
@@ -210,6 +218,7 @@ func (s *Server) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		"session", sessionKey,
 		"user", userID,
 		"scope", scope,
+		"no_persist", noPersist,
 		"stream", req.Stream != nil && *req.Stream,
 	)
 

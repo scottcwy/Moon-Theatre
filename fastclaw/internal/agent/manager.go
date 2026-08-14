@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -35,12 +36,20 @@ func providerForAgent(rc config.ResolvedAgent, shared provider.Provider) provide
 	return shared
 }
 
+// SessionOwnershipChecker detects whether a session key is already owned
+// by a different user (F8 defense-in-depth). The gateway implements it
+// against the store; nil means the check is skipped (local/file mode).
+type SessionOwnershipChecker interface {
+	SessionTakenByOther(ctx context.Context, agentID, sessionKey, userID string) (bool, error)
+}
+
 // ManagerOption configures optional Manager behavior.
 type ManagerOption func(*managerOpts)
 
 type managerOpts struct {
 	sessionStore        session.SessionStore
 	sessionStoreFactory func(userID string) session.SessionStore
+	sessionOwnership    SessionOwnershipChecker
 	memoryStore         MemoryStore
 	workspaceStore      workspace.Store
 	userID              string
@@ -49,6 +58,12 @@ type managerOpts struct {
 
 func WithSessionStore(st session.SessionStore) ManagerOption {
 	return func(o *managerOpts) { o.sessionStore = st }
+}
+
+// WithSessionOwnershipChecker wires the F8 ownership probe onto every
+// agent (gateway passes its store-backed checker).
+func WithSessionOwnershipChecker(c SessionOwnershipChecker) ManagerOption {
+	return func(o *managerOpts) { o.sessionOwnership = c }
 }
 
 // WithSessionStoreFactory supplies a per-chatter session store builder
@@ -162,6 +177,7 @@ func (m *Manager) buildAgent(rc config.ResolvedAgent, prov provider.Provider, mb
 		ag.sessions = session.NewManagerWithStoreForUser(rc.Home+"/sessions", m.opts.sessionStore, m.uid, rc.ID)
 	}
 	ag.sessionStoreFactory = m.opts.sessionStoreFactory
+	ag.sessionOwnership = m.opts.sessionOwnership
 	if m.opts.memoryStore != nil {
 		ag.memory = NewMemoryWithStoreForUser(rc.Home, m.opts.memoryStore, m.uid, rc.ID)
 		ag.ctxBuilder.store = m.opts.memoryStore

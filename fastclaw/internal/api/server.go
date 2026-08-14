@@ -69,6 +69,9 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	if s.gatewayCfg == nil || s.gatewayCfg.HTTP.Endpoints.ChatCompletions.Enabled {
 		mux.HandleFunc("POST /v1/chat/completions",
 			s.authMiddleware(rateLimitMiddleware(s.limiter, getUserID, s.HandleChatCompletions)))
+		// F8 return-message append (idempotent, write-only).
+		mux.HandleFunc("POST /v1/sessions/{key}/messages",
+			s.authMiddleware(rateLimitMiddleware(s.limiter, getUserID, s.HandleAppendMessage)))
 	}
 	if s.gatewayCfg == nil || s.gatewayCfg.HTTP.Endpoints.Agents.Enabled {
 		mux.HandleFunc("GET /v1/agents",

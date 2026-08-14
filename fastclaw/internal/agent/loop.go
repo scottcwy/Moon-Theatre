@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -79,9 +80,13 @@ type Agent struct {
 	// userID so per-chatter session managers persist under the chatter
 	// row (F2/F8 ownership).
 	sessionStoreFactory func(userID string) session.SessionStore
-	engine              *sdkEngine
-	costTracker         *costtracker.Tracker
-	agentID             string
+	// sessionOwnership is the optional F8 ownership probe (gateway-backed
+	// store query). Nil when unavailable (local/file mode) — the 403 is
+	// defense-in-depth; the API chat_sessions.userId contract is primary.
+	sessionOwnership SessionOwnershipChecker
+	engine           *sdkEngine
+	costTracker      *costtracker.Tracker
+	agentID          string
 	// sandboxPool is the per-user (agent + session) sandbox pool. Set
 	// once at boot/hot-reload by attachSandboxToAgents; bindSession
 	// pulls a session-scoped executor from it at the top of every turn
@@ -182,6 +187,47 @@ func (a *Agent) turnContextBuilder(uc *userContext, msg bus.InboundMessage) *Con
 	cb.userID = msg.UserID
 	cb.memory = uc.memory
 	return &cb
+}
+
+// ErrSessionOwnedByOther is returned by AppendMessage when the target
+// session key already belongs to a different user (F8 ownership check,
+// defense-in-depth).
+var ErrSessionOwnedByOther = errors.New("agent: session is owned by another user")
+
+// AppendMessage appends a return-message to the target session (F8).
+// Semantics: write-only — no generation, no AutoPersist, no billing, no
+// bond effects. Idempotent on messageId (persisted in the message's
+// Metadata.messageId, which rides along with the session JSON, so
+// restarts/multi-replica dedup work). The ownership check runs first:
+// if the session key is already taken by a different user, it returns
+// ErrSessionOwnedByOther. Check-then-create is intentionally non-atomic
+// (F8); the API layer's chat_sessions.userId contract is the primary
+// defense. Returns (false, nil) when messageId was already appended.
+func (a *Agent) AppendMessage(ctx context.Context, userID, scope, sessionKey, role, content, messageID string) (bool, error) {
+	if messageID == "" {
+		return false, errors.New("agent: messageId is required")
+	}
+	if a.sessionOwnership != nil {
+		taken, err := a.sessionOwnership.SessionTakenByOther(ctx, a.name, session.StoreKey("api", sessionKey), userID)
+		if err != nil {
+			return false, err
+		}
+		if taken {
+			return false, ErrSessionOwnedByOther
+		}
+	}
+	uc := a.resolveUserContext(bus.InboundMessage{Channel: "api", ChatID: sessionKey, UserID: userID, Scope: scope})
+	var sess *session.Session
+	if uc != nil {
+		sess = uc.sessions.Get("api", sessionKey)
+	} else {
+		sess = a.sessions.Get("api", sessionKey)
+	}
+	return sess.AppendIfAbsent(provider.Message{
+		Role:     role,
+		Content:  content,
+		Metadata: map[string]any{"messageId": messageID},
+	}), nil
 }
 
 // SetSandboxPool wires the per-(agent,session) executor pool. Called by
@@ -684,6 +730,7 @@ func (a *Agent) handleMessageWithoutTools(
 	msg bus.InboundMessage,
 	uc *userContext,
 	sess *session.Session,
+	noPersist bool,
 	messages []provider.Message,
 ) string {
 	hcBefore := &HookContext{AgentName: a.name, Point: BeforeModelCall, Messages: messages, ChatID: msg.ChatID, UserID: a.ownerUserID}
@@ -720,10 +767,14 @@ func (a *Agent) handleMessageWithoutTools(
 		Timestamp:    time.Now().UnixMilli(),
 		RawAssistant: resp.RawAssistant,
 	}
-	sess.Append(assistantMsg)
+	if !noPersist {
+		sess.Append(assistantMsg)
+	}
 	emitEvent(ctx, ChatEvent{Type: "content", Data: map[string]any{"content": resp.Content}})
 	emitEvent(ctx, ChatEvent{Type: "done"})
-	a.runPostTurn(ctx, uc, append(messages, assistantMsg), 0)
+	if !noPersist {
+		a.runPostTurn(ctx, uc, append(messages, assistantMsg), 0)
+	}
 	return resp.Content
 }
 
@@ -739,7 +790,18 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	a.refreshSkillsFromStore()
 	uc := a.resolveUserContext(msg)
 	var sess *session.Session
-	if uc != nil {
+	if msg.NoPersist {
+		// F10 read-only generation: a target session key only supplies
+		// history for context; nothing is appended, compacted, or
+		// post-processed. No key means no session at all (no orphan row).
+		if msg.ChatID != "" {
+			if uc != nil {
+				sess = uc.sessions.Get(msg.Channel, msg.ChatID)
+			} else {
+				sess = a.sessions.Get(msg.Channel, msg.ChatID)
+			}
+		}
+	} else if uc != nil {
 		sess = uc.sessions.Get(msg.Channel, msg.ChatID)
 	} else {
 		sess = a.sessions.Get(msg.Channel, msg.ChatID)
@@ -757,8 +819,11 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 	// session history stays well-formed. Without this, the tool keeps
 	// rendering as a forever-spinning "running" entry on history
 	// rebuild and the next turn's API call gets a 400 from Anthropic
-	// for orphaned tool_use ids.
-	defer padOrphanToolResults(sess)
+	// for orphaned tool_use ids. No-op when no session was resolved
+	// (F10 read-only without a session key).
+	if sess != nil {
+		defer padOrphanToolResults(sess)
+	}
 
 	// Hook: BeforeSystemPrompt
 	a.hooks.Run(ctx, &HookContext{AgentName: a.name, Point: BeforeSystemPrompt, UserID: a.ownerUserID})
@@ -797,25 +862,48 @@ func (a *Agent) HandleMessage(ctx context.Context, msg bus.InboundMessage) strin
 		}
 		userMsg.ContentParts = parts
 	}
-	sess.Append(userMsg)
-
-	// Context compaction: check if session messages are too large
-	sessionMsgs := sess.GetMessages()
-	compactResult, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model, a.thinking)
-	if err != nil {
-		slog.Warn("compaction error", "agent", a.name, "error", err)
+	// F9: the product clientMessageId rides in Metadata.clientMessageId
+	// and is persisted with the session JSON. AppendIfAbsent skips when
+	// an identical user message is already in the session (API retry),
+	// under the session lock. Missing message-id keeps legacy append.
+	if msg.MessageID != "" {
+		userMsg.Metadata = map[string]any{"clientMessageId": msg.MessageID}
 	}
-	if compactResult != nil && compactResult.Pruned {
-		// Replace session messages with compacted version
-		sess.ReplaceMessages(compactResult.Messages)
-		sessionMsgs = compactResult.Messages
-		slog.Info("context compacted", "agent", a.name, "log_file", compactResult.LogFile)
+	if !msg.NoPersist {
+		if msg.MessageID != "" {
+			if !sess.AppendIfAbsent(userMsg) {
+				slog.Info("session dedup: user message already present", "agent", a.name, "chat", msg.ChatID, "message_id", msg.MessageID)
+			}
+		} else {
+			sess.Append(userMsg)
+		}
+	}
+
+	// Context compaction: check if session messages are too large.
+	// Skipped in no-persist mode — the target session is read-only.
+	var sessionMsgs []provider.Message
+	if sess != nil {
+		sessionMsgs = sess.GetMessages()
+		if !msg.NoPersist {
+			compactResult, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model, a.thinking)
+			if err != nil {
+				slog.Warn("compaction error", "agent", a.name, "error", err)
+			}
+			if compactResult != nil && compactResult.Pruned {
+				// Replace session messages with compacted version
+				sess.ReplaceMessages(compactResult.Messages)
+				sessionMsgs = compactResult.Messages
+				slog.Info("context compacted", "agent", a.name, "log_file", compactResult.LogFile)
+			}
+		}
 	}
 
 	messages := a.turnMessages(systemPrompt, msg.SystemPromptOverride, sessionMsgs)
 
-	if a.maxToolIterations == 0 {
-		return a.handleMessageWithoutTools(ctx, msg, uc, sess, messages)
+	// F10 no-persist always uses the pure-text path: generation must not
+	// mutate the target session through tool results.
+	if a.maxToolIterations == 0 || msg.NoPersist {
+		return a.handleMessageWithoutTools(ctx, msg, uc, sess, msg.NoPersist, messages)
 	}
 	toolDefs := a.registry.Definitions()
 
@@ -1158,7 +1246,18 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 	a.refreshSkillsFromStore()
 	uc := a.resolveUserContext(msg)
 	var sess *session.Session
-	if uc != nil {
+	if msg.NoPersist {
+		// F10 read-only generation: a target session key only supplies
+		// history for context; nothing is appended, compacted, or
+		// post-processed. No key means no session at all (no orphan row).
+		if msg.ChatID != "" {
+			if uc != nil {
+				sess = uc.sessions.Get(msg.Channel, msg.ChatID)
+			} else {
+				sess = a.sessions.Get(msg.Channel, msg.ChatID)
+			}
+		}
+	} else if uc != nil {
 		sess = uc.sessions.Get(msg.Channel, msg.ChatID)
 	} else {
 		sess = a.sessions.Get(msg.Channel, msg.ChatID)
@@ -1194,22 +1293,45 @@ func (a *Agent) HandleMessageStream(ctx context.Context, msg bus.InboundMessage)
 		}
 		userMsg.ContentParts = parts
 	}
-	sess.Append(userMsg)
-
-	sessionMsgs := sess.GetMessages()
-	compactResult, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model, a.thinking)
-	if err != nil {
-		slog.Warn("compaction error", "agent", a.name, "error", err)
+	// F9: the product clientMessageId rides in Metadata.clientMessageId
+	// (persisted with the session JSON); AppendIfAbsent skips when the
+	// user message is already in the session (API retry).
+	if msg.MessageID != "" {
+		userMsg.Metadata = map[string]any{"clientMessageId": msg.MessageID}
 	}
-	if compactResult != nil && compactResult.Pruned {
-		sess.ReplaceMessages(compactResult.Messages)
-		sessionMsgs = compactResult.Messages
+	if !msg.NoPersist {
+		if msg.MessageID != "" {
+			if !sess.AppendIfAbsent(userMsg) {
+				slog.Info("session dedup: user message already present", "agent", a.name, "chat", msg.ChatID, "message_id", msg.MessageID)
+			}
+		} else {
+			sess.Append(userMsg)
+		}
+	}
+
+	// F10 read-only: history is loaded for context only; compaction is
+	// skipped because it rewrites the target session.
+	var sessionMsgs []provider.Message
+	if sess != nil {
+		sessionMsgs = sess.GetMessages()
+		if !msg.NoPersist {
+			compactResult, err := CompactMessages(sessionMsgs, a.homePath, a.provider, a.model, a.thinking)
+			if err != nil {
+				slog.Warn("compaction error", "agent", a.name, "error", err)
+			}
+			if compactResult != nil && compactResult.Pruned {
+				sess.ReplaceMessages(compactResult.Messages)
+				sessionMsgs = compactResult.Messages
+			}
+		}
 	}
 
 	messages := a.turnMessages(systemPrompt, msg.SystemPromptOverride, sessionMsgs)
 
-	if a.maxToolIterations == 0 {
-		return a.stringStream(a.handleMessageWithoutTools(ctx, msg, uc, sess, messages))
+	// F10 no-persist always uses the pure-text path: generation must not
+	// mutate the target session through tool results.
+	if a.maxToolIterations == 0 || msg.NoPersist {
+		return a.stringStream(a.handleMessageWithoutTools(ctx, msg, uc, sess, msg.NoPersist, messages))
 	}
 	toolDefs := a.registry.Definitions()
 
