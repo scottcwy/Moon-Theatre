@@ -70,6 +70,11 @@ type Agent struct {
 	// memory, sessions and turnCount are isolated per chatter+scope,
 	// lazily created on first turn. Non-roleplay agents never use it.
 	perUserCtx sync.Map // key userCtxKey, value *userContext
+	// userFileLocks serializes AutoPersist writes to USER.md per chatter
+	// across scope instances (F7 P0): free and script Memory instances of
+	// the same user share one lock so read-modify-write cannot lose
+	// updates. Keyed by userID.
+	userFileLocks sync.Map // key userID, value *sync.Mutex
 	// sessionStoreFactory builds a session store bound to the chatter
 	// userID so per-chatter session managers persist under the chatter
 	// row (F2/F8 ownership).
@@ -142,7 +147,16 @@ func (a *Agent) newUserMemory(userID, scope string) *Memory {
 		m = NewMemory(filepath.Join(a.homePath, "users", userID))
 	}
 	m.SetScope(scope)
+	m.SetUserLock(a.userFileLock(userID))
 	return m
+}
+
+// userFileLock returns the per-user AutoPersist write lock, creating it
+// on first use. Shared by every scope instance of the same user (F7 P0).
+func (a *Agent) userFileLock(userID string) *sync.Mutex {
+	lock := &sync.Mutex{}
+	actual, _ := a.userFileLocks.LoadOrStore(userID, lock)
+	return actual.(*sync.Mutex)
 }
 
 func (a *Agent) newUserSessionManager(userID string) *session.Manager {
