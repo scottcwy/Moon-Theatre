@@ -55,6 +55,7 @@ export const characters = pgTable('characters', {
   description: text('description').notNull(),
   scriptId: uuid('script_id').references(() => scripts.id),
   initialRelationship: varchar('initial_relationship', { length: 256 }).notNull(),
+  agentId: varchar('agent_id', { length: 64 }),
   starterQuestions: jsonb('starter_questions')
     .$type<StarterQuestions>()
     .notNull()

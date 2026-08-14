@@ -32,6 +32,33 @@ describe('seed story data', () => {
     ]);
   });
 
+  it('assigns the frozen 19 FastClaw agent slugs (one agent per character)', () => {
+    expect(seedCharacters.map((character) => character.agentId)).toEqual([
+      'role-baizang',
+      'role-hemaoqingxuan',
+      'role-yuedaoling',
+      'role-jiuyuan',
+      'role-chengyuhuai',
+      'role-jiangbojia',
+      'role-chengzouliu',
+      'role-miaohongmo',
+      'role-dailila',
+      'role-yisa',
+      'role-qiangqingci',
+      'role-aoding',
+      'role-aqi',
+      'role-nanchuang',
+      'role-fuxiao',
+      'role-cenyilan',
+      'role-jicanghai',
+      'role-zhihe',
+      'role-yeshangqiu',
+    ]);
+    for (const character of seedCharacters) {
+      expect(character.agentId).toMatch(/^role-[a-z0-9-]+$/);
+    }
+  });
+
   it('keeps the Moon Garden script fields', () => {
     expect(moonGarden.worldSetting).toContain('只在满月出现');
     expect(moonGarden.genre).toBe('和风悬疑');
