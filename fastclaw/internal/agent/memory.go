@@ -433,6 +433,7 @@ func AutoPersistMemory(ctx context.Context, mem *Memory, prov provider.Provider,
 	currentUserForPrompt := mem.LoadUserFile()
 
 	extractPrompt := fmt.Sprintf(`你是剧本杀角色的记忆抽取助手。只从「用户消息」中抽取值得长期记忆的事实，忽略助手消息与系统提示。
+逐条核对近期用户消息：凡出现过的画像事实（称呼/名字/喜欢/讨厌/偏好/最爱/习惯/职业/年龄等），即使只出现过一次、即使已被后续话题带过，也必须提取，不得遗漏。
 输出三类（与产品记忆模型对齐）：
 - user_info: 用户画像事实（称呼/名字、喜欢/讨厌、偏好/最爱、习惯、职业、年龄、来源地等）
 - relationship: 用户与角色之间的关系、信任或态度变化

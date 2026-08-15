@@ -117,6 +117,40 @@ func TestAutoPersistRoutesByFrozenSchemaScriptMode(t *testing.T) {
 	}
 }
 
+func TestAutoPersistPromptRequiresSingleMentionFacts(t *testing.T) {
+	// Prod-quality guard: the extraction prompt must explicitly require
+	// single-mention profile facts so a one-off "我喜欢草莓" in turn 1 is
+	// still captured after later turns drift to casual chat.
+	memStore := newFakeUserMemStore()
+	prov := &jsonProvider{content: `{"user_info":["用户喜欢「草莓」"],"relationship":[],"story":[]}`}
+	mem := NewMemoryWithStoreForUser(t.TempDir(), memStore, "u_alice", "agt_rp")
+	mem.SetScope("free")
+
+	AutoPersistMemory(context.Background(), mem, prov, "model", "off", []provider.Message{
+		{Role: "user", Content: "我喜欢吃草莓，最喜欢下雨天。记住这一点。"},
+		{Role: "user", Content: "今天天气不错，你觉得呢？"},
+		{Role: "user", Content: "所以我的喜好你应该记住了吧？"},
+	})
+
+	for _, want := range []string{
+		"逐条核对近期用户消息",
+		"即使只出现过一次",
+		"不得遗漏",
+	} {
+		if !strings.Contains(prov.prompt, want) {
+			t.Errorf("extraction prompt missing %q:\n%s", want, prov.prompt)
+		}
+	}
+	// The one-off fact must still route to USER.md (schema/routing frozen).
+	user, err := memStore.GetWorkspaceFile(context.Background(), "agt_rp", "u_alice", "USER.md")
+	if err != nil {
+		t.Fatalf("USER.md missing: %v", err)
+	}
+	if !strings.Contains(string(user), "草莓") {
+		t.Errorf("USER.md missing single-mention fact:\n%s", user)
+	}
+}
+
 func TestAutoPersistFreeModeDropsStory(t *testing.T) {
 	memStore := newFakeUserMemStore()
 	prov := &jsonProvider{content: `{"user_info":["用户自称「阿茶」。","用户喜欢「草莓」","用户是设计师"],"relationship":[],"story":["用户提到剧情：「北门有异动」"]}`}
