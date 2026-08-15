@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -92,11 +93,11 @@ func gatewayCmd() *cobra.Command {
 }
 
 func runGateway(port int) error {
+	env := config.LoadEnv()
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: logLevel(env.Log.Level),
 	})))
 
-	env := config.LoadEnv()
 	if env.Gateway.Port > 0 {
 		port = env.Gateway.Port
 	}
@@ -154,6 +155,21 @@ func runGateway(port int) error {
 	}
 
 	return gw.Run()
+}
+
+// logLevel maps the FASTCLAW_LOG_LEVEL value to a slog level. Unknown or
+// empty values fall back to info so the gateway stays quiet by default.
+func logLevel(v string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
 
 func newGatewayCfg(port int, env *config.EnvConfig) *config.GatewayCfg {

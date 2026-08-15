@@ -16,7 +16,7 @@ type jsonProvider struct {
 }
 
 func (p *jsonProvider) Chat(
-	_ context.Context,
+	ctx context.Context,
 	messages []provider.Message,
 	_ []provider.Tool,
 	_ string,
@@ -24,6 +24,12 @@ func (p *jsonProvider) Chat(
 	_ float64,
 	_ string,
 ) (*provider.Response, error) {
+	// Mirror the real provider: a canceled context fails the call instead
+	// of silently succeeding. Existing tests pass context.Background(), so
+	// this only changes behavior for tests that exercise cancellation.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	p.prompt = messages[0].Content
 	return &provider.Response{Content: p.content}, nil
 }

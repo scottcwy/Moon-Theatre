@@ -147,3 +147,66 @@ func TestLegacyAgentAutoPersistStaysDisabled(t *testing.T) {
 		t.Fatal("legacy agent wrote USER.md despite autoPersist disabled")
 	}
 }
+
+// TestRoleplayAutoPersistSurvivesCanceledRequestCtx is the P0-followup
+// regression for the live-gateway failure: runPostTurn passes the HTTP
+// request context into the AutoPersist goroutine, and net/http cancels
+// that context as soon as the handler returns. The extraction call must
+// detach from that cancellation (context.WithoutCancel) or every
+// production AutoPersist silently fails with "context canceled" while the
+// unit tests (context.Background()) stay green.
+func TestRoleplayAutoPersistSurvivesCanceledRequestCtx(t *testing.T) {
+	memStore := newFakeUserMemStore()
+	prov := &jsonProvider{content: `{"user_info":["用户喜欢「草莓」"],"relationship":["用户信任角色"],"story":[]}`}
+	mgr, err := NewManager([]config.ResolvedAgent{{
+		ID:                "agt_rp",
+		Home:              t.TempDir(),
+		Model:             "siliconflow/test-model",
+		MaxTokens:         1024,
+		Temperature:       0.7,
+		MaxToolIterations: 0,
+		Roleplay:          true,
+		Memory:            config.MemoryCfg{AutoPersist: config.AutoPersistCfg{Enabled: true, EveryNTurns: 5}},
+	}}, prov, bus.New(),
+		WithUserID("u_owner"),
+		WithMemoryStore(memStore),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ag := mgr.AgentByID("agt_rp")
+	if ag == nil {
+		t.Fatal("agent agt_rp not loaded")
+	}
+	uc := ag.resolveUserContext(bus.InboundMessage{UserID: "u_alice", Scope: "free"})
+	if uc == nil {
+		t.Fatal("resolveUserContext returned nil for roleplay agent")
+	}
+
+	for i := 1; i <= 4; i++ {
+		ag.runPostTurn(context.Background(), uc, []provider.Message{{Role: "user", Content: "你好"}}, 0)
+	}
+
+	// The 5th turn mimics the gateway handler: the request context is
+	// canceled as soon as runPostTurn returns (net/http behavior), while
+	// the AutoPersist goroutine is still in flight.
+	ctx, cancel := context.WithCancel(context.Background())
+	ag.runPostTurn(ctx, uc, []provider.Message{{Role: "user", Content: "我喜欢吃草莓"}}, 0)
+	cancel()
+
+	waitForAutoPersistWrites(t, memStore, "agt_rp", "u_alice")
+	user, err := memStore.GetWorkspaceFile(context.Background(), "agt_rp", "u_alice", "USER.md")
+	if err != nil {
+		t.Fatalf("USER.md missing after canceled request ctx: %v", err)
+	}
+	if !strings.Contains(string(user), "草莓") {
+		t.Errorf("USER.md missing fact written under canceled ctx:\n%s", user)
+	}
+	shared, err := memStore.GetWorkspaceFile(context.Background(), "agt_rp", "u_alice", "shared/MEMORY.md")
+	if err != nil {
+		t.Fatalf("shared/MEMORY.md missing after canceled request ctx: %v", err)
+	}
+	if !strings.Contains(string(shared), "信任") {
+		t.Errorf("shared/MEMORY.md missing relationship fact written under canceled ctx:\n%s", shared)
+	}
+}

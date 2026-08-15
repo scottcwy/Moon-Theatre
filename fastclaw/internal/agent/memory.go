@@ -372,6 +372,11 @@ func (m *Memory) LoadUserFile() string {
 	return string(data)
 }
 
+// autoPersistLLMTimeout bounds the extraction LLM call. AutoPersist runs
+// best-effort in a goroutine after the reply is sent; without a deadline a
+// hung provider would leak the goroutine (and its HTTP connection) forever.
+const autoPersistLLMTimeout = 60 * time.Second
+
 // AutoPersistMemory uses an LLM to extract roleplay memory facts from
 // recent USER messages only (F5: assistant replies are never fed back)
 // and routes them by the frozen F5/F7 table:
@@ -388,6 +393,14 @@ func (m *Memory) LoadUserFile() string {
 // Extraction failures degrade silently — they never block the main reply.
 // Called every N turns (per-user counter for roleplay).
 func AutoPersistMemory(ctx context.Context, mem *Memory, prov provider.Provider, model string, thinking string, messages []provider.Message) {
+	// Detach from the caller's cancellation (the HTTP request ctx that
+	// runPostTurn passes in is canceled by net/http as soon as the handler
+	// returns, which silently killed every extraction call) and bound the
+	// LLM call so it can never hang. Values on ctx (e.g. user/trace tags)
+	// are preserved by WithoutCancel.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoPersistLLMTimeout)
+	defer cancel()
+
 	// Build a summary of recent user messages (assistant/system excluded).
 	var sb strings.Builder
 	userMsgs := make([]string, 0, len(messages))
@@ -446,13 +459,13 @@ func AutoPersistMemory(ctx context.Context, mem *Memory, prov provider.Provider,
 		{Role: "user", Content: extractPrompt},
 	}, nil, model, 200, 0.3, thinking)
 	if err != nil {
-		slog.Debug("auto-persist: LLM call failed", "error", err)
+		slog.Warn("auto-persist: LLM call failed", "error", err)
 		return
 	}
 
 	var result AutoPersistResult
 	if err := json.Unmarshal([]byte(strings.TrimSpace(resp.Content)), &result); err != nil {
-		slog.Debug("auto-persist: failed to parse LLM response", "error", err)
+		slog.Warn("auto-persist: failed to parse LLM response", "error", err)
 		return
 	}
 
