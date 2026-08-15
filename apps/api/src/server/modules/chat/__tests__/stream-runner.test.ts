@@ -1438,6 +1438,31 @@ describe('runChatStream', () => {
   });
 
   describe('JSON block output sanitization', () => {
+    it('does not stream JSON envelope prefixes in deltas when the envelope spans chunks', async () => {
+      streamChatMock.mockImplementation(async function* () {
+        yield { type: 'delta' as const, content: '{"mood": "平静", "content": "我不会用这种格式说话。"}' };
+        yield { type: 'delta' as const, content: ' 若你想要规整的记录，不如自己去写。' };
+        yield { type: 'done' as const, fallback: false };
+      });
+
+      const { runChatStream } = await import('../stream-runner.js');
+      const response = await runChatStream({
+        userId: 'user-1',
+        characterId: 'character-1',
+        message: '你好',
+        modelTier: 'standard',
+      });
+      const events = await readEvents(response);
+
+      const deltas = events
+        .filter((event) => event.type === 'delta')
+        .map((event) => event.content as string)
+        .join('');
+      expect(deltas).not.toContain('{"mood"');
+      expect(deltas).not.toContain('{"content"');
+      expect(deltas).toContain('若你想要规整的记录，不如自己去写。');
+    });
+
     it('records model_usage errorCode=output_json_block when a JSON block is stripped', async () => {
       streamChatMock.mockImplementation(streamWith('{"mood":"克制","content":"不能这样。"}'));
 

@@ -191,4 +191,56 @@ describe('createStreamingOutputCleaner', () => {
     const cleaner = createStreamingOutputCleaner();
     expect(cleaner.push('白藏垂眸。[他没有立刻回答]\n他说：<北门还不能开>。')).toBe('白藏垂眸。[他没有立刻回答]\n他说：<北门还不能开>。');
   });
+
+  describe('Spec 4 流式增量信封守卫', () => {
+    it('drops a full envelope JSON fed as one chunk', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push('{"mood":"平静","content":"我不会用这种格式说话。"}')).toBe('');
+    });
+
+    it('drops an envelope JSON split across many chunk boundaries', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push('{"mood"')).toBe('');
+      expect(cleaner.push(': "平静", "content": "我不会')).toBe('');
+      expect(cleaner.push('用这种格式说话。"}')).toBe('');
+    });
+
+    it('drops envelope with leading whitespace and single-quoted keys', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push("\n{'mood': '平静', 'content': '我不会。'}")).toBe('');
+    });
+
+    it('keeps trailing normal text that follows the closing brace', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push('{"mood": "平静", "content": "我不会。"}')).toBe('');
+      expect(cleaner.push(' 还有什么要问的吗？')).toBe(' 还有什么要问的吗？');
+    });
+
+    it('drops envelope then continues with same-chunk dialogue after the closing brace', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push('{"mood": "克制", "content": "不能这样。"}白藏抬眸看向你。')).toBe('白藏抬眸看向你。');
+    });
+
+    it('keeps normal Chinese text unaffected with zero buffering per token', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push('你')).toBe('你');
+      expect(cleaner.push('好，今晚月色很好。')).toBe('好，今晚月色很好。');
+    });
+
+    it('keeps stage-direction braces that are not envelope fields', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push('{他顿了顿}')).toBe('{他顿了顿}');
+    });
+
+    it('keeps JSON-looking text whose key is not an internal field (false-positive guard)', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push('{"only": "动作"}')).toBe('{"only": "动作"}');
+      expect(cleaner.push('{线索藏在北门，他说。')).toBe('{线索藏在北门，他说。');
+    });
+
+    it('keeps normal text that begins with a bare brace before a colon', () => {
+      const cleaner = createStreamingOutputCleaner();
+      expect(cleaner.push('{第一页: 北门的雾')).toBe('{第一页: 北门的雾');
+    });
+  });
 });
