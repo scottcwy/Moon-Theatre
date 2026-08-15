@@ -32,7 +32,10 @@ const config = {
   compiler: 'webpack5',
   mini: {
     compile: {
-      include: [path.resolve(__dirname, '../../../packages/miniapp-ui/src')],
+      include: [
+        path.resolve(__dirname, '../../../packages/shared/src'),
+        path.resolve(__dirname, '../../../packages/miniapp-ui/src'),
+      ],
     },
     webpackChain(chain: WebpackChain) {
       chain.resolve.set('extensionAlias', {

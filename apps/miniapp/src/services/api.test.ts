@@ -500,7 +500,7 @@ describe('miniapp api client', () => {
     expect(requestOptions.timeout).toBe(150000);
   });
 
-  it('emits stream_stalled and aborts after 15s without any chunk and ignores late callbacks', async () => {
+  it('emits stream_stalled and aborts after 30s without any chunk and ignores late callbacks', async () => {
     vi.useFakeTimers();
     try {
       const { setToken, streamChat } = await import('./api');
@@ -528,7 +528,7 @@ describe('miniapp api client', () => {
         { onDelta, onDone, onError },
       );
 
-      await vi.advanceTimersByTimeAsync(15000);
+      await vi.advanceTimersByTimeAsync(30000);
       expect(onError).toHaveBeenCalledWith('stream_stalled');
       expect(abortMock).toHaveBeenCalledTimes(1);
 
@@ -574,14 +574,14 @@ describe('miniapp api client', () => {
       );
 
       chunkHandler?.({ data: JSON.stringify({ type: 'delta', content: '第一段' }) + '\n' });
-      await vi.advanceTimersByTimeAsync(14000);
+      await vi.advanceTimersByTimeAsync(29000);
       chunkHandler?.({ data: JSON.stringify({ type: 'delta', content: '第二段' }) + '\n' });
-      await vi.advanceTimersByTimeAsync(14000);
+      await vi.advanceTimersByTimeAsync(29000);
       expect(onError).not.toHaveBeenCalled();
       expect(onDelta).toHaveBeenCalledWith('第一段');
       expect(onDelta).toHaveBeenCalledWith('第二段');
 
-      await vi.advanceTimersByTimeAsync(15000);
+      await vi.advanceTimersByTimeAsync(30000);
       expect(onError).toHaveBeenCalledWith('stream_stalled');
     } finally {
       vi.useRealTimers();

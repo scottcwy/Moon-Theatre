@@ -5,7 +5,7 @@ const BASE_URL = API_BASE_URL;
 const DEV_TOKEN = 'dev-auth-bypass-token';
 const API_REQUEST_TIMEOUT_MS = 30000;
 const CHAT_STREAM_REQUEST_TIMEOUT_MS = 150000;
-const STREAM_STALLED_TIMEOUT_MS = 15000;
+const STREAM_STALLED_TIMEOUT_MS = 30000;
 const IDEMPOTENT_REQUEST_MAX_ATTEMPTS = 2;
 const IDEMPOTENT_REQUEST_RETRY_DELAY_MS = 300;
 const API_DEBUG_LOG_PREFIX = '[api]';
@@ -546,7 +546,7 @@ export function streamChat(
   const restartHeartbeat = () => {
     clearHeartbeat();
     heartbeatTimer = setTimeout(() => {
-      // 契约（chat-audit rev3 §4 P1-1）：15s 无任何数据且未 done → onError('stream_stalled') 并 abort；
+      // 契约（chat-audit rev3 §4 P1-1）：30s 无任何数据且未 done → onError('stream_stalled') 并 abort；
       // stall 后不再送达 delta/done，客户端对迟到回调做忽略。
       stalled = true;
       finished = true;

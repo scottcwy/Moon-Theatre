@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { isFastClawConfigured, streamChat, appendSessionMessage } from '../adapter.js';
+import { isFastClawConfigured, streamChat } from '../adapter.js';
 import type { StreamEvent } from '../adapter.js';
 
 async function collectStream(
