@@ -29,6 +29,7 @@ rtk cp .env.example .env
 - `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。`FASTCLAW_AGENT_ID` 必须指向专用业务聊天 Agent，且 `FASTCLAW_API_KEY` 必须有访问该 Agent 的权限。对话生成仅支持 DeepSeek agent（`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`）；Qwen agent 已停用，不配置降级（Spec 5）。该 Agent 的 `thinking` 必须为 `"off"`（模型级思考关闭，`2026-08-12-fastclaw-disable-model-thinking` Spec），缺失或非 off 时 `/api/ready` 不通过。
 - `FASTCLAW_TIMEOUT_MS`: API 调 FastClaw 的超时，默认 `120000`。
 - `FASTCLAW_FALLBACK_ENABLED`: 必须保持 `false`（Spec 5：Qwen 停用，不配置降级）。
+- `FASTCLAW_LOG_LEVEL`: FastClaw 日志级别，取值 `debug` / `info` / `warn` / `error`，默认 `info`（未设置或未知值回退 `info`）。
 - `CHAT_EFFECTS_ASYNC_ENABLED`: 聊天 effects 异步开关，默认 `false`。设为 `true` 后，记忆、羁绊、成就/称号后台执行，聊天 `done` 只同步保证核心字段。
 - `PAYMENT_PROVIDER` 和支付服务商参数。
 - `ADMIN_USER_IDS`, `ADMIN_BASIC_AUTH_USER`, `ADMIN_BASIC_AUTH_PASSWORD`。
