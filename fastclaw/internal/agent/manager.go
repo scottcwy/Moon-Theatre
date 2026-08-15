@@ -180,9 +180,7 @@ func (m *Manager) buildAgent(rc config.ResolvedAgent, prov provider.Provider, mb
 	ag.sessionOwnership = m.opts.sessionOwnership
 	if m.opts.memoryStore != nil {
 		ag.memory = NewMemoryWithStoreForUser(rc.Home, m.opts.memoryStore, m.uid, rc.ID)
-		ag.ctxBuilder.store = m.opts.memoryStore
-		ag.ctxBuilder.agentID = rc.ID
-		ag.ctxBuilder.userID = m.uid
+		ag.ctxBuilder.SetStore(m.opts.memoryStore, rc.ID, m.uid)
 		ag.memoryStore = m.opts.memoryStore
 		// Identity files (SOUL/IDENTITY/USER/...) share the same DB
 		// store as memory so write_file from the agent ends up in

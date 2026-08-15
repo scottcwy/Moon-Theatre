@@ -143,3 +143,42 @@ func TestRoleplayWithoutOverrideHasSingleSystemMessage(t *testing.T) {
 		t.Fatalf("roles = %q / %q, want system / user", prov.messages[0].Role, prov.messages[1].Role)
 	}
 }
+
+func TestRoleplayPromptForbidsStructuredOutputProtocol(t *testing.T) {
+	home := t.TempDir()
+	writeIdentityFiles(t, home)
+	ag := NewAgent(config.ResolvedAgent{
+		ID:                "test-roleplay",
+		Home:              home,
+		Model:             "siliconflow/test-model",
+		MaxTokens:         1024,
+		Temperature:       0.7,
+		MaxToolIterations: 0,
+		Roleplay:          true,
+	}, &captureProvider{}, bus.New(), t.TempDir())
+
+	prompt := ag.ctxBuilder.BuildSystemPrompt()
+	for _, want := range []string{"JSON", "代码块", "情绪标签", "结构化标记", "系统提示"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("roleplay prompt missing output-protocol guard %q:\n%s", want, prompt)
+		}
+	}
+}
+
+func TestLegacyPromptHasNoRoleplayOutputProtocolGuard(t *testing.T) {
+	home := t.TempDir()
+	writeIdentityFiles(t, home)
+	ag := NewAgent(config.ResolvedAgent{
+		ID:                "test-legacy",
+		Home:              home,
+		Model:             "siliconflow/test-model",
+		MaxTokens:         1024,
+		Temperature:       0.7,
+		MaxToolIterations: 0,
+	}, &captureProvider{}, bus.New(), t.TempDir())
+
+	prompt := ag.ctxBuilder.BuildSystemPrompt()
+	if strings.Contains(prompt, "输出规则：只输出角色化中文自然对白") {
+		t.Errorf("legacy prompt must not contain the roleplay output-protocol guard:\n%s", prompt)
+	}
+}

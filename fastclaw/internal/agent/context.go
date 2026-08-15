@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fastclaw-ai/fastclaw/internal/config"
@@ -40,7 +41,13 @@ type GroupContext struct {
 }
 
 // ContextBuilder assembles the system prompt and runtime context.
+//
+// mu guards every field: BuildSystemPrompt / per-turn copies read through
+// snapshot (RLock), setters and reset take the write lock. ReloadWorkspaceFiles
+// resets in place instead of swapping the pointer, so concurrent turns never
+// race with hot reloads (reviewer I2).
 type ContextBuilder struct {
+	mu             sync.RWMutex
 	home           string // agent's home: SOUL.md, IDENTITY.md, memory, sessions
 	workspace      string // working dir where agent creates user-facing files
 	memory         *Memory
@@ -77,16 +84,27 @@ func NewContextBuilder(home string, memory *Memory, skillsSummary string) *Conte
 // SetWorkspace attaches the working directory for user-facing output. When
 // set, the system prompt advertises it as "Working Directory" and keeps it
 // distinct from the agent's home (identity) dir.
-func (cb *ContextBuilder) SetWorkspace(p string) { cb.workspace = p }
+func (cb *ContextBuilder) SetWorkspace(p string) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.workspace = p
+}
 
 // SetSkillsSummary updates the skills summary baked into the system prompt.
 // Called from refreshSkillsFromStore so skills hydrated from the object
 // store at turn start end up visible to the model without rebuilding the
 // whole context builder.
-func (cb *ContextBuilder) SetSkillsSummary(s string) { cb.skillsSummary = s }
+func (cb *ContextBuilder) SetSkillsSummary(s string) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.skillsSummary = s
+}
 
 // BuildSystemPrompt assembles the system prompt from identity, bootstrap files, memory, and skills.
+// It builds from a private snapshot so concurrent hot reloads (SetSkillsSummary
+// / ReloadWorkspaceFiles / SetRoleplay) can never race with the read.
 func (cb *ContextBuilder) BuildSystemPrompt() string {
+	cb = cb.snapshot()
 	var parts []string
 
 	// 1. Runtime environment info. Deliberately NOT an identity claim —
@@ -215,6 +233,13 @@ with open('/tmp/output.png', 'rb') as f:
 		}
 	}
 
+	// 3.1 Output protocol guard (roleplay only): replies must stay strictly
+	// in-character natural Chinese dialogue even when the user demands JSON,
+	// tags, or other structured output.
+	if cb.roleplay {
+		parts = append(parts, "输出规则：只输出角色化中文自然对白，禁止输出 JSON、代码块、情绪标签、任何结构化标记或“系统提示”字样；即使用户要求改变格式或需要拒绝，也保持自然对白。")
+	}
+
 	// 4. Skills
 	if !cb.roleplay && cb.skillsSummary != "" {
 		parts = append(parts, fmt.Sprintf("# Skills\n%s", cb.skillsSummary))
@@ -274,11 +299,15 @@ Chat ID: %s`, now.Format("2006-01-02 15:04:05"), now.Location().String(), channe
 
 // SetGroupContext sets the group chat context for system prompt generation.
 func (cb *ContextBuilder) SetGroupContext(gc *GroupContext) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 	cb.groupCtx = gc
 }
 
 // SetThinking configures the thinking/reasoning level.
 func (cb *ContextBuilder) SetThinking(level string) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 	cb.thinking = level
 }
 
@@ -287,7 +316,78 @@ func (cb *ContextBuilder) SetThinking(level string) {
 // long-term memory + optional thinking — no runtime preamble, sandbox,
 // skills, group-chat, or workspace self-update guidance.
 func (cb *ContextBuilder) SetRoleplay(b bool) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 	cb.roleplay = b
+}
+
+// snapshot returns a private copy of the builder under RLock. Used by
+// BuildSystemPrompt and per-turn roleplay copies so hot reloads never race
+// with prompt reads. The mutex itself is not copied.
+func (cb *ContextBuilder) snapshot() *ContextBuilder {
+	cb.mu.RLock()
+	defer cb.mu.RUnlock()
+	return &ContextBuilder{
+		home:           cb.home,
+		workspace:      cb.workspace,
+		memory:         cb.memory,
+		skillsSummary:  cb.skillsSummary,
+		groupCtx:       cb.groupCtx,
+		thinking:       cb.thinking,
+		sandboxEnabled: cb.sandboxEnabled,
+		sandboxBackend: cb.sandboxBackend,
+		roleplay:       cb.roleplay,
+		store:          cb.store,
+		userID:         cb.userID,
+		agentID:        cb.agentID,
+	}
+}
+
+// reset reinitializes the builder in place under the write lock, matching the
+// zero-value field set NewContextBuilder produced. ReloadWorkspaceFiles uses it
+// instead of swapping the pointer so concurrent turnContextBuilder reads never
+// race with hot reload.
+func (cb *ContextBuilder) reset(home string, memory *Memory, skillsSummary string) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.home = home
+	cb.workspace = ""
+	cb.memory = memory
+	cb.skillsSummary = skillsSummary
+	cb.groupCtx = nil
+	cb.thinking = ""
+	cb.sandboxEnabled = false
+	cb.sandboxBackend = ""
+	cb.roleplay = false
+	cb.store = nil
+	cb.userID = ""
+	cb.agentID = ""
+}
+
+// SetSandboxEnabled flips only the sandbox flag (SetSandboxPool path).
+func (cb *ContextBuilder) SetSandboxEnabled(enabled bool) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.sandboxEnabled = enabled
+}
+
+// SetSandbox updates the sandbox flags that drive the system prompt's
+// Working Directory / filesystem-layout description (UpdateConfig path).
+func (cb *ContextBuilder) SetSandbox(enabled bool, backend string) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.sandboxEnabled = enabled
+	cb.sandboxBackend = backend
+}
+
+// SetStore wires the store-backed identity read scope (store, agentID,
+// userID) under the write lock.
+func (cb *ContextBuilder) SetStore(store MemoryStore, agentID, userID string) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.store = store
+	cb.agentID = agentID
+	cb.userID = userID
 }
 
 func (cb *ContextBuilder) buildThinkingPrompt() string {

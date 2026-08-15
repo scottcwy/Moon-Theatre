@@ -181,12 +181,14 @@ func (a *Agent) newUserSessionManager(userID string) *session.Manager {
 // (ReloadWorkspaceFiles / refreshSkillsFromStore).
 func (a *Agent) turnContextBuilder(uc *userContext, msg bus.InboundMessage) *ContextBuilder {
 	if uc == nil {
+		// Legacy: BuildSystemPrompt snapshots internally under RLock, so the
+		// shared builder stays the base (behavior unchanged) and is race-free.
 		return a.ctxBuilder
 	}
-	cb := *a.ctxBuilder
+	cb := a.ctxBuilder.snapshot()
 	cb.userID = msg.UserID
 	cb.memory = uc.memory
-	return &cb
+	return cb
 }
 
 // ErrSessionOwnedByOther is returned by AppendMessage when the target
@@ -247,7 +249,7 @@ func (a *Agent) AppendMessage(ctx context.Context, userID, scope, sessionKey, ro
 func (a *Agent) SetSandboxPool(p sandbox.ExecutorPool) {
 	a.sandboxPool = p
 	if a.ctxBuilder != nil {
-		a.ctxBuilder.sandboxEnabled = p != nil
+		a.ctxBuilder.SetSandboxEnabled(p != nil)
 	}
 	// Tell the tool registry sandbox is required so its host-shell exec
 	// fallback refuses to run when bindSession can't bind an executor.
@@ -457,8 +459,7 @@ func newContextBuilderWithThinking(home string, memory *Memory, skillsSummary st
 func newContextBuilderWithSandbox(home, workspace string, memory *Memory, skillsSummary string, thinking string, sandboxEnabled bool, sandboxBackend string) *ContextBuilder {
 	cb := newContextBuilderWithThinking(home, memory, skillsSummary, thinking)
 	cb.SetWorkspace(workspace)
-	cb.sandboxEnabled = sandboxEnabled
-	cb.sandboxBackend = sandboxBackend
+	cb.SetSandbox(sandboxEnabled, sandboxBackend)
 	return cb
 }
 
@@ -1497,8 +1498,7 @@ func (a *Agent) UpdateConfig(rc config.ResolvedAgent) {
 	// executor itself has been swapped to Docker — model dutifully calls
 	// list_dir /Users/idoubi/.fastclaw/agents/<id>/agent and 404s in the
 	// container.
-	a.ctxBuilder.sandboxEnabled = rc.Sandbox.Enabled
-	a.ctxBuilder.sandboxBackend = rc.Sandbox.Backend
+	a.ctxBuilder.SetSandbox(rc.Sandbox.Enabled, rc.Sandbox.Backend)
 }
 
 // refreshSkillsFromStore mirrors OSS-hosted skills (global and per-agent)
@@ -1535,19 +1535,20 @@ func (a *Agent) ReloadWorkspaceFiles() {
 	}
 	skills := loader.LoadSkills()
 	skillsSummary := loader.BuildSkillsSummary(skills)
-	a.ctxBuilder = NewContextBuilder(a.homePath, a.memory, skillsSummary)
+	// Reset in place under the write lock instead of swapping the pointer:
+	// concurrent roleplay turns read a.ctxBuilder (turnContextBuilder) and a
+	// pointer swap would race with them (reviewer I2).
+	a.ctxBuilder.reset(a.homePath, a.memory, skillsSummary)
 	a.ctxBuilder.SetWorkspace(a.workspacePath)
 	// Preserve Store-backed identity reads across reload; without this,
 	// Postgres-mode pods silently fall back to pod-local filesystem.
 	if a.memoryStore != nil {
-		a.ctxBuilder.store = a.memoryStore
-		a.ctxBuilder.agentID = a.name
-		// F2: NewContextBuilder leaves userID empty; without re-setting
-		// it the store reads fall back to an empty user_id and then to
-		// pod-local FS, losing per-user identity/memory rows. The base
-		// builder is owner-scoped; roleplay turns stamp the chatter onto
-		// a per-turn shallow copy (turnContextBuilder).
-		a.ctxBuilder.userID = a.ownerUserID
+		// F2: reset leaves userID empty; without re-setting it the store
+		// reads fall back to an empty user_id and then to pod-local FS,
+		// losing per-user identity/memory rows. The base builder is
+		// owner-scoped; roleplay turns stamp the chatter onto a per-turn
+		// snapshot (turnContextBuilder).
+		a.ctxBuilder.SetStore(a.memoryStore, a.name, a.ownerUserID)
 	}
 }
 
