@@ -475,4 +475,42 @@ describe('authenticated miniapp mock API server', () => {
       await server.close();
     }
   });
+
+  it('filters chat characters against the full message corpus (old-message / single-char / no-hit)', async () => {
+    const server = await startMockApiServer({ port: 0 });
+
+    try {
+      const [oldHit, singleChar, noHit, all] = await Promise.all([
+        // q=铜雀：只出现在程聿怀旧消息（铜雀街的旧案卷），不在角色名与 lastMessage。
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E9%93%9C%E9%9B%80`).then(readJson),
+        // q=月：单字命中白藏（月光）、月岛澪（月色）、程聿怀（月蚀）。
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E6%9C%88`).then(readJson),
+        // q=查无此词：无命中 → 空列表。
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E6%9F%A5%E6%97%A0%E6%AD%A4%E8%AF%8D`).then(readJson),
+        // 无 q：全量 6 条不受影响。
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20`).then(readJson),
+      ]);
+
+      // 旧消息命中：仅程聿怀，且其 lastMessage 不含「铜雀」（证明是全语料命中而非预览命中）。
+      expect(oldHit.characters).toHaveLength(1);
+      expect(oldHit.characters[0]).toMatchObject({
+        characterId: 'chengyuhuai',
+        characterName: '程聿怀',
+      });
+      expect(oldHit.characters[0].lastMessage).not.toContain('铜雀');
+
+      // 单字命中：默认列表顺序下为 白藏、月岛澪、程聿怀。
+      expect(singleChar.characters.map((entry) => entry.characterId)).toEqual(['hakuzo', 'mio', 'chengyuhuai']);
+
+      // 无命中：空列表 + hasMore=false。
+      expect(noHit.characters).toEqual([]);
+      expect(noHit.hasMore).toBe(false);
+
+      // 清空关键词恢复全量。
+      expect(all.characters).toHaveLength(6);
+      expect(all.hasMore).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
 });

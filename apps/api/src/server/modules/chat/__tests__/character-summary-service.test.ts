@@ -59,6 +59,7 @@ vi.mock('drizzle-orm', () => ({
   eq: (left: unknown, right: unknown) => ({ type: 'eq', left, right }),
   isNull: (val: unknown) => ({ type: 'isNull', val }),
   inArray: (col: unknown, vals: unknown[]) => ({ type: 'inArray', col, vals }),
+  ilike: (col: unknown, pattern: unknown) => ({ type: 'ilike', col, pattern }),
   asc: (col: unknown) => ({ type: 'asc', col }),
   desc: (col: unknown) => ({ type: 'desc', col }),
   sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ type: 'sql', strings, vals }),
@@ -92,6 +93,18 @@ function findCondition(condition: Condition, left: string): Condition | undefine
     }
   }
   return undefined;
+}
+
+/**
+ * 全量正文查询的 where mock：getCharacterChatEntries 内 where 调用序为
+ * 1) 每角色最近会话（getLatestSessionRows） 2) 预览 DISTINCT ON 3) 全量正文 ilike。
+ * 前两次必须返回 queryResult()（带 .orderBy 链），第三次返回命中的角色 id 行。
+ */
+function mockContentQueryRows(characterIds: string[]) {
+  selectWhereMock
+    .mockImplementationOnce(() => queryResult())
+    .mockImplementationOnce(() => queryResult())
+    .mockImplementationOnce(() => queryResult(characterIds.map((characterId) => ({ characterId }))));
 }
 
 function makeSessionRow(overrides: Record<string, unknown> = {}) {
@@ -337,5 +350,97 @@ describe('getCharacterChatEntries', () => {
       ['messages.sessionId'],
       expect.objectContaining({ sessionId: 'messages.sessionId', content: 'messages.content' }),
     );
+  });
+
+  it('matches a keyword that only appears in an old (non-latest) message', async () => {
+    const { getCharacterChatEntries } = await import('../character-summary-service.js');
+    orderByMock
+      .mockImplementationOnce(() => queryResult([makeSessionRow({ id: 'session-1' })]))
+      .mockImplementationOnce(() => queryResult([
+        { sessionId: 'session-1', content: '最近一条消息', role: 'assistant' },
+      ]));
+    mockContentQueryRows(['char-1']);
+
+    const result = await getCharacterChatEntries('user-1', 1, 20, '铜雀');
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({
+      characterId: 'char-1',
+      latestSessionId: 'session-1',
+      lastMessage: '最近一条消息',
+    });
+    // 全量正文查询必须限定该用户、只搜 user/assistant、ilike 匹配（防跨用户泄漏）。
+    const contentWhere = selectWhereMock.mock.calls[2]?.[0] as Condition;
+    expect(findCondition(contentWhere, 'chatSessions.userId')).toEqual({
+      type: 'eq', left: 'chatSessions.userId', right: 'user-1',
+    });
+    expect(findCondition(contentWhere, 'messages.role')).toBeDefined();
+    expect(findCondition(contentWhere, 'messages.content')).toEqual({
+      type: 'ilike', col: 'messages.content', pattern: '%铜雀%',
+    });
+  });
+
+  it('matches a keyword found in a user message body', async () => {
+    const { getCharacterChatEntries } = await import('../character-summary-service.js');
+    orderByMock
+      .mockImplementationOnce(() => queryResult([
+        makeSessionRow({ id: 's1', characterId: 'char-1', characterName: '白藏' }),
+        makeSessionRow({ id: 's2', characterId: 'char-2', characterName: '清春' }),
+      ]))
+      .mockImplementationOnce(() => queryResult([
+        { sessionId: 's1', content: '北门有月光', role: 'assistant' },
+        { sessionId: 's2', content: '最近预览', role: 'assistant' },
+      ]));
+    mockContentQueryRows(['char-2']);
+
+    const result = await getCharacterChatEntries('user-1', 1, 20, '红线');
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({ characterId: 'char-2', latestSessionId: 's2' });
+  });
+
+  it('matches a single-character keyword against full message bodies', async () => {
+    const { getCharacterChatEntries } = await import('../character-summary-service.js');
+    orderByMock
+      .mockImplementationOnce(() => queryResult([makeSessionRow({ id: 's1', characterId: 'char-1' })]))
+      .mockImplementationOnce(() => queryResult([
+        { sessionId: 's1', content: '最近消息不含目标字', role: 'assistant' },
+      ]));
+    mockContentQueryRows(['char-1']);
+
+    const result = await getCharacterChatEntries('user-1', 1, 20, '月');
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.characterId).toBe('char-1');
+  });
+
+  it('returns an empty list when the keyword matches no name and no message body', async () => {
+    const { getCharacterChatEntries } = await import('../character-summary-service.js');
+    orderByMock
+      .mockImplementationOnce(() => queryResult([makeSessionRow({ id: 's1' })]))
+      .mockImplementationOnce(() => queryResult([
+        { sessionId: 's1', content: '最近消息', role: 'assistant' },
+      ]));
+    mockContentQueryRows([]);
+
+    const result = await getCharacterChatEntries('user-1', 1, 20, '查无此词');
+
+    expect(result.entries).toEqual([]);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('keeps matching by character name even when no message body hits', async () => {
+    const { getCharacterChatEntries } = await import('../character-summary-service.js');
+    orderByMock
+      .mockImplementationOnce(() => queryResult([makeSessionRow({ id: 's1', characterName: '白藏' })]))
+      .mockImplementationOnce(() => queryResult([
+        { sessionId: 's1', content: '最近消息', role: 'assistant' },
+      ]));
+    mockContentQueryRows([]);
+
+    const result = await getCharacterChatEntries('user-1', 1, 20, '白');
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.characterName).toBe('白藏');
   });
 });

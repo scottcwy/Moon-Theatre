@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { characters, chatSessions, messages, scripts } from '../../db/schema';
@@ -130,10 +130,24 @@ function toCharacterChatEntry(
   };
 }
 
+/** 命中该用户全部消息正文（user/assistant）的角色 id 集合。 */
+async function findCharacterIdsByMessageContent(userId: string, keyword: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ characterId: chatSessions.characterId })
+    .from(chatSessions)
+    .innerJoin(messages, eq(messages.sessionId, chatSessions.id))
+    .where(and(
+      eq(chatSessions.userId, userId),
+      or(eq(messages.role, 'user'), eq(messages.role, 'assistant')),
+      ilike(messages.content, `%${keyword}%`),
+    ));
+  return new Set(rows.map((row) => row.characterId));
+}
+
 /**
  * 聊天列表：按角色聚合的默认入口（无 sort 语义）。
  * 每角色最多一项；只返回角色 active 且所属剧本 active 的角色；
- * 搜索匹配角色名与最近消息；聚合后分页。
+ * 搜索匹配角色名与该用户该角色全部消息正文（user/assistant，ilike 模糊）；聚合后分页。
  */
 export async function getCharacterChatEntries(
   userId: string,
@@ -160,11 +174,12 @@ export async function getCharacterChatEntries(
 
   const previews = await getLatestMessagePreviewBySession(visibleRows.map((row) => row.id));
 
+  const matchingByContent = keyword ? await findCharacterIdsByMessageContent(userId, keyword) : null;
+
   const matchingRows = keyword
-    ? visibleRows.filter((row) => {
-      const lastMessage = previews.get(row.id) ?? '';
-      return `${row.characterName} ${lastMessage}`.toLowerCase().includes(keyword);
-    })
+    ? visibleRows.filter((row) =>
+      row.characterName.toLowerCase().includes(keyword) || matchingByContent?.has(row.characterId),
+    )
     : visibleRows;
 
   const offset = (page - 1) * limit;

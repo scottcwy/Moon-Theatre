@@ -228,6 +228,32 @@ const hakuzoFreeSession = {
   updatedAt: now,
 };
 
+// 聊天列表全量搜索语料：与 /api/chat/sessions/<id>/messages 共用同一数据源，避免两处漂移。
+// 真实服务语义：角色名 or 该用户该角色全部 user/assistant 消息正文 ilike 模糊匹配（spec §4.2/§4.3）。
+// 语料约束：不得含「白」（q=白 只应命中角色名「白藏」）；「程」只出现在程聿怀角色名与语料中。
+const characterChatCorpus = {
+  hakuzo: [
+    { role: 'assistant', content: '铃音，今夜的月很满。' },
+  ],
+  chengyuhuai: [
+    { role: 'assistant', content: '铜雀街的旧案卷，我翻了三遍——里面没有布雷诺的名字。' },
+    { role: 'user', content: '那你还记得档案上写的日期吗？' },
+    { role: 'assistant', content: '七月十三，正好是月蚀后的第二天。' },
+    { role: 'user', content: '巷口的钟声在子时响过，我记得很清楚。' },
+    { role: 'assistant', content: '记住，别让任何人知道你翻过那本案卷。' },
+    { role: 'assistant', content: '你问的这件案子，我查了很久——先说说你为什么会来布雷诺？' },
+  ],
+};
+
+function chatCorpusMessages(characterId) {
+  return (characterChatCorpus[characterId] ?? []).map((message, index) => ({
+    id: characterId === 'chengyuhuai' ? `msg-chengyuhuai-${index + 1}` : `msg-${index + 1}`,
+    ...message,
+    mood: 'neutral',
+    createdAt: now,
+  }));
+}
+
 const quotaPackages = [
   {
     id: 'pkg-small',
@@ -576,7 +602,9 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
         updatedAt: now,
         canSend: true,
       },
-    ].filter((entry) => !keyword || `${entry.characterName} ${entry.lastMessage}`.toLowerCase().includes(keyword));
+    ].filter((entry) => !keyword
+      || entry.characterName.toLowerCase().includes(keyword)
+      || (characterChatCorpus[entry.characterId] ?? []).some((message) => message.content.toLowerCase().includes(keyword)));
 
     // 常聊聚合（home 页）走 sort=turn_count：保留 identity 与 successfulTurnCount 并按成功轮数倒序；
     // 默认聊天列表不带这两个字段，与真实接口语义一致；limit 生效，与真实接口分页语义一致。
@@ -735,9 +763,7 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
         canSend: true,
         hasSuccessfulTurn: true,
       },
-      messages: [
-        { id: 'msg-1', role: 'assistant', content: '铃音，今夜的月很满。', mood: 'neutral', createdAt: now },
-      ],
+      messages: chatCorpusMessages('hakuzo'),
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 50),
     });
@@ -758,9 +784,7 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
         canSend: true,
         hasSuccessfulTurn: true,
       },
-      messages: [
-        { id: 'msg-chengyuhuai-1', role: 'assistant', content: '你问的这件案子，我查了很久——先说说你为什么会来布雷诺？', mood: 'neutral', createdAt: now },
-      ],
+      messages: chatCorpusMessages('chengyuhuai'),
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 50),
     });

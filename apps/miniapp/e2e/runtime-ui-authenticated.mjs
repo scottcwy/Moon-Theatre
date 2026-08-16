@@ -298,7 +298,25 @@ const PAGE_CHECKS = [
     ],
   },
   {
+    // 客户反馈 #3 修复验收：程聿怀剧本（有历史）-> 自由（无历史）-> 剧本，
+    // 切回后 scrollIntoViewRef 由 '' -> msg-<最后一条> 值变化，最后一条必须重新贴底。
+    name: 'chat-mode-switch-scroll-reset',
+    route: 'pages/chat/index?characterId=chengyuhuai&mode=script&scriptId=script-moon-tower',
+    expectedPath: 'pages/chat/index',
+    open: 'reLaunch',
+    ready: ['.chat-page', '.chat-bubble-row'],
+    settleMs: 1200,
+    run: switchScriptHistoryToFreeAndBack,
+    required: [
+      { label: 'chat page', selectors: ['.chat-page'] },
+      { label: 'chat messages scroll view', selectors: ['.chat-page__messages'] },
+      { label: 'chat bubbles', selectors: ['.chat-bubble-row'] },
+      { label: 'script mode scope bar', selectors: ['.chat-page__scope-bar'] },
+    ],
+  },
+  {
     name: 'auth-chat-list',
+
     route: 'pages/chat/list',
     open: 'switchTab',
     ready: ['.chat-list__body'],
@@ -329,23 +347,43 @@ const PAGE_CHECKS = [
       await waitForSelector(chatPage, '.chat-page', 15000);
       await waitForSelector(chatPage, '.chat-bubble-row', 15000);
 
-      // 留言写入自由会话（spec §3.2），剧本会话历史不含留言
+      // 统一聊天入口为自由模式（list.model getCharacterChatUrl，commit 644f731）：
+      // 初始历史即自由会话，留言正文恰好一次（红点正文在进入即见的历史流里）。
       let bubbles = await chatPage.$$('.chat-bubble__text');
-      const scriptTexts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
+      let texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
       assert(
-        !scriptTexts.some((text) => text.includes('回来吧，庭院的花开了一夜。')),
-        'Script-mode history must not contain the return message',
+        texts.filter((text) => text.includes('回来吧，庭院的花开了一夜。')).length === 1,
+        `Expected the return message exactly once in the free-mode entry history, got ${texts.join(' | ') || 'none'}`,
       );
 
+      // 切到剧本模式：留言不在剧本会话历史（spec §3.2 隔离语义）。
       const modeOptions = await chatPage.$$('.chat-page__mode-option');
       assert(modeOptions.length === 2, `Expected dual chat mode options, got ${modeOptions.length}`);
-      await modeOptions[1].tap();
+      await modeOptions[0].tap();
+
+      const scriptDeadline = Date.now() + 10000;
+      let scopeLabel = '';
+      while (Date.now() < scriptDeadline) {
+        const label = await chatPage.$('.chat-page__scope-label');
+        scopeLabel = label ? await label.text().catch(() => '') : '';
+        bubbles = await chatPage.$$('.chat-bubble__text');
+        texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
+        if (scopeLabel === '剧本模式' && !texts.some((text) => text.includes('回来吧，庭院的花开了一夜。'))) break;
+        await chatPage.waitFor(250);
+      }
+      assert(scopeLabel === '剧本模式', `Expected script scope after switching, got ${scopeLabel || 'none'}`);
+      assert(!texts.some((text) => text.includes('回来吧，庭院的花开了一夜。')), 'Script-mode history must not contain the return message');
+
+      // 切回自由模式：留言恰好一次。
+      const freeOptions = await chatPage.$$('.chat-page__mode-option');
+      assert(freeOptions.length === 2, `Expected dual chat mode options after switch, got ${freeOptions.length}`);
+      await freeOptions[1].tap();
 
       const deadline = Date.now() + 10000;
       let hits = 0;
       while (Date.now() < deadline) {
         bubbles = await chatPage.$$('.chat-bubble__text');
-        const texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
+        texts = await Promise.all(bubbles.map((bubble) => bubble.text().catch(() => '')));
         hits = texts.filter((text) => text.includes('回来吧，庭院的花开了一夜。')).length;
         if (hits === 1) break;
         await chatPage.waitFor(250);
@@ -368,8 +406,24 @@ const PAGE_CHECKS = [
     },
   },
   {
+    // 客户反馈 #6 修复验收：全量模糊搜索（角色名 + 该角色全部消息正文）。
+    // 必须排在 auth-return-message-flow 之后（红点前置断言已消费），本用例只读列表不改红点状态。
+    name: 'chat-search-full-text',
+    route: 'pages/chat/list',
+    open: 'switchTab',
+    ready: ['.chat-list__body'],
+    settleMs: 1200,
+    run: searchFullTextInChatList,
+    required: [
+      { label: 'chat list body', selectors: ['.chat-list__body'] },
+      { label: 'search bar', selectors: ['.ui-search-bar__input'] },
+      { label: 'chat session row', selectors: ['.chat-list__item'] },
+    ],
+  },
+  {
     // 自由模式聊天屏：直达白藏自由会话，画面含 Module 7 留言（assistant 消息流内）。
     name: 'auth-chat-free-mode',
+
     route: 'pages/chat/index?sessionId=session-hakuzo-free',
     expectedPath: 'pages/chat/index',
     open: 'reLaunch',
@@ -615,6 +669,188 @@ async function getElementBox(page, selector) {
     text,
     rect: mergeOffsetAndSize(offset, size),
   };
+}
+
+async function getElementBoxFromElement(element) {
+  const [offset, size] = await Promise.all([
+    element.offset().catch(() => ({})),
+    element.size().catch(() => ({})),
+  ]);
+  return mergeOffsetAndSize(offset, size);
+}
+
+// 断言滚动视图内最后一条气泡贴近滚动视图底边（双证据）：
+// 1) 几何：最后气泡 bottom 与滚动视图 bottom 的差在 [-48, 40]px。
+//    devtools 实测：贴底时 diff ≈ -32（内容区 padding-bottom $space-4 + 最后气泡 margin-bottom），
+//    置顶未滚动时最后气泡在可视区下方、diff 为正且远超 40px。
+// 2) 滚动位置：scroll-view 的 scrollTop 必须等于 maxScroll（scrollHeight - clientHeight），
+//    直接证明滚动到了底部；修复前「有历史→无历史→有历史」后 scrollIntoViewRef 值未变，
+//    Taro 不重复触发滚动，scrollTop 停在 0，该断言即失败。
+async function getScrollViewMetrics(page) {
+  const messages = await page.$('.chat-page__messages');
+  if (!messages) return null;
+  const [size, scrollTop, scrollHeight] = await Promise.all([
+    messages.size().catch(() => null),
+    messages.property('scrollTop').catch(() => null),
+    typeof messages.scrollHeight === 'function' ? messages.scrollHeight().catch(() => null) : Promise.resolve(null),
+  ]);
+  if (!size || scrollTop == null || scrollHeight == null) return null;
+  return {
+    clientHeight: Number(size.height),
+    scrollTop: Number(scrollTop),
+    scrollHeight: Number(scrollHeight),
+  };
+}
+
+async function assertLastBubbleNearBottom(page, context) {
+  const messagesBox = await getElementBox(page, '.chat-page__messages');
+  assert(messagesBox, `${context}: messages scroll view missing`);
+
+  const deadline = Date.now() + 8000;
+  let diff = Number.POSITIVE_INFINITY;
+  let lastRect = null;
+  let scroll = null;
+  while (Date.now() < deadline) {
+    const bubbles = await page.$$('.chat-bubble-row');
+    assert(bubbles.length > 0, `${context}: expected at least one chat bubble`);
+    lastRect = await getElementBoxFromElement(bubbles[bubbles.length - 1]);
+    diff = lastRect.bottom - messagesBox.rect.bottom;
+    scroll = await getScrollViewMetrics(page);
+    // 内容稳定条件：6 条历史必然溢出视口（实测 maxScroll=125px）。切回后内容重渲染期间
+    // scrollHeight 会短暂回落到 ≈clientHeight，此时 scrollTop 证据无意义，必须等布局稳定。
+    const maxScroll = scroll ? scroll.scrollHeight - scroll.clientHeight : null;
+    const contentSettled = maxScroll != null && maxScroll >= 50;
+    const atMaxScroll = contentSettled && scroll.scrollTop >= maxScroll - 2;
+    if (diff >= -48 && diff <= 40 && (atMaxScroll || !scroll)) break;
+    await page.waitFor(250);
+  }
+  console.log(
+    `    [scroll-bottom] ${context}: lastBubble.bottom=${lastRect?.bottom}, messages.bottom=${messagesBox.rect.bottom}, ` +
+    `diff=${diff.toFixed(1)}px, scrollTop=${scroll?.scrollTop}/${scroll ? scroll.scrollHeight - scroll.clientHeight : 'n/a'}max`,
+  );
+  assert(
+    diff >= -48 && diff <= 40,
+    `${context}: last bubble must sit near the scroll-view bottom (diff=${diff.toFixed(1)}px, tolerance [-48, 40]px); when stuck at top the last bubble sits below the viewport and diff turns positive`,
+  );
+  if (scroll) {
+    const maxScroll = scroll.scrollHeight - scroll.clientHeight;
+    assert(
+      scroll.scrollTop >= maxScroll - 2,
+      `${context}: scroll-view must be at max scrollTop (${scroll.scrollTop} >= ${maxScroll - 2}); a stale scrollIntoViewRef leaves the list pinned at top`,
+    );
+  }
+}
+
+async function waitForChatListState(page, { expectedCount, emptyStateText }, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const items = await page.$$('.chat-list__item');
+    const state = await page.$('.chat-list__state');
+    const text = state ? String(await state.text().catch(() => '')) : '';
+    if (emptyStateText) {
+      if (items.length === 0 && text.includes(emptyStateText)) return { items, state, text };
+    } else if (items.length === expectedCount) {
+      return { items, state: null, text: '' };
+    }
+    await page.waitFor(250);
+  }
+  const state = await page.$('.chat-list__state');
+  return {
+    items: await page.$$('.chat-list__item'),
+    state,
+    text: state ? String(await state.text().catch(() => '')) : '',
+  };
+}
+
+async function switchScriptHistoryToFreeAndBack(_miniProgram, page) {
+  // 程聿怀剧本模式：历史 >= 6 条，初始最后一条贴底。
+  const initialBubbles = await page.$$('.chat-bubble-row');
+  assert(initialBubbles.length >= 6, `Expected multi-message script history, got ${initialBubbles.length}`);
+  await assertLastBubbleNearBottom(page, 'initial script history');
+
+  // A(有历史) -> B(无历史)：自由模式空会话出现 starters，气泡清空。
+  const modeOptions = await page.$$('.chat-page__mode-option');
+  assert(modeOptions.length === 2, `Expected 2 chat mode options, got ${modeOptions.length}`);
+  await modeOptions[1].tap();
+
+  const freeDeadline = Date.now() + 10000;
+  let scopeLabel = '';
+  while (Date.now() < freeDeadline) {
+    const label = await page.$('.chat-page__scope-label');
+    scopeLabel = label ? await label.text().catch(() => '') : '';
+    const starters = await page.$('.chat-page__starters');
+    const bubbles = await page.$$('.chat-bubble-row');
+    if (scopeLabel === '自由聊天' && starters && bubbles.length === 0) break;
+    await page.waitFor(250);
+  }
+  assert(scopeLabel === '自由聊天', `Expected free scope after switch, got ${scopeLabel || 'none'}`);
+  assert((await page.$$('.chat-bubble-row')).length === 0, 'Expected empty free-mode history');
+
+  // B(无历史) -> A(有历史)：历史重新加载，最后一条必须重新贴底（修复目标）。
+  const scriptOptions = await page.$$('.chat-page__mode-option');
+  assert(scriptOptions.length === 2, `Expected 2 chat mode options after switch, got ${scriptOptions.length}`);
+  await scriptOptions[0].tap();
+
+  const scriptDeadline = Date.now() + 10000;
+  let bubbleCount = 0;
+  scopeLabel = '';
+  while (Date.now() < scriptDeadline) {
+    const label = await page.$('.chat-page__scope-label');
+    scopeLabel = label ? await label.text().catch(() => '') : '';
+    bubbleCount = (await page.$$('.chat-bubble-row')).length;
+    if (scopeLabel === '剧本模式' && bubbleCount >= 6) break;
+    await page.waitFor(250);
+  }
+  assert(scopeLabel === '剧本模式', `Expected script scope after switching back, got ${scopeLabel || 'none'}`);
+  assert(bubbleCount >= 6, `Expected full script history after switching back, got ${bubbleCount}`);
+  await assertLastBubbleNearBottom(page, 'after switching back to script');
+  return page;
+}
+
+async function searchFullTextInChatList(_miniProgram, page) {
+  const initialItems = await page.$$('.chat-list__item');
+  assert(initialItems.length === 6, `Expected full 6-entry chat list, got ${initialItems.length}`);
+
+  // 旧消息关键词：只出现在程聿怀旧消息（铜雀街的旧案卷），角色名与 lastMessage 均不含该词。
+  let input = await waitForSelector(page, '.ui-search-bar__input');
+  await input.input('铜雀');
+  await page.waitFor(400); // 250ms 防抖 + 请求往返
+  let { items } = await waitForChatListState(page, { expectedCount: 1 });
+  assert(items.length === 1, `Expected 1 result for 铜雀, got ${items.length}`);
+  const rowText = await items[0].text().catch(() => '');
+  assert(rowText.includes('程聿怀'), `Expected 程聿怀 row, got ${rowText || 'none'}`);
+  assert(!rowText.includes('铜雀'), `Search must match via old message body, not lastMessage preview: ${rowText}`);
+
+  // 清空 -> 恢复全量。
+  await (await waitForSelector(page, '.ui-search-bar__clear')).tap();
+  await waitForChatListState(page, { expectedCount: 6 });
+
+  // 无命中 -> 空态。
+  input = await waitForSelector(page, '.ui-search-bar__input');
+  await input.input('查无此词');
+  await page.waitFor(400);
+  const empty = await waitForChatListState(page, { emptyStateText: '没有找到相关聊天' });
+  assert(empty.items.length === 0, `Expected empty list for no-hit keyword, got ${empty.items.length}`);
+  assert(empty.text.includes('没有找到相关聊天'), `Expected no-result empty state, got ${empty.text || 'none'}`);
+
+  // 清空 -> 单字「月」：白藏（月光）、月岛澪（月色）、程聿怀（月蚀）。
+  await (await waitForSelector(page, '.ui-search-bar__clear')).tap();
+  await waitForChatListState(page, { expectedCount: 6 });
+  input = await waitForSelector(page, '.ui-search-bar__input');
+  await input.input('月');
+  await page.waitFor(400);
+  ({ items } = await waitForChatListState(page, { expectedCount: 3 }));
+  const texts = await Promise.all(items.map((item) => item.text().catch(() => '')));
+  const joined = texts.join(' | ');
+  assert(joined.includes('白藏'), `Expected 白藏 in single-char results, got ${joined}`);
+  assert(joined.includes('月岛澪'), `Expected 月岛澪 in single-char results, got ${joined}`);
+  assert(joined.includes('程聿怀'), `Expected 程聿怀 in single-char results, got ${joined}`);
+
+  // 清空 -> 恢复全量 6 条。
+  await (await waitForSelector(page, '.ui-search-bar__clear')).tap();
+  await waitForChatListState(page, { expectedCount: 6 });
+  assert((await page.$$('.chat-list__item')).length === 6, 'Expected full list restored after final clear');
+  return page;
 }
 
 async function getFirstElementBox(page, selectors) {

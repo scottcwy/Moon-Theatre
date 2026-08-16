@@ -312,6 +312,9 @@ export default function Chat() {
       setHasSuccessfulTurn(data.session.hasSuccessfulTurn);
       if (historyMessages.length > 0) {
         scrollIntoViewRef.current = `msg-${historyMessages[historyMessages.length - 1]!.id}`;
+      } else {
+        // 会话存在但无 user/assistant 消息：复位滚动锚点，避免 stale id 残留导致下次切回不触发滚动。
+        scrollIntoViewRef.current = '';
       }
       return data;
     } catch (err) {
@@ -345,6 +348,8 @@ export default function Chat() {
       }
       // 无该模式会话：空会话起步（starter questions），保持 scope 为该模式。
       setMessages([]);
+      // 复位滚动锚点：切回有历史模式时 ref 由 '' → msg-<最后一条> 值变化，Taro 才会重新触发滚动到底。
+      scrollIntoViewRef.current = '';
       setHistoryError('');
       setScope(targetScope);
       setCanSend(true);

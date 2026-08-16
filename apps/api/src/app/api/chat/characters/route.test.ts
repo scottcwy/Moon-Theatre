@@ -43,13 +43,14 @@ function chainable<T>(result: T): Record<string, unknown> & Promise<T> {
   return chain as unknown as Record<string, unknown> & Promise<T>;
 }
 
-function setupDbMock(characterRows: unknown[], messageRows: unknown[] = []) {
+function setupDbMock(characterRows: unknown[], messageRows: unknown[] = [], contentRows: unknown[] = []) {
   const dbMock = {
     // 第 1 次：每角色最近会话；第 2 次：预览（DISTINCT ON 后每会话一行）。
     selectDistinctOn: vi.fn()
       .mockImplementationOnce(() => chainable(characterRows))
       .mockImplementationOnce(() => chainable(messageRows)),
-    select: vi.fn(() => chainable([])),
+    // 全量正文 ilike 查询（仅带 q 时执行）：返回命中的角色 id 行。
+    select: vi.fn(() => chainable(contentRows)),
   };
 
   vi.doMock('@/server/db/index.js', () => ({ db: dbMock }));
@@ -158,7 +159,7 @@ describe('GET /api/chat/characters', () => {
     expect(body.hasMore).toBe(false);
   });
 
-  it('searches character names and latest messages before paginating', async () => {
+  it('searches character names and full message bodies before paginating', async () => {
     setupDbMock(
       [
         makeCharacterRow({ id: 's1', characterId: 'c1', characterName: '白藏', updatedAt: new Date('2026-07-15T03:00:00.000Z') }),
@@ -170,6 +171,8 @@ describe('GET /api/chat/characters', () => {
         { sessionId: 's2', content: '红线仍在', role: 'assistant' },
         { sessionId: 's3', content: '月光落在屏风上', role: 'user' },
       ],
+      // 全量正文命中：c1（assistant 旧消息）与 c3（user 消息）。
+      [{ characterId: 'c1' }, { characterId: 'c3' }],
     );
 
     const { GET } = await import('./route.js');
@@ -178,6 +181,63 @@ describe('GET /api/chat/characters', () => {
 
     expect(body.characters).toEqual([expect.objectContaining({ characterId: 'c1' })]);
     expect(body.hasMore).toBe(true);
+  });
+
+  it('matches a keyword that only appears in an old message body', async () => {
+    setupDbMock(
+      [makeCharacterRow({ id: 's1', characterId: 'c1', characterName: '白藏' })],
+      [{ sessionId: 's1', content: '最近一条消息', role: 'assistant' }],
+      [{ characterId: 'c1' }],
+    );
+
+    const { GET } = await import('./route.js');
+    const response = await GET(authedRequest('http://localhost/api/chat/characters?q=%E9%93%9C%E9%9B%80'));
+    const body = await response.json() as { characters: Array<{ characterId: string; lastMessage: string | null }>; hasMore: boolean };
+
+    expect(body.characters).toEqual([
+      expect.objectContaining({ characterId: 'c1', lastMessage: '最近一条消息' }),
+    ]);
+    expect(body.hasMore).toBe(false);
+  });
+
+  it('matches a single-character keyword against full message bodies', async () => {
+    setupDbMock(
+      [
+        makeCharacterRow({ id: 's1', characterId: 'c1', characterName: '白藏', updatedAt: new Date('2026-07-15T03:00:00.000Z') }),
+        makeCharacterRow({ id: 's2', characterId: 'c2', characterName: '清春', updatedAt: new Date('2026-07-15T02:00:00.000Z') }),
+        makeCharacterRow({ id: 's3', characterId: 'c3', characterName: '月岛澪', updatedAt: new Date('2026-07-15T01:00:00.000Z') }),
+      ],
+      [
+        { sessionId: 's1', content: '北门有月光', role: 'assistant' },
+        { sessionId: 's2', content: '红线仍在', role: 'assistant' },
+        { sessionId: 's3', content: '月光落在屏风上', role: 'user' },
+      ],
+      [{ characterId: 'c1' }, { characterId: 'c3' }],
+    );
+
+    const { GET } = await import('./route.js');
+    const response = await GET(authedRequest('http://localhost/api/chat/characters?q=%E6%9C%88'));
+    const body = await response.json() as { characters: Array<{ characterId: string }> };
+
+    expect(body.characters).toEqual([
+      expect.objectContaining({ characterId: 'c1' }),
+      expect.objectContaining({ characterId: 'c3' }),
+    ]);
+  });
+
+  it('returns an empty list when the keyword matches nothing', async () => {
+    setupDbMock(
+      [makeCharacterRow({ id: 's1', characterId: 'c1', characterName: '白藏' })],
+      [{ sessionId: 's1', content: '最近消息', role: 'assistant' }],
+      [],
+    );
+
+    const { GET } = await import('./route.js');
+    const response = await GET(authedRequest('http://localhost/api/chat/characters?q=%E6%9F%A5%E6%97%A0%E6%AD%A4%E8%AF%8D'));
+    const body = await response.json() as { characters: unknown[]; hasMore: boolean };
+
+    expect(body.characters).toEqual([]);
+    expect(body.hasMore).toBe(false);
   });
 
   it('excludes a character whose owning script is retired', async () => {
