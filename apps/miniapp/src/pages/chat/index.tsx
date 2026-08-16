@@ -22,6 +22,7 @@ import { getCharacterAvatarUrl } from '../home/index.model';
 import { buildReturnMessagesReadBody, RETURN_MESSAGES_READ_PATH } from './list.model';
 import {
   applyStarterQuestion,
+  buildMessagesUrl,
   createClientMessageId,
   getBondFeedback,
   getDefaultChatMode,
@@ -32,6 +33,7 @@ import {
   getReturnMessageReadCharacterId,
   getVisibleStarterQuestions,
   isSuccessfulDoneEvent,
+  mergeEarlierMessages,
   resolveCharacterScriptMetadata,
   shouldReconcileStreamError,
   shouldRenderStandaloneTypingIndicator,
@@ -42,6 +44,7 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  createdAt: string;
   mood?: MoodType;
   fallback?: boolean;
 }
@@ -82,8 +85,18 @@ interface MessagesResponse {
     mood: string | null;
     createdAt: string;
   }>;
-  page: number;
   limit: number;
+  hasMoreBefore: boolean;
+}
+
+function toChatMessage(message: MessagesResponse['messages'][number]): ChatMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    createdAt: message.createdAt,
+    mood: message.mood ? message.mood as MoodType : undefined,
+  };
 }
 
 interface SessionListItem {
@@ -135,6 +148,10 @@ export default function Chat() {
   const [pageError, setPageError] = useState('');
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [hasMoreBefore, setHasMoreBefore] = useState(false);
+  const [earlierLoading, setEarlierLoading] = useState(false);
+  const [earlierError, setEarlierError] = useState('');
+  const [earlierLoaded, setEarlierLoaded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [, setSessionId] = useState<string | undefined>(routeSessionId);
   const [mode, setMode] = useState<ChatMode>(routeMode || 'script');
@@ -167,6 +184,7 @@ export default function Chat() {
   const activeStreamRef = useRef<{ abort: () => void } | null>(null);
   const mountedRef = useRef(true);
   const historyLoadIdRef = useRef(0);
+  const earlierLoadingRef = useRef(false);
   const skipFirstShowRef = useRef(true);
   const scopeSwitchingRef = useRef(false);
   const sendingRef = useRef(false);
@@ -273,16 +291,18 @@ export default function Chat() {
     historyLoadIdRef.current = loadId;
     setHistoryLoading(true);
     setHistoryError('');
+    // 新窗口（会话切换/重载）：丢弃进行中的上拉加载并复位分页状态。
+    earlierLoadingRef.current = false;
+    setEarlierLoading(false);
+    setEarlierError('');
+    setEarlierLoaded(false);
+    setHasMoreBefore(false);
     try {
-      const data = await api.get<MessagesResponse>(`/api/chat/sessions/${targetSessionId}/messages?page=1&limit=50`);
+      const data = await api.get<MessagesResponse>(buildMessagesUrl(targetSessionId, 50));
       if (!mountedRef.current || historyLoadIdRef.current !== loadId) return null;
-      const historyMessages: ChatMessage[] = data.messages.map((message) => ({
-        id: message.id,
-        role: message.role,
-        content: message.content,
-        mood: message.mood ? message.mood as MoodType : undefined,
-      }));
+      const historyMessages = data.messages.map(toChatMessage);
       setMessages(historyMessages);
+      setHasMoreBefore(data.hasMoreBefore);
       setPageError('');
       setCharacter((current) => {
         const sameCharacter = current?.id === data.session.characterId ? current : null;
@@ -324,6 +344,46 @@ export default function Chat() {
     }
   }, [handleAuthError, setScope]);
 
+  const loadEarlierMessages = useCallback(async () => {
+    const sessionId = sessionIdRef.current;
+    if (
+      !sessionId ||
+      earlierLoadingRef.current ||
+      historyLoading ||
+      messages.length === 0 ||
+      hasMoreBefore !== true
+    ) {
+      return;
+    }
+    const anchor = messages[0];
+    if (!anchor) return;
+    const loadId = historyLoadIdRef.current;
+    earlierLoadingRef.current = true;
+    setEarlierLoading(true);
+    setEarlierError('');
+    setEarlierLoaded(true);
+    try {
+      const data = await api.get<MessagesResponse>(buildMessagesUrl(
+        sessionId,
+        50,
+        { createdAt: anchor.createdAt, id: anchor.id },
+      ));
+      if (!mountedRef.current || historyLoadIdRef.current !== loadId) return;
+      const earlierMessages = data.messages.map(toChatMessage);
+      setMessages((prev) => mergeEarlierMessages(earlierMessages, prev));
+      setHasMoreBefore(data.hasMoreBefore);
+      // prepend 后锚定原首条，视口不跳动（Taro 对相同锚点不重复触发，id 变化必然触发）。
+      scrollIntoViewRef.current = `msg-${anchor.id}`;
+    } catch (err) {
+      if (mountedRef.current && historyLoadIdRef.current === loadId && !handleAuthError(err)) {
+        setEarlierError('更早消息加载失败，请重试');
+      }
+    } finally {
+      earlierLoadingRef.current = false;
+      if (mountedRef.current && historyLoadIdRef.current === loadId) setEarlierLoading(false);
+    }
+  }, [handleAuthError, hasMoreBefore, historyLoading, messages]);
+
   const loadScopeHistory = useCallback(async (
     characterId: string,
     targetScope: { mode: ChatMode; scriptId?: string; scriptTitle?: string },
@@ -346,6 +406,11 @@ export default function Chat() {
       // 无该模式会话：空会话起步（starter questions），保持 scope 为该模式。
       setMessages([]);
       setHistoryError('');
+      earlierLoadingRef.current = false;
+      setEarlierLoading(false);
+      setEarlierError('');
+      setEarlierLoaded(false);
+      setHasMoreBefore(false);
       setScope(targetScope);
       setCanSend(true);
       setHasSuccessfulTurn(false);
@@ -595,10 +660,11 @@ export default function Chat() {
     setSending(true);
     setStreamError('');
     scheduleWaitingReply();
+    const localCreatedAt = new Date().toISOString();
     setMessages((current) => [
       ...current,
-      { id: userMsgId, role: 'user', content: userMessage },
-      { id: tempAssistantId, role: 'assistant', content: '' },
+      { id: userMsgId, role: 'user', content: userMessage, createdAt: localCreatedAt },
+      { id: tempAssistantId, role: 'assistant', content: '', createdAt: localCreatedAt },
     ]);
     scrollIntoViewRef.current = `msg-${tempAssistantId}`;
 
@@ -798,7 +864,14 @@ export default function Chat() {
         />
       )}
 
-      <ScrollView className="chat-page__messages" scrollY scrollIntoView={scrollIntoViewRef.current} scrollWithAnimation>
+      <ScrollView
+        className="chat-page__messages"
+        scrollY
+        scrollIntoView={scrollIntoViewRef.current}
+        scrollWithAnimation
+        onScrollToUpper={loadEarlierMessages}
+        upperThreshold={100}
+      >
         <View className="chat-page__messages-content">
           {historyLoading && <StatusStateCard title="正在切换会话" message="另一种聊天模式的历史加载中。" icon="…" />}
           {historyError && (
@@ -810,6 +883,25 @@ export default function Chat() {
               primaryText="重新加载"
               onPrimary={retryHistoryLoad}
             />
+          )}
+
+          {earlierError && (
+            <StatusStateCard
+              title="更早消息加载失败"
+              message={earlierError}
+              tone="error"
+              icon="!"
+              primaryText="重试"
+              onPrimary={loadEarlierMessages}
+            />
+          )}
+          {earlierLoading && (
+            <StatusStateCard title="正在加载更早消息" message="向上翻阅更早的聊天记录。" icon="…" />
+          )}
+          {earlierLoaded && !earlierLoading && !earlierError && messages.length > 0 && !hasMoreBefore && (
+            <View className="chat-page__history-end">
+              <Text>已到最早消息</Text>
+            </View>
           )}
 
           {visibleStarterQuestions.length > 0 && (

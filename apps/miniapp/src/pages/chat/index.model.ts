@@ -187,3 +187,45 @@ export function shouldRenderStandaloneTypingIndicator(sending: boolean, messages
   const last = messages[messages.length - 1];
   return !(last?.role === 'assistant' && !last.content);
 }
+
+// ── 聊天历史分页（08-17 spec §5）──
+
+export interface ChatHistoryCursor {
+  createdAt: string;
+  id: string;
+}
+
+export interface ChatHistoryPageMessage {
+  id: string;
+  createdAt: string;
+}
+
+/**
+ * 构造消息历史请求 URL：无游标 = 最近窗口；有游标 = 更早窗口。
+ * 不再携带 page（08-17 spec §4.1：page 已移除）。
+ */
+export function buildMessagesUrl(
+  sessionId: string,
+  limit: number,
+  before?: ChatHistoryCursor,
+): string {
+  const params = [`limit=${limit}`];
+  if (before) {
+    params.push(`beforeCreatedAt=${encodeURIComponent(before.createdAt)}`);
+    params.push(`beforeId=${encodeURIComponent(before.id)}`);
+  }
+  return `/api/chat/sessions/${encodeURIComponent(sessionId)}/messages?${params.join('&')}`;
+}
+
+/**
+ * 把更早窗口按 id 去重后 prepend 到当前列表（防御服务端重复返回同一窗口）。
+ * 输入输出均保持升序：earlier 在前，current 在后。
+ */
+export function mergeEarlierMessages<T extends ChatHistoryPageMessage>(
+  earlier: T[],
+  current: T[],
+): T[] {
+  const currentIds = new Set(current.map((message) => message.id));
+  const uniqueEarlier = earlier.filter((message) => !currentIds.has(message.id));
+  return [...uniqueEarlier, ...current];
+}
