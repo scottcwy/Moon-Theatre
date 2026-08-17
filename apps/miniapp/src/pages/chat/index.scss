@@ -140,6 +140,15 @@
     box-sizing: border-box;
   }
 
+  // 上拉回溯到最早消息后的终点提示（短会话首屏不出现，见 08-17 spec §5.2）。
+  &__history-end {
+    padding: $space-2 0 $space-4;
+    text-align: center;
+    color: $color-on-surface-variant;
+    font-size: $font-label-sm;
+    line-height: 1.5;
+  }
+
   // 开场引导去掉粉底大卡：标题改「引题」细标，问题项改 ghost 胶囊。
   &__starters {
     margin-bottom: $space-4;

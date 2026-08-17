@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyStarterQuestion,
+  buildMessagesUrl,
   createClientMessageId,
   getBondFeedback,
   getDefaultChatMode,
@@ -11,6 +12,7 @@ import {
   getReturnMessageReadCharacterId,
   getVisibleStarterQuestions,
   isSuccessfulDoneEvent,
+  mergeEarlierMessages,
   resolveCharacterScriptMetadata,
   shouldReconcileStreamError,
   shouldRenderStandaloneTypingIndicator,
@@ -200,5 +202,68 @@ describe('getBondFeedback', () => {
 
   it('falls back to a gain when leveledUp lacks exp data', () => {
     expect(getBondFeedback({ bondDelta: 10, leveledUp: true })).toEqual({ kind: 'gained', delta: 10 });
+  });
+});
+
+describe('buildMessagesUrl', () => {
+  it('builds a first-screen URL without page or before cursor', () => {
+    expect(buildMessagesUrl('session-1', 50)).toBe(
+      '/api/chat/sessions/session-1/messages?limit=50',
+    );
+  });
+
+  it('builds an earlier-window URL from the before cursor', () => {
+    expect(buildMessagesUrl('session-1', 50, {
+      createdAt: '2026-07-14T10:00:03.000Z',
+      id: 'msg-3',
+    })).toBe(
+      '/api/chat/sessions/session-1/messages?limit=50&beforeCreatedAt=2026-07-14T10%3A00%3A03.000Z&beforeId=msg-3',
+    );
+  });
+
+  it('encodes session id and cursor id', () => {
+    expect(buildMessagesUrl('session/1', 10, { createdAt: '2026-01-01T00:00:00.000Z', id: 'a b' })).toBe(
+      '/api/chat/sessions/session%2F1/messages?limit=10&beforeCreatedAt=2026-01-01T00%3A00%3A00.000Z&beforeId=a%20b',
+    );
+  });
+});
+
+describe('mergeEarlierMessages', () => {
+  const current = [
+    { id: 'msg-3', createdAt: '2026-07-14T10:00:03.000Z' },
+    { id: 'msg-2', createdAt: '2026-07-14T10:00:02.000Z' },
+  ];
+
+  it('prepends the earlier window in front of the current list', () => {
+    expect(mergeEarlierMessages(
+      [{ id: 'msg-4', createdAt: '2026-07-14T10:00:04.000Z' }],
+      current,
+    )).toEqual([
+      { id: 'msg-4', createdAt: '2026-07-14T10:00:04.000Z' },
+      { id: 'msg-3', createdAt: '2026-07-14T10:00:03.000Z' },
+      { id: 'msg-2', createdAt: '2026-07-14T10:00:02.000Z' },
+    ]);
+  });
+
+  it('deduplicates ids across the boundary (defensive against repeated windows)', () => {
+    expect(mergeEarlierMessages(
+      [
+        { id: 'msg-4', createdAt: '2026-07-14T10:00:04.000Z' },
+        { id: 'msg-3', createdAt: '2026-07-14T10:00:03.000Z' },
+      ],
+      current,
+    )).toEqual([
+      { id: 'msg-4', createdAt: '2026-07-14T10:00:04.000Z' },
+      { id: 'msg-3', createdAt: '2026-07-14T10:00:03.000Z' },
+      { id: 'msg-2', createdAt: '2026-07-14T10:00:02.000Z' },
+    ]);
+  });
+
+  it('handles an empty earlier window and an empty current list', () => {
+    expect(mergeEarlierMessages([], current)).toEqual(current);
+    expect(mergeEarlierMessages([{ id: 'msg-1', createdAt: '2026-07-14T10:00:01.000Z' }], [])).toEqual([
+      { id: 'msg-1', createdAt: '2026-07-14T10:00:01.000Z' },
+    ]);
+    expect(mergeEarlierMessages([], [])).toEqual([]);
   });
 });

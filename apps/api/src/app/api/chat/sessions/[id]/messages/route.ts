@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { eq, asc, and, or } from 'drizzle-orm';
+import { eq, and, or, lt, desc, sql } from 'drizzle-orm';
 import { verifyAuth, unauthorizedResponse, errorResponse, successResponse } from '@/server/middleware/auth.js';
 import { internalErrorResponse } from '@/server/http/errors.js';
 import { parsePositiveInteger } from '@/server/http/pagination.js';
@@ -23,9 +23,17 @@ export async function GET(
   const { id: sessionId } = await params;
 
   const url = new URL(request.url);
-  const page = parsePositiveInteger(url.searchParams.get('page'), 1);
   const limit = Math.min(100, parsePositiveInteger(url.searchParams.get('limit'), 50));
-  const offset = (page - 1) * limit;
+
+  // 游标分页：beforeCreatedAt+beforeId 必须成对出现；page 不再解析（旧客户端传 page 被忽略）。
+  const beforeCreatedAt = url.searchParams.get('beforeCreatedAt');
+  const beforeId = url.searchParams.get('beforeId');
+  if ((beforeCreatedAt === null) !== (beforeId === null)) {
+    return errorResponse('beforeCreatedAt and beforeId must be provided together');
+  }
+  if (beforeCreatedAt !== null && Number.isNaN(Date.parse(beforeCreatedAt))) {
+    return errorResponse('invalid beforeCreatedAt');
+  }
 
   try {
     // Read session with full metadata — no active-only character filter
@@ -74,6 +82,23 @@ export async function GET(
       session.characterStatus === 'active' &&
       (session.scriptId === null || session.scriptStatus === 'active');
 
+    // 毫秒截断：created_at 为 timestamptz（微秒精度），JSON 序列化只能回传毫秒 ISO。
+    // 比较/排序统一 date_trunc('milliseconds', created_at)，同毫秒由 id 决胜，避免跨页静默丢消息。
+    const msTruncCreatedAt = sql<Date>`date_trunc('milliseconds', ${messages.createdAt})`;
+
+    const messageFilters = [
+      eq(messages.sessionId, sessionId),
+      // Only return user and assistant messages; never expose system prompts
+      or(eq(messages.role, 'user'), eq(messages.role, 'assistant')),
+    ];
+    if (beforeCreatedAt !== null && beforeId !== null) {
+      const beforeDate = new Date(beforeCreatedAt);
+      messageFilters.push(or(
+        lt(msTruncCreatedAt, beforeDate),
+        and(eq(msTruncCreatedAt, beforeDate), lt(messages.id, beforeId)),
+      ));
+    }
+
     // Read messages — filter out system role to avoid leaking internal prompts
     const messageRows = await db
       .select({
@@ -84,14 +109,13 @@ export async function GET(
         createdAt: messages.createdAt,
       })
       .from(messages)
-      .where(and(
-        eq(messages.sessionId, sessionId),
-        // Only return user and assistant messages; never expose system prompts
-        or(eq(messages.role, 'user'), eq(messages.role, 'assistant')),
-      ))
-      .orderBy(asc(messages.createdAt))
-      .limit(limit)
-      .offset(offset);
+      .where(and(...messageFilters))
+      .orderBy(desc(msTruncCreatedAt), desc(messages.id))
+      .limit(limit + 1);
+
+    // 取 limit+1 判断是否还有更早消息；响应只含前 limit 条，reverse 为升序。
+    const hasMoreBefore = messageRows.length > limit;
+    const windowMessages = messageRows.slice(0, limit).reverse();
 
     let hasSuccessfulTurn = usageRows.length > 0;
     if (!hasSuccessfulTurn) {
@@ -121,9 +145,9 @@ export async function GET(
         canSend,
         hasSuccessfulTurn,
       },
-      messages: messageRows,
-      page,
+      messages: windowMessages,
       limit,
+      hasMoreBefore,
     });
   } catch (err) {
     return internalErrorResponse(err);

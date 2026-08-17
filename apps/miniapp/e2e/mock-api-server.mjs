@@ -233,27 +233,101 @@ const hakuzoFreeSession = {
 // ilike 的 % _ \ 通配符在真实服务中被转义为字面匹配（character-summary-service escapeLikePattern），
 // 故这里用 lowercase includes 即与真实语义一致，不得改成通配符展开。
 // 语料约束：不得含「白」（q=白 只应命中角色名「白藏」）；「程」只出现在程聿怀角色名与语料中。
+// 聊天历史分页语料：与 /api/chat/sessions/<id>/messages 共用同一数据源，避免列表预览漂移。
+// chengyuhuai 保留 6 条头部语义，程序化扩充到 51 条以上（id 沿用 msg-chengyuhuai-N）；
+// createdAt 按 `now - (N - index) * 60000` 递增，可演示「最近窗口 + 上拉更早」分页。
+const CHENGYUHUAI_CORPUS_MIN = 51;
+const CHENGYUHUAI_CORPUS_HEAD = [
+  { role: 'assistant', content: '铜雀街的旧案卷，我翻了三遍——里面没有布雷诺的名字。' },
+  { role: 'user', content: '那你还记得档案上写的日期吗？' },
+  { role: 'assistant', content: '七月十三，正好是月蚀后的第二天。' },
+  { role: 'user', content: '巷口的钟声在子时响过，我记得很清楚。' },
+  { role: 'assistant', content: '记住，别让任何人知道你翻过那本案卷。' },
+  { role: 'assistant', content: '你问的这件案子，我查了很久——先说说你为什么会来布雷诺？' },
+];
+
 const characterChatCorpus = {
   hakuzo: [
     { role: 'assistant', content: '铃音，今夜的月很满。' },
   ],
-  chengyuhuai: [
-    { role: 'assistant', content: '铜雀街的旧案卷，我翻了三遍——里面没有布雷诺的名字。' },
-    { role: 'user', content: '那你还记得档案上写的日期吗？' },
-    { role: 'assistant', content: '七月十三，正好是月蚀后的第二天。' },
-    { role: 'user', content: '巷口的钟声在子时响过，我记得很清楚。' },
-    { role: 'assistant', content: '记住，别让任何人知道你翻过那本案卷。' },
-    { role: 'assistant', content: '你问的这件案子，我查了很久——先说说你为什么会来布雷诺？' },
-  ],
+  chengyuhuai: [...CHENGYUHUAI_CORPUS_HEAD],
 };
 
+// 程序化扩充至 >=51 条：首尾内容可区分（尾部为码头收尾线索，避开「白/程」不干扰角色名搜索）。
+while (characterChatCorpus.chengyuhuai.length < CHENGYUHUAI_CORPUS_MIN) {
+  const index = characterChatCorpus.chengyuhuai.length + 1;
+  characterChatCorpus.chengyuhuai.push({
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    content: index === CHENGYUHUAI_CORPUS_MIN
+      ? '我在码头边等你，把最后这条线索收好。'
+      : `第 ${index} 条线索：雨夜的车辙通向仓库，天亮前别声张。`,
+  });
+}
+
 function chatCorpusMessages(characterId) {
-  return (characterChatCorpus[characterId] ?? []).map((message, index) => ({
+  const corpus = characterChatCorpus[characterId] ?? [];
+  const baseTime = Date.parse(now);
+  return corpus.map((message, index) => ({
     id: characterId === 'chengyuhuai' ? `msg-chengyuhuai-${index + 1}` : `msg-${index + 1}`,
     ...message,
     mood: 'neutral',
-    createdAt: now,
+    createdAt: new Date(baseTime - (corpus.length - index) * 60000).toISOString(),
   }));
+}
+
+function lastCorpusMessage(characterId) {
+  const corpus = characterChatCorpus[characterId] ?? [];
+  return corpus.length > 0 ? corpus[corpus.length - 1].content : '';
+}
+
+// 与真实服务同语义的游标分页（08-17 spec §4）：无游标 = 最近 limit 条升序；
+// beforeCreatedAt+beforeId 成对出现时返回更早窗口；hasMoreBefore 按是否还有更早判定。
+function paginateMessages(messages, url) {
+  const rawLimit = Number(url.searchParams.get('limit') ?? 50);
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(100, Math.floor(rawLimit)) : 50;
+  const beforeCreatedAt = url.searchParams.get('beforeCreatedAt');
+  const beforeId = url.searchParams.get('beforeId');
+
+  if (beforeCreatedAt === null && beforeId === null) {
+    const window = messages.slice(-limit);
+    return {
+      messages: window,
+      limit,
+      hasMoreBefore: messages.length > limit,
+    };
+  }
+  if (beforeCreatedAt === null || beforeId === null) {
+    return { error: 'beforeCreatedAt and beforeId must be provided together', status: 400 };
+  }
+  const beforeTime = Date.parse(beforeCreatedAt);
+  if (Number.isNaN(beforeTime)) {
+    return { error: 'invalid beforeCreatedAt', status: 400 };
+  }
+
+  const eligible = messages.filter((message) => {
+    const messageTime = Date.parse(message.createdAt);
+    return messageTime < beforeTime || (messageTime === beforeTime && message.id < beforeId);
+  });
+  const window = eligible.slice(-limit);
+  return {
+    messages: window,
+    limit,
+    hasMoreBefore: eligible.length > limit,
+  };
+}
+
+function sendMessagesWindow(res, url, session, messages) {
+  const page = paginateMessages(messages, url);
+  if (page.error) {
+    json(res, page.status, { error: page.error });
+    return;
+  }
+  json(res, 200, {
+    session,
+    messages: page.messages,
+    limit: page.limit,
+    hasMoreBefore: page.hasMoreBefore,
+  });
 }
 
 const quotaPackages = [
@@ -540,7 +614,7 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
         successfulTurnCount: 12,
         latestSessionId: 'session-hakuzo',
         lastUsedMode: 'script',
-        lastMessage: '铃声响起时，北门的月光会替你照路。',
+        lastMessage: lastCorpusMessage('hakuzo'),
         updatedAt: now,
         canSend: true,
       },
@@ -588,7 +662,7 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
         successfulTurnCount: 6,
         latestSessionId: 'session-chengyuhuai',
         lastUsedMode: 'script',
-        lastMessage: '你问的这件案子，我查了很久。',
+        lastMessage: lastCorpusMessage('chengyuhuai'),
         updatedAt: now,
         canSend: true,
       },
@@ -667,7 +741,7 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
           scriptId: moonTowerScript.id,
           scriptTitle: moonTowerScript.title,
           canSend: true,
-          lastMessage: '你问的这件案子，我查了很久。',
+          lastMessage: lastCorpusMessage('chengyuhuai'),
           updatedAt: now,
         }];
       }
@@ -682,7 +756,7 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
           scriptId: moonGardenScript.id,
           scriptTitle: moonGardenScript.title,
           canSend: true,
-          lastMessage: '铃声响起时，北门的月光会替你照路。',
+          lastMessage: lastCorpusMessage('hakuzo'),
           updatedAt: now,
         },
       ];
@@ -696,100 +770,80 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
   }
 
   if (req.method === 'GET' && pathname === '/api/chat/sessions/session-hakuzo-free/messages') {
-    json(res, 200, {
-      session: {
-        id: hakuzoFreeSession.id,
-        characterId: hakuzoFreeSession.characterId,
-        characterName: hakuzoFreeSession.characterName,
-        characterAvatarUrl: hakuzoFreeSession.characterAvatarUrl,
-        characterIdentity: hakuzoFreeSession.characterIdentity,
-        mode: 'free',
-        scriptId: null,
-        scriptTitle: null,
-        canSend: true,
-        hasSuccessfulTurn: true,
+    sendMessagesWindow(res, url, {
+      id: hakuzoFreeSession.id,
+      characterId: hakuzoFreeSession.characterId,
+      characterName: hakuzoFreeSession.characterName,
+      characterAvatarUrl: hakuzoFreeSession.characterAvatarUrl,
+      characterIdentity: hakuzoFreeSession.characterIdentity,
+      mode: 'free',
+      scriptId: null,
+      scriptTitle: null,
+      canSend: true,
+      hasSuccessfulTurn: true,
+    }, [
+      { id: 'msg-hakuzo-free-1', role: 'user', content: '最近院子里的花怎么样了？', createdAt: '2026-07-08T20:12:00+08:00' },
+      {
+        id: returnMessage.id,
+        role: 'assistant',
+        content: returnMessage.content,
+        mood: 'neutral',
+        createdAt: returnMessage.createdAt,
+        excludedFromContext: true,
+        outOfScope: false,
+        generationStatus: 'completed',
       },
-      messages: [
-        { id: 'msg-hakuzo-free-1', role: 'user', content: '最近院子里的花怎么样了？', createdAt: '2026-07-08T20:12:00+08:00' },
-        {
-          id: returnMessage.id,
-          role: 'assistant',
-          content: returnMessage.content,
-          mood: 'neutral',
-          createdAt: returnMessage.createdAt,
-          excludedFromContext: true,
-          outOfScope: false,
-          generationStatus: 'completed',
-        },
-      ],
-      page: Number(url.searchParams.get('page') ?? 1),
-      limit: Number(url.searchParams.get('limit') ?? 50),
-    });
+    ]);
     return;
   }
 
   if (req.method === 'GET' && pathname === '/api/chat/sessions/session-hakuzo-free-only/messages') {
-    json(res, 200, {
-      session: {
-        id: 'session-hakuzo-free-only',
-        characterId: 'hakuzo-free-only',
-        characterName: '白藏',
-        characterAvatarUrl: '',
-        characterIdentity: '月见庭院的狐神',
-        mode: 'free',
-        scriptId: null,
-        scriptTitle: null,
-        canSend: true,
-        hasSuccessfulTurn: true,
-      },
-      messages: [
-        { id: 'msg-free-1', role: 'assistant', content: '今晚想聊点什么？', mood: 'neutral', createdAt: now },
-      ],
-      page: Number(url.searchParams.get('page' ) ?? 1),
-      limit: Number(url.searchParams.get('limit') ?? 50),
-    });
+    sendMessagesWindow(res, url, {
+      id: 'session-hakuzo-free-only',
+      characterId: 'hakuzo-free-only',
+      characterName: '白藏',
+      characterAvatarUrl: '',
+      characterIdentity: '月见庭院的狐神',
+      mode: 'free',
+      scriptId: null,
+      scriptTitle: null,
+      canSend: true,
+      hasSuccessfulTurn: true,
+    }, [
+      { id: 'msg-free-1', role: 'assistant', content: '今晚想聊点什么？', mood: 'neutral', createdAt: now },
+    ]);
     return;
   }
 
   if (req.method === 'GET' && pathname === '/api/chat/sessions/session-hakuzo/messages') {
-    json(res, 200, {
-      session: {
-        id: 'session-hakuzo',
-        characterId: 'hakuzo',
-        characterName: '白藏',
-        characterAvatarUrl: '',
-        characterIdentity: '月见庭院的狐神',
-        mode: 'script',
-        scriptId: moonGardenScript.id,
-        scriptTitle: moonGardenScript.title,
-        canSend: true,
-        hasSuccessfulTurn: true,
-      },
-      messages: chatCorpusMessages('hakuzo'),
-      page: Number(url.searchParams.get('page') ?? 1),
-      limit: Number(url.searchParams.get('limit') ?? 50),
-    });
+    sendMessagesWindow(res, url, {
+      id: 'session-hakuzo',
+      characterId: 'hakuzo',
+      characterName: '白藏',
+      characterAvatarUrl: '',
+      characterIdentity: '月见庭院的狐神',
+      mode: 'script',
+      scriptId: moonGardenScript.id,
+      scriptTitle: moonGardenScript.title,
+      canSend: true,
+      hasSuccessfulTurn: true,
+    }, chatCorpusMessages('hakuzo'));
     return;
   }
 
   if (req.method === 'GET' && pathname === '/api/chat/sessions/session-chengyuhuai/messages') {
-    json(res, 200, {
-      session: {
-        id: 'session-chengyuhuai',
-        characterId: 'chengyuhuai',
-        characterName: '程聿怀',
-        characterAvatarUrl: '',
-        characterIdentity: '记者',
-        mode: 'script',
-        scriptId: moonTowerScript.id,
-        scriptTitle: moonTowerScript.title,
-        canSend: true,
-        hasSuccessfulTurn: true,
-      },
-      messages: chatCorpusMessages('chengyuhuai'),
-      page: Number(url.searchParams.get('page') ?? 1),
-      limit: Number(url.searchParams.get('limit') ?? 50),
-    });
+    sendMessagesWindow(res, url, {
+      id: 'session-chengyuhuai',
+      characterId: 'chengyuhuai',
+      characterName: '程聿怀',
+      characterAvatarUrl: '',
+      characterIdentity: '记者',
+      mode: 'script',
+      scriptId: moonTowerScript.id,
+      scriptTitle: moonTowerScript.title,
+      canSend: true,
+      hasSuccessfulTurn: true,
+    }, chatCorpusMessages('chengyuhuai'));
     return;
   }
 

@@ -520,4 +520,64 @@ describe('authenticated miniapp mock API server', () => {
       await server.close();
     }
   });
+  it('serves cursor pagination semantics for the long chengyuhuai history (08-17 spec)', async () => {
+    const server = await startMockApiServer({ port: 0 });
+
+    try {
+      // 最近窗口：无游标返回最近 limit 条（升序），首条是语料第 N-49 条而非第 1 条。
+      const recent = await fetch(
+        `${server.baseUrl}/api/chat/sessions/session-chengyuhuai/messages?limit=50`,
+      ).then(readJson);
+      expect(recent.messages).toHaveLength(50);
+      expect(recent.messages[0]).toMatchObject({ id: 'msg-chengyuhuai-2' });
+      expect(recent.messages[recent.messages.length - 1]).toMatchObject({ id: 'msg-chengyuhuai-51' });
+      expect(recent.hasMoreBefore).toBe(true);
+      expect(recent.page).toBeUndefined();
+
+      // before 翻页：游标取首条（msg-chengyuhuai-2）→ 更早窗口只剩 1 条且 hasMoreBefore=false。
+      const earlier = await fetch(
+        `${server.baseUrl}/api/chat/sessions/session-chengyuhuai/messages?limit=50`
+        + `&beforeCreatedAt=${encodeURIComponent(recent.messages[0].createdAt)}&beforeId=msg-chengyuhuai-2`,
+      ).then(readJson);
+      expect(earlier.messages).toEqual([
+        expect.objectContaining({ id: 'msg-chengyuhuai-1' }),
+      ]);
+      expect(earlier.hasMoreBefore).toBe(false);
+
+      // hasMoreBefore 边界：limit=51 恰好覆盖全量。
+      const full = await fetch(
+        `${server.baseUrl}/api/chat/sessions/session-chengyuhuai/messages?limit=51`,
+      ).then(readJson);
+      expect(full.messages).toHaveLength(51);
+      expect(full.messages[0]).toMatchObject({ id: 'msg-chengyuhuai-1' });
+      expect(full.messages[full.messages.length - 1]).toMatchObject({ id: 'msg-chengyuhuai-51' });
+      expect(full.hasMoreBefore).toBe(false);
+
+      // 列表预览与消息流同源：聊天列表 lastMessage 派生自 corpus 末条。
+      const chatList = await fetch(
+        `${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E7%A8%8B`,
+      ).then(readJson);
+      const chengyuhuai = chatList.characters.find((character) => character.characterId === 'chengyuhuai');
+      expect(chengyuhuai.lastMessage).toBe(recent.messages[recent.messages.length - 1].content);
+    } finally {
+      await server.close();
+    }
+  });
+  it('includes hasMoreBefore in every free-branch messages window (08-17 spec P1-4)', async () => {
+    const server = await startMockApiServer({ port: 0 });
+
+    try {
+      const [freeOnly, freeWithReturn] = await Promise.all([
+        fetch(`${server.baseUrl}/api/chat/sessions/session-hakuzo-free-only/messages`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/sessions/session-hakuzo-free/messages`).then(readJson),
+      ]);
+
+      expect(freeOnly.hasMoreBefore).toBe(false);
+      expect(freeOnly.page).toBeUndefined();
+      expect(freeWithReturn.hasMoreBefore).toBe(false);
+      expect(freeWithReturn.page).toBeUndefined();
+    } finally {
+      await server.close();
+    }
+  });
 });

@@ -6,6 +6,7 @@ import { resolveWechatDevtoolsCli } from './wechat-devtools.mjs';
 import {
   buildElementFailures,
   isCustomNavigationPage,
+  isFullyOutsideViewport,
   isRectBelow,
   mergeOffsetAndSize,
   rectanglesOverlap,
@@ -259,7 +260,7 @@ const PAGE_CHECKS = [
     required: [
       { label: 'chat page', selectors: ['.chat-page'] },
       { label: 'chat header', selectors: ['.character-header'] },
-      { label: 'chat bubbles', selectors: ['.chat-bubble-row'] },
+      { label: 'chat bubbles', selectors: ['.chat-bubble-row'], anyInViewport: true },
       { label: 'script mode scope bar', selectors: ['.chat-page__scope-bar'] },
     ],
     assertions: [
@@ -315,6 +316,72 @@ const PAGE_CHECKS = [
     ],
   },
   {
+    // 08-17 spec §7.2：chengyuhuai 长会话（mock 语料 51 条）首屏 = 最近窗口；
+    // 上拉驱动顺序：① callMethod → ② trigger('scrolltoupper') → ③ touch 序列；
+    // 本次采用 ② trigger 直接派发 scrolltoupper（callMethod 对 Taro 非页面方法无效），
+    // ③ touch 序列仅作未来兜底注释，不再重复实现（微信 automator 无原生 touch API）。
+    name: 'auth-chat-history-pagination',
+    route: 'pages/chat/index?sessionId=session-chengyuhuai',
+    expectedPath: 'pages/chat/index',
+    open: 'reLaunch',
+    ready: ['.chat-page', '.chat-bubble-row'],
+    settleMs: 1200,
+    run: async (miniProgram, page) => {
+      // 首屏最近窗口：语料 51 条 → 最近 50 条，首条 = msg-chengyuhuai-2（而非 msg-chengyuhuai-1）。
+      await waitForSelector(page, '[id="msg-msg-chengyuhuai-2"]', 15000);
+      const firstScreenMessages = await page.$$('.chat-bubble-row');
+      assert(
+        firstScreenMessages.length === 50,
+        `Expected 50 first-screen messages, got ${firstScreenMessages.length}`,
+      );
+      const firstBubble = await firstScreenMessages[0].text().catch(() => '');
+      assert(
+        firstBubble.includes('那你还记得档案上写的日期吗'),
+        `Expected first message to be the 2nd corpus item, got ${firstBubble || 'none'}`,
+      );
+      const earliestVisible = await page.$('[id="msg-msg-chengyuhuai-1"]');
+      assert(earliestVisible === null, 'First screen must not include the earliest message msg-chengyuhuai-1');
+
+      // 上拉加载更早窗口（§7.2 顺序；② trigger 为最终采用方式，见条目注释）。
+      const scrollView = await waitForSelector(page, '.chat-page__messages');
+      await page.callMethod('onScrollToUpper').catch(() => {});
+      await page.waitFor(600);
+      let messageCount = (await page.$$('.chat-bubble-row')).length;
+      if (messageCount === firstScreenMessages.length) {
+        await scrollView.trigger('scrolltoupper', { detail: { scrollTop: 0 } });
+        await page.waitFor(600);
+        messageCount = (await page.$$('.chat-bubble-row')).length;
+      }
+      assert(
+        messageCount > firstScreenMessages.length,
+        `Expected messages to grow after scroll-to-upper, got ${messageCount} (was ${firstScreenMessages.length})`,
+      );
+
+      // prepend 后原首条 msg-chengyuhuai-2 仍在视口（滚动保位不跳）。
+      await page.waitFor(600);
+      const anchorBox = await getElementBox(page, '[id="msg-msg-chengyuhuai-2"]');
+      assert(anchorBox, 'Anchor message msg-chengyuhuai-2 must still exist after prepend');
+      const viewport = await getViewport(miniProgram, page);
+      assert(
+        anchorBox.rect.top >= -8 && anchorBox.rect.top < viewport.height,
+        `Anchor message must stay in viewport after prepend (top=${anchorBox.rect.top}, viewport=${viewport.height})`,
+      );
+
+      // 全量已加载：msg-chengyuhuai-1 出现，终点文案显示。
+      await waitForSelector(page, '[id="msg-msg-chengyuhuai-1"]', 10000);
+      await waitForSelector(page, '.chat-page__history-end', 10000);
+
+      // hasMoreBefore=false 后再次上拉不再增长。
+      const fullCount = (await page.$$('.chat-bubble-row')).length;
+      assert(fullCount >= 51, `Expected full history >= 51, got ${fullCount}`);
+      await scrollView.trigger('scrolltoupper', { detail: { scrollTop: 0 } });
+      await page.waitFor(600);
+      const afterIdle = (await page.$$('.chat-bubble-row')).length;
+      assert(afterIdle === fullCount, `Message count must not grow after the earliest window (${fullCount} -> ${afterIdle})`);
+      return page;
+    },
+  },
+  {
     name: 'auth-chat-list',
 
     route: 'pages/chat/list',
@@ -329,7 +396,8 @@ const PAGE_CHECKS = [
     ],
   },
   {
-    // Module 7 新语义：列表红点 → 点进角色即已读 → 留言正文躺在自由会话消息流里（恰好一次）。
+    // Module 7 新语义：列表红点 → 点进角色即已读 → 列表点击一律进自由会话（chat-entry-unification），
+    // 留言正文躺在自由会话消息流里（恰好一次）；切回剧本模式历史不含留言（spec §3.2）。
     // 必须排在所有会进入白藏会话的检查之前，否则会话入口已触发已读，红点前置断言失效。
     name: 'auth-return-message-flow',
     route: 'pages/chat/list',
@@ -917,6 +985,24 @@ async function checkRequiredElement(page, viewport, requirement) {
       selector: requirement.selectors.join(', '),
       reason: 'required selector missing',
     };
+  }
+
+  if (requirement.anyInViewport) {
+    // 长会话分页后首个匹配元素可能已滚出视口：只要存在任一可见匹配即通过。
+    const elements = await page.$$(box.selector);
+    for (const element of elements) {
+      const [offset, size] = await Promise.all([
+        element.offset().catch(() => ({})),
+        element.size().catch(() => ({})),
+      ]);
+      const rect = mergeOffsetAndSize(offset, size);
+      if (!isFullyOutsideViewport(rect, viewport)) return [];
+    }
+    return [{
+      label: requirement.label,
+      selector: box.selector,
+      reason: 'no matching element is inside the viewport',
+    }];
   }
 
   const failures = buildElementFailures({
