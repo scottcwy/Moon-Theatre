@@ -199,7 +199,7 @@ async function findAllMessages(sessionId) {
   return all;
 }
 
-// 优先白藏的真实长会话（>50 条），否则取最近的长会话；没有则返回 null（分页检查跳过）。
+// 优先「流氓叙事」剧本角色的真实长会话（>50 条），否则取最近的长会话；没有则返回 null（分页检查跳过）。
 async function findLongSession() {
   const { sessions } = await apiJson('/api/chat/sessions?limit=50');
   const long = [];
@@ -208,7 +208,7 @@ async function findLongSession() {
     if (firstWindow.hasMoreBefore === true) long.push({ ...session, firstWindow });
   }
   if (long.length === 0) return null;
-  return long.find((session) => session.characterName === '白藏') ?? long[0];
+  return long.find((session) => session.scriptTitle === '流氓叙事') ?? long[0];
 }
 
 // ---- UI 检查 ----
@@ -342,9 +342,9 @@ async function checkRealChatTurn(miniProgram, report) {
   const name = 'real-data-chat-turn';
   try {
     const characters = (await apiJson('/api/characters')).characters;
-    const baizang = characters.find((character) => character.name === '白藏');
-    assert(baizang, '白藏 missing from real /api/characters');
-    const page = await miniProgram.reLaunch(`/pages/chat/index?characterId=${baizang.id}`);
+    const yisa = characters.find((character) => character.name === '以撒');
+    assert(yisa, '以撒 missing from real /api/characters');
+    const page = await miniProgram.reLaunch(`/pages/chat/index?characterId=${yisa.id}`);
     await waitForSelector(page, '.chat-page', 20000);
     await sleep(1200);
     const before = await bubbleCount(page);
