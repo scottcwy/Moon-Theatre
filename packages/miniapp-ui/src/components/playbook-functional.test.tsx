@@ -243,11 +243,10 @@ describe('playbook component functional behavior', () => {
     expect(userBubble.props.className).toContain('chat-bubble-row--user');
     expect(findAll(userBubble, (node) => String(node.props.className ?? '').includes('character-avatar'))).toHaveLength(0);
 
-    const assistantBubble = renderElement(<ChatBubble role="assistant" characterName="白藏" mood="thinking" fallback typing content="" />);
+    const assistantBubble = renderElement(<ChatBubble role="assistant" characterName="白藏" fallback typing content="" />);
     expect(assistantBubble.props.className).toContain('chat-bubble-row--assistant');
     expect(findAll(assistantBubble, (node) => String(node.props.className ?? '').includes('chat-bubble__typing-dot'))).toHaveLength(3);
     expect(textContent(assistantBubble)).not.toContain('正在输入');
-    expect(textContent(assistantBubble)).toContain('思索中');
     expect(textContent(assistantBubble)).toContain('本地模式');
   });
 

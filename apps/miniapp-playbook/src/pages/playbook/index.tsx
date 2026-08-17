@@ -232,7 +232,7 @@ export default function PlaybookPage() {
           </View>
           <View className="playbook-chat-panel">
             <ChatBubble role="system" content="第 3 幕 · 月下庭院" />
-            <ChatBubble role="assistant" characterName="白藏" mood="thinking" content="你终于来了。我等这句话，已经等了很久。" />
+            <ChatBubble role="assistant" characterName="白藏" content="你终于来了。我等这句话，已经等了很久。" />
             <ChatBubble role="user" content="这里发生过什么？" />
             <ChatBubble role="assistant" characterName="白藏" fallback typing content="" />
           </View>

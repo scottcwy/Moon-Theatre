@@ -1,20 +1,17 @@
 import { Text, View } from '@tarojs/components';
-import type { MoodType } from '@juben-sha/shared';
 import { CharacterAvatar } from '../character/CharacterAvatar';
-import { MoodChip } from '../ui/Badge';
 import './ChatBubble.scss';
 
 interface ChatBubbleProps {
   role: 'user' | 'assistant' | 'system';
   content: string;
-  mood?: MoodType;
   fallback?: boolean;
   avatarUrl?: string;
   characterName?: string;
   typing?: boolean;
 }
 
-export function ChatBubble({ role, content, mood, fallback, avatarUrl, characterName = '角色', typing = false }: ChatBubbleProps) {
+export function ChatBubble({ role, content, fallback, avatarUrl, characterName = '角色', typing = false }: ChatBubbleProps) {
   const isUser = role === 'user';
   const isSystem = role === 'system';
   const showTyping = typing && !content;
@@ -42,10 +39,9 @@ export function ChatBubble({ role, content, mood, fallback, avatarUrl, character
             <Text className="chat-bubble__text" userSelect>{displayText}</Text>
           )}
         </View>
-        {!isUser && !isSystem && (mood || fallback) && (
+        {!isUser && !isSystem && fallback && (
           <View className="chat-bubble__meta">
-            {mood && <MoodChip mood={mood} />}
-            {fallback && <Text className="chat-bubble__fallback">本地模式</Text>}
+            <Text className="chat-bubble__fallback">本地模式</Text>
           </View>
         )}
       </View>
