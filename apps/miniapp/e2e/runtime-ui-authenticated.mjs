@@ -311,7 +311,7 @@ const PAGE_CHECKS = [
     required: [
       { label: 'chat page', selectors: ['.chat-page'] },
       { label: 'chat messages scroll view', selectors: ['.chat-page__messages'] },
-      { label: 'chat bubbles', selectors: ['.chat-bubble-row'] },
+      { label: 'chat bubbles', selectors: ['.chat-bubble-row'], anyInViewport: true },
       { label: 'script mode scope bar', selectors: ['.chat-page__scope-bar'] },
     ],
   },

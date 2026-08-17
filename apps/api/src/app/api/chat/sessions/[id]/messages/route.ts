@@ -92,7 +92,9 @@ export async function GET(
       or(eq(messages.role, 'user'), eq(messages.role, 'assistant')),
     ];
     if (beforeCreatedAt !== null && beforeId !== null) {
-      const beforeDate = new Date(beforeCreatedAt);
+      // 用 ISO 字符串而不是 Date 对象：drizzle 的 postgres-js driver 会把 1184 的
+      // serializer 替换为透明函数，裸 Date 进入 postgres.js Bind 会直接崩溃。
+      const beforeDate = new Date(beforeCreatedAt).toISOString();
       messageFilters.push(or(
         lt(msTruncCreatedAt, beforeDate),
         and(eq(msTruncCreatedAt, beforeDate), lt(messages.id, beforeId)),

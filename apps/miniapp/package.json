@@ -20,7 +20,8 @@
     "verify:weapp": "node scripts/verify-weapp-build.mjs",
     "typecheck": "tsc --noEmit",
     "dev:weapp:lan": "node scripts/build-with-host.mjs --mode lan --watch",
-    "build:weapp:prod": "node scripts/clean-dist.mjs && node scripts/build-with-host.mjs --mode prod && pnpm verify:weapp"
+    "build:weapp:prod": "node scripts/clean-dist.mjs && node scripts/build-with-host.mjs --mode prod && pnpm verify:weapp",
+    "test:e2e:ui:real": "node e2e/runtime-ui-real-data.mjs"
   },
   "browserslist": [
     "last 3 versions",

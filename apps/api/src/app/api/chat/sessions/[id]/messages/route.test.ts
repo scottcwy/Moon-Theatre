@@ -521,7 +521,7 @@ describe('GET /api/chat/sessions/:id/messages', () => {
     expect(msTruncLt).toBeDefined();
     expect(msTruncLt!.left.type).toBe('sql');
     expect(msTruncLt!.left.strings.some((part) => part.includes("date_trunc('milliseconds'"))).toBe(true);
-    expect(msTruncLt!.right).toEqual(new Date('2026-07-14T10:00:03.000Z'));
+    expect(msTruncLt!.right).toBe('2026-07-14T10:00:03.000Z');
 
     const msTruncEqAnd = cursorOr.conditions.find((c) => c.type === 'and') as unknown as {
       conditions: Array<{ type: string; left?: { type: string; strings: string[] }; right: unknown }>;

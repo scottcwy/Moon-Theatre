@@ -25,19 +25,6 @@ const moonGardenScript = {
   status: 'active',
 };
 
-const snowTeahouseScript = {
-  id: 'script-snow-teahouse',
-  title: '雪落茶寮：守夜人的茶',
-  description: '大雪封山，茶寮只剩一位守夜人。天亮之前，你必须决定那杯茶留给谁。',
-  worldSetting: '大雪、炉火与一杯茶构成故事核心。每一次选择都会改变茶寮里的关系与记忆。',
-  slug: 'snow-teahouse',
-  genre: '现代悬疑',
-  searchKeywords: '雪,茶寮,守夜',
-  coverUrl: null,
-  sortOrder: 3,
-  status: 'active',
-};
-
 const moonTowerScript = {
   id: 'script-moon-tower',
   title: '流氓叙事',
@@ -71,16 +58,6 @@ const scriptCards = [
     coverUrl: moonTowerScript.coverUrl,
     sortOrder: moonTowerScript.sortOrder,
     searchKeywords: moonTowerScript.searchKeywords,
-  },
-  {
-    id: snowTeahouseScript.id,
-    title: snowTeahouseScript.title,
-    description: snowTeahouseScript.description,
-    slug: snowTeahouseScript.slug,
-    genre: snowTeahouseScript.genre,
-    coverUrl: snowTeahouseScript.coverUrl,
-    sortOrder: snowTeahouseScript.sortOrder,
-    searchKeywords: snowTeahouseScript.searchKeywords,
   },
 ];
 
