@@ -130,6 +130,11 @@ function toCharacterChatEntry(
   };
 }
 
+/** ILIKE 模式转义：%/_/\ 是 PostgreSQL 通配符或转义符，用户输入必须按字面匹配（与 mock 的 includes 语义一致）。 */
+function escapeLikePattern(input: string): string {
+  return input.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 /** 命中该用户全部消息正文（user/assistant）的角色 id 集合。 */
 async function findCharacterIdsByMessageContent(userId: string, keyword: string): Promise<Set<string>> {
   const rows = await db
@@ -139,7 +144,7 @@ async function findCharacterIdsByMessageContent(userId: string, keyword: string)
     .where(and(
       eq(chatSessions.userId, userId),
       or(eq(messages.role, 'user'), eq(messages.role, 'assistant')),
-      ilike(messages.content, `%${keyword}%`),
+      ilike(messages.content, `%${escapeLikePattern(keyword)}%`),
     ));
   return new Set(rows.map((row) => row.characterId));
 }

@@ -230,6 +230,8 @@ const hakuzoFreeSession = {
 
 // 聊天列表全量搜索语料：与 /api/chat/sessions/<id>/messages 共用同一数据源，避免两处漂移。
 // 真实服务语义：角色名 or 该用户该角色全部 user/assistant 消息正文 ilike 模糊匹配（spec §4.2/§4.3）。
+// ilike 的 % _ \ 通配符在真实服务中被转义为字面匹配（character-summary-service escapeLikePattern），
+// 故这里用 lowercase includes 即与真实语义一致，不得改成通配符展开。
 // 语料约束：不得含「白」（q=白 只应命中角色名「白藏」）；「程」只出现在程聿怀角色名与语料中。
 const characterChatCorpus = {
   hakuzo: [

@@ -359,6 +359,8 @@ export default function Chat() {
       if (mountedRef.current && !handleAuthError(err)) {
         setHistoryError('历史对话加载失败，请重试');
       }
+      // 防御：错误路径同样复位滚动锚点，避免未来错误处理清空消息时出现「ref 值不变 + 内容已清空」组合。
+      scrollIntoViewRef.current = '';
       return false;
     }
   }, [handleAuthError, loadSessionHistory, setScope]);

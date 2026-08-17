@@ -766,6 +766,22 @@ async function switchScriptHistoryToFreeAndBack(_miniProgram, page) {
   // 程聿怀剧本模式：历史 >= 6 条，初始最后一条贴底。
   const initialBubbles = await page.$$('.chat-bubble-row');
   assert(initialBubbles.length >= 6, `Expected multi-message script history, got ${initialBubbles.length}`);
+
+  // 前置断言：语料必须真实溢出视口（maxScroll >= 50px）。若 mock 语料被无意缩减，
+  // 几何断言会退化（内容不足视口时最后气泡天然贴底），此断言防用例空转。
+  const overflowDeadline = Date.now() + 8000;
+  let maxScroll = -1;
+  while (Date.now() < overflowDeadline) {
+    const metrics = await getScrollViewMetrics(page);
+    maxScroll = metrics ? metrics.scrollHeight - metrics.clientHeight : -1;
+    if (maxScroll >= 50) break;
+    await page.waitFor(250);
+  }
+  assert(
+    maxScroll >= 50,
+    `Scroll precondition failed: script history must overflow the viewport (maxScroll=${maxScroll}px, need >= 50px)`,
+  );
+
   await assertLastBubbleNearBottom(page, 'initial script history');
 
   // A(有历史) -> B(无历史)：自由模式空会话出现 starters，气泡清空。

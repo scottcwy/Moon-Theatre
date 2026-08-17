@@ -443,4 +443,27 @@ describe('getCharacterChatEntries', () => {
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]?.characterName).toBe('白藏');
   });
+
+  it.each([
+    ['%', '%\\%%'],
+    ['_', '%\\_%'],
+    ['\\', '%\\\\%'],
+  ])('escapes ILIKE wildcard "%s" so the full-body content match stays literal', async (keyword, expectedPattern) => {
+    const { getCharacterChatEntries } = await import('../character-summary-service.js');
+    orderByMock
+      .mockImplementationOnce(() => queryResult([makeSessionRow({ id: 's1' })]))
+      .mockImplementationOnce(() => queryResult([
+        { sessionId: 's1', content: '最近消息', role: 'assistant' },
+      ]));
+    mockContentQueryRows(['char-1']);
+
+    const result = await getCharacterChatEntries('user-1', 1, 20, keyword);
+
+    expect(result.entries).toHaveLength(1);
+    // 未转义时 q=% 会变成 %%% 命中所有消息、q=_ 命中任意单字符；转义后为字面匹配（与 mock includes 语义一致）。
+    const contentWhere = selectWhereMock.mock.calls[2]?.[0] as Condition;
+    expect(findCondition(contentWhere, 'messages.content')).toEqual({
+      type: 'ilike', col: 'messages.content', pattern: expectedPattern,
+    });
+  });
 });

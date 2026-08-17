@@ -480,13 +480,16 @@ describe('authenticated miniapp mock API server', () => {
     const server = await startMockApiServer({ port: 0 });
 
     try {
-      const [oldHit, singleChar, noHit, all] = await Promise.all([
+      const [oldHit, singleChar, noHit, percentHit, underscoreHit, all] = await Promise.all([
         // q=铜雀：只出现在程聿怀旧消息（铜雀街的旧案卷），不在角色名与 lastMessage。
         fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E9%93%9C%E9%9B%80`).then(readJson),
         // q=月：单字命中白藏（月光）、月岛澪（月色）、程聿怀（月蚀）。
         fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E6%9C%88`).then(readJson),
         // q=查无此词：无命中 → 空列表。
         fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%E6%9F%A5%E6%97%A0%E6%AD%A4%E8%AF%8D`).then(readJson),
+        // q=% 与 q=_：真实服务把 ILIKE 通配符转义为字面匹配；若按通配符展开会命中所有有消息的角色。
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=%25`).then(readJson),
+        fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20&q=_`).then(readJson),
         // 无 q：全量 6 条不受影响。
         fetch(`${server.baseUrl}/api/chat/characters?page=1&limit=20`).then(readJson),
       ]);
@@ -505,6 +508,10 @@ describe('authenticated miniapp mock API server', () => {
       // 无命中：空列表 + hasMore=false。
       expect(noHit.characters).toEqual([]);
       expect(noHit.hasMore).toBe(false);
+
+      // 通配符字面语义：语料不含字面 % 与 _，q=% / q=_ 必须为空，证明 mock 未做通配符展开。
+      expect(percentHit.characters).toEqual([]);
+      expect(underscoreHit.characters).toEqual([]);
 
       // 清空关键词恢复全量。
       expect(all.characters).toHaveLength(6);
