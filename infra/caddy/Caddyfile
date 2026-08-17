@@ -1,3 +1,12 @@
+# HTTP/3 (QUIC over UDP 443) disabled on purpose:
+# Tencent Cloud security group / compose do not publish UDP 443, and WeChat
+# Mini Program clients intermittently fail when Caddy advertises alt-svc h3.
+{
+    servers {
+        protocols h1 h2
+    }
+}
+
 {$CADDY_API_SITE_ADDRESS} {
     # Keep gzip-only for Mini Program client compatibility.
     encode gzip
