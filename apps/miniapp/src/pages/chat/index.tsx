@@ -11,7 +11,7 @@ import {
   StatusStateCard,
 } from '@juben-sha/miniapp-ui';
 import { MODEL_TIER_COSTS } from '@juben-sha/shared';
-import type { ChatMode, MoodType, StarterQuestions } from '../../types';
+import type { ChatMode, StarterQuestions } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isLoggedIn, streamChat } from '../../services/api';
 import { getCharacterGender } from '../../services/character-gender';
@@ -42,7 +42,6 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  mood?: MoodType;
   fallback?: boolean;
 }
 
@@ -280,7 +279,6 @@ export default function Chat() {
         id: message.id,
         role: message.role,
         content: message.content,
-        mood: message.mood ? message.mood as MoodType : undefined,
       }));
       setMessages(historyMessages);
       setPageError('');
@@ -551,7 +549,6 @@ export default function Chat() {
           ...current,
           id: lookup.assistantMessage!.id,
           content: lookup.assistantMessage!.content,
-          mood: lookup.assistantMessage!.mood as MoodType | undefined,
         }));
         if (!lookup.assistantMessage.outOfScope && !lookup.assistantMessage.excludedFromContext) {
           setHasSuccessfulTurn(true);
@@ -629,7 +626,6 @@ export default function Chat() {
           ...current,
           id: result.messageId,
           content: result.content ?? current.content,
-          mood: result.mood as MoodType | undefined,
           fallback: result.fallback,
         }));
         if (isSuccessfulDoneEvent(result)) setHasSuccessfulTurn(true);
@@ -846,7 +842,6 @@ export default function Chat() {
               <ChatBubble
                 role={message.role}
                 content={message.content}
-                mood={message.mood}
                 fallback={message.fallback}
                 avatarUrl={characterAvatarUrl}
                 characterName={character.name}
