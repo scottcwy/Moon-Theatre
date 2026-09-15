@@ -21,6 +21,8 @@
     "typecheck": "tsc --noEmit",
     "dev:weapp:lan": "node scripts/build-with-host.mjs --mode lan --watch",
     "build:weapp:prod": "node scripts/clean-dist.mjs && node scripts/build-with-host.mjs --mode prod && pnpm verify:weapp",
+    "dev:h5": "DEV_AUTH_BYPASS=true API_BASE_URL=http://localhost:10086 taro build --type h5 --watch",
+    "build:h5": "taro build --type h5",
     "test:e2e:ui:real": "node e2e/runtime-ui-real-data.mjs"
   },
   "browserslist": [
@@ -45,12 +47,15 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@babel/preset-react": "^7.24.1",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.6.3",
     "@tarojs/cli": "^4.0.0",
+    "@tarojs/plugin-platform-h5": "4.2.0",
     "@tarojs/webpack5-runner": "^4.0.0",
     "@types/react": "^18.3.0",
     "@weapp-vite/miniprogram-automator": "1.2.12",
     "babel-preset-taro": "^4.0.0",
     "eslint": "^9.0.0",
+    "react-refresh": "^0.14.2",
     "sass": "^1.77.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
