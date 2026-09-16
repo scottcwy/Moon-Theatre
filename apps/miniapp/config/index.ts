@@ -108,6 +108,11 @@ const config = {
           to: `${H5_OUTPUT_ROOT}/assets`,
           ignore: ASSET_COPY_IGNORE,
         },
+        {
+          from: 'playground/assets',
+          to: `${H5_OUTPUT_ROOT}/playground/assets`,
+          ignore: ASSET_COPY_IGNORE,
+        },
       ],
       options: {},
     },

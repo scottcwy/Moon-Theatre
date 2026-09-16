@@ -1,0 +1,82 @@
+{
+  "usedAssets": [
+    {
+      "ref": "7a4dbd6ba466",
+      "nodeId": "1:889",
+      "file": "apps/miniapp/playground/1-863/hot-script-ribbon.png",
+      "kind": "assets",
+      "bytes": 60924,
+      "sha256": "6c5325d57f39133fafe3b3839342e0ba32c8b14db6e67d377e00e22738c9ee47"
+    },
+    {
+      "ref": "43945762a7b9",
+      "nodeId": "1:904",
+      "file": "apps/miniapp/playground/1-863/hot-script-cover-right.png",
+      "kind": "assets",
+      "bytes": 249335,
+      "sha256": "6602fdca473e0ee0a56b2f4d9ece6af187b482b9bae2fe36e7d3ebe10b1b18a4"
+    },
+    {
+      "ref": "43945762a7b9",
+      "nodeId": "1:905",
+      "file": "apps/miniapp/playground/1-863/hot-script-cover-left.png",
+      "kind": "assets",
+      "bytes": 171323,
+      "sha256": "dc6f0a37aa4e7bcafc0dc7346b7c915335f4c7cccf3f4c637ebf4b2d0ae36a09"
+    },
+    {
+      "ref": "215c1154ee36",
+      "nodeId": "1:963",
+      "file": "apps/miniapp/playground/1-863/character-card.png",
+      "kind": "assets",
+      "bytes": 1457870,
+      "sha256": "c999354534629c98d63f1ec21ce12c8ba8e53bff0d21ee42f4d06ed343c7ddb5"
+    },
+    {
+      "ref": "3517c5a1ca19",
+      "nodeId": "1:1163",
+      "file": "apps/miniapp/playground/1-863/back-arrow.png",
+      "kind": "assets",
+      "bytes": 15431,
+      "sha256": "b3b1ff24af99355348fb9b3db41073934e446ffa8d643334139f02409eb25fb0"
+    },
+    {
+      "ref": "99f1d8e9a996",
+      "nodeId": "1:906",
+      "file": "apps/miniapp/playground/1-863/hot-script-hero-baked.png",
+      "kind": "baked",
+      "bytes": 1135536,
+      "sha256": "564010adb3166a53ea55f978c9768d96a898dd5f0feaf0a1d2797f093591e921"
+    }
+  ],
+  "usedAssetBytes": 3090419,
+  "alternatives": {
+    "heroRawScene": {
+      "file": "docs/specs/evidence/2026-09-16-pilot-1-863/hot-script-scene-raw.png",
+      "bytes": 1167885
+    },
+    "heroBaked": {
+      "file": "apps/miniapp/playground/1-863/hot-script-hero-baked.png",
+      "bytes": 1135536
+    },
+    "firstCardBaked": {
+      "file": "docs/specs/evidence/2026-09-16-pilot-1-863/first-card-baked.png",
+      "bytes": 1372643
+    },
+    "firstCardGlassNodeBaked": {
+      "file": "docs/specs/evidence/2026-09-16-pilot-1-863/first-card-glass-baked.png",
+      "bytes": 3277
+    },
+    "pilotScssSource": {
+      "file": "apps/miniapp/src/pages/home/home-pilot.scss",
+      "bytes": 15646
+    }
+  },
+  "comparisons": {
+    "heroBakedVsRawBytes": -32349,
+    "heroBakedVsRawPct": -2.77,
+    "cardBakedSingleVsRawAmortized6Bytes": 1129665,
+    "allSixCardsBakedVsRawBytes": 6777988,
+    "allSixCardsBakedVsRawPct": 464.92
+  }
+}

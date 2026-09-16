@@ -1,0 +1,38 @@
+{
+  "viewport": {
+    "width": 375,
+    "height": 812,
+    "deviceScaleFactor": 1
+  },
+  "defaultSystem": {
+    "cssFontFamily": "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+    "platformFontAfterRender": "PingFang SC",
+    "postScriptName": "PingFangSC-Regular",
+    "customFont": false
+  },
+  "misansOptional": {
+    "source": "https://cdn.jsdelivr.net/npm/misans@4.1.0/lib/Normal/MiSans-Regular.min.css",
+    "cssFontFamily": "MiSans, -apple-system, BlinkMacSystemFont, \"PingFang SC\", sans-serif",
+    "platformFontAfterRender": "MiSans",
+    "postScriptName": "MiSans-Regular",
+    "customFont": true,
+    "fontWeightDeclaredByCss": 330,
+    "requiresExplicitGlyphPreloadForStableScreenshot": true
+  },
+  "h5LoadFontFaceSupport": {
+    "taroVersion": "4.2.0",
+    "packageWithNoImplementation": "@tarojs/taro-h5@4.2.0",
+    "evidence": "rg loadFontFace over @tarojs/taro-h5 returns 0 matches; only Taro typings/promisified API list contain the symbol"
+  },
+  "pixelDifferenceSystemVsMiSans": {
+    "viewportMae": 2.369,
+    "viewportChangedGt10Pct": 3.52,
+    "textCoreMae": 2.784,
+    "textCoreChangedGt10Pct": 4.14
+  },
+  "screenshots": {
+    "system": "browser-system.png",
+    "misans": "browser-misans.png",
+    "difference": "font-system-vs-misans-diff.png"
+  }
+}

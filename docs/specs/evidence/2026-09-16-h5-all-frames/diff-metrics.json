@@ -1,0 +1,80 @@
+{
+  "1-773": {
+    "width": 375,
+    "height": 812,
+    "mae": 13.824,
+    "changed_gt10_pct": 9.48
+  },
+  "1-863": {
+    "width": 375,
+    "height": 812,
+    "mae": 18.867,
+    "changed_gt10_pct": 20.21
+  },
+  "1-1164": {
+    "width": 375,
+    "height": 812,
+    "mae": 18.224,
+    "changed_gt10_pct": 17.86
+  },
+  "1-387": {
+    "width": 375,
+    "height": 812,
+    "mae": 25.489,
+    "changed_gt10_pct": 26.44
+  },
+  "1-494": {
+    "width": 375,
+    "height": 812,
+    "mae": 2.626,
+    "changed_gt10_pct": 5.15
+  },
+  "1-626": {
+    "width": 375,
+    "height": 812,
+    "mae": 6.733,
+    "changed_gt10_pct": 9.73
+  },
+  "1-1657": {
+    "width": 375,
+    "height": 812,
+    "mae": 26.603,
+    "changed_gt10_pct": 39.99
+  },
+  "1-2325": {
+    "width": 375,
+    "height": 951,
+    "mae": 49.957,
+    "changed_gt10_pct": 49.24
+  },
+  "1-1766": {
+    "width": 375,
+    "height": 812,
+    "mae": 12.786,
+    "changed_gt10_pct": 34.76
+  },
+  "1-1892": {
+    "width": 375,
+    "height": 812,
+    "mae": 5.829,
+    "changed_gt10_pct": 11.18
+  },
+  "1-1987": {
+    "width": 375,
+    "height": 812,
+    "mae": 8.405,
+    "changed_gt10_pct": 22.59
+  },
+  "1-2080": {
+    "width": 375,
+    "height": 812,
+    "mae": 6.895,
+    "changed_gt10_pct": 10.22
+  },
+  "1-2180": {
+    "width": 375,
+    "height": 812,
+    "mae": 9.281,
+    "changed_gt10_pct": 19.33
+  }
+}

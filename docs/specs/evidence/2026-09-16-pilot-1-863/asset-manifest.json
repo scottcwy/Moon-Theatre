@@ -1,0 +1,104 @@
+[
+  {
+    "ref": "7a4dbd6ba466",
+    "nodeId": "1:889",
+    "file": "apps/miniapp/playground/1-863/hot-script-ribbon.png",
+    "scale": 2,
+    "role": "hot-script ribbon representative crop",
+    "bytes": 60924,
+    "sha256": "6c5325d57f39133fafe3b3839342e0ba32c8b14db6e67d377e00e22738c9ee47"
+  },
+  {
+    "ref": "43945762a7b9",
+    "nodeId": "1:904",
+    "file": "apps/miniapp/playground/1-863/hot-script-cover-right.png",
+    "scale": 2,
+    "role": "hot-script cover right crop",
+    "bytes": 249335,
+    "sha256": "6602fdca473e0ee0a56b2f4d9ece6af187b482b9bae2fe36e7d3ebe10b1b18a4"
+  },
+  {
+    "ref": "43945762a7b9",
+    "nodeId": "1:905",
+    "file": "apps/miniapp/playground/1-863/hot-script-cover-left.png",
+    "scale": 2,
+    "role": "hot-script cover left crop",
+    "bytes": 171323,
+    "sha256": "dc6f0a37aa4e7bcafc0dc7346b7c915335f4c7cccf3f4c637ebf4b2d0ae36a09"
+  },
+  {
+    "ref": "99f1d8e9a996",
+    "nodeId": "1:909",
+    "file": "docs/specs/evidence/2026-09-16-pilot-1-863/hot-script-scene-raw.png",
+    "scale": 2,
+    "role": "raw hero scene retained as C1 comparison alternative",
+    "bytes": 1167885,
+    "sha256": "58089cc7ad35a77e8ea529e59de783be0139240eca4c38442014fb9e6fb0d5bf"
+  },
+  {
+    "ref": "215c1154ee36",
+    "nodeId": "1:963",
+    "file": "apps/miniapp/playground/1-863/character-card.png",
+    "scale": 2,
+    "role": "character card portrait representative crop",
+    "bytes": 1457870,
+    "sha256": "c999354534629c98d63f1ec21ce12c8ba8e53bff0d21ee42f4d06ed343c7ddb5"
+  },
+  {
+    "ref": "3517c5a1ca19",
+    "nodeId": "1:1163",
+    "file": "apps/miniapp/playground/1-863/back-arrow.png",
+    "scale": 2,
+    "role": "top-left back arrow",
+    "bytes": 15431,
+    "sha256": "b3b1ff24af99355348fb9b3db41073934e446ffa8d643334139f02409eb25fb0"
+  },
+  {
+    "ref": null,
+    "nodeId": "1:960",
+    "file": "docs/specs/evidence/2026-09-16-pilot-1-863/first-card-baked.png",
+    "scale": 2,
+    "role": "C1 first card complete baked export",
+    "bytes": 1372643,
+    "sha256": "83cb7950eaaed2f2bad0ca0ec9ce7edc69db03e4605fe699650089cd8f75630a",
+    "usage": "C1 comparison only, not shipped"
+  },
+  {
+    "ref": null,
+    "nodeId": "1:964",
+    "file": "docs/specs/evidence/2026-09-16-pilot-1-863/first-card-glass-baked.png",
+    "scale": 2,
+    "role": "C1 first card glass overlay baked export",
+    "bytes": 3277,
+    "sha256": "92e06b4bc8c77357f844e7e45bfdbf2893844e5be81b44e5d4852cb1634ede12",
+    "usage": "C1 comparison only, opaque after export, not shipped"
+  },
+  {
+    "ref": null,
+    "nodeId": "1:906",
+    "file": "docs/specs/evidence/2026-09-16-pilot-1-863/hero-card-group-baked.png",
+    "scale": 2,
+    "role": "chosen H5 hero background: complete one-off group with Figma GLASS/drop shadow baked",
+    "bytes": 1135536,
+    "sha256": "564010adb3166a53ea55f978c9768d96a898dd5f0feaf0a1d2797f093591e921",
+    "usage": "H5 pilot hero background"
+  },
+  {
+    "ref": null,
+    "nodeId": "1:863",
+    "file": "docs/specs/evidence/2026-09-16-pilot-1-863/figma-1-863-scale-0.5.png",
+    "scale": 0.5,
+    "role": "full frame comparison export",
+    "bytes": 1027002,
+    "sha256": "1280cf5e89a73a1afb56987532fa955fd057b1a5586361bad87c7d40ae69149b"
+  },
+  {
+    "ref": null,
+    "nodeId": "1:863",
+    "file": "docs/specs/evidence/2026-09-16-pilot-1-863/figma-1-863-scale-0.25.png",
+    "scale": 0.25,
+    "role": "full frame viewport-size comparison export",
+    "bytes": 389868,
+    "sha256": "4d478298b455d5a89969594f8a6a64c166088a91ff3c1457f2b99f08aafb2bf1"
+  }
+]
