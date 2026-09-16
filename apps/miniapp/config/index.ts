@@ -1,6 +1,8 @@
 import path from 'path';
 import { getApiBaseUrlForMode } from './api-base-url';
 
+const ASSET_COPY_IGNORE = ['**/*.md', '**/.DS_Store'];
+
 function getApiBaseUrl(): string {
   const isDevBuild = process.env.NODE_ENV === 'development' || process.argv.includes('--watch');
   return getApiBaseUrlForMode(isDevBuild ? 'development' : 'production');
@@ -30,6 +32,7 @@ const config = {
       {
         from: 'src/assets',
         to: 'dist/assets',
+        ignore: ASSET_COPY_IGNORE,
       },
       {
         from: 'sitemap.json',
