@@ -1,16 +1,41 @@
 # assets 资源目录
 
-本目录是小程序端全部本地资源的唯一入口（`config/index.ts` 的 `copy` 会把 `src/assets` 原样拷贝进构建产物）。新增、删除、替换资源前先读这里。
+本目录是微信小程序本地运行图片的唯一入口。`config/index.ts` 只复制这里的运行资源，并排除 `**/*.md` 与 `**/.DS_Store`；不要在这里放源文件、视觉稿、H5 pilot、设计证据或未接入素材。
+
+## 主包边界
+
+| 资产类型 | 位置 | 是否进入微信主包 |
+|---|---|---|
+| 小程序运行图片 | `apps/miniapp/src/assets/` | 是 |
+| H5 pilot 图片 | `apps/miniapp/playground/` | 否 |
+| Logo 源文件与导出说明 | `brand-assets/` | 否 |
+| 剧本原始素材与调研资料 | `流氓叙事/`、`芸芸素材/` | 否 |
+| 设计比对证据 | `docs/specs/evidence/` | 否 |
+| E2E 生成产物 | `apps/miniapp/e2e/artifacts/` | 否，已由 Git 忽略 |
 
 ## 目录职责
 
-| 目录 | 用途 | 引用方 | 说明 |
-|---|---|---|---|
-| `icons/` | 底部 tabBar 图标 | `src/app.config.ts` | 每 tab 两张：`name.png`（未选中）+ `name-active.png`（选中） |
-| `characters/` | 角色立绘/头像 | `src/pages/home/index.model.ts` | 方形头像为主：芸芸 6 角色与流氓叙事 9 角色（程聿怀男/女、程走柳、羌青瓷女、以撒、奥丁、黛利拉、蒋伯驾、缪宏谟）均为 600×600 JPG（q82，源图：官方角色海报，按人脸校准裁切，剔除海报文字/水印）；流氓叙事 阿奇/羌青瓷男 亦为 600×600 方形头像（q82）；程聿怀/羌青瓷另有性别变体（`chengyuhuai-female.jpg`、`qiangqingci-male.jpg`），选角时按本地选择切换；月见庭院 4 角色为 600×600 方形（无本地原图） |
-| `home/` | 首页脚本封面 | `src/pages/home/index.model.ts`、`src/pages/chat/list.tsx` | `LOCAL_SCRIPT_COVERS` 按 slug 映射；`moon-tower-cover.jpg` 为《流氓叙事》剧本主海报（700×996，q72 压缩，源图：官方售后海报 `剧本主海报.jpg`）；`yunyun-cover.jpg` 为《芸芸》主视觉封面（700×996，q82 压缩，源图：`芸芸素材/00_主视觉封面_沧海浮尘.png`） |
-| `login/` | 登录页背景 | `src/pages/login/index.scss` | 通过 CSS `url()` 引用 |
-| `lordicon/` | 成就动画图标（WebP） | `AchievementIcon`（`packages/miniapp-ui`） | 详见目录内 `README.md`，注意保留 Lordicon 署名 |
+| 目录 | 数量 | 用途 | 引用方 |
+|---|---:|---|---|
+| `icons/` | 8 | 底部 tabBar 图标 | `src/app.config.ts` |
+| `characters/` | 21 | 角色立绘/头像 | `src/pages/home/index.model.ts` |
+| `home/` | 3 | 首页剧本封面 | `src/pages/home/index.model.ts`、`src/pages/chat/list.tsx` |
+| `login/` | 1 | 登录页背景 | `src/pages/login/index.scss` |
+| `logo/` | 1 | 聊天列表页品牌头像 | `src/pages/chat/list.tsx` |
+
+## 当前运行资产索引
+
+- `characters/`：`archie.jpg`、`cenyilan.jpg`、`chengyuhuai-female.jpg`、`chengyuhuai.jpg`、`chengzouliu.jpg`、`delilah.jpg`、`fuxiao.jpg`、`hakuzo.jpg`、`isaac.jpg`、`jiangbojia.jpg`、`jicanghai.jpg`、`kiyoharu.jpg`、`kuon.jpg`、`miaohongmo.jpg`、`mio.jpg`、`nanchuang.jpg`、`odin.jpg`、`qiangqingci-male.jpg`、`qiangqingci.jpg`、`yeshangqiu.jpg`、`zhihe.jpg`
+- `home/`：`moon-garden-cover.jpg`、`moon-tower-cover.jpg`、`yunyun-cover.jpg`
+- `icons/`：`chat-active.png`、`chat.png`、`community-active.png`、`community.png`、`home-active.png`、`home.png`、`profile-active.png`、`profile.png`
+- `login/`：`login-theater-bg.jpg`
+- `logo/`：`logo-icon-480.png`
+
+角色与封面来源、尺寸和压缩说明：
+
+- `characters/` 以 600×600 JPG 方形头像为主，源图来自官方角色海报或本地占位图；程聿怀、羌青瓷的性别变体按选角结果切换。完整源图位于 `流氓叙事/`、`芸芸素材/`。
+- `home/moon-tower-cover.jpg` 来自《流氓叙事》主海报；`home/yunyun-cover.jpg` 来自 `芸芸素材/00_主视觉封面_沧海浮尘.png`。
+- `logo/logo-icon-480.png` 是聊天列表页运行文件；完整 Logo 源文件与导出尺寸见 `brand-assets/README.md`。
 
 ## 图标规范（`icons/`）
 
@@ -21,9 +46,10 @@
 
 ## 规则
 
-- 新增资源放入对应目录并在此登记用途与引用方；不放死文件。
-- 图片统一放 `assets/`，不散落在页面目录下。
+- 新增运行图片放入对应目录，并同步更新本索引中的数量、文件名和引用方；不放死文件。
+- 本目录只放会进入微信主包的运行图片。H5 pilot、视觉稿、证据和源文件不得放入。
 - 删除资源前先全仓 grep 引用，确认无引用再删。
 - 与视觉 token 相关的颜色走 `styles/tokens.scss`，不要在资源里硬编码业务色。
 - 占位图统一用品牌酒红底 + 角色名文字（本目录 `characters/`、`home/` 内标注「占位」的 JPG）；正式美术图到位后整体替换，替换前先全仓 grep 确认引用。
 - 头像源图是竖版海报，显示端统一 `aspectFill` 裁切；替换图源时抽查圆形小头像与详情页 hero 的裁切效果。
+- 成就图标当前使用 `AchievementIcon` 的本地兜底字形；接入 Lordicon 等真实动画资源时再新建目录，并保留所需署名。

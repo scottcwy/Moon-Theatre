@@ -3,6 +3,7 @@ import { getApiBaseUrlForMode } from './api-base-url';
 
 const H5_OUTPUT_ROOT = 'dist/h5';
 const h5OutputPath = path.resolve(__dirname, '..', H5_OUTPUT_ROOT);
+const ASSET_COPY_IGNORE = ['**/*.md', '**/.DS_Store'];
 
 function applyTsExtensionAlias(chain) {
   chain.resolve.set('extensionAlias', {
@@ -50,6 +51,7 @@ const config = {
       {
         from: 'src/assets',
         to: 'dist/assets',
+        ignore: ASSET_COPY_IGNORE,
       },
       {
         from: 'sitemap.json',
@@ -104,6 +106,7 @@ const config = {
         {
           from: 'src/assets',
           to: `${H5_OUTPUT_ROOT}/assets`,
+          ignore: ASSET_COPY_IGNORE,
         },
       ],
       options: {},
