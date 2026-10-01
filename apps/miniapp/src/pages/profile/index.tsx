@@ -197,13 +197,9 @@ export default function Profile() {
   if (loading) {
     return (
       <PageShell variant="scroll" tabBarReserve className="profile">
-<<<<<<< HEAD
-        <StatusStateCard title="正在读取资料" message="正在加载点数、称号和成就。" icon="…" />
-=======
         <View className="profile__topbar"><Text>我的</Text></View>
         <StatusStateCard title="正在叩响梦境之门" message="正在加载点数、称号和成就。" icon="…" />
         <StageTabBar selected="/pages/profile/index" />
->>>>>>> c7f8bca (feat(miniapp): apply H5 theater visual system to production pages)
       </PageShell>
     );
   }
