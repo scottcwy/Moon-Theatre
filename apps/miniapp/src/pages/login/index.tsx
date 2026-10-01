@@ -81,7 +81,7 @@ export default function Login() {
         <View className="login-page__footer">
           <View className="login-page__action">
             <PrimaryButton className="login-page__wechat-btn" disabled={loading} onTap={handleWechatLogin}>
-              {loading ? '登录中…' : '使用微信登录'}
+              {loading ? '登录中…' : '登录'}
             </PrimaryButton>
           </View>
 
