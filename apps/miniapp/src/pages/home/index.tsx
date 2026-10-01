@@ -13,6 +13,7 @@ import {
   TopBar,
 } from '@juben-sha/miniapp-ui';
 import { api, isLoggedIn } from '../../services/api';
+import { StageTabBar } from '../../components/StageTabBar';
 import { getCharacterGender } from '../../services/character-gender';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import {
@@ -29,6 +30,8 @@ import {
   getScriptCoverUrl,
   getScriptRoleSelectUrl,
   homeSections,
+  localHomeCharacters,
+  localHomeScripts,
   shouldApplyScriptResponse,
 } from './index.model';
 import './index.scss';
@@ -87,10 +90,16 @@ export default function Home() {
     try {
       const data = await api.get<{ scripts: ScriptCard[] }>(buildScriptsUrl(query));
       if (!shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) return;
-      setScripts(data.scripts);
+      setScripts(data.scripts.length > 0 || query.trim() ? data.scripts : [...localHomeScripts]);
     } catch {
       if (!shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) return;
-      setScriptsError('剧本目录暂时不可用，请稍后重试');
+      if (query.trim()) {
+        setScripts([]);
+        setScriptsError('');
+      } else {
+        setScripts([...localHomeScripts]);
+        setScriptsError('');
+      }
     } finally {
       if (shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) {
         setScriptsLoading(false);
@@ -121,11 +130,12 @@ export default function Home() {
       api
         .get<{ characters: CharacterCard[] }>('/api/characters')
         .then((data) => {
-          setCharacters(data.characters);
+          setCharacters(data.characters.length > 0 ? data.characters : [...localHomeCharacters]);
           setHasFrequentCharacters(false);
         })
         .catch(() => {
-          setCharacterError('角色列表暂时不可用，请稍后重试');
+          setCharacters([...localHomeCharacters]);
+          setCharacterError('');
         });
     };
 
@@ -220,7 +230,7 @@ export default function Home() {
   const hasScriptQuery = scriptQuery.trim().length > 0;
 
   return (
-    <PageShell variant="scroll" noPadding>
+    <PageShell variant="scroll" noPadding className="theater-home">
       <View className="theater-home__topbar-shell" style={topBarStyle as CSSProperties}>
         <TopBar
           className="theater-home__topbar"
@@ -301,6 +311,9 @@ export default function Home() {
                       <View className="theater-home__hero-shade" />
                       <View className="theater-home__hero-content">
                         <Text className="theater-home__hero-card-title" userSelect>{script.title}</Text>
+                        <View className="theater-home__primary-action" onTap={() => chooseRole(script)}>
+                          <Text>选择角色</Text>
+                        </View>
                       </View>
                     </View>
                   );
@@ -356,6 +369,7 @@ export default function Home() {
           )}
         </PageSection>
       </View>
+      <StageTabBar selected="/pages/home/index" />
     </PageShell>
   );
 }

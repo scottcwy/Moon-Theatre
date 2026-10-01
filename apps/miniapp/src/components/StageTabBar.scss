@@ -1,0 +1,54 @@
+.theater-tab-bar {
+  position: fixed;
+  left: 16rpx;
+  right: 16rpx;
+  bottom: calc(12rpx + env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+  height: 104rpx;
+  padding: 3rpx;
+  display: flex;
+  align-items: stretch;
+  border: 1rpx solid #b67561;
+  border-radius: 54rpx;
+  background: linear-gradient(180deg, #5b1b35, #391227);
+  box-shadow: 0 10rpx 24rpx rgba(22, 7, 13, 0.5);
+  box-sizing: border-box;
+}
+
+.theater-tab-bar__item {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #d29a78;
+}
+
+.theater-tab-bar__item--selected {
+  color: #f0c78e;
+}
+
+.theater-tab-bar__item--selected::before {
+  content: '';
+  position: absolute;
+  inset: 0 9rpx;
+  border-radius: 48rpx;
+  background: rgba(214, 150, 107, 0.22);
+}
+
+.theater-tab-bar__icon {
+  position: relative;
+  width: 46rpx;
+  height: 46rpx;
+  margin-bottom: 2rpx;
+}
+
+.theater-tab-bar__label {
+  position: relative;
+  color: inherit;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 19rpx;
+  line-height: 1.1;
+}

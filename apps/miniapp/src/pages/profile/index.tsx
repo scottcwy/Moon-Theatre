@@ -15,6 +15,7 @@ import {
   TonalButton,
 } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
+import { StageTabBar } from '../../components/StageTabBar';
 import { api, clearAuth, isApiError, isLoggedIn, setUser } from '../../services/api';
 import {
   getPreferredNameError,
@@ -196,7 +197,13 @@ export default function Profile() {
   if (loading) {
     return (
       <PageShell variant="scroll" tabBarReserve className="profile">
+<<<<<<< HEAD
         <StatusStateCard title="正在读取资料" message="正在加载点数、称号和成就。" icon="…" />
+=======
+        <View className="profile__topbar"><Text>我的</Text></View>
+        <StatusStateCard title="正在叩响梦境之门" message="正在加载点数、称号和成就。" icon="…" />
+        <StageTabBar selected="/pages/profile/index" />
+>>>>>>> c7f8bca (feat(miniapp): apply H5 theater visual system to production pages)
       </PageShell>
     );
   }
@@ -204,6 +211,7 @@ export default function Profile() {
   if (needsLogin || !isLoggedIn()) {
     return (
       <PageShell variant="scroll" tabBarReserve className="profile">
+        <View className="profile__topbar"><Text>我的</Text></View>
         <View className="profile__hero profile__hero--signed-out">
           <View className="profile__hero-main">
             <CharacterAvatar name="?" size="lg" />
@@ -218,12 +226,14 @@ export default function Profile() {
         </View>
 
         {aiNotice}
+        <StageTabBar selected="/pages/profile/index" />
       </PageShell>
     );
   }
 
   return (
     <PageShell variant="scroll" tabBarReserve className="profile">
+      <View className="profile__topbar"><Text>我的</Text></View>
       <View className="profile__hero">
         <View className="profile__hero-main">
           <CharacterAvatar name={displayName} src={profile?.avatarUrl || undefined} size="lg" online />
@@ -347,6 +357,7 @@ export default function Profile() {
           退出登录
         </TonalButton>
       </View>
+      <StageTabBar selected="/pages/profile/index" />
     </PageShell>
   );
 }

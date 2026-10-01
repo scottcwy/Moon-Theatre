@@ -1,7 +1,40 @@
 @use '../../styles/tokens.scss' as *;
 
 .profile {
-  background-color: $color-background;
+  position: relative;
+  padding: 0 18rpx calc(132rpx + env(safe-area-inset-bottom, 0px));
+  background:
+    linear-gradient(180deg, rgba(15, 12, 14, 0.18) 0 30%, rgba(232, 218, 204, 0.96) 48%, #dfcfbf 100%),
+    url('../../assets/backgrounds/courtyard.jpg') center top / 100% auto no-repeat;
+  color: #f7ecdd;
+}
+
+.profile__topbar {
+  height: 86rpx;
+  padding-top: env(safe-area-inset-top, 0px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f8e9d3;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 34rpx;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.profile > .status-state-card {
+  margin: 190rpx 16rpx 0;
+  min-height: 360rpx;
+  padding: 88rpx 30rpx;
+  border: 1rpx solid #b98965;
+  border-radius: 10rpx;
+  background: rgba(49, 18, 28, 0.82);
+  box-shadow: 0 16rpx 30rpx rgba(39, 20, 25, 0.3);
+}
+
+.profile > .status-state-card .status-state-card__title,
+.profile > .status-state-card .status-state-card__message {
+  color: #f6e7d5;
 }
 
 .profile__hero {
@@ -9,12 +42,13 @@
   display: flex;
   flex-direction: column;
   gap: $space-4;
-  margin-top: $space-2;
+  margin-top: 12rpx;
   margin-bottom: $space-5;
-  padding: $space-5;
-  border-radius: $radius-lg;
-  background: $color-surface-container-low;
-  box-shadow: $shadow-card;
+  padding: 28rpx;
+  border: 1rpx solid #ad7958;
+  border-radius: 8rpx;
+  background: rgba(49, 18, 28, 0.94);
+  box-shadow: 0 12rpx 32rpx rgba(39, 20, 25, 0.32);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -53,7 +87,7 @@
   overflow: hidden;
   font-size: $font-title-lg;
   font-weight: 800;
-  color: $color-on-surface;
+  color: #f8e6d1;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -121,7 +155,7 @@
   display: block;
   font-size: $font-label-md;
   line-height: 1.45;
-  color: $color-on-surface-variant;
+  color: rgba(240, 214, 188, 0.78);
 }
 
 .profile__error {
@@ -130,10 +164,10 @@
 
 .profile__growth-card {
   margin-bottom: $space-5;
-  padding: $space-5;
-  border-radius: $radius-lg;
-  background-color: $color-surface-container-low;
-  box-shadow: none;
+  padding: 26rpx;
+  border-radius: 8rpx;
+  background-color: rgba(240, 228, 214, 0.94);
+  box-shadow: 0 10rpx 24rpx rgba(69, 52, 46, 0.16);
   box-sizing: border-box;
 }
 
@@ -150,7 +184,7 @@
   font-size: $font-title-md;
   font-weight: 800;
   line-height: 1.35;
-  color: $color-on-surface;
+  color: #fff7ed;
 }
 
 .profile__section-note {
@@ -159,7 +193,7 @@
   padding-top: 4rpx;
   font-size: $font-label-sm;
   line-height: 1.35;
-  color: $color-on-surface-variant;
+  color: #705953;
 }
 
 .profile__growth-content {
@@ -196,7 +230,7 @@
   display: block;
   font-size: $font-label-sm;
   line-height: 1.35;
-  color: $color-on-surface-variant;
+  color: #66534e;
 }
 
 .profile__title-group,
@@ -211,7 +245,7 @@
   font-size: $font-label-sm;
   line-height: 1.35;
   font-weight: 800;
-  color: $color-secondary;
+  color: #6e594e;
 }
 
 .profile__title-list {
@@ -268,6 +302,61 @@
 
 .profile__ai-notice {
   margin-bottom: $space-4;
+}
+
+.profile__hero--signed-out {
+  min-height: 252rpx;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.profile__hero--signed-out .profile__hero-main {
+  justify-content: center;
+}
+
+.profile__hero--signed-out .character-avatar {
+  display: none;
+}
+
+.profile__hero--signed-out .profile__hero-actions {
+  justify-content: center;
+}
+
+.profile__hero--signed-out .profile__nickname {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 38rpx;
+}
+
+.profile__hero--signed-out .profile__subtitle {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.profile__hero--signed-out .badge {
+  border: 1rpx solid #d6a56e;
+  border-radius: 30rpx;
+  background: transparent;
+  color: #e7bf8d;
+}
+
+.profile__ai-notice {
+  margin-top: 620rpx;
+  border: 1rpx solid rgba(125, 96, 80, 0.22);
+  border-radius: 6rpx;
+  background: rgba(241, 231, 218, 0.78);
+}
+
+.profile__ai-notice .notice-block__text {
+  color: #6f5c54;
+}
+
+.profile__account {
+  padding-bottom: 20rpx;
 }
 
 .profile__account {

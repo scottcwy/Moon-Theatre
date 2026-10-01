@@ -256,6 +256,22 @@
   -webkit-line-clamp: 2;
 }
 
+.theater-home__primary-action {
+  width: 300rpx;
+  height: 66rpx;
+  margin-top: 18rpx;
+  border: 2rpx solid #e5b985;
+  border-radius: 34rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #8d294a;
+  color: #fff0dc;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 24rpx;
+  box-sizing: border-box;
+}
+
 .theater-home__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -295,4 +311,212 @@
 
 .theater-home__empty {
   margin-top: $space-2;
+}
+
+.theater-home__script-state {
+  border: 1rpx solid #b98965;
+  border-radius: 10rpx;
+  background: rgba(54, 20, 30, 0.94);
+  box-shadow: 0 14rpx 28rpx rgba(0, 0, 0, 0.28);
+}
+
+.theater-home__script-state .status-state-card__icon {
+  width: 96rpx;
+  height: 96rpx;
+  background: rgba(106, 35, 49, 0.8);
+  color: #d9a36d;
+}
+
+.theater-home__script-state .status-state-card__title {
+  color: #f7e6d1;
+  font-family: Georgia, 'Songti SC', serif;
+}
+
+.theater-home__script-state .status-state-card__message {
+  color: rgba(245, 225, 205, 0.75);
+}
+
+.theater-home__script-state .ui-button {
+  border-color: #d9a36d;
+  background: transparent;
+  color: #edc08c;
+}
+
+/* H5 theatre skin: the production page keeps the same data and actions but uses
+   the dark stage, framed poster and compact character grid from the approved frame. */
+.theater-home {
+  color: #f6e4d0;
+}
+
+.theater-home__topbar,
+.theater-home__topbar-shell {
+  background: #170e12;
+  border-bottom-color: rgba(226, 180, 121, 0.2);
+}
+
+.theater-home__content {
+  min-height: 100vh;
+  padding-top: calc(var(--topbar-total-height, #{$topbar-height}) + 22rpx);
+  padding-left: 18rpx;
+  padding-right: 18rpx;
+  padding-bottom: calc(124rpx + env(safe-area-inset-bottom, 0px));
+  background:
+    radial-gradient(circle at 50% 0, rgba(105, 37, 52, 0.18), transparent 34%),
+    #170e12;
+}
+
+.theater-home__hero-section,
+.theater-home__character-section {
+  margin-bottom: 26rpx;
+}
+
+.theater-home__hero-header {
+  margin: 0 2rpx 4rpx;
+}
+
+.theater-home__hero-kicker,
+.theater-home__character-section .page-section__kicker {
+  color: #e0bf94;
+  font-size: 22rpx;
+  letter-spacing: 1rpx;
+}
+
+.theater-home__hero-title,
+.theater-home__character-section .page-section__title {
+  color: #f8e8d5;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.theater-home__mode-hint {
+  display: none;
+}
+
+.theater-home__mode-switch-label {
+  color: #e9c18d;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 22rpx;
+}
+
+.theater-home__mode-switch-track {
+  width: 54rpx;
+  height: 32rpx;
+  border: 1rpx solid #a66b4c;
+  background: #271419;
+  box-shadow: none;
+}
+
+.theater-home__mode-switch-thumb {
+  top: 4rpx;
+  left: 4rpx;
+  width: 22rpx;
+  height: 22rpx;
+  background: #e2bd91;
+}
+
+.theater-home__mode-switch--on .theater-home__mode-switch-thumb {
+  transform: translateX(22rpx);
+}
+
+.theater-home__mode-switch--on .theater-home__mode-switch-track {
+  background: #64213a;
+}
+
+.theater-home__script-search {
+  height: 54rpx;
+  min-height: 54rpx;
+  margin: 14rpx 0 12rpx;
+  border: 1rpx solid #d39c7b;
+  border-radius: 28rpx;
+  background: rgba(57, 28, 31, 0.7);
+  color: #f8e8d5;
+}
+
+.theater-home__script-search .search-bar__input,
+.theater-home__script-search input {
+  color: #f8e8d5;
+}
+
+.theater-home__script-search .search-bar__placeholder {
+  color: rgba(240, 213, 190, 0.62);
+}
+
+.theater-home__hero-card {
+  flex-basis: 100%;
+  height: 420rpx;
+  margin-right: 0;
+  border: 1rpx solid #b98268;
+  border-radius: 8rpx;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.42);
+}
+
+.theater-home__hero-card + .theater-home__hero-card {
+  margin-left: 14rpx;
+}
+
+.theater-home__hero-shade {
+  background: linear-gradient(180deg, rgba(15, 5, 8, 0.02) 30%, rgba(15, 5, 8, 0.82) 100%);
+}
+
+.theater-home__hero-content {
+  left: 30rpx;
+  right: 24rpx;
+  bottom: 26rpx;
+}
+
+.theater-home__hero-card-title {
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 34rpx;
+  color: #fff1de;
+}
+
+.theater-home__script-dots {
+  margin-top: 12rpx;
+}
+
+.theater-home__script-dot {
+  width: 12rpx;
+  height: 12rpx;
+  background: #765365;
+}
+
+.theater-home__script-dot--active {
+  background: #c26b85;
+}
+
+.theater-home__grid {
+  gap: 18rpx 12rpx;
+}
+
+.theater-home__poster-card .character-poster-card__poster {
+  aspect-ratio: 1.28 / 1;
+  border: 1rpx solid rgba(231, 193, 152, 0.66);
+  border-radius: 0;
+  background: #28151b;
+  box-shadow: 0 8rpx 18rpx rgba(0, 0, 0, 0.34);
+}
+
+.theater-home__poster-card .character-poster-card__badge {
+  bottom: 34rpx;
+  border: 0;
+  border-radius: 0;
+  background: rgba(58, 7, 24, 0.92);
+  box-shadow: none;
+}
+
+.theater-home__poster-card .character-poster-card__badge-text,
+.theater-home__poster-card .character-poster-card__title {
+  color: #f5e1ca;
+  font-family: Georgia, 'Songti SC', serif;
+}
+
+.theater-home__poster-card .character-poster-card__title {
+  margin-top: 8rpx;
+  font-size: 23rpx;
+}
+
+.theater-home__poster-card .character-poster-card__subtitle {
+  color: rgba(238, 211, 184, 0.64);
+  font-size: 18rpx;
 }

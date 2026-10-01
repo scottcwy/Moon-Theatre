@@ -25,7 +25,7 @@ export default defineAppConfig({
       { pagePath: 'pages/community/index', text: '社区', iconPath: 'assets/icons/community.png', selectedIconPath: 'assets/icons/community-active.png' },
       { pagePath: 'pages/profile/index', text: '我的', iconPath: 'assets/icons/profile.png', selectedIconPath: 'assets/icons/profile-active.png' },
     ],
-  },
+  } as any,
   window: {
     backgroundColor: '#FFFBF8',
     backgroundTextStyle: 'dark',

@@ -3,6 +3,7 @@ import Taro, { useDidShow } from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard } from '@juben-sha/miniapp-ui';
+import { StageTabBar } from '../../components/StageTabBar';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import { syncChatTabRedDot } from '../../services/chat-red-dot';
@@ -222,6 +223,7 @@ export default function ChatList() {
               />
             )}
           </View>
+          <StageTabBar selected="/pages/chat/list" />
         </View>
       </PageShell>
     );
@@ -266,6 +268,7 @@ export default function ChatList() {
             />
           )}
         </View>
+        <StageTabBar selected="/pages/chat/list" />
       </View>
     </PageShell>
   );

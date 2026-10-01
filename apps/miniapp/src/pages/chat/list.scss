@@ -2,6 +2,10 @@
 
 .chat-list {
   min-height: 100vh;
+  color: #f3dfca;
+  background:
+    linear-gradient(180deg, rgba(16, 11, 13, 0.06) 0 34%, rgba(224, 210, 196, 0.88) 70%, #decdbd 100%),
+    url('../../assets/backgrounds/courtyard.jpg') center top / 100% auto no-repeat;
 }
 
 .chat-list__body {
@@ -16,13 +20,15 @@
   z-index: $z-topbar;
   height: var(--topbar-total-height, #{$topbar-height});
   background: $color-background;
-  box-shadow: 0 8rpx 24rpx rgba(58, 7, 24, 0.06);
+  background-color: transparent;
+  box-shadow: none;
 }
 
 .chat-list__header {
   display: flex;
   align-items: center;
   min-height: 88rpx;
+  justify-content: center;
   padding: 0 $space-2;
   box-sizing: border-box;
 }
@@ -30,39 +36,32 @@
 .chat-list__brand-avatar {
   width: 80rpx;
   height: 80rpx;
-  border: 4rpx solid $color-background;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: $color-surface-container-low;
-  box-shadow: 0 8rpx 20rpx rgba(58, 7, 24, 0.12);
-  box-sizing: border-box;
+  display: none;
 }
 
 .chat-list__header-copy {
   min-width: 0;
-  margin-left: $space-3;
+  margin-left: 0;
+  align-items: center;
   display: flex;
   flex-direction: column;
 }
 
 .chat-list__title {
-  color: $color-on-background;
-  font-size: $font-title-lg;
+  color: #f8e9d3;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 34rpx;
   font-weight: 800;
   line-height: 1.18;
 }
 
 .chat-list__subtitle {
-  margin-top: 2rpx;
-  color: $color-primary;
-  font-size: $font-label-sm;
-  font-weight: 600;
-  line-height: 1.2;
+  display: none;
 }
 
 /* Search bar */
 .chat-list__search-row {
-  margin-top: $space-4;
+  display: none;
 }
 
 .chat-list__search-control {
@@ -85,7 +84,36 @@
 }
 
 .chat-list__state {
-  margin-top: $space-6;
+  margin: 32rpx 18rpx 0;
+  min-height: 640rpx;
+  padding: 170rpx 42rpx 42rpx;
+  border: 1rpx solid #b98965;
+  border-radius: 10rpx;
+  background: rgba(57, 20, 31, 0.92);
+  box-shadow: 0 16rpx 30rpx rgba(46, 27, 23, 0.28);
+  box-sizing: border-box;
+}
+
+.chat-list__state .status-state-card__icon {
+  color: #dba56e;
+}
+
+.chat-list__state .status-state-card__title,
+.chat-list__state .empty-state__title {
+  color: #f6e7d5;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 34rpx;
+}
+
+.chat-list__state .status-state-card__message,
+.chat-list__state .empty-state__message {
+  color: rgba(247, 228, 207, 0.75);
+}
+
+.chat-list__state .ui-button {
+  border-color: #dbad78;
+  background: transparent;
+  color: #f1cc99;
 }
 
 .chat-list__item:active {

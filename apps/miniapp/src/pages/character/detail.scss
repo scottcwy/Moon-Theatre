@@ -1,11 +1,57 @@
 @use '../../styles/tokens.scss' as *;
 
+.detail {
+  background: #170e12;
+  color: #f6e4d0;
+}
+
 .detail .character-detail-hero__image-wrap {
-  height: calc(820rpx - #{$space-3});
+  height: 930rpx;
+  background:
+    linear-gradient(180deg, rgba(18, 14, 16, 0.06) 48%, rgba(18, 14, 16, 0.86) 100%),
+    url('../../assets/characters/detail/white-cang.jpg') center top / cover no-repeat;
+}
+
+.detail .character-detail-hero__portrait {
+  opacity: 0;
+}
+
+.detail .character-detail-hero__shade {
+  height: 400rpx;
+  background: linear-gradient(180deg, rgba(18, 14, 16, 0), rgba(18, 14, 16, 0.92));
+}
+
+.detail .character-detail-hero__sheet {
+  margin-top: -300rpx;
+  border: 1rpx solid rgba(224, 188, 145, 0.58);
+  border-radius: 18rpx 18rpx 0 0;
+  padding: 34rpx 28rpx 26rpx;
+  background: rgba(26, 22, 23, 0.84);
+  color: #f8e7d1;
+}
+
+.detail .character-detail-hero__name {
+  color: #fff8ee;
+  font-family: Georgia, 'Songti SC', serif;
+}
+
+.detail .character-detail-hero__identity,
+.detail .character-detail-hero__intro-text {
+  color: rgba(246, 226, 204, 0.76);
+}
+
+.detail .character-detail-hero__intro {
+  margin-top: 28rpx;
+  padding: 0;
+  background: transparent;
+}
+
+.detail .character-detail-hero__quick-row {
+  justify-content: flex-end;
 }
 
 .detail .bottom-action--default {
-  background-color: $color-background;
+  background-color: #170e12;
 }
 
 .detail__actions {
@@ -24,7 +70,7 @@
   &--script {
     margin-top: $space-4;
     border-radius: $radius-lg;
-    background-color: $color-surface-container-low;
+    background-color: #2b2023;
     overflow: hidden;
   }
 
@@ -40,9 +86,9 @@
   margin-top: $space-3;
   font-size: $font-body-md;
   line-height: 1.68;
-  color: $color-on-surface-variant;
+  color: rgba(246, 226, 204, 0.78);
 
   &--muted {
-    color: $color-secondary;
+    color: #d7a873;
   }
 }
