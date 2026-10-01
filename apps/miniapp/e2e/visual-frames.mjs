@@ -115,6 +115,13 @@ function createFixtureProxy(upstream, port) {
     if (req.method === 'GET' && url.pathname === '/api/chat/sessions/visual-chat-626/messages') {
       return json(res, 200, visualSessionResponse());
     }
+    if (req.method === 'GET' && url.pathname === '/api/chat/sessions' && url.searchParams.get('mode') === 'free' && ['chat-1-empty', 'chat-2-focused'].includes(fixture)) {
+      return json(res, 200, {
+        sessions: [],
+        page: Number(url.searchParams.get('page') || 1),
+        limit: Number(url.searchParams.get('limit') || 20),
+      });
+    }
 
     const body = await readBody(req);
     const upstreamUrl = new URL(url.pathname + url.search, upstream.baseUrl);
