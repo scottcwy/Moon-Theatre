@@ -82,7 +82,7 @@ function assertNoPlaygroundRuntimeReferences() {
   for (const filePath of walk(sourceRoot)) {
     if (!textExtensions.has(path.extname(filePath))) continue;
     const relativePath = path.relative(sourceRoot, filePath);
-    if (relativePath.includes(`${path.sep}design-pilot${path.sep}`) || relativePath.endsWith('.h5.tsx')) continue;
+    if (relativePath.includes(`${path.sep}design-pilot${path.sep}`) || relativePath.endsWith('.h5.tsx') || relativePath.includes('.test.')) continue;
     const content = fs.readFileSync(filePath, 'utf8');
     if (/\/playground\//.test(content) || /https?:\/\//.test(content) && /figma-alpha|s3\.us-west-2/.test(content)) {
       fail(`production source references Playground or remote design assets: ${path.relative(projectRoot, filePath)}`);
