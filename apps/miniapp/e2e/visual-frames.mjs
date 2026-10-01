@@ -23,6 +23,7 @@ const configuredApiPort = Number(process.env.VISUAL_FIXTURE_API_PORT || 3000);
 let activeApiPort = configuredApiPort;
 const defaultViewport = { width: 375, height: 812 };
 const longViewport = { width: 375, height: 951 };
+const captureOnly = process.env.VISUAL_FRAME_CAPTURE_ONLY === 'true';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -312,6 +313,7 @@ async function main() {
     runId: path.basename(artifactRoot),
     apiPort: activeApiPort,
     cliPath,
+    captureOnly,
     systemInfo: null,
     frames: [],
   };
@@ -328,8 +330,10 @@ async function main() {
     });
     await miniProgram.waitForAppReady(60000);
     report.systemInfo = await miniProgram.systemInfo();
-    assert(Number(report.systemInfo.windowWidth) === defaultViewport.width, `windowWidth must be ${defaultViewport.width}, got ${report.systemInfo.windowWidth}`);
-    assert(Number(report.systemInfo.windowHeight) === defaultViewport.height, `windowHeight must be ${defaultViewport.height}, got ${report.systemInfo.windowHeight}`);
+    if (!captureOnly) {
+      assert(Number(report.systemInfo.windowWidth) === defaultViewport.width, `windowWidth must be ${defaultViewport.width}, got ${report.systemInfo.windowWidth}`);
+      assert(Number(report.systemInfo.windowHeight) === defaultViewport.height, `windowHeight must be ${defaultViewport.height}, got ${report.systemInfo.windowHeight}`);
+    }
 
     for (const frame of matrix.frames) {
       const item = { frame: frame.frame, route: frame.route, fixture: frame.fixture, ok: false };
@@ -345,11 +349,19 @@ async function main() {
         await runInteraction(miniProgram, page, frame);
         const actualPath = path.join(artifactRoot, 'actual', `${frame.frame}.png`);
         await captureFrame(miniProgram, page, frame, actualPath);
+        const systemImage = decodePng(actualPath);
+        if (captureOnly) {
+          item.captureDimensions = { width: systemImage.width, height: systemImage.height };
+          item.ok = true;
+          if (frame.fixture === 'profile-loading') {
+            await fetch(`http://127.0.0.1:${activeApiPort}/__visual/release`, { method: 'POST' });
+          }
+          continue;
+        }
         if (frame.fixture === 'profile-loading') {
           await fetch(`http://127.0.0.1:${activeApiPort}/__visual/release`, { method: 'POST' });
         }
         const viewport = getViewport(frame);
-        const systemImage = decodePng(actualPath);
         assert(systemImage.width === viewport.width && systemImage.height === viewport.height, `${frame.frame}: screenshot must be ${viewport.width}x${viewport.height}, got ${systemImage.width}x${systemImage.height}`);
         const baselinePath = path.join(baselineDir, frame.baseline);
         const diffPath = path.join(artifactRoot, 'diff', `${frame.frame}.png`);
