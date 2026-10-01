@@ -24,6 +24,7 @@ let activeApiPort = configuredApiPort;
 const defaultViewport = { width: 375, height: 812 };
 const longViewport = { width: 375, height: 951 };
 const captureOnly = process.env.VISUAL_FRAME_CAPTURE_ONLY === 'true';
+const skipInteractions = captureOnly && process.env.VISUAL_FRAME_SKIP_INTERACTIONS === 'true';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -346,7 +347,7 @@ async function main() {
         await setFixture(proxy, frame.fixture);
         await clearStorage(miniProgram, frame.state);
         const page = await openFrame(miniProgram, frame);
-        await runInteraction(miniProgram, page, frame);
+        if (!skipInteractions) await runInteraction(miniProgram, page, frame);
         const actualPath = path.join(artifactRoot, 'actual', `${frame.frame}.png`);
         await captureFrame(miniProgram, page, frame, actualPath);
         const systemImage = decodePng(actualPath);
