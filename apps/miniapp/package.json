@@ -17,6 +17,8 @@
     "test:e2e:smoke": "node e2e/smoke.mjs",
     "test:e2e:ui": "node e2e/runtime-ui.mjs",
     "test:e2e:ui:auth": "node e2e/runtime-ui-authenticated.mjs",
+    "build:weapp:visual-fixture": "NODE_ENV=development DEV_AUTH_BYPASS=false API_BASE_URL=${VISUAL_FIXTURE_API_BASE_URL:-http://127.0.0.1:3000} taro build --type weapp",
+    "test:e2e:visual-frames": "node e2e/visual-frames.mjs",
     "verify:weapp": "node scripts/verify-weapp-build.mjs && node scripts/verify-visual-assets.mjs",
     "verify:visual-assets": "node scripts/verify-visual-assets.mjs",
     "typecheck": "tsc --noEmit",

@@ -1,0 +1,9 @@
+{
+  "default": [
+    {"x":0,"y":0,"width":375,"height":88,"reason":"WeChat status bar and capsule"},
+    {"x":0,"y":778,"width":375,"height":34,"reason":"Home indicator"}
+  ],
+  "1-2325": [
+    {"x":0,"y":0,"width":375,"height":88,"reason":"WeChat status bar and capsule"}
+  ]
+}
