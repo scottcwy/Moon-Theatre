@@ -30,6 +30,20 @@
   align-items: center;
 }
 
+.top-bar__back {
+  width: 72rpx;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-full;
+  color: $color-on-background;
+  font-size: 56rpx;
+  line-height: 1;
+
+  &:active { opacity: 0.64; }
+}
+
 .top-bar__right {
   justify-content: flex-end;
 }

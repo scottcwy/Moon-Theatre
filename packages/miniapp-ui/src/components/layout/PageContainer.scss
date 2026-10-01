@@ -19,6 +19,28 @@
     padding: 0;
   }
 
+  &__header,
+  &__footer {
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  &__content,
+  &__scroll {
+    box-sizing: border-box;
+    min-height: 0;
+  }
+
+  &__scroll {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  &--nav-custom .page-shell__header {
+    min-height: $topbar-height;
+  }
+
   &--no-padding {
     padding: 0;
   }

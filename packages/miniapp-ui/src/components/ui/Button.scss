@@ -34,8 +34,17 @@
     padding: 0 $space-5;
   }
 
+  &--sm {
+    min-height: 56rpx;
+    padding: 0 $space-4;
+  }
+
   &--disabled {
     opacity: 0.48;
+  }
+
+  &--loading {
+    pointer-events: none;
   }
 }
 

@@ -1,0 +1,13 @@
+@use '../../styles/tokens.scss' as *;
+
+.ui-surface {
+  box-sizing: border-box;
+  color: $color-text-primary;
+
+  &--base { background-color: $color-surface-default; }
+  &--raised { background-color: $color-surface-raised; box-shadow: $shadow-subtle; }
+  &--elevated { background-color: $color-surface-elevated; box-shadow: $shadow-card; }
+  &--strong { background-color: $color-surface-strong; }
+  &--glass { background-color: rgba(255, 251, 248, 0.82); box-shadow: $shadow-subtle; }
+  &--dark { background-color: $color-bottom-action-dark; color: $color-on-primary; }
+}
