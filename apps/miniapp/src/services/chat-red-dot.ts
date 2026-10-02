@@ -7,6 +7,18 @@ import type { ReturnMessagesCheckResponse } from './return-messages';
 
 /** 底部 tabBar 中「聊天」tab 的下标（与 app.config.ts tabBar.list 顺序一致）。 */
 const CHAT_TAB_INDEX = 1;
+let chatTabHasUnread = false;
+const chatTabListeners = new Set<(hasUnread: boolean) => void>();
+
+export function getChatTabRedDot(): boolean {
+  return chatTabHasUnread;
+}
+
+export function subscribeChatTabRedDot(listener: (hasUnread: boolean) => void): () => void {
+  chatTabListeners.add(listener);
+  listener(chatTabHasUnread);
+  return () => chatTabListeners.delete(listener);
+}
 
 /** 回访留言前台轮询周期：进前台立即查一次，之后每 45s 刷新 tab 红点。间隔需大于 API 超时（30s），避免慢网络下请求重叠。 */
 export const CHAT_UNREAD_POLL_INTERVAL_MS = 45_000;
@@ -17,6 +29,8 @@ export const CHAT_UNREAD_POLL_INTERVAL_MS = 45_000;
  */
 export function syncChatTabRedDot(characterUnread: Record<string, number>): void {
   const hasUnread = Object.values(characterUnread).some((count) => count > 0);
+  chatTabHasUnread = hasUnread;
+  for (const listener of chatTabListeners) listener(hasUnread);
   const action = hasUnread ? Taro.showTabBarRedDot : Taro.hideTabBarRedDot;
   void action({ index: CHAT_TAB_INDEX }).catch(() => {});
 }

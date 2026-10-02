@@ -20,6 +20,7 @@ describe('V1 tab bar configuration', () => {
       'pages/profile/index',
     ]);
     expect(tabTexts).toEqual(['首页', '聊天', '社区', '我的']);
+    expect((appConfig.tabBar as { custom?: boolean } | undefined)?.custom).toBe(true);
   });
 
   it('gives the community tab its own icon instead of reusing the memory glyph', async () => {

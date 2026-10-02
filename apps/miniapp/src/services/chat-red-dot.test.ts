@@ -104,6 +104,22 @@ describe('chat tab red dot', () => {
     });
   });
 
+  it('keeps the floating chat tab in sync with unread changes', async () => {
+    const { getChatTabRedDot, subscribeChatTabRedDot, syncChatTabRedDot } = await import('./chat-red-dot');
+    const listener = vi.fn();
+    const unsubscribe = subscribeChatTabRedDot(listener);
+
+    expect(listener).toHaveBeenCalledWith(false);
+    syncChatTabRedDot({ 'char-1': 2 });
+    expect(getChatTabRedDot()).toBe(true);
+    expect(listener).toHaveBeenLastCalledWith(true);
+
+    unsubscribe();
+    syncChatTabRedDot({});
+    expect(getChatTabRedDot()).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
   it('polls immediately and on each interval until stopped', async () => {
     vi.useFakeTimers();
     await login();

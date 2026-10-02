@@ -1,5 +1,7 @@
 import { Image, Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
+import { useEffect, useState } from 'react';
+import { getChatTabRedDot, subscribeChatTabRedDot } from '../services/chat-red-dot';
 import './StageTabBar.scss';
 
 const tabs = [
@@ -10,6 +12,9 @@ const tabs = [
 ] as const;
 
 export function StageTabBar({ selected }: { selected: (typeof tabs)[number]['path'] }) {
+  const [chatUnread, setChatUnread] = useState(getChatTabRedDot);
+  useEffect(() => subscribeChatTabRedDot(setChatUnread), []);
+
   return (
     <View className="theater-tab-bar" role="navigation">
       {tabs.map((tab) => {
@@ -19,9 +24,10 @@ export function StageTabBar({ selected }: { selected: (typeof tabs)[number]['pat
             key={tab.path}
             className={`theater-tab-bar__item${active ? ' theater-tab-bar__item--selected' : ''}`}
             onTap={() => Taro.switchTab({ url: tab.path })}
-            aria-label={tab.label}
+            aria-label={tab.path === '/pages/chat/list' && chatUnread ? '聊天，有未读消息' : tab.label}
           >
             <Image className="theater-tab-bar__icon" src={active ? tab.activeIcon : tab.icon} mode="aspectFit" />
+            {tab.path === '/pages/chat/list' && chatUnread && <View className="theater-tab-bar__unread" />}
             <Text className="theater-tab-bar__label">{tab.label}</Text>
           </View>
         );

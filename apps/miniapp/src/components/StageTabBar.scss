@@ -1,16 +1,14 @@
 .theater-tab-bar {
   position: fixed;
-  left: 16rpx;
-  right: 16rpx;
-  bottom: calc(12rpx + env(safe-area-inset-bottom, 0px));
+  left: 32rpx;
+  right: 32rpx;
+  bottom: calc(12rpx + env(safe-area-inset-bottom, 0px) * 0.5);
   z-index: 1000;
-  height: 104rpx;
-  padding: 3rpx;
+  height: 106rpx;
+  padding: 0 56rpx;
   display: flex;
   align-items: stretch;
-  border: 1rpx solid #b67561;
-  border-radius: 54rpx;
-  background: linear-gradient(180deg, #5b1b35, #391227);
+  background: url('../assets/icons/tab-surface.png') center / 100% 100% no-repeat;
   box-shadow: 0 10rpx 24rpx rgba(22, 7, 13, 0.5);
   box-sizing: border-box;
 }
@@ -33,22 +31,41 @@
 .theater-tab-bar__item--selected::before {
   content: '';
   position: absolute;
-  inset: 0 9rpx;
-  border-radius: 48rpx;
-  background: rgba(214, 150, 107, 0.22);
+  bottom: 0;
+  left: 50%;
+  width: 149rpx;
+  height: 123rpx;
+  transform: translateX(-50%);
+  background: url('../assets/icons/tab-selected.png') center / 100% 100% no-repeat;
 }
 
 .theater-tab-bar__icon {
   position: relative;
-  width: 46rpx;
-  height: 46rpx;
+  width: 54rpx;
+  height: 54rpx;
   margin-bottom: 2rpx;
+}
+
+.theater-tab-bar__item:not(.theater-tab-bar__item--selected) .theater-tab-bar__icon {
+  opacity: 0.78;
+}
+
+.theater-tab-bar__unread {
+  position: absolute;
+  top: 8rpx;
+  left: calc(50% + 25rpx);
+  width: 12rpx;
+  height: 12rpx;
+  border: 2rpx solid #401326;
+  border-radius: 50%;
+  background: #f5c58d;
+  box-sizing: border-box;
 }
 
 .theater-tab-bar__label {
   position: relative;
   color: inherit;
   font-family: Georgia, 'Songti SC', serif;
-  font-size: 19rpx;
+  font-size: 21rpx;
   line-height: 1.1;
 }

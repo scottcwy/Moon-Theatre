@@ -15,6 +15,7 @@ export default defineAppConfig({
     'pages/login/index',
   ],
   tabBar: {
+    custom: true,
     color: '#5A4A4E',
     selectedColor: '#8B4258',
     backgroundColor: '#FFFBF8',
