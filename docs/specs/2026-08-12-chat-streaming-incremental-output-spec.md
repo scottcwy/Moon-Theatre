@@ -1,7 +1,8 @@
 # 聊天延迟优化 Spec 2：moderated-buffered 改增量放行
 
 日期：2026-08-12
-状态：draft（revision 2，已按 2026-08-12 复审修订，待复审冻结）
+状态：IMPLEMENTED（`incremental-buffered` 与测试已存在；TTFT 目标不适用于 roleplay agent，按 2026-08-14 架构 Spec 重评）
+说明：以下正文保留编写时基线；当前实现/验收状态以顶部状态和 `docs/specs/README.md` 为准。
 修订号：2
 适用版本：聊天体验迭代 V1.1 之后
 变更标识：chat-streaming-incremental-output

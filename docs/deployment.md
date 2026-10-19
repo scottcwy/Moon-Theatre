@@ -196,7 +196,7 @@ rtk pnpm build:miniapp:prod
    `build:miniapp:prod` 内部执行 `build:weapp:prod` 并自动运行 `verify:weapp`；等价旧方式为 `rtk pnpm --filter @juben-sha/miniapp build:weapp:prod`（同样含 verify）。
 6. 上线后执行第 4 节健康检查（`/api/health`、`/api/ready`）与小程序关键链路联调。
 
-> 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0009`；当前已推送镜像仍为 07-06 快照（见第 3 节）。`docs/版本说明-dev.md` 只引用本节与第 3 节，不复制镜像信息。
+> 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0009`；07-06 快照是 2026-08-10 的历史状态（见 `docs/版本说明-dev.md`），实际服务器镜像需按第 3 节命令重新核查。
 
 > 注（fastclaw-disable-model-thinking 发布顺序）：FastClaw 新镜像（含 `thinking=off` 请求参数）必须先于 apps/api（含新 ready 校验）发布，并确认 agent 配置 `thinking="off"` 已生效（`GET /v1/agents/{id}/runtime-spec` 返回 `thinking=off`）；回滚顺序相反（先回 apps/api 再回 FastClaw 镜像与配置）。旧 FastClaw（runtime-spec 无 `thinking`）遇新 ready 校验会失败，属安全失败；新 FastClaw + 旧 apps/api 直接通过，属可接受（旧版无此要求），非回归。
 

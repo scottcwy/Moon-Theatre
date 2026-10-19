@@ -1,8 +1,22 @@
-# Miniapp E2E Smoke
+# Miniapp E2E
 
-This directory contains the first WeChat DevTools automation smoke test.
+This directory contains the WeChat DevTools automation smoke, runtime UI, authenticated mock API, and visual-frame checks.
 
-Run order:
+## 运行前先退出开发者工具
+
+automator 使用 `cli auto` 启动自己的自动化会话。手动开着的 IDE 会和它抢 App 域，表现为 `App.captureScreenshot` 3 秒超时。每次跑 E2E 前先执行：
+
+```bash
+/Applications/wechatwebdevtools.app/Contents/MacOS/cli quit
+```
+
+跑完需要人工查看时再执行：
+
+```bash
+/Applications/wechatwebdevtools.app/Contents/MacOS/cli open --project "$(git rev-parse --show-toplevel)/apps/miniapp"
+```
+
+## Smoke / 普通 UI
 
 ```bash
 NODE_ENV=development API_BASE_URL=http://127.0.0.1:3000 pnpm --filter @juben-sha/miniapp build:weapp
@@ -11,13 +25,24 @@ pnpm test:e2e:miniapp
 pnpm test:e2e:miniapp:ui
 ```
 
-Authenticated/mock API runtime UI checks use the fixed local mock server port compiled into the miniapp bundle:
+## 认证 / Mock API UI
+
+认证态必须使用与 dev API 隔离的 `3001` 端口，避免和本地 `pnpm dev` 的 `3000` 冲突：
 
 ```bash
-NODE_ENV=development DEV_AUTH_BYPASS=true API_BASE_URL=http://127.0.0.1:3000 pnpm --filter @juben-sha/miniapp build:weapp
+NODE_ENV=development DEV_AUTH_BYPASS=true API_BASE_URL=http://127.0.0.1:3001 pnpm --filter @juben-sha/miniapp build:weapp
 pnpm --filter @juben-sha/miniapp verify:weapp
-pnpm test:e2e:miniapp:ui:auth
+MOCK_API_PORT=3001 pnpm --filter @juben-sha/miniapp test:e2e:ui:auth
 ```
+
+## 13 帧视觉检查
+
+```bash
+VISUAL_FIXTURE_API_BASE_URL=http://127.0.0.1:3000 pnpm --filter @juben-sha/miniapp build:weapp:visual-fixture
+pnpm --filter @juben-sha/miniapp test:e2e:visual-frames
+```
+
+当前开发者工具固定 `windowWidth=390`、`windowHeight=844`，与冻结的 `375×812` 不一致时，视觉门禁必须记为 `BLOCKED`，不得用像素平均差替代通过结论。
 
 The smoke test uses `@weapp-vite/miniprogram-automator` and launches the built Taro project through WeChat DevTools.
 The runtime UI test visits the primary miniapp pages, saves screenshots, and fails on hard runtime layout problems.

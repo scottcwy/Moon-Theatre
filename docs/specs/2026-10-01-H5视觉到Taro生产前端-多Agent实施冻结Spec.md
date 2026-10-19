@@ -1,7 +1,9 @@
 # 月满楼 H5 视觉到 Taro 生产前端实施冻结 Spec
 
 > 状态：`FROZEN`
-> 实现状态：`PLANNED`
+> 实现状态：`IMPLEMENTED`
+> 验收状态：`PARTIAL / VISUAL_BLOCKED`（功能 E2E 通过；13 帧视觉门禁受开发者工具 `390×844` 阻塞）
+> 状态更新：2026-10-19 · 提交 `1047c5b`
 > 实施基线：`H5` 分支 `cd7afac`（H5 design-pilot 已完成的基线）
 > 冻结日期：2026-10-01
 
@@ -16,7 +18,7 @@
 | 历史生产组件迁移提交（包括 `2688f28` 链） | 视为已废弃的尝试；不作为本轮基线。 |
 | 历史提交 `acb7357` 中的 H5 生产组件 E2E 验收记录 | 仅记录历史尝试。其“视觉对比、真机、真实登录未完成”和认证 mock 被端口阻塞的结论仍有效，不得当作本轮验收通过。 |
 
-H5 设计已验证只代表 13 帧 Playground 的渲染完成；生产 Taro 页面、真实路由、资源策略、真实登录和微信开发者工具验收仍处于 `PLANNED`。
+H5 设计已验证只代表 13 帧 Playground 的渲染完成。生产 Taro 页面、真实路由、资源策略和功能 E2E 已实现；13 帧视觉门禁仍为 `BLOCKED`，真实登录/真机验证仍未完成。
 
 ## 2. 目标与不可变边界
 
@@ -57,19 +59,19 @@ H5 设计已验证只代表 13 帧 Playground 的渲染完成；生产 Taro 页�
 
 | 帧 | 生产路由 / 状态 | 登录态 | 实现阶段 |
 | --- | --- | --- | --- |
-| `1-773` | `pages/login/index` / 登录页 | logged-out | `PLANNED` |
-| `1-863` | `pages/home/index` / 首页默认 | anonymous，使用公开剧本 fixture | `PLANNED` |
-| `1-1164` | `pages/home/index` / 首页搜索激活 | anonymous，使用公开剧本 fixture | `PLANNED` |
-| `1-387` | `pages/chat/index` / 空聊天态 | logged-in | `PLANNED` |
-| `1-494` | `pages/chat/index` / 输入框聚焦态 | logged-in | `PLANNED` |
-| `1-626` | `pages/chat/index` / 已有回复态 | logged-in | `PLANNED` |
-| `1-1657` | `pages/character/detail` / 角色详情首屏 | logged-in | `PLANNED` |
-| `1-2325` | `pages/character/detail` / 角色详情完整长页 | logged-in | `PLANNED` |
-| `1-1766` | `pages/profile/index` / 个人页已登录 | logged-in | `PLANNED` |
-| `1-1892` | `pages/profile/index` / 个人页未登录 | logged-out | `PLANNED` |
-| `1-1987` | `pages/profile/index` / 个人页 loading | logged-in，接口 pending | `PLANNED` |
-| `1-2080` | `pages/chat/list` / 登录拦截、登录转跳 | logged-out | `PLANNED` |
-| `1-2180` | `pages/community/index` / 社区空态 | anonymous | `PLANNED` |
+| `1-773` | `pages/login/index` / 登录页 | logged-out | `IMPLEMENTED` |
+| `1-863` | `pages/home/index` / 首页默认 | anonymous，使用公开剧本 fixture | `IMPLEMENTED` |
+| `1-1164` | `pages/home/index` / 首页搜索激活 | anonymous，使用公开剧本 fixture | `IMPLEMENTED` |
+| `1-387` | `pages/chat/index` / 空聊天态 | logged-in | `IMPLEMENTED` |
+| `1-494` | `pages/chat/index` / 输入框聚焦态 | logged-in | `IMPLEMENTED` |
+| `1-626` | `pages/chat/index` / 已有回复态 | logged-in | `IMPLEMENTED` |
+| `1-1657` | `pages/character/detail` / 角色详情首屏 | logged-in | `IMPLEMENTED` |
+| `1-2325` | `pages/character/detail` / 角色详情完整长页 | logged-in | `IMPLEMENTED` |
+| `1-1766` | `pages/profile/index` / 个人页已登录 | logged-in | `IMPLEMENTED` |
+| `1-1892` | `pages/profile/index` / 个人页未登录 | logged-out | `IMPLEMENTED` |
+| `1-1987` | `pages/profile/index` / 个人页 loading | logged-in，接口 pending | `IMPLEMENTED` |
+| `1-2080` | `pages/chat/list` / 登录拦截、登录转跳 | logged-out | `IMPLEMENTED` |
+| `1-2180` | `pages/community/index` / 社区空态 | anonymous | `IMPLEMENTED` |
 
 配额、分享、脚本选择等已有业务路由保持功能，不在没有对应 H5 帧时自行扩展视觉范围。新增设计帧必须先更新本 Spec。
 
@@ -218,3 +220,11 @@ H5 design-pilot 是视觉基线；生产端必须用 Taro 页面复刻，不得�
 - 不得单独改变视觉事实源、13 帧映射、允许偏差、资源策略、所有权或合并顺序。
 - 新增页面、设计帧、公共组件、共享模型或资源策略，必须先更新本 Spec，再创建 Agent 任务。
 - 任何与旧 H5 文档冲突的生产迁移口径，以本 Spec 为准；旧文档的 H5 截图、偏差清单和事实数据仍可作为证据引用。
+
+## 12. 实现与验收记录（2026-10-19）
+
+- 实现基线：`H5` 分支 `1047c5b`。
+- 生产页面、13 帧路由、资源 manifest、custom navigation、暗色状态卡和 tabbar reserve 已落地。
+- 功能 E2E：`test:e2e:smoke` 通过；`test:e2e:ui` 10/10 通过；`test:e2e:ui:auth` 22/22 通过。
+- 13 帧视觉 E2E：开发者工具报告 `windowWidth=390`、`windowHeight=844`，与冻结的 `375×812` 不一致，记录为 `BLOCKED`，未生成视觉通过结论。
+- 细节收口与 E2E 证据见 `docs/specs/2026-10-19-月满楼小程序UI细节打磨Spec.md` 与 `apps/miniapp/e2e/artifacts/`。

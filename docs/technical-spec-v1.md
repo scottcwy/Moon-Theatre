@@ -1,20 +1,22 @@
-# 剧本杀角色扮演小程序技术 SPEC v1 正式版
+# 剧本杀角色扮演小程序技术 SPEC v1（历史基线）
 
 > **修订标注（2026-08-14）**：本文档 §7.3「当前 adapter 支持 x-fastclaw-session-key 请求头」为文档漂移（adapter 实际未发送该头），且 §7.4「记忆由业务后端结构化管理，不依赖 Agent 内部 Markdown 记忆作为唯一来源」被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）推翻；相应小节已按 2026-08-14 架构 Spec 修订（见 §7.3/§7.4）。
+>
+> **修订标注（2026-10-19）**：本文档为 V1 历史基线。当前视觉与生产端实现以 `docs/specs/2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md` 和 `docs/specs/2026-10-19-月满楼小程序UI细节打磨Spec.md` 为准；`DESIGN.md` 已重构为当前 H5 剧场视觉契约，旧 Material 暖白体系不再是视觉依据。
 
 ## 1. 文档目的
 
 本文档用于固化第一版技术方案，作为后续 PRD、接口设计、数据库设计、工程初始化、开发排期和验收的依据。
 
-本文档为 V1 正式版 SPEC。第一版范围以 `docs/prd-v1.md` 和本文档为准；界面结构、底部导航和视觉细节参考 `DESIGN.md`（历史 Figma 定稿已于 2026-08 废弃并删除，不再作为依据）。
+本文档为 V1 历史基线。第一版范围以 `docs/prd-v1.md` 和本文档为准；当前界面结构、底部导航和视觉细节以 H5 视觉 Spec、UI 打磨 Spec 和 `packages/miniapp-ui` tokens 为准（历史 Figma 定稿已于 2026-08 废弃并删除）。
 
 本文档只覆盖当前已确认的技术方案和第一版范围，不展开后续社区、宿舍、防沉迷等复杂能力。支付在 V1 必须做真实第三方聚合支付、微信小程序支付拉起、服务端回调验签和点数入账闭环，不使用 demo 占位。
 
 冲突解决优先级：
 
-1. 功能范围以 `docs/prd-v1.md` 和本文档为准。
-2. 技术实现、数据表、接口、安全和验收细节以本文档为准。
-3. 界面细节以 `DESIGN.md` 与现有 `@juben-sha/miniapp-ui` 组件体系为准（历史 Figma 定稿已废弃）。
+1. V1 历史功能范围以 `docs/prd-v1.md` 和本文档为准（仅用于追溯）。
+2. 当前技术实现、数据表、接口、安全和验收以代码、`docs/技术开发架构与前后端文档.md`、`docs/api-v1.md` 和最新 `docs/specs/` 为准。
+3. 界面细节以 H5 视觉 Spec、UI 打磨 Spec、`packages/miniapp-ui` tokens 和现有组件体系为准；`DESIGN.md` 只作当前设计系统摘要（历史 Figma 定稿已废弃）。
 4. xlsx 不再作为功能范围依据，只用于后续修订 V1 开发排期表。
 
 已冻结的关键口径：
@@ -30,7 +32,7 @@
 
 | 层级 | 技术选择 | 说明 |
 | --- | --- | --- |
-| C 端客户端 | Taro + React + TypeScript | 第一版只做微信小程序，不做 C 端 Web/H5/安卓 |
+| C 端客户端 | Taro + React + TypeScript | 第一版只做微信小程序；H5 Playground 仅用于设计核对，不是 C 端 H5 产品 |
 | 业务后端 | Node.js + Next.js + TypeScript | 使用 Next.js Route Handlers/API 能力；同时承载简单 admin |
 | 数据库 | Postgres | 主业务数据库 |
 | ORM | Drizzle | schema、migration、类型化查询 |

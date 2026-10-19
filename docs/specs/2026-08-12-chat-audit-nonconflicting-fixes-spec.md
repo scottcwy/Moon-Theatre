@@ -1,6 +1,7 @@
 # 聊天审计非冲突修复 SPEC（2026-08-12，revision 3）
 
-> 状态：`PLANNED`（尚未实现；实现由后续会话推进）
+> 状态：`IMPLEMENTED`（A-E 审计批次已合入，见 `docs/版本说明-dev.md`；本 Spec 内逐项状态按当前代码复核）
+> 说明：以下正文保留 2026-08-12 编写时基线；当前实现/验收状态以顶部状态和 `docs/specs/README.md` 为准。
 > 变更标识：chat-audit-nonconflicting-fixes-2026-08-12
 > 基线：`main` HEAD `d806faf` + 用户未提交 WIP（审计基线，见 `apps/miniapp/e2e/artifacts/overnight/e2e-report.md`）
 > revision 2：按 2026-08-12 spec 审核修订——修正冲突边界（services/api.ts、chat/index.tsx 为共享文件）、看门狗与并行 Spec 2 合并、批 A 时序后移、P2 编号、A1/A2/A3/A12 细节。

@@ -1,7 +1,8 @@
 # 聊天延迟优化 Spec 1：scope classifier 去阻塞化
 
 日期：2026-08-12
-状态：draft（revision 2，已按 2026-08-12 复审修订，待复审冻结）
+状态：IMPLEMENTED（`scope-classifier` 及测试已存在；OOS 语义被 2026-08-14 FastClaw 架构 Spec 修订，验收口径需按新架构重评）
+说明：以下正文保留编写时基线；当前实现/验收状态以顶部状态和 `docs/specs/README.md` 为准。
 修订号：2
 适用版本：聊天体验迭代 V1.1 之后
 变更标识：chat-latency-scope-classifier

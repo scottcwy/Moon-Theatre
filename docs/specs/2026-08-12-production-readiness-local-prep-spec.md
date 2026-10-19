@@ -1,7 +1,8 @@
 # 生产就绪本地准备 SPEC（小程序测试阶段）
 
 日期：2026-08-12
-状态：draft（rev 2，已吸收审查结论；待评审冻结）
+状态：IMPLEMENTED（本地生产准备已落地；`test:deploy-config` 通过；服务器发布状态需按 `docs/deployment.md` 另行确认）
+说明：以下正文保留编写时基线；当前实现/验收状态以顶部状态和 `docs/specs/README.md` 为准。
 修订号：2
 适用版本：小程序测试阶段（本地 `main`，HEAD `e791f6e`）
 变更标识：production-readiness-local-prep
@@ -34,7 +35,7 @@
 
 ## 2. 术语
 
-- **生产基线**：服务器实际运行的镜像与配置（当前为 07-06 快照，见 `docs/版本说明-dev.md` §5）。
+- **生产基线**：服务器实际运行的镜像与配置（2026-08-10 快照为 07-06；实际状态按 `docs/deployment.md` 第 3 节核查）。
 - **RELEASE_TAG**：发布负责人构建推送后填写的镜像 tag，规范 `YYYYMMDD-<git短哈希7位>`；禁止 `-dirty`。
 - **匿名卷**：Dockerfile `VOLUME` 未映射命名卷时 Docker 自动创建的卷，`docker compose down -v` 会删除，且不在 `docker compose` 配置中显式可见。
 - **readiness**：`/api/ready`，当前只检查 FastClaw；本 spec 增加 DB 检查（带 5s 超时）与对应单测。
@@ -230,7 +231,7 @@
 
 ## 7. 落地顺序与门禁
 
-1. 本 spec 为 draft；实施须用户明确批准（按仓库三态门禁，`execute` 以批准范围为限，「好的/继续」不计为批准）。
+1. 本 spec 已实现；后续变更仍须用户明确批准（按仓库三态门禁，`execute` 以批准范围为限，「好的/继续」不计为批准）。
 2. 建议顺序：P0-1（口径）→ P0-2（卷）→ P0-3（备份）→ P1-1..P1-5（代码/配置）→ P1-6（文档与测试收口）→ §6 全量验证。
 3. 收口时记录 `baseline`、`finalStatus`、`diffCheck`、`taskDiff`、`handoff` 实况；缺项不得声称完成。
 

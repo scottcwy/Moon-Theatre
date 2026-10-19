@@ -1,7 +1,8 @@
 # 聊天质量优化 Spec 4：协议输出加固（JSON 块剥离 + 改协议预检）
 
 日期：2026-08-12
-状态：draft（revision 2，已按 2026-08-12 复审修订，待复审冻结）
+状态：IMPLEMENTED（`output-sanitizer` 及测试已存在；`isProtocolProbe` 语义被 2026-08-14 FastClaw 架构 Spec 修订）
+说明：以下正文保留编写时基线；当前实现/验收状态以顶部状态和 `docs/specs/README.md` 为准。
 修订号：2
 适用版本：聊天体验迭代 V1.1 之后
 变更标识：chat-output-protocol-sanitization

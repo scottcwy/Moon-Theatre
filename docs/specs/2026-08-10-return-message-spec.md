@@ -2,6 +2,7 @@
 
 日期：2026-08-10
 状态：frozen（2026-08-10 重新冻结）
+实现状态：IMPLEMENTED（API、调度器与相关测试已存在）
 修订号：1
 适用版本：P0 七模块 Module 7
 变更标识：return-message-module-7
@@ -154,4 +155,4 @@
 
 - 词表：`CONTEXT.md`「Return Message (回访留言)」。
 - API：`docs/api-v1.md`「Return Messages」节。
-- 实施计划：`docs/minipowers/plans/2026-08-03-p0-seven-module-alignment.md` Module 7。
+- 模块 7 已实现；词表与当前状态见 `CONTEXT.md`。原执行 Plan 已从仓库移除，历史版本保留在 git 历史中。

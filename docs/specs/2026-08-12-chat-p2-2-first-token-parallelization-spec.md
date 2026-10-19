@@ -1,6 +1,6 @@
 # 聊天首 token 并行化 SPEC（P2-2，2026-08-12）
 
-> 状态：`PLANNED`（draft；尚未实现）
+> 状态：`SUPERSEDED / NOT_IMPLEMENTED`（基于旧「API 组装 system prompt + clean history」链路，已被 2026-08-14 FastClaw 架构 Spec 取代）
 > 变更标识：chat-p2-2-first-token-parallelization
 > 基线：`main` HEAD `e791f6e`（已含 Spec 1-5：scope classifier 去阻塞 / 增量放行 / 记忆 / 输出加固 / 模型路由）
 > 来源：`apps/miniapp/e2e/artifacts/overnight/e2e-report.md` §3 架构问题（P2-2，首 token 串行 DB 链 + 重复查询）

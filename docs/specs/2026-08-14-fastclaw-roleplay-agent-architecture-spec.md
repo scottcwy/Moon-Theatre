@@ -1,7 +1,7 @@
 # 聊天架构重构 Spec：FastClaw 角色 Agent 多租户（一个角色一个 Agent，记忆/会话下沉 FastClaw）
 
 日期：2026-08-14
-状态：frozen（2026-08-14 意图对齐完成；revision 1 修正 P0/P1；revision 2 依据复审修正 P1-A/B/C 与 P2；revision 3 依据第三方复审修正 P1-1..P1-4 与 P2-1..P2-10；revision 4 依据第四轮复审修正 P1-A/B 与 P2-1..P2-9，待复审）
+状态：frozen / IMPLEMENTED（revision 4；ADR 0004 已接受；代码与测试已落地）
 修订号：4
 适用版本：聊天体验迭代 V1.1 之后（下一架构版本）
 变更标识：fastclaw-roleplay-agent-architecture
@@ -263,10 +263,10 @@
 - `docs/adr/0001-api-owned-chat-context-and-client-message-id.md`：**推翻决策依据**——「依赖 FastClaw session history 会让 excluded 草稿泄漏回上下文」改为「excluded 消息由 agent 角色化吸收、进入生成上下文；API 仍是业务消息账本」；需新增 ADR 记录本架构。
 - `docs/specs/2026-08-10-return-message-spec.md`（frozen）：**修订「留言永远不进入模型生成上下文」**（L25-27/L54）为「留言进入生成上下文（经 F8），仍不扣点/不加羁绊/不触发记忆与成就/不算成功回合」。
 - `docs/specs/2026-08-12-chat-memory-fact-persistence-spec.md`（frozen）：**整条记忆管线退役**，标注被本 Spec 取代。
-- `docs/specs/2026-08-12-chat-latency-scope-classifier-spec.md`（draft）：OOS 拦截语义变化（agent 角色化回复替代 OOS fallback + excluded），OOS 拦截率承诺需按新口径重评。
-- `docs/specs/2026-08-12-chat-streaming-incremental-output-spec.md`（draft）：TTFT≤1.5s（P50）目标与 roleplay 假流（TTFT=全量生成）冲突——本 Spec §3.2/§12 明确 roleplay 为缓冲式输出，该 spec 的目标口径不适用于 roleplay agent；后续真流式另开 Spec 时重评。
-- `docs/specs/2026-08-12-chat-output-protocol-sanitization-spec.md`（draft）：`isProtocolProbe` 预检短路被本 Spec 修订为「放行 agent 角色化处理」（硬安全拦截 `checkInput.blocked` 除外）；泄漏验收（protocolLeaks=0）保留。
-- `docs/specs/2026-08-12-chat-p2-2-first-token-parallelization-spec.md`（PLANNED/draft）：其 API 侧首 token 并行化链路基于旧「API 组装 system prompt + clean history」链路——随本 Spec 链路变化需按新链路重评/部分被取代。
+- `docs/specs/2026-08-12-chat-latency-scope-classifier-spec.md`（`IMPLEMENTED`；OOS 语义已被本 Spec 修订）：OOS 拦截语义变化（agent 角色化回复替代 OOS fallback + excluded），OOS 拦截率承诺需按新口径重评。
+- `docs/specs/2026-08-12-chat-streaming-incremental-output-spec.md`（`IMPLEMENTED`；TTFT 目标已被本 Spec 修订）：TTFT≤1.5s（P50）目标与 roleplay 假流（TTFT=全量生成）冲突——本 Spec §3.2/§12 明确 roleplay 为缓冲式输出，该 spec 的目标口径不适用于 roleplay agent；后续真流式另开 Spec 时重评。
+- `docs/specs/2026-08-12-chat-output-protocol-sanitization-spec.md`（`IMPLEMENTED`；`isProtocolProbe` 语义已被本 Spec 修订）：`isProtocolProbe` 预检短路被本 Spec 修订为「放行 agent 角色化处理」（硬安全拦截 `checkInput.blocked` 除外）；泄漏验收（protocolLeaks=0）保留。
+- `docs/specs/2026-08-12-chat-p2-2-first-token-parallelization-spec.md`（`SUPERSEDED / NOT_IMPLEMENTED`）：其 API 侧首 token 并行化链路基于旧「API 组装 system prompt + clean history」链路，已被本 Spec 取代。
 - `docs/specs/2026-07-14-chat-experience-iteration-technical-spec.md`（frozen）：§7「FastClaw 只执行请求携带的 system message 和 clean history」被本 Spec 修订；§10「输入拦截/预检/越界消息必须 excludedFromContext 避免进入后续角色上下文」**部分修订**——**输入拦截（`checkInput.blocked`）维持短接与 excluded 不变；改协议预检与越界改为放行（不再 excluded）**。
 - `docs/technical-spec-v1.md`：§7.3 修正「adapter 支持 x-fastclaw-session-key」漂移（实际未发送）；§7.4「记忆由业务后端结构化管理，不依赖 Agent 内部 Markdown 记忆作为唯一来源」被推翻。
 - `docs/deployment.md`：FastClaw `fastclaw-data` 备份、agent 配置与发布顺序、**补 CORS 头清单**（新增请求头；代码在 `fastclaw/internal/api/server.go` `handleCORS`）。
