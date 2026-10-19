@@ -39,6 +39,7 @@
 }
 
 .ui-search-bar__clear {
+  position: relative;
   width: 48rpx;
   height: 48rpx;
   border-radius: $radius-full;
@@ -49,8 +50,33 @@
   color: $color-on-surface-variant;
 }
 
-.ui-search-bar__clear-text {
-  font-size: $font-title-md;
-  line-height: 1;
-  color: inherit;
+.ui-search-bar__clear::after {
+  content: '';
+  position: absolute;
+  inset: -20rpx;
+}
+
+.ui-search-bar__clear-mark {
+  position: relative;
+  width: 20rpx;
+  height: 20rpx;
+}
+
+.ui-search-bar__clear-mark::before,
+.ui-search-bar__clear-mark::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8rpx;
+  width: 20rpx;
+  height: 4rpx;
+  background: currentColor;
+}
+
+.ui-search-bar__clear-mark::before {
+  transform: rotate(45deg);
+}
+
+.ui-search-bar__clear-mark::after {
+  transform: rotate(-45deg);
 }

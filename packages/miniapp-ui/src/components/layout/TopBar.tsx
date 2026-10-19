@@ -28,7 +28,7 @@ export function TopBar({
       <View className="top-bar__status-area" />
       <View className="top-bar__content">
         <View className="top-bar__left">
-          {showBack ? <View className="top-bar__back" aria-label={backLabel} onTap={onBack}>‹</View> : left}
+          {showBack ? <View className="top-bar__back" aria-label={backLabel} onTap={onBack}><View className="top-bar__chevron" /></View> : left}
         </View>
         <View className={['top-bar__title', titleClassName].filter(Boolean).join(' ')}>
           {title}

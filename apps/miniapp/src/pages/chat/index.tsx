@@ -784,7 +784,7 @@ export default function Chat() {
   if (pageLoading) {
     return (
       <View className="chat-page chat-page--state">
-        <StatusStateCard title={routeSessionId ? '正在恢复对话' : '正在连接角色'} message="会话状态和角色资料加载中。" icon="…" />
+        <StatusStateCard surface="dark" title={routeSessionId ? '正在恢复对话' : '正在连接角色'} message="会话状态和角色资料加载中。" icon="…" />
       </View>
     );
   }
@@ -792,7 +792,7 @@ export default function Chat() {
   if (needsLogin) {
     return (
       <View className="chat-page chat-page--state">
-        <StatusStateCard title="登录后进入对话" message="登录后可以保存会话、点数和角色关系。" primaryText="去登录" onPrimary={goLogin} />
+        <StatusStateCard surface="dark" title="登录后进入对话" message="登录后可以保存会话、点数和角色关系。" primaryText="去登录" onPrimary={goLogin} />
       </View>
     );
   }
@@ -800,7 +800,7 @@ export default function Chat() {
   if (!character || pageError) {
     return (
       <View className="chat-page chat-page--state">
-        <StatusStateCard
+        <StatusStateCard surface="dark"
           title="无法进入对话"
           message={pageError || '角色信息不可用'}
           tone="error"
@@ -818,6 +818,7 @@ export default function Chat() {
         name={character.name}
         identity={character.identity}
         avatarUrl={characterAvatarUrl}
+        backgroundImage={characterAvatarUrl}
         bond={bondViewModel}
         points={pointsBalance}
         onPointsTap={handleBuyPoints}
@@ -845,7 +846,7 @@ export default function Chat() {
       </View>
 
       {!canSend && (
-        <StatusStateCard
+        <StatusStateCard surface="dark"
           className="chat-page__notice-card"
           title="历史对话只读"
           message="该剧本已下架，历史对话仍可查看。"
@@ -855,7 +856,7 @@ export default function Chat() {
       )}
 
       {canSend && isInsufficientPoints && (
-        <StatusStateCard
+        <StatusStateCard surface="dark"
           className="chat-page__notice-card"
           title="点数余额不足"
           message="当前点数不足，请先补充点数后再继续对话。"
@@ -876,9 +877,9 @@ export default function Chat() {
         upperThreshold={100}
       >
         <View className="chat-page__messages-content">
-          {historyLoading && <StatusStateCard title="正在切换会话" message="另一种聊天模式的历史加载中。" icon="…" />}
+          {historyLoading && <StatusStateCard surface="dark" title="正在切换会话" message="另一种聊天模式的历史加载中。" icon="…" />}
           {historyError && (
-            <StatusStateCard
+            <StatusStateCard surface="dark"
               title="历史对话加载失败"
               message={historyError}
               tone="error"
@@ -889,7 +890,7 @@ export default function Chat() {
           )}
 
           {earlierError && (
-            <StatusStateCard
+            <StatusStateCard surface="dark"
               title="更早消息加载失败"
               message={earlierError}
               tone="error"
@@ -899,7 +900,7 @@ export default function Chat() {
             />
           )}
           {earlierLoading && (
-            <StatusStateCard title="正在加载更早消息" message="向上翻阅更早的聊天记录。" icon="…" />
+            <StatusStateCard surface="dark" title="正在加载更早消息" message="向上翻阅更早的聊天记录。" icon="…" />
           )}
           {earlierLoaded && !earlierLoading && !earlierError && messages.length > 0 && !hasMoreBefore && (
             <View className="chat-page__history-end">
@@ -923,7 +924,7 @@ export default function Chat() {
           )}
 
           {messages.length === 0 && visibleStarterQuestions.length === 0 && !sending && !historyLoading && (
-            <EmptyState
+            <EmptyState surface="dark"
               title={mode === 'script' ? '从当前剧情开始' : '从一句日常问候开始'}
               message={mode === 'script' ? `问问 ${character.name} 关于当前角色、线索或剧情。` : `可以和 ${character.name} 聊聊近况、想法或共同记得的事。`}
             />
@@ -952,7 +953,7 @@ export default function Chat() {
         </View>
       </ScrollView>
 
-      {streamError && <StatusStateCard className="chat-page__stream-error" title="发送未完成" message={streamError} tone="error" icon="!" />}
+      {streamError && <StatusStateCard surface="dark" className="chat-page__stream-error" title="发送未完成" message={streamError} tone="error" icon="!" />}
 
       <ChatInputBar
         value={inputValue}
@@ -972,4 +973,6 @@ export default function Chat() {
 definePageConfig({
   navigationBarTitleText: '对话',
   navigationStyle: 'custom',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });

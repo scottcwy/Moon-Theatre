@@ -31,12 +31,13 @@ export function ChatInputBar({
 
   return (
     <View className="chat-input-bar">
-      {onShare && <IconButton label="分享对话" icon="↗" tone="tonal" className="chat-input-bar__share" onTap={onShare} />}
+      {onShare && <IconButton label="分享对话" icon={<View className="ui-arrow-up-right" />} tone="tonal" className="chat-input-bar__share" onTap={onShare} />}
       <View className={`chat-input-bar__input-wrap${focused ? ' chat-input-bar__input-wrap--focused' : ''}`}>
         <Input
           className="chat-input-bar__input"
           type="text"
           placeholder={placeholder}
+          placeholderClass="chat-input-bar__placeholder"
           value={value}
           // 与服务端 /api/chat/stream 的 message 上限（zod max 5000）对齐。
           maxlength={5000}
@@ -49,7 +50,11 @@ export function ChatInputBar({
         />
       </View>
       <View className={`chat-input-bar__send${disabled ? ' chat-input-bar__send--disabled' : ''}`} aria-label={insufficientPoints ? '充值' : sending ? '发送中' : '发送'} onTap={disabled && !insufficientPoints ? undefined : action}>
-        <Text className="chat-input-bar__send-text">{insufficientPoints ? '充值' : sending ? '…' : '➤'}</Text>
+        {insufficientPoints || sending ? (
+          <Text className="chat-input-bar__send-text">{insufficientPoints ? '充值' : '…'}</Text>
+        ) : (
+          <View className="chat-input-bar__send-icon" />
+        )}
       </View>
     </View>
   );

@@ -36,6 +36,7 @@
     position: relative;
     z-index: 1;
     padding: $space-6 $space-4;
+    padding-top: calc(env(safe-area-inset-top, 24px) + $space-4);
     padding-bottom: calc($space-6 + env(safe-area-inset-bottom, $safe-bottom));
     display: flex;
     flex-direction: column;
@@ -60,15 +61,22 @@
     display: block;
     width: 680rpx;
     max-width: 100%;
-    height: 338rpx;
     margin: 42rpx auto 0;
-    background: url('../../assets/login/title-calligraphy.png') center / contain no-repeat;
-    color: transparent;
-    text-shadow: none;
+  }
+
+  &__title-image {
+    width: 100%;
+    display: block;
   }
 
   &__title-line {
-    display: none;
+    display: block;
+    color: #f1c88f;
+    font-family: Georgia, 'Songti SC', serif;
+    font-size: 64rpx;
+    line-height: 1.24;
+    text-align: center;
+    text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
   }
 
   &__subtitle {

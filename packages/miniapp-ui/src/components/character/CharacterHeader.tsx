@@ -1,4 +1,4 @@
-import { Text, View } from '@tarojs/components';
+import { Image, Text, View } from '@tarojs/components';
 import { CharacterAvatar } from './CharacterAvatar';
 import { IconButton } from '../ui/Button';
 import { Badge, PointsBadge } from '../ui/Badge';
@@ -10,6 +10,7 @@ interface CharacterHeaderProps {
   name: string;
   identity?: string;
   avatarUrl?: string;
+  backgroundImage?: string;
   bondLevel?: number;
   bond?: BondViewModel;
   points?: number | null;
@@ -21,6 +22,7 @@ export function CharacterHeader({
   name,
   identity,
   avatarUrl,
+  backgroundImage,
   bondLevel = 1,
   bond,
   points = null,
@@ -31,8 +33,14 @@ export function CharacterHeader({
 
   return (
     <View className="character-header">
-      <IconButton label="返回" icon="‹" tone="light" className="character-header__back" onTap={onBack} />
-      <CharacterAvatar name={name} src={avatarUrl} online size="md" />
+      {backgroundImage ? (
+        <>
+          <Image className="character-header__backdrop" src={backgroundImage} mode="aspectFill" />
+          <View className="character-header__shade" />
+        </>
+      ) : null}
+      <IconButton label="返回" icon={<View className="ui-chevron" />} tone="light" className="character-header__back" onTap={onBack} />
+      <CharacterAvatar name={name} src={avatarUrl} size="md" />
       <View className="character-header__info">
         <View className="character-header__title-row">
           <Text className="character-header__name">{name}</Text>

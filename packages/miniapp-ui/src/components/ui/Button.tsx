@@ -81,7 +81,7 @@ export function IconButton({
 
   return (
     <View className={classes} aria-label={label} onTap={disabled ? undefined : onTap}>
-      <Text className="ui-icon-button__icon">{icon}</Text>
+      <View className="ui-icon-button__icon">{icon}</View>
     </View>
   );
 }

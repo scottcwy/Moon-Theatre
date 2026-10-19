@@ -46,7 +46,7 @@
   }
 
   &--tabbar {
-    padding-bottom: calc($page-padding-bottom + $tabbar-height);
+    padding-bottom: calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
   }
 
   &--bottom-reserve {
@@ -54,7 +54,7 @@
   }
 
   &--full.page-shell--tabbar {
-    padding-bottom: $tabbar-height;
+    padding-bottom: calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
   }
 }
 

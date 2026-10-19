@@ -65,7 +65,7 @@ const PAGE_CHECKS = [
         },
       },
       {
-        label: 'gallery cards show only the script title (no description/button), and script-mode switch lives below the hero',
+        label: 'gallery cards show title and CTA (no description), and script-mode switch lives below the hero',
         run: async (page) => {
           const switches = await page.$$('.theater-home__mode-switch');
           if (switches.length !== 1) {
@@ -77,8 +77,11 @@ const PAGE_CHECKS = [
           }
           const descs = await page.$$('.theater-home__hero-desc');
           const actions = await page.$$('.theater-home__primary-action');
-          if (descs.length > 0 || actions.length > 0) {
-            throw new Error(`gallery cards must not render description/CTA (desc=${descs.length}, actions=${actions.length})`);
+          if (descs.length > 0) {
+            throw new Error(`gallery cards must not render descriptions (desc=${descs.length})`);
+          }
+          if (actions.length !== titles.length) {
+            throw new Error(`expected one CTA per gallery card (actions=${actions.length}, titles=${titles.length})`);
           }
           // 布局关系：开关在「热门剧本」标题行右侧，即搜索栏上方
           const switchBox = await getElementBox(page, '.theater-home__mode-switch');
@@ -270,14 +273,14 @@ const PAGE_CHECKS = [
           const root = await page.$('.chat-page');
           const rootStyle = root ? String(await root.attribute('style').catch(() => '')) : '';
           const totalHeightMatch = rootStyle.match(/--topbar-total-height:\s*([\d.]+)px/);
-          const avatar = await getElementBox(page, '.character-header .character-avatar');
+          const info = await getElementBox(page, '.character-header__info');
           const points = await getElementBox(page, '.character-header__points');
           assert(totalHeightMatch, `chat page is missing measured topbar height: ${rootStyle || 'no style'}`);
-          assert(avatar, 'chat header avatar is missing');
+          assert(info, 'chat header info is missing');
           assert(points, 'chat header points badge is missing');
           const topbar = { bottom: Number(totalHeightMatch[1]) };
-          console.log(`    [capsule-fit] topbarBottom=${topbar.bottom}, avatarTop=${avatar.rect.top}, pointsTop=${points.rect.top}`);
-          assert(isRectBelow(avatar.rect, topbar, 8), `avatar top ${avatar.rect.top} is not below topbar bottom ${topbar.bottom}`);
+          console.log(`    [capsule-fit] topbarBottom=${topbar.bottom}, infoTop=${info.rect.top}, pointsTop=${points.rect.top}`);
+          assert(isRectBelow(info.rect, topbar, 8), `header info top ${info.rect.top} is not below topbar bottom ${topbar.bottom}`);
           assert(isRectBelow(points.rect, topbar, 8), `points top ${points.rect.top} is not below topbar bottom ${topbar.bottom}`);
         },
       },

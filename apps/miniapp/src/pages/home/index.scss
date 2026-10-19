@@ -7,22 +7,6 @@
   --topbar-menu-reserve: #{$page-padding-h};
 }
 
-.theater-home__settings-button {
-  width: 56rpx;
-  height: 56rpx;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-}
-
-.theater-home__settings {
-  color: $color-primary;
-  font-size: 32rpx;
-  line-height: 1;
-}
-
 .theater-home__hero-header {
   display: flex;
   align-items: flex-start;
@@ -70,6 +54,9 @@
   display: flex;
   align-items: center;
   gap: $space-2;
+  /* 轨道视觉高度 32rpx，用上下 padding 把命中区补到 88rpx，负 margin 抵消布局占位。 */
+  padding: 28rpx 0;
+  margin: -28rpx 0;
 }
 
 .theater-home__mode-switch:active .theater-home__mode-switch-track {
@@ -257,6 +244,7 @@
 }
 
 .theater-home__primary-action {
+  position: relative;
   width: 300rpx;
   height: 66rpx;
   margin-top: 18rpx;
@@ -270,6 +258,12 @@
   font-family: Georgia, 'Songti SC', serif;
   font-size: 24rpx;
   box-sizing: border-box;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -11rpx 0;
+  }
 }
 
 .theater-home__grid {
@@ -359,7 +353,7 @@
   padding-top: calc(var(--topbar-total-height, #{$topbar-height}) + 22rpx);
   padding-left: 18rpx;
   padding-right: 18rpx;
-  padding-bottom: calc(124rpx + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
   background:
     radial-gradient(circle at 50% 0, rgba(105, 37, 52, 0.18), transparent 34%),
     #170e12;
@@ -424,8 +418,8 @@
 }
 
 .theater-home__script-search {
-  height: 54rpx;
-  min-height: 54rpx;
+  height: 88rpx;
+  min-height: 88rpx;
   margin: 14rpx 0 12rpx;
   border: 1rpx solid #d39c7b;
   border-radius: 28rpx;

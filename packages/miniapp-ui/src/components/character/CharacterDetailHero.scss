@@ -28,7 +28,7 @@
   position: absolute;
   left: $space-4;
   right: $space-4;
-  top: calc($status-bar-height + 8px);
+  top: calc(var(--topbar-status-height, #{$status-bar-height}) + 8px);
   display: flex;
   align-items: center;
   justify-content: flex-start;

@@ -1,6 +1,12 @@
 {
   "version": 1,
   "source": "docs/specs/evidence/2026-09-16-h5-all-frames/browser",
+  "pixelRatioPolicy": {
+    "uiChrome": "vector-or-3x",
+    "tabbarSurface": "css-gradient",
+    "tabbarSelected": "css-gradient",
+    "photography": "2x-source; 3x follow-up where source exists"
+  },
   "resources": [
     {
       "semanticName": "login-theater-background",

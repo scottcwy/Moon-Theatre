@@ -2,7 +2,7 @@
 
 .profile {
   position: relative;
-  padding: 0 18rpx calc(132rpx + env(safe-area-inset-bottom, 0px));
+  padding: 0 18rpx calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
   background:
     linear-gradient(180deg, rgba(15, 12, 14, 0.18) 0 30%, rgba(232, 218, 204, 0.96) 48%, #dfcfbf 100%),
     url('../../assets/backgrounds/courtyard.jpg') center top / 100% auto no-repeat;
@@ -10,8 +10,8 @@
 }
 
 .profile__topbar {
-  height: 86rpx;
-  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(env(safe-area-inset-top, 24px) + 86rpx);
+  padding-top: env(safe-area-inset-top, 24px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -95,7 +95,7 @@
 
 .profile__name-line {
   width: 100%;
-  min-height: 72rpx;
+  min-height: 88rpx;
   display: flex;
   align-items: center;
 }
@@ -138,9 +138,9 @@
 }
 
 .profile__name-edit.ui-icon-button {
-  width: 56rpx;
-  height: 56rpx;
-  flex: 0 0 56rpx;
+  width: 88rpx;
+  height: 88rpx;
+  flex: 0 0 88rpx;
 }
 
 .profile__name-edit .ui-icon-button__icon {
@@ -184,7 +184,7 @@
   font-size: $font-title-md;
   font-weight: 800;
   line-height: 1.35;
-  color: #fff7ed;
+  color: $color-on-surface;
 }
 
 .profile__section-note {

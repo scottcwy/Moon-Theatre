@@ -1,16 +1,40 @@
 @use '../../styles/tokens.scss' as *;
 
 .character-header {
+  position: relative;
   display: flex;
   align-items: center;
   padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-3}) $space-4 $space-3;
   background-color: $color-background;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.character-header__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.character-header__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(23, 14, 18, 0.12) 24%, rgba(23, 14, 18, 0.86) 100%);
+  pointer-events: none;
+}
+
+.character-header__back,
+.character-header > .character-avatar,
+.character-header__info,
+.character-header__points {
+  position: relative;
+  z-index: 1;
 }
 
 .character-header__back {
-  width: 72rpx;
-  height: 72rpx;
+  width: $touch-target-min;
+  height: $touch-target-min;
   margin-right: $space-2;
   background-color: transparent;
 }

@@ -232,7 +232,7 @@ export default function Profile() {
       <View className="profile__topbar"><Text>我的</Text></View>
       <View className="profile__hero">
         <View className="profile__hero-main">
-          <CharacterAvatar name={displayName} src={profile?.avatarUrl || undefined} size="lg" online />
+          <CharacterAvatar name={displayName} src={profile?.avatarUrl || undefined} size="lg" />
           <View className="profile__identity">
             <View className="profile__name-line">
               {editingPreferredName ? (
@@ -262,7 +262,7 @@ export default function Profile() {
                   <IconButton
                     className="profile__name-edit"
                     label="编辑对话称呼"
-                    icon="✎"
+                    icon={<View className="ui-pencil" />}
                     tone="tonal"
                     onTap={handleEditPreferredName}
                   />
@@ -360,4 +360,7 @@ export default function Profile() {
 
 definePageConfig({
   navigationBarTitleText: '我的',
+  navigationStyle: 'custom',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });

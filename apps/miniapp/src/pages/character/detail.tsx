@@ -194,4 +194,6 @@ export default function CharacterDetail() {
 definePageConfig({
   navigationBarTitleText: '角色详情',
   navigationStyle: 'custom',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });

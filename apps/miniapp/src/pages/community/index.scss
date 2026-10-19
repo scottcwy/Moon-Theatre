@@ -41,7 +41,7 @@
 
 .community__body {
   min-height: 100vh;
-  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-6}) $page-padding-h calc(160rpx + env(safe-area-inset-bottom, $safe-bottom));
+  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-6}) $page-padding-h calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
   background: transparent;
   box-sizing: border-box;
 }

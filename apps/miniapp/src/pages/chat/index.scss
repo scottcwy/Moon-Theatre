@@ -243,10 +243,12 @@
   min-height: 310rpx;
   padding: calc(var(--topbar-total-height, 72rpx) + 18rpx) 28rpx 22rpx;
   align-items: flex-end;
-  background:
-    linear-gradient(180deg, rgba(23, 14, 18, 0.16) 24%, rgba(23, 14, 18, 0.9) 100%),
-    url('../../assets/characters/hakuzo.jpg') center 18% / cover no-repeat;
+  background-color: #170e12;
   box-sizing: border-box;
+}
+
+.chat-page .character-header__shade {
+  background: linear-gradient(180deg, rgba(23, 14, 18, 0.16) 24%, rgba(23, 14, 18, 0.9) 100%);
 }
 
 .chat-page .character-header__back {
@@ -346,7 +348,7 @@
 }
 
 .chat-page .chat-input-bar {
-  padding: 12rpx 18rpx calc(16rpx + env(safe-area-inset-bottom, 0px));
+  padding: 12rpx 18rpx calc($space-3 + env(safe-area-inset-bottom, $safe-bottom));
   background: #170e12;
 }
 
@@ -357,6 +359,10 @@
 
 .chat-page .chat-input-bar__input {
   color: #f8e9d7;
+}
+
+.chat-page .chat-input-bar__placeholder {
+  color: rgba(248, 233, 215, 0.52);
 }
 
 .chat-page .chat-input-bar__send {

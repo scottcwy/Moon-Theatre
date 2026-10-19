@@ -38,7 +38,7 @@ export function SearchBar({
       />
       {clearable && value ? (
         <View className="ui-search-bar__clear" aria-label="清除搜索" onTap={onClear}>
-          <Text className="ui-search-bar__clear-text">×</Text>
+          <View className="ui-search-bar__clear-mark" />
         </View>
       ) : null}
     </View>

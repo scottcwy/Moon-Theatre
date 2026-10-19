@@ -111,7 +111,7 @@ export default function SharePreview() {
     return ctx;
   };
 
-  const handleSave = () => {
+  const generatePoster = (onSuccess: (filePath: string) => void) => {
     if (saving) return;
     setSaving(true);
     Taro.showLoading({ title: '生成中' });
@@ -125,27 +125,7 @@ export default function SharePreview() {
         destWidth: CANVAS_WIDTH,
         destHeight: CANVAS_HEIGHT,
         success(res) {
-          Taro.saveImageToPhotosAlbum({
-            filePath: res.tempFilePath,
-            success() {
-              Taro.showToast({ title: '已保存到相册', icon: 'success' });
-            },
-            fail() {
-              Taro.showModal({
-                title: '保存失败',
-                content: '需要相册权限才能保存海报，请在设置中开启后重试。',
-                confirmText: '去设置',
-                cancelText: '取消',
-                success(modal) {
-                  if (modal.confirm) void Taro.openSetting();
-                },
-              });
-            },
-            complete() {
-              Taro.hideLoading();
-              setSaving(false);
-            },
-          });
+          onSuccess(res.tempFilePath);
         },
         fail() {
           Taro.hideLoading();
@@ -156,18 +136,80 @@ export default function SharePreview() {
     });
   };
 
+  const saveTempFile = (filePath: string) => {
+    Taro.saveImageToPhotosAlbum({
+      filePath,
+      success() {
+        Taro.showToast({ title: '已保存到相册', icon: 'success' });
+      },
+      fail() {
+        Taro.showModal({
+          title: '保存失败',
+          content: '需要相册权限才能保存海报，请在设置中开启后重试。',
+          confirmText: '去设置',
+          cancelText: '取消',
+          success(modal) {
+            if (modal.confirm) void Taro.openSetting();
+          },
+        });
+      },
+      complete() {
+        Taro.hideLoading();
+        setSaving(false);
+      },
+    });
+  };
+
+  const handleSave = () => generatePoster(saveTempFile);
+
+  const handleShare = () => generatePoster((filePath) => {
+    const shareImage = (Taro as typeof Taro & {
+      showShareImageMenu?: (options: {
+        path: string;
+        fail?: () => void;
+        complete?: () => void;
+      }) => void;
+    }).showShareImageMenu;
+    if (typeof shareImage !== 'function') {
+      Taro.hideLoading();
+      setSaving(false);
+      Taro.showToast({ title: '当前微信版本不支持分享，请先保存图片', icon: 'none' });
+      return;
+    }
+    shareImage({
+      path: filePath,
+      fail() {
+        Taro.showToast({ title: '分享未完成，可先保存图片', icon: 'none' });
+      },
+      complete() {
+        Taro.hideLoading();
+        setSaving(false);
+      },
+    });
+  });
+
+  const canShareImage = typeof (Taro as typeof Taro & { showShareImageMenu?: unknown }).showShareImageMenu === 'function';
+
   return (
     <View className="share-preview-page">
       <SharePreviewCard characterName={displayName} excerpt={excerpt} bondLevel={bondViewModel.level} identity={displayIdentity} onClose={navigateBackOrHome} />
 
       <BottomAction variant="dark">
         <View className="share-preview-page__actions">
-          <TonalButton className="share-preview-page__action-secondary" onTap={handleSave}>
-            ↓ {saving ? '保存中…' : '保存图片'}
-          </TonalButton>
-          <PrimaryButton className="share-preview-page__action-primary" onTap={handleSave}>
-            ↗ 立即分享
-          </PrimaryButton>
+          {canShareImage ? (
+            <>
+              <TonalButton className="share-preview-page__action-secondary" onTap={handleSave}>
+                ↓ {saving ? '保存中…' : '保存图片'}
+              </TonalButton>
+              <PrimaryButton className="share-preview-page__action-primary" onTap={handleShare}>
+                ↗ {saving ? '处理中…' : '立即分享'}
+              </PrimaryButton>
+            </>
+          ) : (
+            <PrimaryButton className="share-preview-page__action-primary" onTap={handleSave}>
+              ↓ {saving ? '保存中…' : '保存图片'}
+            </PrimaryButton>
+          )}
         </View>
       </BottomAction>
 
@@ -221,4 +263,7 @@ function wrapCanvasText(
 
 definePageConfig({
   navigationBarTitleText: '分享预览',
+  navigationStyle: 'custom',
+  backgroundColor: '#120d10',
+  backgroundTextStyle: 'light',
 });

@@ -22,14 +22,42 @@
   position: absolute;
   left: $space-5;
   top: $space-5;
-  width: 84rpx;
-  height: 84rpx;
+  width: $touch-target-min;
+  height: $touch-target-min;
   border-radius: $radius-full;
   background-color: rgba(21, 13, 18, 0.55);
   text-align: center;
   font-size: 72rpx;
   line-height: 76rpx;
   color: #fff;
+}
+
+.share-preview-card__close-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28rpx;
+  height: 28rpx;
+  transform: translate(-50%, -50%);
+}
+
+.share-preview-card__close-mark::before,
+.share-preview-card__close-mark::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12rpx;
+  width: 28rpx;
+  height: 4rpx;
+  background: currentColor;
+}
+
+.share-preview-card__close-mark::before {
+  transform: rotate(45deg);
+}
+
+.share-preview-card__close-mark::after {
+  transform: rotate(-45deg);
 }
 
 .share-preview-card__content {

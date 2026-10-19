@@ -34,7 +34,7 @@ export function CharacterDetailHero({
         <CharacterAvatar name={name} src={avatarUrl} size="hero" className="character-detail-hero__portrait" />
         <View className="character-detail-hero__shade" />
         <View className="character-detail-hero__top-actions">
-          <IconButton label="返回" icon="‹" onTap={onBack} />
+          <IconButton label="返回" icon={<View className="ui-chevron" />} onTap={onBack} />
         </View>
       </View>
 
@@ -44,7 +44,6 @@ export function CharacterDetailHero({
             <Text className="character-detail-hero__name">{name}</Text>
             <Text className="character-detail-hero__identity">{identity}</Text>
           </View>
-          <Badge tone="success">● 在线</Badge>
         </View>
 
         <View className="character-detail-hero__intro">

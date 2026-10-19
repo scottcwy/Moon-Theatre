@@ -12,7 +12,7 @@ interface BadgeProps {
 }
 
 export function Badge({ children, tone = 'neutral', className = '', onTap }: BadgeProps) {
-  const classes = ['ui-badge', `ui-badge--${tone}`, className].filter(Boolean).join(' ');
+  const classes = ['ui-badge', `ui-badge--${tone}`, onTap ? 'ui-badge--interactive' : '', className].filter(Boolean).join(' ');
   return (
     <View className={classes} onTap={onTap}>
       <Text className="ui-badge__text">{children}</Text>
@@ -32,7 +32,7 @@ export function MoodChip({ mood, className = '' }: { mood: MoodType; className?:
 export function PointsBadge({ points, className = '', onTap }: { points: number | null; className?: string; onTap?: () => void }) {
   return (
     <Badge tone="points" className={className} onTap={onTap}>
-      点数 {points ?? 0}
+      点数 {points ?? '—'}
     </Badge>
   );
 }

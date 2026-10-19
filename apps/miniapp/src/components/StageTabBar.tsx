@@ -26,8 +26,10 @@ export function StageTabBar({ selected }: { selected: (typeof tabs)[number]['pat
             onTap={() => Taro.switchTab({ url: tab.path })}
             aria-label={tab.path === '/pages/chat/list' && chatUnread ? '聊天，有未读消息' : tab.label}
           >
-            <Image className="theater-tab-bar__icon" src={active ? tab.activeIcon : tab.icon} mode="aspectFit" />
-            {tab.path === '/pages/chat/list' && chatUnread && <View className="theater-tab-bar__unread" />}
+            <View className="theater-tab-bar__icon-wrap">
+              <Image className="theater-tab-bar__icon" src={active ? tab.activeIcon : tab.icon} mode="aspectFit" />
+              {tab.path === '/pages/chat/list' && chatUnread && <View className="theater-tab-bar__unread" />}
+            </View>
             <Text className="theater-tab-bar__label">{tab.label}</Text>
           </View>
         );

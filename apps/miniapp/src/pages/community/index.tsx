@@ -79,4 +79,6 @@ export default function Community() {
 definePageConfig({
   navigationBarTitleText: '社区',
   navigationStyle: 'custom',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });

@@ -1,19 +1,14 @@
 @use '../../styles/tokens.scss' as *;
 
 .detail {
+  --topbar-status-height: env(safe-area-inset-top, 24px);
   background: #170e12;
   color: #f6e4d0;
 }
 
 .detail .character-detail-hero__image-wrap {
   height: 930rpx;
-  background:
-    linear-gradient(180deg, rgba(18, 14, 16, 0.06) 48%, rgba(18, 14, 16, 0.86) 100%),
-    url('../../assets/characters/detail/white-cang.jpg') center top / cover no-repeat;
-}
-
-.detail .character-detail-hero__portrait {
-  opacity: 0;
+  background: linear-gradient(180deg, #5f463e, #1c1719);
 }
 
 .detail .character-detail-hero__shade {

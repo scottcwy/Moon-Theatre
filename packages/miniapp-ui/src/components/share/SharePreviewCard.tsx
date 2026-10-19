@@ -18,7 +18,11 @@ export function SharePreviewCard({ characterName, excerpt, bondLevel = 1, identi
   return (
     <View className="share-preview-card">
       <View className="share-preview-card__overlay" />
-      {onClose && <View className="share-preview-card__close" onTap={onClose}>×</View>}
+      {onClose && (
+        <View className="share-preview-card__close" onTap={onClose}>
+          <View className="share-preview-card__close-mark" />
+        </View>
+      )}
       <View className="share-preview-card__content">
         <Text className="share-preview-card__quote-mark">“</Text>
         <Text className="share-preview-card__quote">{excerpt}</Text>

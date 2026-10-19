@@ -90,8 +90,78 @@
 }
 
 .ui-icon-button__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 44rpx;
   line-height: 1;
   font-weight: 700;
   color: inherit;
+}
+
+.ui-chevron {
+  width: 18rpx;
+  height: 18rpx;
+  border-left: 4rpx solid currentColor;
+  border-bottom: 4rpx solid currentColor;
+  transform: rotate(45deg);
+}
+
+.ui-arrow-up-right {
+  position: relative;
+  width: 24rpx;
+  height: 24rpx;
+}
+
+.ui-arrow-up-right::before {
+  content: '';
+  position: absolute;
+  left: 2rpx;
+  bottom: 2rpx;
+  width: 18rpx;
+  height: 4rpx;
+  background: currentColor;
+  transform: rotate(-45deg);
+  transform-origin: left center;
+}
+
+.ui-arrow-up-right::after {
+  content: '';
+  position: absolute;
+  right: 2rpx;
+  top: 2rpx;
+  width: 10rpx;
+  height: 10rpx;
+  border-top: 4rpx solid currentColor;
+  border-right: 4rpx solid currentColor;
+}
+
+.ui-pencil {
+  position: relative;
+  width: 26rpx;
+  height: 26rpx;
+  transform: rotate(-45deg);
+}
+
+.ui-pencil::before {
+  content: '';
+  position: absolute;
+  left: 9rpx;
+  top: 0;
+  width: 8rpx;
+  height: 20rpx;
+  border-radius: 2rpx;
+  background: currentColor;
+}
+
+.ui-pencil::after {
+  content: '';
+  position: absolute;
+  left: 6rpx;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 7rpx solid transparent;
+  border-right: 7rpx solid transparent;
+  border-top: 8rpx solid currentColor;
 }

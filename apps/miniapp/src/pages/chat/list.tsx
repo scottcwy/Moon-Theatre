@@ -277,4 +277,6 @@ export default function ChatList() {
 definePageConfig({
   navigationBarTitleText: '聊天',
   navigationStyle: 'custom',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });
