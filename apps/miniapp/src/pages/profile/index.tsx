@@ -11,6 +11,7 @@ import {
   PageShell,
   PointsBadge,
   PrimaryButton,
+  ProfileLoadingCard,
   StatusStateCard,
   TonalButton,
 } from '@juben-sha/miniapp-ui';
@@ -196,9 +197,9 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <PageShell variant="scroll" tabBarReserve className="profile">
+      <PageShell variant="scroll" tabBarReserve className="profile profile--loading">
         <View className="profile__topbar"><Text>我的</Text></View>
-        <StatusStateCard title="正在叩响梦境之门" message="正在加载点数、称号和成就。" icon="…" />
+        <ProfileLoadingCard />
         <StageTabBar selected="/pages/profile/index" />
       </PageShell>
     );

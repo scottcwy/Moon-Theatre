@@ -1,0 +1,22 @@
+.visual-fixture {
+  min-height: 100vh;
+}
+
+.visual-fixture--confirm {
+  background-color: #8a837b;
+}
+
+.visual-fixture--pending {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background-color: #f3e9d8;
+}
+
+.visual-fixture__spacer {
+  flex: 1;
+}
+
+.visual-fixture .payment-confirm-sheet__backdrop {
+  background-color: transparent;
+}

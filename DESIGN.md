@@ -3,18 +3,20 @@
 > 状态：`FROZEN`（当前视觉契约）
 > 实现状态：`IMPLEMENTED`
 > 验收状态：`PARTIAL / VISUAL_BLOCKED`（功能 E2E 通过；13 帧视觉门禁受开发者工具 `390×844` 阻塞，要求 `375×812`）
-> 最后更新：2026-10-19 · 基线提交 `1047c5b`
+> 第二份合同：`FROZEN / IMPLEMENTED / VISUAL_BLOCKED`（12 帧已实现；整屏视觉受 `390×844` 阻塞；8/9 整屏 `BLOCKED`）
+> 最后更新：2026-10-20 · 基线提交 `1047c5b`
 
 ## 1. 权威与边界
 
 当前视觉事实源的优先级：
 
-1. `docs/specs/2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md`（H5 13 帧生产复刻契约）
-2. `docs/specs/2026-10-19-月满楼小程序UI细节打磨Spec.md`（生产端细节与 E2E 收口）
-3. `packages/miniapp-ui/src/styles/tokens.scss`、各页面 SCSS 和 `apps/miniapp/src/assets/design/manifest.json`（代码事实）
-4. 本文档（设计系统摘要与实现状态）
+1. `docs/specs/2026-10-19-第二份合同UI前端更新Spec.md`（12 帧：8 非支付 + 4 支付 UI-only）
+2. `docs/specs/2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md`（未被第二份合同取代的 13 帧契约）
+3. `docs/specs/2026-10-19-月满楼小程序UI细节打磨Spec.md`（生产端细节与 E2E 收口）
+4. `packages/miniapp-ui/src/styles/tokens.scss`、各页面 SCSS 和 `apps/miniapp/src/assets/design/manifest.json`（代码事实）
+5. 本文档（设计系统摘要与实现状态）
 
-如果本文档与上述 H5 Spec、UI 打磨 Spec 或 tokens 冲突，以 H5 Spec / UI 打磨 Spec / tokens 为准。
+如果本文档与上述 Spec 或 tokens 冲突，以第二份合同 Spec（覆盖状态）→ H5 Spec → UI 打磨 Spec → tokens 的顺序为准。
 
 本文档不再描述旧版 Material Soft Roleplay 暖白体系；旧 `DESIGN.md` 内容保留在 git 历史中，仅用于追溯，不再作为视觉依据。H5 Playground 是本地设计核对工具，不是 C 端 H5 交付物。
 
@@ -34,7 +36,13 @@
 | 登录 / 个人页 / 分享预览 custom navigation | 已实现 | 深色页不再出现浅色原生导航栏；个人页无双标题 |
 | 触控与可读性收口 | 已实现 | 关键按钮/返回/搜索清理命中区补足；聊天列表深底文字已修正 |
 | 点数空态、未读点、分享关闭、发送图标 | 已实现 | 点数 null 显示“点数 —”；未读点 16rpx 珊瑚色；图标改为 CSS 形状 |
-| 配额、记忆等非 13 帧页面 | 已实现 | 保持 V1 浅色业务壳层，未纳入 H5 舞台视觉 |
+| 配额、记忆等非 13 帧页面 | 已实现 | 第二份合同的 quota/分享新视觉已落地；记忆页保持旧视觉 |
+| 第二份合同 12 帧新视觉 | 已实现 / 视觉 `BLOCKED` | Spec revision 3；8 非支付 + 4 支付 UI-only；整屏门禁受 `390×844` 阻塞 |
+| 首页剧本列表区块 | 已实现 | `1030:2153` 新增区块；复用已有首页路由 |
+| 聊天灵感对话面板 | 已实现 | `1030:1731` 替换现有 starters 面板 |
+| 个人页 loading 卡 | 已实现 | `1030:2331` 替换通用状态卡 |
+| 分享卡 QR | 已实现（fixture-only） | 生产不渲染可扫描死码 |
+| 支付确认 sheet / 结果面板 / 套餐列表 | 已实现 / UI_ONLY | 真实只读数据；支付动作仍走现有 `handlePay` |
 
 ### 2.2 未实现 / 未批准
 
@@ -50,7 +58,6 @@
 | 书法标题、人物照片 3x 资源 | 未实现 | 当前 2x 源；DPR3 有轻微放大，待补 3x 源 |
 | 管理后台视觉系统 | 未实现 | 仅有简单 admin，不在 H5 视觉范围 |
 | C 端 H5 产品 | 未实现 | H5 仅用于设计 Playground 对照，不发布 C 端 H5 |
-
 ## 3. 视觉语言
 
 ### 3.1 色板
@@ -87,8 +94,11 @@
 - `CharacterDetailHero`：使用角色动态 hero；返回键使用 `--topbar-status-height`；不写死角色图或在线 badge。
 - `ChatInputBar`：安全区使用 `$safe-bottom` fallback；placeholder 用深色主题类；发送按钮用 CSS 图标。
 - `SearchBar`：清除按钮用 CSS 标记；清空后恢复全量列表。
-- `SharePreviewCard`：关闭按钮用 CSS 标记；“立即分享”走分享菜单，失败/不支持时降级保存。
+- `SharePreviewCard`：关闭按钮用 CSS 标记；“立即分享”走分享菜单，失败/不支持时降级保存；QR 只进 fixture，生产在真实 QR 契约前不显示“扫码加入故事”。
 - `Badge` / `PointsBadge`：可点 badge 命中区补足；`points=null` 显示 `点数 —`，不显示假 0。
+- `PaymentConfirmSheet` / `PaymentResultPanel` / `QuotaPackageList`：presentational；不 import 支付服务，不自己发请求。
+- `QuotaBalanceHero`：买点与结果页共用；真实余额缺失显示 `—`，不写死 `999`。
+- `ProfileLoadingCard`：个人页 loading 专用视觉；不引入假数据。
 
 ## 5. 页面映射
 
@@ -102,12 +112,26 @@
 | `1-2080` | `pages/chat/list` | 已实现 |
 | `1-2180` | `pages/community/index` | 已实现 |
 
-配额、记忆、分享预览等已有业务路由保持功能；没有对应 H5 帧的页面不自行扩展视觉范围。
+配额、记忆、分享预览等已有业务路由保持功能；除第二份合同明确覆盖的状态外，没有对应 H5 帧的页面不自行扩展视觉范围。
+
+第二份合同新增/更新的视觉状态：
+
+| 新帧 | 生产路由 | 状态 |
+| --- | --- | --- |
+| `1030:2153` | `pages/home/index` | 未实现 |
+| `1030:1731` | `pages/chat/index` | 未实现 |
+| `1030:2331` | `pages/profile/index` | 未实现 |
+| `1030:2424` / `1030:2514` | `pages/chat/list` | 未实现（新增搜索态，不替换 1-2080） |
+| `1030:2580` / `1030:2752` | `pages/home/index` | 未实现 |
+| `1030:2823` / `1030:3196` | `pages/quota/buy` | 未实现（UI-only） |
+| `1030:2932` / `1030:3331` | `pages/quota/result` | 未实现（UI-only） |
+| `1030:3028` | `pages/share/preview` | 未实现 |
 
 ## 6. 允许偏差
 
 - 微信状态栏、胶囊、Home Indicator 不重建，由系统提供。
 - 生产文案按已批准偏差：`使用微信登陆` → `登录`；`CONVERATION ARCHIVE / SEALED` → `CONVERSATION`；`灯时` → `点数`。
+- 第二份合同补充：`搜索剧本名称，类型或关键词`（聊天列表）→ `搜索角色或聊天内容`；`选择以为角色开始` → `选择一位角色开始`；`扫码加入故事，AI生成内容` → `月满楼 · AI 生成内容`（真实 QR 契约前）。
 - H5 占位数字和占位文本不进入生产；缺数据走空态或 `—`。
 - 生产使用系统字体栈；不新增 MiSans 生产依赖。
 - H5 Playground、`PilotFrame`、`design-frames.json` 不进入生产包。
@@ -118,4 +142,5 @@
 - `test:e2e:ui`：10/10 页面通过。
 - `test:e2e:ui:auth`：22/22 页面通过。
 - `test:e2e:visual-frames`：阻塞于开发者工具 `390×844`，要求 `375×812`；不得宣称 13 帧视觉完全通过。
+- `test:e2e:visual-frames:second-contract`：尚未实现；8/9 整屏视觉 `BLOCKED`，组件基线在 `docs/specs/evidence/2026-10-19-second-contract/component-375x812/`。
 - 证据：`apps/miniapp/e2e/artifacts/`、`docs/specs/evidence/`、`docs/reports/2026-10-01-h5-visual-migration-acceptance.md`（快照 + 2026-10-19 更新）。

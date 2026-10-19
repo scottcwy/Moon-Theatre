@@ -1,3 +1,7 @@
+const visualFixturePages = process.env.VISUAL_FIXTURES === 'true'
+  ? ['pages/quota/visual-fixture/index']
+  : [];
+
 export default defineAppConfig({
   pages: [
     'pages/home/index',
@@ -13,6 +17,7 @@ export default defineAppConfig({
     'pages/quota/result',
     'pages/share/preview',
     'pages/login/index',
+    ...visualFixturePages,
   ],
   tabBar: {
     custom: true,

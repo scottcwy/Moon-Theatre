@@ -30,7 +30,13 @@ export { BOND_LEVEL_NAMES, bondLevelName, createBondViewModel } from './componen
 export { CharacterPosterCard } from './components/discovery/CharacterPosterCard';
 export { ChatBubble } from './components/chat/ChatBubble';
 export { ChatInputBar } from './components/chat/ChatInputBar';
+export { ChatStartersPanel } from './components/chat/ChatStartersPanel';
 export { ChatSessionRow } from './components/lists/ChatSessionRow';
+export { ProfileLoadingCard } from './components/profile/ProfileLoadingCard';
+export { PaymentConfirmSheet } from './components/quota/PaymentConfirmSheet';
+export { PaymentResultPanel } from './components/quota/PaymentResultPanel';
+export { QuotaBalanceHero } from './components/quota/QuotaBalanceHero';
+export { QuotaPackageList } from './components/quota/QuotaPackageList';
 export { PaymentResultCard } from './components/status/PaymentResultCard';
 export { EmptyState, StatusStateCard } from './components/status/StatusStateCard';
 export { AchievementIcon } from './components/achievement/AchievementIcon';

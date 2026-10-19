@@ -1,5 +1,9 @@
 @use '../../styles/tokens.scss' as *;
 
+$search-paper: #e4d7c5;
+$search-wine: #4a1020;
+$search-gold: #c9a25e;
+
 .chat-list {
   min-height: 100vh;
   color: #f3dfca;
@@ -61,11 +65,10 @@
 
 .chat-list__search-control {
   min-height: 76rpx;
-  border-color: transparent;
-  background: $color-surface-container-low;
+  border-color: rgba(201, 162, 94, 0.75);
+  background: linear-gradient(90deg, rgba(58, 16, 28, 0.92) 0%, rgba(46, 13, 22, 0.92) 100%);
 }
 
-/* Session list */
 .chat-list__list {
   margin-top: $space-5;
 }
@@ -113,4 +116,96 @@
 
 .chat-list__item:active {
   transform: scale(0.98);
+}
+
+/* Search states (1030:2424 / 1030:2514) replace the page skin only after a query exists. */
+.chat-list--search {
+  color: #3a2228;
+  background: $search-paper;
+}
+
+.chat-list--search .chat-list__topbar-backdrop {
+  background: $search-paper;
+}
+
+.chat-list--search .chat-list__header {
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 96rpx;
+  padding: 4rpx 12rpx 0;
+}
+
+.chat-list--search .chat-list__header-copy {
+  align-items: flex-start;
+}
+
+.chat-list--search .chat-list__title {
+  color: #3a2228;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.chat-list--search .chat-list__subtitle {
+  display: block;
+  color: #9b867c;
+  font-size: 18rpx;
+  letter-spacing: 2rpx;
+}
+
+.chat-list--search .chat-list__search-control {
+  margin-top: 8rpx;
+}
+
+.chat-list--search .chat-list__list {
+  margin-top: 20rpx;
+}
+
+.chat-list--search .chat-list__item {
+  margin-bottom: 14rpx;
+  border: 1rpx solid rgba(201, 162, 94, 0.6);
+  border-radius: 12rpx;
+  background: linear-gradient(135deg, $search-wine 0%, #611a2c 100%);
+}
+
+.chat-list--search .chat-list__item .chat-session-row__name {
+  color: #f8ead4;
+}
+
+.chat-list--search .chat-list__item .chat-session-row__time {
+  color: rgba(248, 234, 212, 0.62);
+}
+
+.chat-list--search .chat-list__item .chat-session-row__preview {
+  color: rgba(248, 234, 212, 0.66);
+}
+
+.chat-list__state--search {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  margin-top: 22rpx;
+  padding: 34rpx 36rpx 44rpx;
+  border: 1rpx solid $search-gold;
+  border-radius: 12rpx;
+  background-color: $search-paper;
+  box-shadow: none;
+}
+
+.chat-list__state-art {
+  width: 450rpx;
+  height: 372rpx;
+}
+
+.chat-list__state-title {
+  margin-top: 4rpx;
+  color: #3a2228;
+  font-size: 34rpx;
+  letter-spacing: 2rpx;
+}
+
+.chat-list__state-message {
+  margin-top: 12rpx;
+  color: #8c766e;
+  font-size: 22rpx;
 }

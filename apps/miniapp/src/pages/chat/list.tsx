@@ -231,7 +231,7 @@ export default function ChatList() {
 
   return (
     <PageShell variant="scroll" noPadding>
-      <View className="chat-list" style={topBarStyle as CSSProperties}>
+      <View className={`chat-list${hasSearchQuery ? ' chat-list--search' : ''}`} style={topBarStyle as CSSProperties}>
         <ChatListTopBackdrop />
         <View className="chat-list__body">
           <ChatListHeader />
@@ -261,11 +261,17 @@ export default function ChatList() {
               ))}
             </View>
           ) : (
-            <EmptyState
-              className="chat-list__state"
-              title={hasSearchQuery ? '没有找到相关聊天' : '还没有聊天记录'}
-              message={hasSearchQuery ? '换个角色名或关键词试试。' : '去首页选择一个角色开始对话吧。'}
-            />
+            <View className="chat-list__state chat-list__state--search">
+              <Image
+                className="chat-list__state-art"
+                src="/assets/second-contract/chat-empty.png"
+                mode="aspectFit"
+              />
+              <Text className="chat-list__state-title">{hasSearchQuery ? '没有找到相关聊天' : '还没有聊天记录'}</Text>
+              <Text className="chat-list__state-message">
+                {hasSearchQuery ? '换个角色名或关键词试试' : '去首页选择一个角色开始对话吧'}
+              </Text>
+            </View>
           )}
         </View>
         <StageTabBar selected="/pages/chat/list" />

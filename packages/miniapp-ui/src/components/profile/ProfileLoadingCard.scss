@@ -1,0 +1,67 @@
+.profile__loading-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 420rpx;
+  margin: 0 32rpx;
+  overflow: hidden;
+  border-radius: 32rpx;
+  background: linear-gradient(135deg, rgba(38, 20, 22, 0.94) 0%, rgba(56, 28, 30, 0.88) 50%, rgba(38, 20, 22, 0.94) 100%);
+  box-shadow: 0 20rpx 60rpx rgba(20, 10, 12, 0.35);
+}
+
+.profile__loading-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 52%;
+  width: 2rpx;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(255, 232, 198, 0) 0%, rgba(255, 232, 198, 0.55) 45%, rgba(255, 232, 198, 0) 100%);
+}
+
+.profile__loading-arc {
+  position: absolute;
+  border: 2rpx solid rgba(214, 178, 121, 0.55);
+  border-color: rgba(214, 178, 121, 0.55) transparent transparent transparent;
+  border-radius: 50%;
+}
+
+.profile__loading-arc--outer {
+  width: 200rpx;
+  height: 200rpx;
+}
+
+.profile__loading-arc--inner {
+  width: 150rpx;
+  height: 150rpx;
+  border-color: rgba(214, 178, 121, 0.35) transparent transparent transparent;
+}
+
+.profile__loading-moon {
+  position: absolute;
+  top: 128rpx;
+  width: 34rpx;
+  height: 34rpx;
+  border: 3rpx solid #e3c08a;
+  border-radius: 50%;
+}
+
+.profile__loading-dot {
+  position: absolute;
+  top: 184rpx;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background-color: #e3c08a;
+}
+
+.profile__loading-text {
+  position: absolute;
+  bottom: 88rpx;
+  color: #e8c99b;
+  font-size: 28rpx;
+  letter-spacing: 2rpx;
+}

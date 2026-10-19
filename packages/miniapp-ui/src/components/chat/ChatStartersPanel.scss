@@ -1,0 +1,111 @@
+@use '../../styles/tokens.scss' as *;
+
+$starters-wine: #2a1519;
+$starters-gold: #c9a25e;
+
+.chat-page__starters {
+  padding: 24rpx 24rpx 18rpx;
+  border: 1rpx solid rgba(201, 162, 94, 0.35);
+  border-radius: 16rpx;
+  background-color: $starters-wine;
+}
+
+.chat-page__starters-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.chat-page__starters-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-page__starters-title {
+  display: block;
+  color: #f5e3cc;
+  font-size: 26rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+}
+
+.chat-page__starters-sub {
+  display: block;
+  margin-top: 6rpx;
+  color: rgba(245, 227, 202, 0.55);
+  font-size: 20rpx;
+}
+
+.chat-page__starters-actions {
+  display: flex;
+  align-items: center;
+}
+
+.chat-page__starters-refresh {
+  padding: 4rpx 10rpx;
+}
+
+.chat-page__starters-refresh-text {
+  color: rgba(245, 227, 202, 0.8);
+  font-size: 20rpx;
+}
+
+.chat-page__starters-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44rpx;
+  height: 44rpx;
+  margin-left: 8rpx;
+  border: 1rpx solid rgba(201, 162, 94, 0.5);
+  border-radius: 50%;
+}
+
+.chat-page__starters-close-text {
+  color: #f5e3cc;
+  font-size: 26rpx;
+  line-height: 1;
+}
+
+.chat-page__starter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.chat-page__starter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 70rpx;
+  padding: 0 20rpx;
+  border: 1rpx solid rgba(201, 162, 94, 0.45);
+  border-radius: 10rpx;
+  background-color: #321a1f;
+}
+
+.chat-page__starter:active {
+  opacity: 0.75;
+}
+
+.chat-page__starter-text {
+  flex: 1;
+  min-width: 0;
+  color: #f5e3cc;
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.chat-page__starter-arrow {
+  margin-left: 12rpx;
+  color: $starters-gold;
+  font-size: 24rpx;
+}
+
+.chat-page__starters-hint {
+  display: block;
+  margin-top: 16rpx;
+  color: rgba(245, 227, 202, 0.4);
+  font-size: 18rpx;
+}

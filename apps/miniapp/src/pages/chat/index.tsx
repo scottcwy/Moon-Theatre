@@ -6,6 +6,7 @@ import {
   CharacterHeader,
   ChatBubble,
   ChatInputBar,
+  ChatStartersPanel,
   createBondViewModel,
   EmptyState,
   StatusStateCard,
@@ -157,6 +158,8 @@ export default function Chat() {
   const [scriptTitle, setScriptTitle] = useState('');
   const [availableModes, setAvailableModes] = useState<ChatMode[]>(routeMode ? [routeMode] : []);
   const [starterQuestions, setStarterQuestions] = useState<StarterQuestions>(EMPTY_STARTER_QUESTIONS);
+  const [startersDismissed, setStartersDismissed] = useState(false);
+  const [starterShift, setStarterShift] = useState(0);
   const [canSend, setCanSend] = useState(true);
   const [hasSuccessfulTurn, setHasSuccessfulTurn] = useState(false);
   const [scopeSwitching, setScopeSwitching] = useState(false);
@@ -779,7 +782,14 @@ export default function Chat() {
   const interactionDisabled = sending || scopeSwitching || !canSend || scopeUnavailable;
   const characterAvatarUrl = character ? getCharacterAvatarUrl(character.name, character.avatarUrl, getCharacterGender(character.name)) : '';
   const bondViewModel = createBondViewModel({ bondLevel, bondExp });
-  const visibleStarterQuestions = getVisibleStarterQuestions(starterQuestions, mode, hasSuccessfulTurn);
+  const baseStarterQuestions = getVisibleStarterQuestions(starterQuestions, mode, hasSuccessfulTurn);
+  const shifted = baseStarterQuestions.length > 0
+    ? baseStarterQuestions.slice(starterShift % baseStarterQuestions.length).concat(
+      baseStarterQuestions.slice(0, starterShift % baseStarterQuestions.length),
+    )
+    : baseStarterQuestions;
+  const visibleStarterQuestions = startersDismissed ? [] : shifted;
+  const isBareFreeChat = mode === 'free' && !hasSuccessfulTurn && messages.length === 0;
 
   if (pageLoading) {
     return (
@@ -813,19 +823,24 @@ export default function Chat() {
   }
 
   return (
-    <View className="chat-page" style={topBarStyle as CSSProperties}>
-      <CharacterHeader
-        name={character.name}
-        identity={character.identity}
-        avatarUrl={characterAvatarUrl}
-        backgroundImage={characterAvatarUrl}
-        bond={bondViewModel}
-        points={pointsBalance}
-        onPointsTap={handleBuyPoints}
-        onBack={navigateBackOrHome}
-      />
+    <View className={`chat-page${isBareFreeChat ? ' chat-page--bare-free' : ''}`} style={topBarStyle as CSSProperties}>
+      {!isBareFreeChat && (
+        <CharacterHeader
+          name={character.name}
+          identity={character.identity}
+          avatarUrl={characterAvatarUrl}
+          backgroundImage={characterAvatarUrl}
+          bond={bondViewModel}
+          points={pointsBalance}
+          onPointsTap={handleBuyPoints}
+          onBack={navigateBackOrHome}
+        />
+      )}
 
       <View className="chat-page__scope-bar">
+        <View className="chat-page__scope-icon">
+          <Text className="chat-page__scope-icon-text">☾</Text>
+        </View>
         <View className="chat-page__scope-copy">
           <Text className="chat-page__scope-label">{getModeLabel(mode)}</Text>
           <Text className="chat-page__scope-title">{mode === 'script' ? scriptTitle || '当前剧本' : '保留角色身份，不强制推进剧情'}</Text>
@@ -908,19 +923,13 @@ export default function Chat() {
             </View>
           )}
 
-          {visibleStarterQuestions.length > 0 && (
-            <View className="chat-page__starters">
-              <Text className="chat-page__starters-title">可以这样开场</Text>
-              <Text className="chat-page__starters-hint">点击后只会填入输入框，由你确认发送。</Text>
-              <View className="chat-page__starter-list">
-                {visibleStarterQuestions.map((question) => (
-                  <View key={question} className="chat-page__starter" onTap={() => handleStarterQuestion(question)}>
-                    <Text className="chat-page__starter-text">{question}</Text>
-                    <Text className="chat-page__starter-arrow">›</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
+          {visibleStarterQuestions.length > 0 && !isBareFreeChat && (
+            <ChatStartersPanel
+              questions={visibleStarterQuestions}
+              onPick={handleStarterQuestion}
+              onRefresh={() => setStarterShift((value) => value + 1)}
+              onClose={() => setStartersDismissed(true)}
+            />
           )}
 
           {messages.length === 0 && visibleStarterQuestions.length === 0 && !sending && !historyLoading && (
@@ -952,6 +961,17 @@ export default function Chat() {
           )}
         </View>
       </ScrollView>
+
+      {isBareFreeChat && visibleStarterQuestions.length > 0 && (
+        <View className="chat-page__starters-dock">
+          <ChatStartersPanel
+            questions={visibleStarterQuestions}
+            onPick={handleStarterQuestion}
+            onRefresh={() => setStarterShift((value) => value + 1)}
+            onClose={() => setStartersDismissed(true)}
+          />
+        </View>
+      )}
 
       {streamError && <StatusStateCard surface="dark" className="chat-page__stream-error" title="发送未完成" message={streamError} tone="error" icon="!" />}
 

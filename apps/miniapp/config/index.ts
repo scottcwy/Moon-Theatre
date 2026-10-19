@@ -28,6 +28,24 @@ function getApiBaseUrl(): string {
 }
 
 const apiBaseUrl = getApiBaseUrl();
+const copyPatterns = [
+  {
+    from: 'src/assets',
+    to: 'dist/assets',
+    ignore: ASSET_COPY_IGNORE,
+  },
+  {
+    from: 'sitemap.json',
+    to: 'dist/sitemap.json',
+  },
+];
+
+if (process.env.VISUAL_FIXTURES === 'true') {
+  copyPatterns.push({
+    from: 'e2e/visual-fixtures/second-contract/share-qr.png',
+    to: 'dist/visual-fixtures/share-qr.png',
+  });
+}
 
 const config = {
   projectName: 'juben-sha-miniapp',
@@ -45,19 +63,10 @@ const config = {
     API_BASE_URL: JSON.stringify(apiBaseUrl),
     DEV_AUTH_BYPASS: JSON.stringify(process.env.DEV_AUTH_BYPASS === 'true'),
     API_DEBUG_LOGS: JSON.stringify(process.env.API_DEBUG_LOGS === 'true'),
+    VISUAL_FIXTURES: JSON.stringify(process.env.VISUAL_FIXTURES === 'true'),
   },
   copy: {
-    patterns: [
-      {
-        from: 'src/assets',
-        to: 'dist/assets',
-        ignore: ASSET_COPY_IGNORE,
-      },
-      {
-        from: 'sitemap.json',
-        to: 'dist/sitemap.json',
-      },
-    ],
+    patterns: copyPatterns,
     options: {},
   },
   framework: 'react',

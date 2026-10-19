@@ -3,6 +3,7 @@
 declare const API_BASE_URL: string;
 declare const DEV_AUTH_BYPASS: boolean;
 declare const API_DEBUG_LOGS: boolean;
+declare const VISUAL_FIXTURES: boolean;
 
 interface AppConfig {
   pages: string[];

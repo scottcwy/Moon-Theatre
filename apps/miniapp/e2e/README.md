@@ -44,6 +44,10 @@ pnpm --filter @juben-sha/miniapp test:e2e:visual-frames
 
 当前开发者工具固定 `windowWidth=390`、`windowHeight=844`，与冻结的 `375×812` 不一致时，视觉门禁必须记为 `BLOCKED`，不得用像素平均差替代通过结论。
 
+## 第二份合同 12 帧视觉检查
+
+矩阵、遮罩与 fixture 见 `visual-frame-matrix-second-contract.json`、`approved-masks-second-contract.json`、`visual-fixtures/second-contract/`；baseline 在 `docs/specs/evidence/2026-10-19-second-contract/`。8/9 使用组件基线，整屏仍记 `BLOCKED`。运行入口为 `test:e2e:visual-frames:second-contract`。当前开发者工具为 `390×844`，门禁会以 `windowWidth must be 375` 失败；`VISUAL_FRAME_CAPTURE_ONLY=true` 只采集证据，不参与门禁。
+
 The smoke test uses `@weapp-vite/miniprogram-automator` and launches the built Taro project through WeChat DevTools.
 The runtime UI test visits the primary miniapp pages, saves screenshots, and fails on hard runtime layout problems.
 The authenticated runtime UI test starts a local mock API, drives logged-in page states, and covers chat failure, insufficient points, quota buy/result, and checkout navigation.

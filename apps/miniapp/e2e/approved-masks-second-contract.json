@@ -1,0 +1,19 @@
+{
+  "default": [
+    {"x": 0, "y": 0, "width": 375, "height": 88, "reason": "WeChat status bar and capsule"},
+    {"x": 0, "y": 778, "width": 375, "height": 34, "reason": "Home indicator"}
+  ],
+  "keyboard": [
+    {"x": 0, "y": 0, "width": 375, "height": 88, "reason": "WeChat status bar and capsule"},
+    {"x": 0, "y": 496, "width": 375, "height": 316, "reason": "System keyboard; appearance is OS-owned"}
+  ],
+  "searchInputText": [
+    {"x": 0, "y": 0, "width": 375, "height": 88, "reason": "WeChat status bar and capsule"},
+    {"x": 0, "y": 778, "width": 375, "height": 34, "reason": "Home indicator"},
+    {"x": 50, "y": 136, "width": 260, "height": 28, "reason": "Production query differs from design placeholder"}
+  ],
+  "component": [
+    {"x": 0, "y": 778, "width": 375, "height": 34, "reason": "Home indicator is system UI"}
+  ],
+  "none": []
+}

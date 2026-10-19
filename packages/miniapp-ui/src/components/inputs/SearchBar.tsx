@@ -36,6 +36,10 @@ export function SearchBar({
         placeholderClass="ui-search-bar__placeholder"
         onInput={handleInput}
       />
+      <View className="ui-search-bar__cloud" aria-hidden>
+        <View className="ui-search-bar__cloud-curve" />
+        <View className="ui-search-bar__cloud-curve ui-search-bar__cloud-curve--inner" />
+      </View>
       {clearable && value ? (
         <View className="ui-search-bar__clear" aria-label="清除搜索" onTap={onClear}>
           <View className="ui-search-bar__clear-mark" />

@@ -14,14 +14,47 @@ const currentFile = fileURLToPath(import.meta.url);
 const e2eDir = path.dirname(currentFile);
 const miniappRoot = path.resolve(e2eDir, '..');
 const repoRoot = path.resolve(miniappRoot, '../..');
-const matrixPath = path.join(e2eDir, 'visual-frame-matrix.json');
-const masksPath = path.join(e2eDir, 'approved-masks.json');
-const fixturesDir = path.join(e2eDir, 'visual-fixtures');
-const baselineDir = path.join(repoRoot, 'docs/specs/evidence/2026-09-16-h5-all-frames/browser');
-const artifactRoot = path.join(e2eDir, 'artifacts', 'visual-frames', new Date().toISOString().replace(/[:.]/g, '-'));
+
+function parseArgs(argv) {
+  const parsed = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (!arg.startsWith('--')) throw new Error(`unknown argument: ${arg}`);
+    const key = arg.slice(2);
+    const value = argv[index + 1];
+    if (!value || value.startsWith('--')) throw new Error(`missing value for ${arg}`);
+    parsed[key] = value;
+    index += 1;
+  }
+  return parsed;
+}
+
+function resolveOption(value, fallback) {
+  if (!value) return fallback;
+  return path.resolve(repoRoot, value);
+}
+
+const args = parseArgs(process.argv.slice(2));
+const matrixPath = resolveOption(args.matrix, path.join(e2eDir, 'visual-frame-matrix.json'));
+const matrix = readJson(matrixPath);
+const masksPath = resolveOption(args.masks, path.join(e2eDir, 'approved-masks.json'));
+const fixturesDir = resolveOption(args.fixtures, path.join(e2eDir, 'visual-fixtures'));
+const defaultBaselineDir = path.join(repoRoot, 'docs/specs/evidence/2026-09-16-h5-all-frames/browser');
+const matrixBaselineDir = matrix.baselineDir ? path.resolve(repoRoot, matrix.baselineDir) : defaultBaselineDir;
+const baselineDir = resolveOption(args.baseline, matrixBaselineDir);
+const matrixComponentBaselineDir = matrix.componentBaselineDir
+  ? path.resolve(repoRoot, matrix.componentBaselineDir)
+  : baselineDir;
+const componentBaselineDir = resolveOption(args.componentBaseline, matrixComponentBaselineDir);
+const runId = new Date().toISOString().replace(/[:.]/g, '-');
+const artifactRoot = path.join(
+  resolveOption(args.artifacts, path.join(e2eDir, 'artifacts', 'visual-frames')),
+  runId,
+);
+const viewport = matrix.viewport ?? { width: 375, height: 812 };
 const configuredApiPort = Number(process.env.VISUAL_FIXTURE_API_PORT || 3000);
 let activeApiPort = configuredApiPort;
-const defaultViewport = { width: 375, height: 812 };
+const defaultViewport = { width: viewport.width, height: viewport.height };
 const longViewport = { width: 375, height: 951 };
 const captureOnly = process.env.VISUAL_FRAME_CAPTURE_ONLY === 'true';
 const skipInteractions = captureOnly && process.env.VISUAL_FRAME_SKIP_INTERACTIONS === 'true';
@@ -88,30 +121,104 @@ function visualSessionResponse() {
   };
 }
 
+const PAYMENT_WRITE_PATTERN = /^\/api\/orders(?:\/[^/]+(?:\/prepay|\/mock-confirm)?)?$/;
+
 function createFixtureProxy(upstream, port) {
   let fixture = '';
+  let fixtureData = null;
   let pendingProfile = false;
   const held = new Set();
+  const requests = [];
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
     if (req.method === 'OPTIONS') return json(res, 204, {});
 
     if (req.method === 'POST' && url.pathname === '/__visual/set-fixture') {
       const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      fixtureData = body.data && typeof body.data === 'object' ? body.data : null;
       fixture = String(body.name || '');
-      pendingProfile = fixture === 'profile-loading';
+      pendingProfile = fixture === 'profile-loading' || Boolean(fixtureData?.pending?.length);
       return json(res, 200, { fixture, pendingProfile });
     }
     if (req.method === 'POST' && url.pathname === '/__visual/release') {
       pendingProfile = false;
-      for (const response of held) response();
+      for (const release of held) release();
       held.clear();
       return json(res, 200, { released: true });
     }
 
-    if (pendingProfile && req.method === 'GET' && ['/api/me', '/api/quota/balance', '/api/achievements'].includes(url.pathname)) {
-      await new Promise((resolve) => held.add(resolve));
-      return json(res, 200, {});
+    requests.push({ method: req.method, pathname: url.pathname, query: Object.fromEntries(url.searchParams.entries()) });
+
+    if (pendingProfile && req.method === 'GET') {
+      const pendingPaths = fixtureData?.pending ?? ['/api/me', '/api/quota/balance', '/api/achievements'];
+      if (pendingPaths.includes(url.pathname)) {
+        await new Promise((resolve) => held.add(resolve));
+        return json(res, 200, {});
+      }
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/scripts' && fixtureData) {
+      if (fixtureData.response?.scripts) return json(res, 200, { scripts: fixtureData.response.scripts });
+      if (fixtureData.scripts && !url.searchParams.get('q')) {
+        return json(res, 200, {
+          scripts: fixtureData.scripts.map((script, index) => ({
+            id: script.id,
+            title: script.title,
+            description: script.description ?? `${script.genre} · 待揭开的故事`,
+            slug: script.id,
+            genre: script.genre,
+            coverUrl: null,
+            sortOrder: index + 1,
+            supportsScriptMode: true,
+          })),
+        });
+      }
+    }
+    if (req.method === 'GET' && url.pathname === '/api/characters' && fixtureData?.characters) {
+      return json(res, 200, { characters: fixtureData.characters });
+    }
+    const characterMatch = url.pathname.match(/^\/api\/characters\/([^/]+)$/);
+    if (req.method === 'GET' && characterMatch && fixtureData?.character) {
+      if (decodeURIComponent(characterMatch[1]) === fixtureData.character.id) {
+        return json(res, 200, fixtureData.character);
+      }
+    }
+    if (req.method === 'GET' && url.pathname === '/api/chat/characters' && fixtureData?.response?.characters) {
+      return json(res, 200, {
+        characters: fixtureData.response.characters,
+        page: Number(url.searchParams.get('page') ?? 1),
+        limit: Number(url.searchParams.get('limit') ?? 20),
+        hasMore: false,
+      });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/chat/sessions' && fixtureData?.name === 'chat-empty') {
+      return json(res, 200, {
+        sessions: [],
+        page: Number(url.searchParams.get('page') ?? 1),
+        limit: Number(url.searchParams.get('limit') ?? 20),
+      });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/quota/packages' && fixtureData?.packages) {
+      return json(res, 200, { packages: fixtureData.packages });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/quota/balance' && Number.isFinite(fixtureData?.balancePoints)) {
+      return json(res, 200, { balancePoints: fixtureData.balancePoints });
+    }
+    if (req.method === 'GET' && characterMatch && fixtureData?.starters?.length) {
+      const upstreamUrl = new URL(url.pathname + url.search, upstream.baseUrl);
+      const response = await fetch(upstreamUrl, {
+        headers: { authorization: req.headers.authorization || '' },
+      });
+      const data = await response.json();
+      data.starterQuestions = {
+        script: data.starterQuestions?.script ?? [],
+        free: fixtureData.starters,
+      };
+      return json(res, 200, data);
+    }
+    const orderMatch = url.pathname.match(/^\/api\/orders\/([^/]+)$/);
+    if (req.method === 'GET' && orderMatch && fixtureData?.order) {
+      return json(res, 200, fixtureData.order);
     }
 
     if (req.method === 'GET' && url.pathname === '/api/chat/sessions/visual-chat-626/messages') {
@@ -138,6 +245,11 @@ function createFixtureProxy(upstream, port) {
   });
   return {
     fixture: () => fixture,
+    requests: () => requests,
+    assertNoPaymentWrites: () => {
+      const writes = requests.filter((entry) => entry.method === 'POST' && PAYMENT_WRITE_PATTERN.test(entry.pathname));
+      assert(writes.length === 0, `visual run wrote payment requests: ${JSON.stringify(writes)}`);
+    },
     listen: () => new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(port, '127.0.0.1', resolve);
@@ -146,11 +258,11 @@ function createFixtureProxy(upstream, port) {
   };
 }
 
-async function setFixture(proxy, name) {
+async function setFixture(proxy, name, data) {
   const response = await fetch(`http://127.0.0.1:${activeApiPort}/__visual/set-fixture`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, data }),
   });
   assert(response.ok, `could not select visual fixture ${name}`);
   assert(proxy.fixture() === name, `visual fixture did not settle: ${name}`);
@@ -159,11 +271,12 @@ async function setFixture(proxy, name) {
 async function clearStorage(miniProgram, state) {
   await miniProgram.callWxMethod('clearStorageSync');
   if (state === 'logged-in' || state === 'loading') {
-    await miniProgram.callWxMethod('setStorageSync', { key: 'auth_token', data: 'visual-token' });
-    await miniProgram.callWxMethod('setStorageSync', {
-      key: 'auth_user',
-      data: JSON.stringify({ id: 'dev-user', nickname: '开发调试用户', avatarUrl: null, preferredName: null }),
-    });
+    await miniProgram.callWxMethod('setStorageSync', 'auth_token', 'visual-token');
+    await miniProgram.callWxMethod(
+      'setStorageSync',
+      'auth_user',
+      JSON.stringify({ id: 'dev-user', nickname: '开发调试用户', avatarUrl: null, preferredName: null }),
+    );
   }
 }
 
@@ -173,20 +286,47 @@ async function openFrame(miniProgram, frame) {
   else await miniProgram.reLaunch(url);
   const page = await miniProgram.currentPage({ retries: 40, timeout: 60000 });
   assert(page.path === frame.route.split('?')[0], `${frame.frame}: expected ${frame.route.split('?')[0]}, got ${page.path}`);
-  await page.waitFor(frame.ready);
+  const preReady = frame.baseReady || frame.ready;
+  try {
+    await waitForSelector(page, preReady, 25000, frame.frame);
+  } catch (error) {
+    if (process.env.VISUAL_DEBUG_ON_ERROR) {
+      await miniProgram.screenshot({ path: `/tmp/${frame.frame.replace(':', '-')}-fail.png`, timeout: 30000 }).catch(() => undefined);
+    }
+    throw error;
+  }
+  if (frame.scrollTop === 0) await miniProgram.pageScrollTo(0);
   await sleep(500);
   return page;
 }
 
+async function waitForSelector(page, selector, timeoutMs, label) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const matches = await page.$$(selector).catch(() => []);
+    if (matches.length > 0) return matches[0];
+    await sleep(250);
+  }
+  throw new Error(`${label}: ready selector ${selector} not found within ${timeoutMs}ms`);
+}
+
 async function runInteraction(miniProgram, page, frame) {
   if (frame.search) {
-    const input = await page.$('.ui-search-bar__input');
-    assert(input, `${frame.frame}: search input missing`);
-    await input.tap();
-    await input.input(frame.search);
-    await sleep(900);
-    await miniProgram.callWxMethod('hideKeyboard');
-    await sleep(250);
+    let settled = false;
+    for (let attempt = 0; attempt < 3 && !settled; attempt += 1) {
+      const input = await page.$('.ui-search-bar__input');
+      assert(input, `${frame.frame}: search input missing`);
+      await input.tap();
+      await input.input(frame.search);
+      await sleep(900);
+      const matches = await page.$$(frame.ready).catch(() => []);
+      settled = matches.length > 0;
+    }
+    assert(settled, `${frame.frame}: search input did not settle on ${frame.ready}`);
+    if (frame.keyboard !== 'shown') {
+      await miniProgram.callWxMethod('hideKeyboard');
+      await sleep(250);
+    }
   }
   if (frame.focus === '.chat-input-bar') {
     const input = await page.$('.chat-input-bar__input');
@@ -280,15 +420,36 @@ function enforceVisualThreshold(frame, result) {
 function markdownSummary(report) {
   const lines = ['# Visual Frame Summary', '', `- Run: ${report.runId}`, `- API fixture port: ${report.apiPort}`, `- DevTools CLI: ${report.cliPath}`, `- System info: ${JSON.stringify(report.systemInfo)}`, ''];
   for (const item of report.frames) {
-    lines.push(`- ${item.frame}: ${item.ok ? 'PASS' : 'FAIL'}${item.metrics ? ` (MAE ${item.metrics.mae.toFixed(3)}, changed ${(item.metrics.changedRatio * 100).toFixed(2)}%)` : ''}`);
+    const wholeScreen = item.wholeScreenStatus ? ` [whole-screen ${item.wholeScreenStatus}]` : '';
+    lines.push(`- ${item.frame}${item.semanticName ? ` (${item.semanticName})` : ''}: ${item.ok ? 'PASS' : 'FAIL'}${item.metrics ? ` (MAE ${item.metrics.mae.toFixed(3)}, changed ${(item.metrics.changedRatio * 100).toFixed(2)}%)` : ''}${wholeScreen}`);
   }
   lines.push('');
   return `${lines.join('\n')}\n`;
 }
 
+function validateMatrixConfig(visualMatrix, masks) {
+  assert(Array.isArray(visualMatrix.frames) && visualMatrix.frames.length > 0, 'matrix.frames must be a non-empty array');
+  const seenFrames = new Set();
+  const seenNames = new Set();
+  for (const frame of visualMatrix.frames) {
+    assert(frame.frame && frame.semanticName, `matrix frame is missing frame/semanticName: ${JSON.stringify(frame)}`);
+    assert(!seenFrames.has(frame.frame), `duplicate matrix frame: ${frame.frame}`);
+    assert(!seenNames.has(frame.semanticName), `duplicate semanticName: ${frame.semanticName}`);
+    seenFrames.add(frame.frame);
+    seenNames.add(frame.semanticName);
+    assert(['shown', 'hidden'].includes(frame.keyboard), `${frame.frame}: keyboard must be shown or hidden`);
+    assert(frame.masks && Object.hasOwn(masks, frame.masks), `${frame.frame}: mask group missing: ${frame.masks}`);
+    const frameBaselineDir = frame.kind === 'component' ? componentBaselineDir : baselineDir;
+    assert(fs.existsSync(path.join(frameBaselineDir, frame.baseline)), `${frame.frame}: baseline missing: ${path.join(frameBaselineDir, frame.baseline)}`);
+    if (frame.kind === 'component') {
+      assert(frame.wholeScreenStatus === 'BLOCKED', `${frame.frame}: component frame must keep wholeScreenStatus=BLOCKED`);
+    }
+  }
+}
+
 async function main() {
-  const matrix = readJson(matrixPath);
   const masks = readJson(masksPath);
+  validateMatrixConfig(matrix, masks);
   assert(Number.isInteger(configuredApiPort) && configuredApiPort > 0, 'VISUAL_FIXTURE_API_PORT must be a positive integer');
   assert(fs.existsSync(path.join(miniappRoot, 'dist', 'app.json')), 'dist/app.json is missing; run build:weapp:visual-fixture first');
   fs.mkdirSync(path.join(artifactRoot, 'actual'), { recursive: true });
@@ -337,17 +498,32 @@ async function main() {
     }
 
     for (const frame of matrix.frames) {
-      const item = { frame: frame.frame, route: frame.route, fixture: frame.fixture, ok: false };
+      console.log(`[visual] start ${frame.frame} ${frame.route}`);
+      const item = {
+        frame: frame.frame,
+        semanticName: frame.semanticName,
+        kind: frame.kind ?? 'screen',
+        wholeScreenStatus: frame.wholeScreenStatus,
+        route: frame.route,
+        fixture: frame.fixture,
+        keyboard: frame.keyboard,
+        ok: false,
+      };
       report.frames.push(item);
       try {
         const fixturePath = path.join(fixturesDir, `${frame.fixture}.json`);
         assert(fs.existsSync(fixturePath), `${frame.frame}: fixture missing ${fixturePath}`);
         const fixture = readJson(fixturePath);
         assert(fixture.name === frame.fixture, `${frame.frame}: fixture name mismatch`);
-        await setFixture(proxy, frame.fixture);
+        await setFixture(proxy, frame.fixture, fixture);
         await clearStorage(miniProgram, frame.state);
         const page = await openFrame(miniProgram, frame);
         if (!skipInteractions) await runInteraction(miniProgram, page, frame);
+        await waitForSelector(page, frame.ready, 25000, `${frame.frame} post-interaction`);
+        if (process.env.VISUAL_DEBUG_SELECTOR) {
+          const debugMatches = await page.$$(process.env.VISUAL_DEBUG_SELECTOR).catch(() => []);
+          console.log(`[visual] debug ${frame.frame} ${process.env.VISUAL_DEBUG_SELECTOR} matches=${debugMatches.length}`);
+        }
         const actualPath = path.join(artifactRoot, 'actual', `${frame.frame}.png`);
         await captureFrame(miniProgram, page, frame, actualPath);
         const systemImage = decodePng(actualPath);
@@ -364,23 +540,36 @@ async function main() {
         }
         const viewport = getViewport(frame);
         assert(systemImage.width === viewport.width && systemImage.height === viewport.height, `${frame.frame}: screenshot must be ${viewport.width}x${viewport.height}, got ${systemImage.width}x${systemImage.height}`);
-        const baselinePath = path.join(baselineDir, frame.baseline);
+        const frameBaselineDir = frame.kind === 'component' ? componentBaselineDir : baselineDir;
+        const baselinePath = path.join(frameBaselineDir, frame.baseline);
         const diffPath = path.join(artifactRoot, 'diff', `${frame.frame}.png`);
-        const frameMasks = masks[frame.frame] || masks.default || [];
+        const frameMasks = masks[frame.masks || frame.frame] || masks.default || [];
         const metrics = compareVisualFrames({ actualPath, baselinePath, diffPath, masks: frameMasks });
         item.metrics = metrics;
         enforceVisualThreshold(frame, metrics);
         item.ok = true;
       } catch (error) {
         item.error = error instanceof Error ? error.message : String(error);
+        console.error(`[visual] error ${frame.frame}: ${item.error}`);
+      } finally {
+        console.log(`[visual] done ${frame.frame} ok=${item.ok}`);
       }
     }
   } catch (error) {
     fatalError = error instanceof Error ? error : new Error(String(error));
   } finally {
     if (miniProgram) await miniProgram.close();
+    report.paymentWrites = proxy.requests().filter((entry) => entry.method === 'POST' && PAYMENT_WRITE_PATTERN.test(entry.pathname));
+    report.requests = proxy.requests();
+    let paymentError = null;
+    try {
+      proxy.assertNoPaymentWrites();
+    } catch (error) {
+      paymentError = error instanceof Error ? error : new Error(String(error));
+    }
     await proxy.close();
     await upstream.close();
+    if (paymentError && !fatalError) fatalError = paymentError;
   }
 
   const reportPath = path.join(artifactRoot, 'report.json');

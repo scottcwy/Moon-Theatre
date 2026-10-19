@@ -7,7 +7,7 @@ const login = fs.readFileSync(path.join(__dirname, '../login/index.tsx'), 'utf8'
 
 describe('auth/profile visual frame contract', () => {
   it('keeps logged-in, logged-out, and loading states explicit', () => {
-    expect(profile).toContain('正在叩响梦境之门');
+    expect(profile).toContain('ProfileLoadingCard');
     expect(profile).toContain('needsLogin || !isLoggedIn()');
     expect(profile).toContain('profile__hero--signed-out');
   });

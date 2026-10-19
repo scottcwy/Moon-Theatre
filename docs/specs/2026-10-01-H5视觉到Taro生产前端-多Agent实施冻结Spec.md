@@ -7,6 +7,8 @@
 > 实施基线：`H5` 分支 `cd7afac`（H5 design-pilot 已完成的基线）
 > 冻结日期：2026-10-01
 
+> **部分取代（2026-10-20）**：`docs/specs/2026-10-19-第二份合同UI前端更新Spec.md` revision 3 取代本 Spec 的以下视觉状态：`1-863` 首页默认、`1-1164` 首页搜索、`1-387` 聊天空态、`1-1987` 个人页 loading，以及现有分享预览的视觉。`1-773`、`1-494`、`1-626`、`1-1657`、`1-2325`、`1-1766`、`1-1892`、`1-2080`、`1-2180` 保持本 Spec 基线。取代关系以 `docs/specs/README.md` §2.1 为准。
+
 ## 1. 文档口径与基线
 
 本 Spec 以 `cd7afac` 重新开始生产端迁移。当前工作不从历史生产组件迁移提交继续，也不把 H5 Playground 当作生产页面。
@@ -73,13 +75,13 @@ H5 设计已验证只代表 13 帧 Playground 的渲染完成。生产 Taro 页�
 | `1-2080` | `pages/chat/list` / 登录拦截、登录转跳 | logged-out | `IMPLEMENTED` |
 | `1-2180` | `pages/community/index` / 社区空态 | anonymous | `IMPLEMENTED` |
 
-配额、分享、脚本选择等已有业务路由保持功能，不在没有对应 H5 帧时自行扩展视觉范围。新增设计帧必须先更新本 Spec。
+配额、分享、脚本选择等已有业务路由保持功能。除第二份合同 Spec 明确覆盖的状态外，不在没有对应 H5 帧时自行扩展视觉范围；新增设计帧必须先更新对应 Spec。
 
 ## 5. 可直接执行的 13 帧验收矩阵
 
 ### 5.1 统一执行契约
 
-视觉验收由 `apps/miniapp/e2e/visual-frames.mjs` 执行，矩阵数据固定在 `apps/miniapp/e2e/visual-frame-matrix.json`，由验收 Agent 在实现阶段提交。执行命令为：
+视觉验收由 `apps/miniapp/e2e/visual-frames.mjs` 执行，矩阵数据固定在 `apps/miniapp/e2e/visual-frame-matrix.json`，由验收 Agent 在实现阶段提交。第二份合同使用独立 matrix/masks/fixtures/baseline，不覆盖本节默认值。执行命令为：
 
 ```bash
 pnpm --filter @juben-sha/miniapp build:weapp:visual-fixture
@@ -217,7 +219,7 @@ H5 design-pilot 是视觉基线；生产端必须用 Taro 页面复刻，不得�
 
 ## 11. 变更规则
 
-- 不得单独改变视觉事实源、13 帧映射、允许偏差、资源策略、所有权或合并顺序。
+- 除第二份合同 Spec 明确授权的帧外，不得单独改变视觉事实源、13 帧映射、允许偏差、资源策略、所有权或合并顺序。
 - 新增页面、设计帧、公共组件、共享模型或资源策略，必须先更新本 Spec，再创建 Agent 任务。
 - 任何与旧 H5 文档冲突的生产迁移口径，以本 Spec 为准；旧文档的 H5 截图、偏差清单和事实数据仍可作为证据引用。
 

@@ -1,0 +1,163 @@
+@use '../../styles/tokens.scss' as *;
+
+$quota-wine: #4a1020;
+$quota-gold: #c9a25e;
+$quota-paper: #f5ebdc;
+
+.quota-package-list {
+  padding: 0 40rpx;
+}
+
+.quota-package-list__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 168rpx;
+  margin-bottom: 20rpx;
+  padding: 24rpx 28rpx;
+  border: 2rpx solid $quota-gold;
+  border-radius: 18rpx;
+  background-color: $quota-paper;
+  color: #3a2228;
+}
+
+.quota-package-list__item--selected {
+  background: linear-gradient(135deg, #4a1020 0%, #611a2c 100%);
+  color: #fdf1e0;
+}
+
+.quota-package-list__index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68rpx;
+  height: 68rpx;
+  margin-right: 24rpx;
+  border: 2rpx solid currentColor;
+  border-radius: 50%;
+  opacity: 0.85;
+}
+
+.quota-package-list__index-text {
+  font-size: 24rpx;
+}
+
+.quota-package-list__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.quota-package-list__name-row {
+  display: flex;
+  align-items: center;
+}
+
+.quota-package-list__name {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.quota-package-list__badge {
+  margin-left: 12rpx;
+  padding: 2rpx 12rpx;
+  border-radius: 8rpx;
+  background-color: $quota-wine;
+  color: #fdf1e0;
+  font-size: 20rpx;
+}
+
+.quota-package-list__item--selected .quota-package-list__badge {
+  background-color: $quota-gold;
+  color: $quota-wine;
+}
+
+.quota-package-list__points-row {
+  display: flex;
+  align-items: baseline;
+  margin-top: 4rpx;
+}
+
+.quota-package-list__points {
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.quota-package-list__points-unit {
+  margin-left: 6rpx;
+  font-size: 22rpx;
+  opacity: 0.75;
+}
+
+.quota-package-list__desc {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  opacity: 0.62;
+}
+
+.quota-package-list__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: 16rpx;
+}
+
+.quota-package-list__price {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.quota-package-list__check {
+  width: 38rpx;
+  height: 38rpx;
+  margin-top: 26rpx;
+  border: 2rpx solid currentColor;
+  border-radius: 50%;
+  opacity: 0.45;
+}
+
+.quota-package-list__check--on {
+  border-color: $quota-gold;
+  background-color: $quota-gold;
+  opacity: 1;
+}
+
+.quota-package-list__footer {
+  margin-top: 24rpx;
+}
+
+.quota-package-list__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+  color: #5a4a4e;
+}
+
+.quota-package-list__summary-label {
+  font-size: 24rpx;
+}
+
+.quota-package-list__summary-value {
+  font-size: 24rpx;
+}
+
+.quota-package-list__buy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 92rpx;
+  border-radius: 16rpx;
+  background: linear-gradient(135deg, #4a1020 0%, #651b2d 100%);
+  box-shadow: 0 12rpx 28rpx rgba(58, 7, 24, 0.24);
+}
+
+.quota-package-list__buy--disabled {
+  opacity: 0.6;
+}
+
+.quota-package-list__buy-text {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #fdf1e0;
+}

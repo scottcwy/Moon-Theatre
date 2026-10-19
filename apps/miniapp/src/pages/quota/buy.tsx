@@ -1,17 +1,17 @@
-import { View, Text } from '@tarojs/components';
+import { ScrollView, Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useState, useEffect } from 'react';
 import {
-  BalancePanel,
-  BottomAction,
-  PageShell,
-  PrimaryButton,
-  QuotaPackageCard,
+  PaymentConfirmSheet,
+  QuotaBalanceHero,
+  QuotaPackageList,
   StatusStateCard,
+  TopBar,
 } from '@juben-sha/miniapp-ui';
 import type { QuotaPackage } from '../../types';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { navigateBackOrHome } from '../../utils/navigation';
 import './buy.scss';
 
 function formatPrice(cents: number): string {
@@ -47,6 +47,7 @@ export default function QuotaBuy() {
   const [selectedPkgId, setSelectedPkgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState('');
   const { needsLogin, requireAuth, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
 
@@ -67,6 +68,10 @@ export default function QuotaBuy() {
         if (!cancelled) {
           setPackages(pkgData.packages);
           setPointsBalance(balData.balancePoints);
+          if (pkgData.packages.length > 0) {
+            const preferred = pkgData.packages[0];
+            if (preferred) setSelectedPkgId(preferred.id);
+          }
           setLoading(false);
         }
       } catch (err) {
@@ -85,6 +90,16 @@ export default function QuotaBuy() {
 
   const handleSelect = (pkgId: string) => {
     setSelectedPkgId(pkgId);
+  };
+
+  const selectedPackage = packages.find((pkg) => pkg.id === selectedPkgId) ?? null;
+
+  const openConfirm = () => {
+    if (!selectedPackage) {
+      Taro.showToast({ title: '请选择额度包', icon: 'none' });
+      return;
+    }
+    setConfirmOpen(true);
   };
 
   const handlePay = async () => {
@@ -157,69 +172,101 @@ export default function QuotaBuy() {
     }
   };
 
+  const nav = (
+    <TopBar
+      className="buy__nav"
+      titleClassName="buy__nav-title"
+      title={<Text className="buy__nav-text">我的</Text>}
+      onBack={navigateBackOrHome}
+    />
+  );
+
   if (loading) {
     return (
-      <PageShell variant="scroll" bottomReserve>
-        <StatusStateCard title="正在读取额度包" message="正在加载点数余额和可购买套餐。" icon="…" />
-      </PageShell>
+      <View className="buy">
+        {nav}
+        <View className="buy__state">
+          <StatusStateCard title="正在读取额度包" message="正在加载点数余额和可购买套餐。" icon="…" />
+        </View>
+      </View>
     );
   }
 
   if (needsLogin) {
     return (
-      <PageShell variant="scroll" bottomReserve>
-        <StatusStateCard title="登录后购买点数" message="登录后可以创建订单并确认点数到账。" primaryText="去登录" onPrimary={goLogin} />
-      </PageShell>
+      <View className="buy">
+        {nav}
+        <View className="buy__state">
+          <StatusStateCard title="登录后购买点数" message="登录后可以创建订单并确认点数到账。" primaryText="去登录" onPrimary={goLogin} />
+        </View>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <PageShell variant="scroll" bottomReserve>
-        <StatusStateCard title="额度包暂时不可用" message={error} tone="error" icon="!" />
-      </PageShell>
+      <View className="buy">
+        {nav}
+        <View className="buy__state">
+          <StatusStateCard title="额度包暂时不可用" message={error} tone="error" icon="!" />
+        </View>
+      </View>
     );
   }
 
   return (
-    <PageShell variant="scroll" bottomReserve>
-      <Text className="page-title">购买点数</Text>
-      <Text className="page-subtitle">用于继续角色对话，不同模型档位会消耗不同点数。</Text>
-      <BalancePanel className="buy__balance" label="当前点数" value={pointsBalance ?? 0} unit="点" />
-
-      <View className="buy__packages">
-        {packages.map((pkg) => (
-          <QuotaPackageCard
-            key={pkg.id}
-            className="buy__package"
-            name={pkg.name}
-            points={pkg.points}
-            price={formatPrice(pkg.priceCents)}
-            description={pkg.description}
-            selected={selectedPkgId === pkg.id}
-            recommended={pkg.recommended}
-            onTap={() => handleSelect(pkg.id)}
+    <View className="buy">
+      {nav}
+      <ScrollView className="buy__scroll" scrollY enhanced showScrollbar={false}>
+        <QuotaBalanceHero
+          balancePoints={pointsBalance}
+          kicker="我的"
+          title="为今夜，再续一盏"
+          subtitle="添一缕灯火，让未完的故事继续。"
+        />
+        <View className="buy__body">
+          <QuotaPackageList
+            packages={packages}
+            selectedId={selectedPkgId}
+            onSelect={handleSelect}
+            balancePoints={pointsBalance}
           />
-        ))}
+          <Text className="buy__notice">① 点数用于角色对话</Text>
+          <Text className="buy__fineprint">不同模型档位消耗不同点数，具体以对话页显示为准。</Text>
+          <View className="buy__scroll-tail" />
+        </View>
+      </ScrollView>
+      <View className="buy__bottom">
+        <View className="buy__summary">
+          <Text className="buy__summary-label">已选 {selectedPackage ? selectedPackage.name : '—'}</Text>
+          <Text className="buy__summary-value">{selectedPackage ? `到账 ${selectedPackage.points} 点` : ''}</Text>
+        </View>
+        <View className={`buy__pay-btn${paying ? ' buy__pay-btn--disabled' : ''}`} onTap={paying ? undefined : openConfirm}>
+          <Text className="buy__pay-text">
+            {paying ? '处理中…' : `确认支付${selectedPackage ? ` - ${formatPrice(selectedPackage.priceCents)}` : ''}`}
+          </Text>
+        </View>
+        <Text className="buy__bottom-note">支付成功后立即到账，如有问题请联系客服</Text>
       </View>
-
-      <Text className="buy__notice">
-        支付成功后点数将立即到账，如有问题请联系客服
-      </Text>
-
-      <BottomAction>
-        <PrimaryButton
-          className="buy__pay-btn"
-          disabled={paying}
-          onTap={paying ? undefined : handlePay}
-        >
-          {paying ? '处理中…' : '确认支付'}
-        </PrimaryButton>
-      </BottomAction>
-    </PageShell>
+      <PaymentConfirmSheet
+        visible={confirmOpen && Boolean(selectedPackage)}
+        packageName={selectedPackage?.name ?? ''}
+        points={selectedPackage?.points ?? 0}
+        amountCents={selectedPackage?.priceCents ?? 0}
+        balanceAfterPoints={(pointsBalance ?? 0) + (selectedPackage?.points ?? 0)}
+        paying={paying}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void handlePay();
+        }}
+      />
+    </View>
   );
 }
 
 definePageConfig({
-  navigationBarTitleText: '购买点数',
+  navigationStyle: 'custom',
+  backgroundColor: '#E4D7C5',
+  backgroundTextStyle: 'light',
 });

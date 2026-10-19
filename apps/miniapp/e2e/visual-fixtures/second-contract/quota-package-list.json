@@ -1,0 +1,11 @@
+{
+  "name": "quota-package-list",
+  "auth": "logged-in",
+  "route": "pages/quota/buy",
+  "balancePoints": 999,
+  "packages": [
+    {"id": "trial", "name": "体验包", "points": 60, "priceCents": 600, "description": "初次相逢，浅尝一段故事", "recommended": false},
+    {"id": "standard", "name": "标准包", "points": 200, "priceCents": 1800, "description": "灯火正好，让故事继续", "recommended": true},
+    {"id": "immersive", "name": "沉浸包", "points": 450, "priceCents": 3800, "description": "长夜相伴，尽兴入戏", "recommended": false}
+  ]
+}

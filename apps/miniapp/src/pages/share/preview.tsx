@@ -1,7 +1,7 @@
 import { View, Canvas } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useEffect, useState } from 'react';
-import { BottomAction, createBondViewModel, PrimaryButton, SHARE_IDENTITY_FALLBACK, SharePreviewCard, TonalButton } from '@juben-sha/miniapp-ui';
+import { BottomAction, createBondViewModel, PrimaryButton, SHARE_IDENTITY_FALLBACK, SharePreviewCard, TonalButton, TopBar } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
 import { FALLBACK_SHARE_EXCERPT, getShareExcerpt } from './preview.model';
@@ -106,7 +106,7 @@ export default function SharePreview() {
     ctx.setFontSize(22);
     ctx.fillText('月满楼', 64, 728);
     ctx.setFillStyle('rgba(255,255,255,0.58)');
-    ctx.fillText('扫码加入故事 · AI 生成内容', 64, 762);
+    ctx.fillText('月满楼 · AI 生成内容', 64, 762);
 
     return ctx;
   };
@@ -192,7 +192,21 @@ export default function SharePreview() {
 
   return (
     <View className="share-preview-page">
-      <SharePreviewCard characterName={displayName} excerpt={excerpt} bondLevel={bondViewModel.level} identity={displayIdentity} onClose={navigateBackOrHome} />
+      <TopBar
+        className="share-preview-page__nav"
+        titleClassName="share-preview-page__nav-title"
+        title="分享预览"
+        onBack={navigateBackOrHome}
+      />
+      <View className="share-preview-page__body">
+        <SharePreviewCard
+          characterName={displayName}
+          excerpt={excerpt}
+          identity={displayIdentity}
+          onClose={navigateBackOrHome}
+          showQr={typeof VISUAL_FIXTURES !== 'undefined' && VISUAL_FIXTURES}
+        />
+      </View>
 
       <BottomAction variant="dark">
         <View className="share-preview-page__actions">

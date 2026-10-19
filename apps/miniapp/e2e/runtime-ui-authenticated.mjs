@@ -43,9 +43,8 @@ const PAGE_CHECKS = [
       { label: 'home script search', selectors: ['.theater-home__script-search'] },
       { label: 'home script scroll', selectors: ['.theater-home__script-scroll'] },
       { label: 'home script card', selectors: ['.theater-home__hero-card'] },
-      { label: 'home next section on first screen', selectors: ['.theater-home__character-section'] },
-      { label: 'home character grid', selectors: ['.theater-home__grid'] },
-      { label: 'home character poster', selectors: ['.theater-home__poster-card'] },
+      { label: 'home next section on first screen', selectors: ['.theater-home__script-list'] },
+      { label: 'home script list row', selectors: ['.theater-home__script-row'] },
     ],
     nonOverlap: [
       { label: 'home topbar/hero', a: '.theater-home__topbar-shell', b: '.theater-home__hero-section' },
@@ -65,7 +64,7 @@ const PAGE_CHECKS = [
         },
       },
       {
-        label: 'gallery cards show title and CTA (no description), and script-mode switch lives below the hero',
+        label: 'gallery cards show title, description and CTA, and script mode sits above the search bar',
         run: async (page) => {
           const switches = await page.$$('.theater-home__mode-switch');
           if (switches.length !== 1) {
@@ -77,8 +76,8 @@ const PAGE_CHECKS = [
           }
           const descs = await page.$$('.theater-home__hero-desc');
           const actions = await page.$$('.theater-home__primary-action');
-          if (descs.length > 0) {
-            throw new Error(`gallery cards must not render descriptions (desc=${descs.length})`);
+          if (descs.length !== titles.length) {
+            throw new Error(`expected one description per gallery card (descs=${descs.length}, titles=${titles.length})`);
           }
           if (actions.length !== titles.length) {
             throw new Error(`expected one CTA per gallery card (actions=${actions.length}, titles=${titles.length})`);
@@ -598,16 +597,15 @@ const PAGE_CHECKS = [
     name: 'auth-quota-buy',
     route: 'pages/quota/buy',
     open: 'reLaunch',
-    ready: ['.page-shell'],
+    ready: ['.quota-package-list'],
     settleMs: 1200,
     required: [
-      { label: 'quota buy shell', selectors: ['.page-shell'] },
-      { label: 'quota package list', selectors: ['.buy__packages'] },
-      { label: 'quota package card', selectors: ['.buy__package'] },
+      { label: 'quota buy shell', selectors: ['.buy'] },
+      { label: 'quota package list', selectors: ['.quota-package-list'] },
+      { label: 'quota package card', selectors: ['.quota-package-list__item'] },
       { label: 'quota pay button', selectors: ['.buy__pay-btn'] },
     ],
     optionalBottom: [
-      { label: 'quota buy bottom action', selector: '.bottom-action' },
       { label: 'quota buy pay button', selector: '.buy__pay-btn' },
     ],
   },
@@ -616,11 +614,11 @@ const PAGE_CHECKS = [
     route: 'pages/quota/result?orderId=order-seeded',
     expectedPath: 'pages/quota/result',
     open: 'reLaunch',
-    ready: ['.page-shell'],
+    ready: ['.result'],
     settleMs: 1000,
     required: [
-      { label: 'quota result shell', selectors: ['.page-shell'] },
-      { label: 'payment result card', selectors: ['.payment-result-card'] },
+      { label: 'quota result shell', selectors: ['.result'] },
+      { label: 'payment result panel', selectors: ['.payment-result-panel'] },
     ],
   },
 ];
@@ -646,11 +644,11 @@ const INTERACTION_CHECKS = [
     route: 'pages/quota/buy',
     expectedPath: 'pages/quota/buy',
     open: 'reLaunch',
-    ready: ['.buy__package'],
+    ready: ['.quota-package-list__item'],
     settleMs: 1200,
     run: completeMockCheckout,
     required: [
-      { label: 'checkout result card', selectors: ['.payment-result-card'] },
+      { label: 'checkout result panel', selectors: ['.payment-result-panel'] },
     ],
   },
 ];
@@ -1105,16 +1103,19 @@ async function switchFreeHistoryToEmptyScript(_miniProgram, page) {
 }
 
 async function completeMockCheckout(miniProgram, page) {
-  const packages = await page.$$('.buy__package');
+  const packages = await page.$$('.quota-package-list__item');
   assert(packages.length > 0, 'Expected at least one quota package');
   await packages[0].tap();
   await page.waitFor(300);
 
   const payButton = await waitForSelector(page, '.buy__pay-btn');
   await payButton.tap();
+  await waitForSelector(page, '.payment-confirm-sheet', 5000);
+  const confirmButton = await waitForSelector(page, '.payment-confirm-sheet__confirm', 5000);
+  await confirmButton.tap();
 
   const resultPage = await waitForCurrentPath(miniProgram, 'pages/quota/result', 15000);
-  await waitForSelector(resultPage, '.payment-result-card', 15000);
+  await waitForSelector(resultPage, '.payment-result-panel', 15000);
   return resultPage;
 }
 
