@@ -59,7 +59,12 @@ describe('UI detail polish contract', () => {
   });
 
   it('uses custom navigation on the dark full-screen pages', () => {
-    for (const page of [readPage('login/index.tsx'), readPage('profile/index.tsx'), readPage('share/preview.tsx')]) {
+    for (const page of [
+      readPage('login/index.tsx'),
+      readPage('profile/index.tsx'),
+      readPage('share/preview.tsx'),
+      readPage('script/select.tsx'),
+    ]) {
       expect(page).toContain("navigationStyle: 'custom'");
     }
   });
