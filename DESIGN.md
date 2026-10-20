@@ -91,7 +91,7 @@
 - `PageShell` / `PageContainer`：tab 页只消费统一 `$tabbar-reserve`；非 tab 页不预留 tabbar 高度。
 - `StatusStateCard`：支持 `surface="light" | "dark"`；聊天页全部使用 dark。
 - `CharacterHeader`：必须使用数据驱动 `backgroundImage`；不再渲染固定在线点。
-- `CharacterDetailHero`：使用角色动态 hero；返回键使用 `--topbar-status-height`；不写死角色图或在线 badge。
+- `CharacterDetailHero`：使用角色动态 hero；返回键使用 `--topbar-status-height`；信息面板按 `1:1657` 左右内缩 18px、左上切角；不写死角色图、在线 badge 或 neutral 情绪胶囊；世界观卡位于面板内。
 - `ChatInputBar`：安全区使用 `$safe-bottom` fallback；placeholder 用深色主题类；发送按钮用 CSS 图标。
 - `SearchBar`：清除按钮用 CSS 标记；清空后恢复全量列表。
 - `SharePreviewCard`：关闭按钮用 CSS 标记；“立即分享”走分享菜单，失败/不支持时降级保存；QR 只进 fixture，生产在真实 QR 契约前不显示“扫码加入故事”。

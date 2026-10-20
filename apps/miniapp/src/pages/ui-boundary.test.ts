@@ -79,7 +79,7 @@ describe('production pages use shared miniapp ui', () => {
     expect(detailPage).toContain('CharacterDetailHero');
     expect(detailPage).toContain('BottomAction');
     expect(detailPage).toContain('PrimaryButton');
-    expect(detailPage).toContain('PageSection');
+    expect(detailPage).toContain('worldView=');
     expect(detailPage).toContain('createBondViewModel');
     expect(detailPage).toContain('buildCharacterChatUrl');
     expect(detailPage).toContain('进入剧本');

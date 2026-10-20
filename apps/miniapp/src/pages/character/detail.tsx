@@ -1,11 +1,10 @@
-import { Text, View } from '@tarojs/components';
+import { View } from '@tarojs/components';
 import Taro, { useDidShow, useRouter } from '@tarojs/taro';
 import { useCallback, useRef, useState } from 'react';
 import {
   BottomAction,
   CharacterDetailHero,
   createBondViewModel,
-  PageSection,
   PageShell,
   PrimaryButton,
   StatusStateCard,
@@ -14,7 +13,7 @@ import {
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api, isApiError } from '../../services/api';
 import { getCharacterGender } from '../../services/character-gender';
-import type { ChatMode, MoodType, StarterQuestions } from '../../types';
+import type { ChatMode, StarterQuestions } from '../../types';
 import { navigateBackOrHome } from '../../utils/navigation';
 import { getCharacterAvatarUrl } from '../home/index.model';
 import { buildCharacterChatUrl, getCharacterDefaultMode } from './detail.model';
@@ -52,8 +51,6 @@ export default function CharacterDetail() {
   const [error, setError] = useState('');
   const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
   const loadIdRef = useRef(0);
-
-  const [mood] = useState<MoodType>('neutral');
 
   const fetchCharacter = useCallback(async () => {
     const loadId = loadIdRef.current + 1;
@@ -157,17 +154,12 @@ export default function CharacterDetail() {
         avatarUrl={getCharacterAvatarUrl(character.name, character.avatarUrl, getCharacterGender(character.name))}
         relationship={character.initialRelationship}
         bond={bondViewModel}
-        mood={mood}
+        worldView={character.script ? {
+          description: character.script.description,
+          worldSetting: character.script.worldSetting,
+        } : null}
         onBack={navigateBackOrHome}
       />
-      {character.script && (
-        <PageSection title="世界观" kicker={character.script.title} surface className="detail__section detail__section--script">
-          <Text className="detail__description" userSelect>{character.script.description}</Text>
-          <Text className="detail__description detail__description--muted" userSelect>
-            {character.script.worldSetting}
-          </Text>
-        </PageSection>
-      )}
 
       <BottomAction>
         <View className="detail__actions">
