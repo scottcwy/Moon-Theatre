@@ -8,10 +8,12 @@
 |---|---|---|
 | 小程序运行图片 | `apps/miniapp/src/assets/` | 是 |
 | H5 pilot 图片 | `apps/miniapp/playground/` | 否 |
-| Logo 源文件与导出说明 | `brand-assets/` | 否 |
-| 剧本原始素材与调研资料 | `流氓叙事/`、`芸芸素材/` | 否 |
+| Logo 源文件与导出说明 | `docs/assets/brand-assets/` | 否 |
+| 剧本原始素材与调研资料 | `docs/assets/reference/流氓叙事/`、`docs/assets/reference/芸芸素材/` | 否 |
 | 设计比对证据 | `docs/specs/evidence/` | 否 |
 | E2E 生成产物 | `apps/miniapp/e2e/artifacts/` | 否，已由 Git 忽略 |
+
+`docs/assets/reference/` 是本地参考素材，已由 Git 忽略；干净克隆中不包含这些源图。
 
 ## 目录职责
 
@@ -33,9 +35,9 @@
 
 角色与封面来源、尺寸和压缩说明：
 
-- `characters/` 以 600×600 JPG 方形头像为主，源图来自官方角色海报或本地占位图；程聿怀、羌青瓷的性别变体按选角结果切换。完整源图位于 `流氓叙事/`、`芸芸素材/`。
-- `home/moon-tower-cover.jpg` 来自《流氓叙事》主海报；`home/yunyun-cover.jpg` 来自 `芸芸素材/00_主视觉封面_沧海浮尘.png`。
-- `logo/logo-icon-480.png` 是聊天列表页运行文件；完整 Logo 源文件与导出尺寸见 `brand-assets/README.md`。
+- `characters/` 以 600×600 JPG 方形头像为主，源图来自官方角色海报或本地占位图；程聿怀、羌青瓷的性别变体按选角结果切换。完整源图位于 `docs/assets/reference/流氓叙事/`、`docs/assets/reference/芸芸素材/`。
+- `home/moon-tower-cover.jpg` 来自《流氓叙事》主海报；`home/yunyun-cover.jpg` 来自 `docs/assets/reference/芸芸素材/00_主视觉封面_沧海浮尘.png`。
+- `logo/logo-icon-480.png` 是聊天列表页运行文件；完整 Logo 源文件与导出尺寸见 `docs/assets/brand-assets/README.md`。
 
 ## 图标规范（`icons/`）
 

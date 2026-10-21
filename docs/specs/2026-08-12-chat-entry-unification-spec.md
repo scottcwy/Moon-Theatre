@@ -90,7 +90,7 @@
 
 ### 4.5 Logo（E）
 
-- 将 `brand-assets/` 中选定素材（建议 `logo-icon-480.png`，待用户确认图标/字标）回填 `apps/miniapp/src/assets/logo/`。
+- 将 `docs/assets/brand-assets/` 中选定素材（建议 `logo-icon-480.png`，待用户确认图标/字标）回填 `apps/miniapp/src/assets/logo/`。
 - `chat/list.tsx` `ChatListHeader`：`<Image src>` 由 `/assets/home/moon-tower-cover.jpg` 改为新 Logo 路径（`mode="aspectFit"` 视素材调整）。
 - 主包体积复核（§6.3）。
 
