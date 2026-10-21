@@ -1,0 +1,13 @@
+{
+  "name": "share-preview",
+  "auth": "logged-in",
+  "route": "pages/share/preview?characterId=chengyuhuai",
+  "character": {
+    "id": "chengyuhuai",
+    "name": "程聿怀",
+    "identity": "记者",
+    "description": "千禧年架空都市背景下，六个被命运裹挟的“流氓”在布雷诺的权力与谎言中挣扎……",
+    "script": {"title": "长夜书", "description": "千禧年架空都市背景下，六个被命运裹挟的“流氓”在布雷诺的权力与谎言中挣扎……"},
+    "relationship": {"bondLevel": 3, "bondExp": 120}
+  }
+}

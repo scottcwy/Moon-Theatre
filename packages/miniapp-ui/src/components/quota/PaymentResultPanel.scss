@@ -1,0 +1,112 @@
+@use '../../styles/tokens.scss' as *;
+
+$result-wine: #4a1020;
+$result-gold: #c9a25e;
+
+.payment-result-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40rpx 40rpx 24rpx;
+  background-color: #f5ebdc;
+}
+
+.payment-result-panel--pending {
+  min-height: 754rpx;
+  justify-content: flex-start;
+  padding-top: 64rpx;
+  border-radius: 32rpx 32rpx 0 0;
+}
+
+.payment-result-panel__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76rpx;
+  height: 76rpx;
+  border: 2rpx solid $result-gold;
+  border-radius: 50%;
+}
+
+.payment-result-panel__icon-text {
+  font-size: 36rpx;
+  color: $result-gold;
+}
+
+.payment-result-panel__title {
+  margin-top: 24rpx;
+  font-size: 40rpx;
+  letter-spacing: 2rpx;
+  color: #3a2228;
+}
+
+.payment-result-panel__message {
+  margin-top: 14rpx;
+  font-size: 22rpx;
+  line-height: 1.6;
+  text-align: center;
+  color: #7b6660;
+}
+
+.payment-result-panel__detail {
+  align-self: stretch;
+  margin-top: 30rpx;
+  padding: 16rpx 32rpx;
+  border: 2rpx solid rgba(201, 162, 94, 0.55);
+  border-radius: 18rpx;
+  background-color: #f8f0e4;
+}
+
+.payment-result-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56rpx;
+}
+
+.payment-result-panel__label {
+  font-size: 24rpx;
+  color: #8c766e;
+}
+
+.payment-result-panel__value {
+  font-size: 24rpx;
+  color: #3a2228;
+}
+
+.payment-result-panel__pending-points {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #8c766e;
+}
+
+.payment-result-panel__primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  height: 88rpx;
+  margin-top: 36rpx;
+  border-radius: 14rpx;
+  background-color: $result-wine;
+}
+
+.payment-result-panel__primary-text {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #fdf1e0;
+}
+
+.payment-result-panel__secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  height: 72rpx;
+  margin-top: 4rpx;
+}
+
+.payment-result-panel__secondary-text {
+  font-size: 26rpx;
+  color: #8c766e;
+}

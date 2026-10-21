@@ -1,49 +1,45 @@
 @use '../../styles/tokens.scss' as *;
 
 .bond-progress {
-  border-radius: $radius-lg;
-  padding: $space-5;
-  background-color: #f6f0ed;
-  box-sizing: border-box;
+  margin-top: 44rpx;
 }
 
 .bond-progress__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.bond-progress__label,
-.bond-progress__hint {
-  display: block;
-  font-size: $font-label-md;
-  color: $color-on-surface-variant;
+  gap: $space-3;
 }
 
 .bond-progress__relationship {
-  display: block;
-  margin-top: $space-1;
-  font-size: 42rpx;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #f8e7d1;
+  font-size: 40rpx;
   line-height: 1.2;
   font-weight: 700;
-  color: #2d2527;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bond-progress__badge {
+  flex-shrink: 0;
+  border: 1rpx solid rgba(201, 162, 94, 0.8);
+  background-color: rgba(124, 39, 66, 0.92);
+  color: #f6dfc2;
 }
 
 .bond-progress__track {
-  height: 14rpx;
-  margin-top: $space-5;
+  height: 10rpx;
+  margin-top: 14rpx;
   border-radius: $radius-full;
-  background-color: #e6e0dd;
+  background-color: rgba(255, 244, 228, 0.2);
   overflow: hidden;
 }
 
 .bond-progress__bar {
   height: 100%;
   border-radius: $radius-full;
-  background-color: #7f294a;
-}
-
-.bond-progress__hint {
-  margin-top: $space-3;
-  text-align: right;
+  background-color: #d9b278;
 }

@@ -1,0 +1,23 @@
+{
+  "name": "chat-list-search-results",
+  "auth": "logged-in",
+  "route": "pages/chat/list",
+  "query": "月",
+  "response": {
+    "characters": [
+      {
+        "characterId": "tsukishima-rin",
+        "characterName": "月岛澪",
+        "characterAvatarUrl": "/assets/characters/mio.jpg",
+        "latestSessionId": "visual-session-rin",
+        "lastUsedMode": "free",
+        "lastMessage": "文案文案文案文案文案文案文案文案文案文案文案文案……",
+        "updatedAt": "2026-08-14T10:00:00.000Z",
+        "canSend": true
+      }
+    ],
+    "page": 1,
+    "limit": 20,
+    "hasMore": false
+  }
+}

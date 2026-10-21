@@ -38,9 +38,9 @@ const PAGE_CHECKS = [
     required: [
       { label: 'home content', selectors: ['.theater-home__content'] },
       { label: 'home hero section', selectors: ['.theater-home__hero-section'] },
-      { label: 'home script strip or empty state', selectors: ['.theater-home__script-scroll', '.theater-home__empty'] },
-      { label: 'home next section on first screen', selectors: ['.theater-home__character-section'] },
-      { label: 'home primary action or empty state', selectors: ['.theater-home__primary-action', '.theater-home__empty'] },
+      { label: 'home script strip or empty state', selectors: ['.theater-home__script-scroll', '.theater-home__script-state'] },
+      { label: 'home next section on first screen', selectors: ['.theater-home__character-section', '.theater-home__script-list'] },
+      { label: 'home primary action or empty state', selectors: ['.theater-home__primary-action', '.theater-home__script-state'] },
     ],
     nonOverlap: [
       { label: 'home topbar/hero', a: '.theater-home__topbar-shell', b: '.theater-home__hero-section' },
@@ -113,14 +113,13 @@ const PAGE_CHECKS = [
     name: 'quota-buy',
     route: 'pages/quota/buy',
     open: 'reLaunch',
-    ready: ['.page-shell'],
+    ready: ['.buy'],
     settleMs: 800,
     required: [
-      { label: 'quota buy shell', selectors: ['.page-shell'] },
-      { label: 'quota buy state or package list', selectors: ['.status-state-card', '.buy__packages'] },
+      { label: 'quota buy shell', selectors: ['.buy'] },
+      { label: 'quota buy state or package list', selectors: ['.status-state-card', '.quota-package-list'] },
     ],
     optionalBottom: [
-      { label: 'quota buy bottom action', selector: '.bottom-action' },
       { label: 'quota buy pay button', selector: '.buy__pay-btn' },
     ],
   },
@@ -128,11 +127,11 @@ const PAGE_CHECKS = [
     name: 'quota-result',
     route: 'pages/quota/result',
     open: 'reLaunch',
-    ready: ['.page-shell'],
+    ready: ['.result'],
     settleMs: 500,
     required: [
-      { label: 'quota result shell', selectors: ['.page-shell'] },
-      { label: 'quota result state or card', selectors: ['.status-state-card', '.payment-result-card'] },
+      { label: 'quota result shell', selectors: ['.result'] },
+      { label: 'quota result state or panel', selectors: ['.status-state-card', '.payment-result-panel'] },
     ],
   },
   {

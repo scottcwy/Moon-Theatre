@@ -1,9 +1,11 @@
-# 版本说明：v1.1 聊天体验（origin/main 合并后现状）
+# 版本说明：v1.1 聊天体验（2026-08-10 历史快照）
+
+> **HISTORICAL SNAPSHOT（2026-08-10）**：本文档不是当前状态。当前工作分支为 `H5`（最新提交 `1047c5b`）；当前视觉以 H5 视觉 Spec / UI 打磨 Spec 为准，当前部署以 `docs/deployment.md` 为准。本文仅保留 2026-08-10 的版本快照。
 
 > 生成日期：2026-08-10 · 依据：`git log` / `rg` 对照代码实测 + 全量测试结果，非愿景文档。
 > 主线：`origin/main`（HEAD `c2fb863`，2026-08-10），已含 dev 与 module 3~7 合入。
 
-> **2026-08-10 事实更新（本文件为快照文档，以下为最新状态）**
+> **2026-08-10 事实更新（本文件为快照文档，以下为 2026-08-10 快照状态，不是当前状态）**
 > - `origin/main` HEAD 已推进至 `7d54a96`（merge: audit batches A–E into main），已包含 V1.1 聊天体验、回访留言、脚本目录、稳定用户错误码等全部功能线；本文档第 1/4 节关于 dev vs main 的“合入冲突清单”已随 A–E 合入解决，不再作为待办。
 > - 本地 `main` 分支为 `79ac49b`（在 `7d54a96` 之上叠加 review P1-1/P2-1..4 修复：`Dockerfile.go → Dockerfile.minimal`、`internal/setup/web/index.html` 落盘、`0008` 迁移 `ADD COLUMN IF NOT EXISTS`、用户分页 NaN 修复、admin/stream 稳定错误码收敛、`character-summary-service` 查询优化），领先 `origin/main` 尚未推送。
 > - 第 6 节验证命令中 `rtk go test ./...` 已在当前 main 上可执行（P1-1 修复后）。

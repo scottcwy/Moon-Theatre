@@ -11,10 +11,12 @@ import {
   PageShell,
   PointsBadge,
   PrimaryButton,
+  ProfileLoadingCard,
   StatusStateCard,
   TonalButton,
 } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
+import { StageTabBar } from '../../components/StageTabBar';
 import { api, clearAuth, isApiError, isLoggedIn, setUser } from '../../services/api';
 import {
   getPreferredNameError,
@@ -195,8 +197,10 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <PageShell variant="scroll" tabBarReserve className="profile">
-        <StatusStateCard title="正在读取资料" message="正在加载点数、称号和成就。" icon="…" />
+      <PageShell variant="scroll" tabBarReserve className="profile profile--loading">
+        <View className="profile__topbar"><Text>我的</Text></View>
+        <ProfileLoadingCard />
+        <StageTabBar selected="/pages/profile/index" />
       </PageShell>
     );
   }
@@ -204,6 +208,7 @@ export default function Profile() {
   if (needsLogin || !isLoggedIn()) {
     return (
       <PageShell variant="scroll" tabBarReserve className="profile">
+        <View className="profile__topbar"><Text>我的</Text></View>
         <View className="profile__hero profile__hero--signed-out">
           <View className="profile__hero-main">
             <CharacterAvatar name="?" size="lg" />
@@ -218,15 +223,17 @@ export default function Profile() {
         </View>
 
         {aiNotice}
+        <StageTabBar selected="/pages/profile/index" />
       </PageShell>
     );
   }
 
   return (
     <PageShell variant="scroll" tabBarReserve className="profile">
+      <View className="profile__topbar"><Text>我的</Text></View>
       <View className="profile__hero">
         <View className="profile__hero-main">
-          <CharacterAvatar name={displayName} src={profile?.avatarUrl || undefined} size="lg" online />
+          <CharacterAvatar name={displayName} src={profile?.avatarUrl || undefined} size="lg" />
           <View className="profile__identity">
             <View className="profile__name-line">
               {editingPreferredName ? (
@@ -256,7 +263,7 @@ export default function Profile() {
                   <IconButton
                     className="profile__name-edit"
                     label="编辑对话称呼"
-                    icon="✎"
+                    icon={<View className="ui-pencil" />}
                     tone="tonal"
                     onTap={handleEditPreferredName}
                   />
@@ -347,10 +354,14 @@ export default function Profile() {
           退出登录
         </TonalButton>
       </View>
+      <StageTabBar selected="/pages/profile/index" />
     </PageShell>
   );
 }
 
 definePageConfig({
   navigationBarTitleText: '我的',
+  navigationStyle: 'custom',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });

@@ -6,6 +6,7 @@ describe('V1 tab bar configuration', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.stubGlobal('defineAppConfig', (config: AppConfig) => config);
+    vi.stubEnv('VISUAL_FIXTURES', 'false');
   });
 
   it('exposes community as the third tab', async () => {
@@ -20,6 +21,7 @@ describe('V1 tab bar configuration', () => {
       'pages/profile/index',
     ]);
     expect(tabTexts).toEqual(['首页', '聊天', '社区', '我的']);
+    expect((appConfig.tabBar as { custom?: boolean } | undefined)?.custom).toBe(true);
   });
 
   it('gives the community tab its own icon instead of reusing the memory glyph', async () => {
@@ -42,5 +44,16 @@ describe('V1 tab bar configuration', () => {
     expect(appConfig.window?.backgroundColor).toBe('#FFFBF8');
     expect(appConfig.window?.backgroundTextStyle).toBe('dark');
     expect(appConfig.tabBar?.borderStyle).toBe('white');
+  });
+
+  it('registers the visual fixture page only when VISUAL_FIXTURES is enabled', async () => {
+    vi.stubEnv('VISUAL_FIXTURES', 'true');
+    const { default: appConfig } = await import('./app.config');
+    expect(appConfig.pages).toContain('pages/quota/visual-fixture/index');
+  });
+
+  it('keeps the visual fixture page out of the production route list', async () => {
+    const { default: appConfig } = await import('./app.config');
+    expect(appConfig.pages).not.toContain('pages/quota/visual-fixture/index');
   });
 });

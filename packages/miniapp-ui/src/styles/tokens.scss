@@ -64,11 +64,33 @@ $status-bar-height: 44px;
 $capsule-height: 32px;
 $topbar-height: 92px;
 $tabbar-height: 100rpx;
+$tabbar-visual-height: 135rpx;
+$tabbar-reserve: 160rpx;
 $page-padding-h: 32rpx;
 $page-padding-bottom: 220rpx;
+$touch-target-min: 88rpx;
 
 $z-topbar: 100;
 $z-bottom-action: 100;
 $z-input-bar: 100;
 
 $color-bottom-action-dark: #120D10;
+
+// New visual foundation aliases. Components consume semantic tokens so app
+// pages can evolve without scattering palette values through their styles.
+$color-page-background: $color-background;
+$color-page-foreground: $color-on-background;
+$color-surface-default: $color-surface;
+$color-surface-raised: $color-surface-container-low;
+$color-surface-elevated: $color-surface-container;
+$color-surface-strong: $color-surface-container-high;
+$color-text-primary: $color-on-surface;
+$color-text-secondary: $color-on-surface-variant;
+$color-text-muted: $color-outline;
+$color-action-primary: $color-primary;
+$color-action-primary-foreground: $color-on-primary;
+$color-action-tonal: $color-primary-container;
+$color-action-tonal-foreground: $color-on-primary-container;
+$layout-status-bar-height: $status-bar-height;
+$layout-nav-bar-height: $topbar-height;
+$layout-tab-bar-height: $tabbar-height;

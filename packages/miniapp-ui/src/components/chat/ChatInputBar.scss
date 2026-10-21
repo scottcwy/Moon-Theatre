@@ -10,8 +10,8 @@
 }
 
 .chat-input-bar__share {
-  width: 72rpx;
-  height: 72rpx;
+  width: $touch-target-min;
+  height: $touch-target-min;
   margin-right: $space-2;
   background-color: transparent;
 }
@@ -39,9 +39,13 @@
   color: $color-on-surface;
 }
 
+.chat-input-bar__placeholder {
+  color: $color-outline;
+}
+
 .chat-input-bar__send {
-  width: 80rpx;
-  height: 80rpx;
+  width: $touch-target-min;
+  height: $touch-target-min;
   margin-left: $space-2;
   border-radius: $radius-full;
   background-color: $color-primary;
@@ -64,4 +68,13 @@
   line-height: 1;
   font-weight: 800;
   color: $color-on-primary;
+}
+
+.chat-input-bar__send-icon {
+  width: 0;
+  height: 0;
+  margin-left: 4rpx;
+  border-top: 10rpx solid transparent;
+  border-bottom: 10rpx solid transparent;
+  border-left: 16rpx solid $color-on-primary;
 }

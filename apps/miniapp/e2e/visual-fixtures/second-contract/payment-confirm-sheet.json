@@ -1,0 +1,8 @@
+{
+  "name": "payment-confirm-sheet",
+  "auth": "visual",
+  "route": "pages/quota/visual-fixture?state=confirm-sheet",
+  "state": "confirm-sheet",
+  "package": {"id": "trial", "name": "体验包", "points": 60, "priceCents": 600},
+  "balanceAfterPoints": 999
+}

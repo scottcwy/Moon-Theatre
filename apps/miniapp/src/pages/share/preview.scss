@@ -2,12 +2,27 @@
 
 .share-preview-page {
   min-height: 100vh;
-  background-color: $color-bottom-action-dark;
-  padding: $space-4;
-  padding-bottom: calc(130rpx + env(safe-area-inset-bottom, $safe-bottom));
+  background-color: #120d10;
+  padding: calc(var(--topbar-total-height, #{$topbar-height}) + 6rpx) 20rpx
+    calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+}
+
+.share-preview-page__nav {
+  background-color: #120d10;
+}
+
+.share-preview-page__nav-title {
+  color: #f6e7d5;
+  font-size: 30rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+}
+
+.share-preview-page__body {
+  display: flex;
 }
 
 .share-preview-page__actions {
@@ -21,6 +36,14 @@
 
 .share-preview-page__action-primary {
   margin-left: $space-3;
+  border: 1rpx solid #d2a973;
+  background: #7d2743;
+}
+
+.share-preview-page__action-secondary {
+  border: 1rpx solid #d2a973;
+  background: #e9d7bd;
+  color: #5a2a35;
 }
 
 .share-preview-page__canvas {

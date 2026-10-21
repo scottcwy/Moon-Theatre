@@ -1,0 +1,14 @@
+{
+  "name": "payment-result-pending",
+  "auth": "visual",
+  "route": "pages/quota/visual-fixture?state=result-pending",
+  "state": "result-pending",
+  "order": {
+    "id": "visual-order-pending",
+    "status": "prepay_created",
+    "packageName": "体验包",
+    "pointsAmount": 60,
+    "amountCents": 600
+  },
+  "balancePoints": 999
+}

@@ -1,0 +1,38 @@
+{
+  "system-mock-intentional": {
+    "mae": 225.766,
+    "changed_gt10_pct": 100.0
+  },
+  "appbar": {
+    "mae": 9.271,
+    "changed_gt10_pct": 7.39
+  },
+  "intro-search": {
+    "mae": 7.177,
+    "changed_gt10_pct": 11.54
+  },
+  "hero": {
+    "mae": 29.41,
+    "changed_gt10_pct": 60.83
+  },
+  "dots-heading": {
+    "mae": 4.802,
+    "changed_gt10_pct": 7.8
+  },
+  "cards": {
+    "mae": 44.705,
+    "changed_gt10_pct": 66.44
+  },
+  "tabbar": {
+    "mae": 132.666,
+    "changed_gt10_pct": 77.75
+  },
+  "core-without-system": {
+    "mae": 40.149,
+    "changed_gt10_pct": 51.33
+  },
+  "viewport-total": {
+    "mae": 48.378,
+    "changed_gt10_pct": 53.49
+  }
+}

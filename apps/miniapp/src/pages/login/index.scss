@@ -36,6 +36,7 @@
     position: relative;
     z-index: 1;
     padding: $space-6 $space-4;
+    padding-top: calc(env(safe-area-inset-top, 24px) + $space-4);
     padding-bottom: calc($space-6 + env(safe-area-inset-bottom, $safe-bottom));
     display: flex;
     flex-direction: column;
@@ -44,7 +45,8 @@
   }
 
   &__stage {
-    margin-top: $space-8;
+    margin-top: 68rpx;
+    text-align: center;
   }
 
   &__brand {
@@ -57,17 +59,24 @@
 
   &__title {
     display: block;
-    max-width: 600rpx;
-    color: #fff8ef;
-    text-shadow: 0 6rpx 28rpx rgba(0, 0, 0, 0.42);
+    width: 680rpx;
+    max-width: 100%;
+    margin: 42rpx auto 0;
+  }
+
+  &__title-image {
+    width: 100%;
+    display: block;
   }
 
   &__title-line {
     display: block;
+    color: #f1c88f;
+    font-family: Georgia, 'Songti SC', serif;
     font-size: 64rpx;
-    line-height: 1.08;
-    font-weight: 900;
-    color: #fff8ef;
+    line-height: 1.24;
+    text-align: center;
+    text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
   }
 
   &__subtitle {
@@ -90,7 +99,12 @@
 
   &__wechat-btn {
     width: 100%;
-    background-color: #7f294a;
+    min-height: 92rpx;
+    border: 2rpx solid #d5a46d;
+    border-radius: 46rpx;
+    background-color: #4e1726;
+    color: #f5d4a4;
+    font-family: Georgia, 'Songti SC', serif;
     box-shadow: 0 16rpx 36rpx rgba(0, 0, 0, 0.34);
   }
 

@@ -1,0 +1,7 @@
+{
+  "name": "chat-list-search-empty",
+  "auth": "logged-in",
+  "route": "pages/chat/list",
+  "query": "月见",
+  "response": {"characters": []}
+}

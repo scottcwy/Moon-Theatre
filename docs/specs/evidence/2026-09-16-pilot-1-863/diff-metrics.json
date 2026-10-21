@@ -1,0 +1,46 @@
+{
+  "system-mock-intentional": {
+    "mae": 225.743,
+    "changed_gt10_pct": 100.0
+  },
+  "appbar": {
+    "mae": 9.132,
+    "changed_gt10_pct": 9.01
+  },
+  "intro-search": {
+    "mae": 7.193,
+    "changed_gt10_pct": 14.19
+  },
+  "hero": {
+    "mae": 28.964,
+    "changed_gt10_pct": 63.25
+  },
+  "dots-heading": {
+    "mae": 4.753,
+    "changed_gt10_pct": 8.35
+  },
+  "cards": {
+    "mae": 44.365,
+    "changed_gt10_pct": 67.03
+  },
+  "tabbar": {
+    "mae": 133.177,
+    "changed_gt10_pct": 79.04
+  },
+  "core-without-system": {
+    "mae": 39.953,
+    "changed_gt10_pct": 52.86
+  },
+  "viewport-total": {
+    "mae": 48.19,
+    "changed_gt10_pct": 54.95
+  },
+  "system-vs-misans-viewport": {
+    "mae": 2.369,
+    "changed_gt10_pct": 3.52
+  },
+  "system-vs-misans-text-core": {
+    "mae": 2.784,
+    "changed_gt10_pct": 4.14
+  }
+}

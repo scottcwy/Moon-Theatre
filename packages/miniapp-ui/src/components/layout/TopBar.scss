@@ -30,6 +30,28 @@
   align-items: center;
 }
 
+.top-bar__back {
+  width: $touch-target-min;
+  height: $touch-target-min;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-full;
+  color: $color-on-background;
+  font-size: 56rpx;
+  line-height: 1;
+
+  &:active { opacity: 0.64; }
+}
+
+.top-bar__chevron {
+  width: 18rpx;
+  height: 18rpx;
+  border-left: 4rpx solid currentColor;
+  border-bottom: 4rpx solid currentColor;
+  transform: rotate(45deg);
+}
+
 .top-bar__right {
   justify-content: flex-end;
 }

@@ -1,10 +1,15 @@
-import { Text, View } from '@tarojs/components';
+import { ScrollView, Text, View } from '@tarojs/components';
 import type { ReactNode } from 'react';
 import './PageContainer.scss';
 
-interface PageShellProps {
+export interface PageShellProps {
   children: ReactNode;
   variant?: 'scroll' | 'full';
+  navMode?: 'custom' | 'native' | 'none';
+  tabBarMode?: 'custom' | 'native' | 'none';
+  bottomInset?: 'none' | 'safe' | 'action';
+  header?: ReactNode;
+  footer?: ReactNode;
   noPadding?: boolean;
   tabBarReserve?: boolean;
   bottomReserve?: boolean;
@@ -49,6 +54,11 @@ export function NoticeBlock({ children, className = '' }: NoticeBlockProps) {
 export function PageShell({
   children,
   variant = 'scroll',
+  navMode = 'none',
+  tabBarMode = 'none',
+  bottomInset = 'none',
+  header,
+  footer,
   noPadding = false,
   tabBarReserve = false,
   bottomReserve = false,
@@ -57,13 +67,28 @@ export function PageShell({
   const classes = [
     'page-shell',
     `page-shell--${variant}`,
+    `page-shell--nav-${navMode}`,
+    `page-shell--tabbar-${tabBarMode}`,
+    `page-shell--inset-${bottomInset}`,
     noPadding && 'page-shell--no-padding',
-    tabBarReserve && 'page-shell--tabbar',
-    bottomReserve && 'page-shell--bottom-reserve',
+    (tabBarReserve || tabBarMode !== 'none') && 'page-shell--tabbar',
+    (bottomReserve || bottomInset !== 'none') && 'page-shell--bottom-reserve',
     className,
   ]
     .filter(Boolean)
     .join(' ');
 
-  return <View className={classes}>{children}</View>;
+  const main = variant === 'full' ? (
+    <ScrollView className="page-shell__scroll" scrollY enhanced showScrollbar={false}>
+      {children}
+    </ScrollView>
+  ) : <View className="page-shell__content">{children}</View>;
+
+  return (
+    <View className={classes}>
+      {header ? <View className="page-shell__header">{header}</View> : null}
+      {main}
+      {footer ? <View className="page-shell__footer">{footer}</View> : null}
+    </View>
+  );
 }

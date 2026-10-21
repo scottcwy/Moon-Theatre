@@ -14,7 +14,8 @@ describe('login page copy', () => {
     expect(page).toContain('有些角色');
     expect(page).toContain('在等你开口');
     expect(page).toContain('回来继续上次那场戏，见你没聊完的人。');
-    expect(page).toContain('使用微信登录');
+    expect(page).toContain("{loading ? '登录中…' : '登录'}");
+    expect(page).not.toContain('使用微信登录');
     expect(page).toContain('<View className="login-page__title-line">有些角色</View>');
     expect(page).toContain('<View className="login-page__title-line">在等你开口</View>');
 

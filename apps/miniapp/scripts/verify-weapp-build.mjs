@@ -25,6 +25,10 @@ assert(fs.existsSync(projectConfigPath), 'project.config.json is missing');
 const appJson = JSON.parse(readText(appJsonPath));
 assert(appJson.sitemapLocation === 'sitemap.json', 'app.json should point to sitemap.json');
 assert(appJson.lazyCodeLoading === 'requiredComponents', 'lazyCodeLoading should be enabled');
+assert(
+  !(appJson.pages || []).includes('pages/quota/visual-fixture/index'),
+  'production app.json must not register pages/quota/visual-fixture/index',
+);
 
 const projectConfig = JSON.parse(readText(projectConfigPath));
 assert(projectConfig.miniprogramRoot === 'dist/', 'project.config.json should use dist/ as miniprogramRoot');

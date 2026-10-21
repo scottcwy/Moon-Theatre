@@ -1,0 +1,95 @@
+@use '../styles/tokens.scss' as *;
+
+.theater-tab-bar {
+  position: fixed;
+  left: 32rpx;
+  right: 32rpx;
+  bottom: calc(12rpx + env(safe-area-inset-bottom, 0px) * 0.5);
+  z-index: 1000;
+  height: 106rpx;
+  padding: 0 56rpx;
+  display: flex;
+  align-items: stretch;
+  border: 1rpx solid rgba(226, 180, 121, 0.28);
+  border-radius: $radius-full;
+  background:
+    linear-gradient(180deg, rgba(255, 214, 180, 0.08) 0%, rgba(255, 214, 180, 0) 38%),
+    linear-gradient(180deg, #5a1d31 0%, #451426 58%, #37101e 100%);
+  box-shadow: 0 10rpx 24rpx rgba(22, 7, 13, 0.5), inset 0 1rpx 0 rgba(255, 220, 180, 0.14);
+  box-sizing: border-box;
+}
+
+.theater-tab-bar__item {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #d29a78;
+  box-sizing: border-box;
+}
+
+.theater-tab-bar__item:active {
+  opacity: 0.82;
+}
+
+.theater-tab-bar__item--selected {
+  color: #f0c78e;
+  /* 选中态装饰比 bar 高 17rpx；把内容上移 8.5rpx，让图标/文字落在胶囊视觉中心。 */
+  padding-bottom: 17rpx;
+}
+
+.theater-tab-bar__item--selected::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 100%;
+  max-width: 149rpx;
+  height: 123rpx;
+  transform: translateX(-50%);
+  border: 1rpx solid rgba(226, 180, 121, 0.38);
+  border-radius: $radius-full;
+  background:
+    radial-gradient(ellipse at 50% 28%, rgba(255, 220, 180, 0.2), transparent 62%),
+    linear-gradient(180deg, #6d2a40 0%, #531b2e 100%);
+  box-shadow: inset 0 1rpx 0 rgba(255, 222, 190, 0.18), 0 6rpx 14rpx rgba(20, 6, 12, 0.35);
+}
+
+.theater-tab-bar__icon-wrap {
+  position: relative;
+  width: 54rpx;
+  height: 54rpx;
+  margin-bottom: 2rpx;
+}
+
+.theater-tab-bar__icon {
+  width: 100%;
+  height: 100%;
+}
+
+.theater-tab-bar__item:not(.theater-tab-bar__item--selected) .theater-tab-bar__icon {
+  opacity: 0.78;
+}
+
+.theater-tab-bar__unread {
+  position: absolute;
+  top: -4rpx;
+  right: -4rpx;
+  width: 16rpx;
+  height: 16rpx;
+  border: 2rpx solid #401326;
+  border-radius: 50%;
+  background: #f06a7e;
+  box-sizing: border-box;
+}
+
+.theater-tab-bar__label {
+  position: relative;
+  color: inherit;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 22rpx;
+  line-height: 1.1;
+}

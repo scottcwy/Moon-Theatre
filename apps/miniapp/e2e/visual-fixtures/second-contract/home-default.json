@@ -1,0 +1,18 @@
+{
+  "name": "home-default",
+  "auth": "anonymous",
+  "route": "pages/home/index",
+  "scripts": [
+    {"id": "moon-garden", "title": "月见庭院：狐神的新娘", "genre": "和风悬疑"},
+    {"id": "moon-tower", "title": "月下楼台", "genre": "古风情感"},
+    {"id": "night-letter", "title": "长夜书", "genre": "民国悬疑"},
+    {"id": "lantern-street", "title": "灯街旧事", "genre": "市井群像"},
+    {"id": "jade-bell", "title": "玉铃响时", "genre": "东方奇幻"},
+    {"id": "ink-river", "title": "墨河渡", "genre": "江湖"},
+    {"id": "moonlit-banquet", "title": "月下宴", "genre": "宫廷"}
+  ],
+  "characters": [
+    {"id": "hakuzo", "name": "白藏", "identity": "月见庭院的狐神"},
+    {"id": "chengyuhuai", "name": "程聿怀", "identity": "记者"}
+  ]
+}

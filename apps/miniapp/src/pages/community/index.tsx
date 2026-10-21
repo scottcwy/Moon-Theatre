@@ -3,6 +3,7 @@ import Taro from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { PageShell, PrimaryButton, TopBar } from '@juben-sha/miniapp-ui';
+import { StageTabBar } from '../../components/StageTabBar';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import { communityHomeTabUrl, communityPlaceholder, communityPreviewItems } from './index.model';
 import './index.scss';
@@ -69,6 +70,7 @@ export default function Community() {
             </View>
           </View>
         </View>
+        <StageTabBar selected="/pages/community/index" />
       </View>
     </PageShell>
   );
@@ -77,4 +79,6 @@ export default function Community() {
 definePageConfig({
   navigationBarTitleText: '社区',
   navigationStyle: 'custom',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });

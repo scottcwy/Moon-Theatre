@@ -5,7 +5,6 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CharacterPosterCard,
-  EmptyState,
   PageSection,
   PageShell,
   SearchBar,
@@ -13,6 +12,7 @@ import {
   TopBar,
 } from '@juben-sha/miniapp-ui';
 import { api, isLoggedIn } from '../../services/api';
+import { StageTabBar } from '../../components/StageTabBar';
 import { getCharacterGender } from '../../services/character-gender';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import {
@@ -29,6 +29,8 @@ import {
   getScriptCoverUrl,
   getScriptRoleSelectUrl,
   homeSections,
+  localHomeCharacters,
+  localHomeScripts,
   shouldApplyScriptResponse,
 } from './index.model';
 import './index.scss';
@@ -78,6 +80,7 @@ export default function Home() {
   const scriptRequestIdRef = useRef(0);
   const [activeScriptIndex, setActiveScriptIndex] = useState(0);
   const [scriptScrollEpoch, setScriptScrollEpoch] = useState(0);
+  const [scriptScrollTarget, setScriptScrollTarget] = useState('');
 
   const loadScripts = useCallback(async (query: string) => {
     const requestId = scriptRequestIdRef.current + 1;
@@ -87,10 +90,16 @@ export default function Home() {
     try {
       const data = await api.get<{ scripts: ScriptCard[] }>(buildScriptsUrl(query));
       if (!shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) return;
-      setScripts(data.scripts);
+      setScripts(data.scripts.length > 0 || query.trim() ? data.scripts : [...localHomeScripts]);
     } catch {
       if (!shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) return;
-      setScriptsError('剧本目录暂时不可用，请稍后重试');
+      if (query.trim()) {
+        setScripts([]);
+        setScriptsError('');
+      } else {
+        setScripts([...localHomeScripts]);
+        setScriptsError('');
+      }
     } finally {
       if (shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) {
         setScriptsLoading(false);
@@ -109,10 +118,19 @@ export default function Home() {
     setActiveScriptIndex(getActiveScriptIndex(event.detail.scrollLeft, event.detail.scrollWidth, scripts.length));
   };
 
+  const goToScript = (direction: -1 | 1) => {
+    if (scripts.length < 2) return;
+    const next = (activeScriptIndex + direction + scripts.length) % scripts.length;
+    setActiveScriptIndex(next);
+    setScriptScrollTarget(`hero-${next}-${scriptScrollEpoch}`);
+  };
+
   useEffect(() => {
     // Search results replace the list: reset dots and glide back to the first card.
     setActiveScriptIndex(0);
-    setScriptScrollEpoch((epoch) => epoch + 1);
+    const nextEpoch = scriptScrollEpoch + 1;
+    setScriptScrollEpoch(nextEpoch);
+    setScriptScrollTarget(`hero-0-${nextEpoch}`);
   }, [scripts]);
 
   // 首页是常驻 tab 页，不做卸载取消；首挂载与返回首页（useDidShow）共用此入口。
@@ -121,11 +139,12 @@ export default function Home() {
       api
         .get<{ characters: CharacterCard[] }>('/api/characters')
         .then((data) => {
-          setCharacters(data.characters);
+          setCharacters(data.characters.length > 0 ? data.characters : [...localHomeCharacters]);
           setHasFrequentCharacters(false);
         })
         .catch(() => {
-          setCharacterError('角色列表暂时不可用，请稍后重试');
+          setCharacters([...localHomeCharacters]);
+          setCharacterError('');
         });
     };
 
@@ -220,12 +239,11 @@ export default function Home() {
   const hasScriptQuery = scriptQuery.trim().length > 0;
 
   return (
-    <PageShell variant="scroll" noPadding>
+    <PageShell variant="scroll" noPadding className="theater-home">
       <View className="theater-home__topbar-shell" style={topBarStyle as CSSProperties}>
         <TopBar
           className="theater-home__topbar"
           titleClassName="theater-home__topbar-title"
-          left={<View className="theater-home__settings-button"><Text className="theater-home__settings">⚙</Text></View>}
           title={<Text className="theater-home__brand">月满楼</Text>}
         />
       </View>
@@ -240,18 +258,11 @@ export default function Home() {
             <View
               className={['theater-home__mode-switch', scriptModeOn ? 'theater-home__mode-switch--on' : ''].filter(Boolean).join(' ')}
               onTap={handleScriptModeToggle}
-              aria-label="剧本模式开关"
+              aria-label="剧本模式"
             >
-              {/* 名称常显于轨道左侧（设置行形态），轨道内部只有滑动的拇指。 */}
-              <Text className="theater-home__mode-switch-label">{homeSections.scriptModeEntry}</Text>
-              <View className="theater-home__mode-switch-track">
-                <View className="theater-home__mode-switch-thumb" />
-              </View>
+              <Text className="theater-home__mode-switch-label">{scriptModeOn ? '正在进入…' : homeSections.scriptModeEntry}</Text>
             </View>
           </View>
-          <Text className="theater-home__mode-hint">
-            {scriptModeOn ? '正在进入剧本目录…' : '打开剧本模式，从剧本开始选角色'}
-          </Text>
           <SearchBar
             value={scriptQuery}
             placeholder="搜索剧本名称、类型或关键词"
@@ -274,38 +285,58 @@ export default function Home() {
             />
           ) : scripts.length > 0 ? (
             <>
-              <ScrollView
-                className="theater-home__script-scroll"
-                scrollX
-                enhanced
-                showScrollbar={false}
-                enableFlex
-                scrollIntoView={scriptScrollEpoch > 0 ? `script-0-${scriptScrollEpoch}` : undefined}
-                scrollWithAnimation
-                onScroll={handleScriptScroll}
-              >
-                {scripts.map((script, index) => {
-                  const coverUrl = getScriptCoverUrl(script);
-                  return (
-                    <View
-                      key={script.id}
-                      id={`script-${index}-${scriptScrollEpoch}`}
-                      className="theater-home__hero-card"
-                      onTap={() => chooseRole(script)}
-                    >
-                      {coverUrl ? (
-                        <Image className="theater-home__hero-image" src={coverUrl} mode="aspectFill" lazyLoad />
-                      ) : (
-                        <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
-                      )}
-                      <View className="theater-home__hero-shade" />
-                      <View className="theater-home__hero-content">
-                        <Text className="theater-home__hero-card-title" userSelect>{script.title}</Text>
+              <View className="theater-home__hero-stage">
+                <ScrollView
+                  className="theater-home__script-scroll"
+                  scrollX
+                  enhanced
+                  showScrollbar={false}
+                  enableFlex
+                  scrollIntoView={scriptScrollTarget || undefined}
+                  scrollWithAnimation
+                  onScroll={handleScriptScroll}
+                >
+                  {scripts.map((script, index) => {
+                    const coverUrl = getScriptCoverUrl(script);
+                    return (
+                      <View
+                        key={script.id}
+                        id={`hero-${index}-${scriptScrollEpoch}`}
+                        className="theater-home__hero-card"
+                        onTap={() => chooseRole(script)}
+                      >
+                        {coverUrl ? (
+                          <Image className="theater-home__hero-image" src={coverUrl} mode="aspectFill" lazyLoad />
+                        ) : (
+                          <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
+                        )}
+                        <View className="theater-home__hero-shade" />
+                        <View className="theater-home__hero-content">
+                          <View className="theater-home__hero-tags">
+                            {script.genre ? <Text className="theater-home__hero-genre">{script.genre}</Text> : null}
+                            <Text className="theater-home__hero-enter">可进入</Text>
+                          </View>
+                          <Text className="theater-home__hero-card-title" userSelect>{script.title}</Text>
+                          {script.description ? <Text className="theater-home__hero-desc">{script.description}</Text> : null}
+                          <View className="theater-home__primary-action" onTap={() => chooseRole(script)}>
+                            <Text>选择角色</Text>
+                          </View>
+                        </View>
                       </View>
+                    );
+                  })}
+                </ScrollView>
+                {scripts.length > 1 && (
+                  <>
+                    <View className="theater-home__hero-arrow theater-home__hero-arrow--prev" onTap={() => goToScript(-1)}>
+                      <Text className="theater-home__hero-arrow-text">‹</Text>
                     </View>
-                  );
-                })}
-              </ScrollView>
+                    <View className="theater-home__hero-arrow theater-home__hero-arrow--next" onTap={() => goToScript(1)}>
+                      <Text className="theater-home__hero-arrow-text">›</Text>
+                    </View>
+                  </>
+                )}
+              </View>
               {scripts.length > 1 && (
                 <View className="theater-home__script-dots" aria-label="剧本页码">
                   {scripts.map((script, index) => (
@@ -319,16 +350,17 @@ export default function Home() {
               )}
             </>
           ) : (
-            <EmptyState
-              className="theater-home__script-state"
-              title={hasScriptQuery ? '没有找到相关剧本' : '暂无可用剧本'}
-              message={hasScriptQuery ? '清除搜索后查看全部已上架剧本。' : '剧本准备好后会在这里出现。'}
-              primaryText={hasScriptQuery ? '清除搜索' : undefined}
-              onPrimary={hasScriptQuery ? () => setScriptQuery('') : undefined}
-            />
+            <View className="theater-home__script-state">
+              <Image className="theater-home__script-state-art" src="/assets/second-contract/home-search-empty.png" mode="aspectFit" />
+              <Text className="theater-home__script-state-title">{hasScriptQuery ? '没有找到相关剧本' : '暂无可用剧本'}</Text>
+              <Text className="theater-home__script-state-message">
+                {hasScriptQuery ? '换个剧本名或关键词试试' : '剧本准备好后会在这里出现'}
+              </Text>
+            </View>
           )}
         </PageSection>
 
+        {hasScriptQuery ? (
         <PageSection title={getCharacterSectionTitle(hasFrequentCharacters)} kicker={homeSections.characterKicker} className="theater-home__character-section">
           {characters.length > 0 ? (
             <View className="theater-home__grid">
@@ -355,7 +387,31 @@ export default function Home() {
             />
           )}
         </PageSection>
+        ) : (
+        <View className="theater-home__script-section">
+          <View className="theater-home__section-head">
+            <View className="theater-home__section-rule" />
+            <Text className="theater-home__section-title">选择你喜欢的剧本</Text>
+            <View className="theater-home__section-rule" />
+          </View>
+          <View className="theater-home__script-list">
+            {(scripts.length > 0 ? scripts : []).slice(0, 3).map((script) => (
+              <View key={script.id} className="theater-home__script-row" onTap={() => chooseRole(script)}>
+                <View className="theater-home__script-spine">
+                  <Text className="theater-home__script-spine-text">{script.title.slice(0, 6)}</Text>
+                </View>
+                <Image className="theater-home__script-art" src="/assets/home/yunyun-cover.jpg" mode="aspectFill" />
+                <View className="theater-home__script-copy">
+                  <Text className="theater-home__script-badge">{script.genre || '剧本'}</Text>
+                  <Text className="theater-home__script-desc">{script.description || '这一段故事，等你入场。'}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+        )}
       </View>
+      <StageTabBar selected="/pages/home/index" />
     </PageShell>
   );
 }
@@ -363,4 +419,6 @@ export default function Home() {
 definePageConfig({
   navigationBarTitleText: '月满楼',
   navigationStyle: 'custom',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });

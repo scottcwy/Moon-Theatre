@@ -1,0 +1,19 @@
+@use '../../styles/tokens.scss' as *;
+
+.ui-text {
+  display: inline;
+
+  &--display { font-size: $font-display-sm; line-height: 1.18; font-weight: 800; }
+  &--headline { font-size: $font-headline-md; line-height: 1.2; font-weight: 800; }
+  &--title { font-size: $font-title-md; line-height: 1.3; font-weight: 700; }
+  &--body { font-size: $font-body-md; line-height: 1.55; }
+  &--label { font-size: $font-label-md; line-height: 1.35; font-weight: 600; }
+  &--caption { font-size: $font-label-sm; line-height: 1.4; }
+
+  &--primary { color: $color-text-primary; }
+  &--secondary { color: $color-text-secondary; }
+  &--muted { color: $color-text-muted; }
+  &--inverse { color: $color-on-primary; }
+  &--accent { color: $color-action-primary; }
+  &--error { color: $color-error; }
+}

@@ -11,6 +11,16 @@
   box-sizing: border-box;
 }
 
+.ui-badge--interactive {
+  position: relative;
+}
+
+.ui-badge--interactive::after {
+  content: '';
+  position: absolute;
+  inset: -20rpx -12rpx;
+}
+
 .ui-badge__text,
 .ui-mood-chip__text,
 .ui-mood-chip__dot {

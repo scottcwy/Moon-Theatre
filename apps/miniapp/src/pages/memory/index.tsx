@@ -70,7 +70,7 @@ export default function Memory() {
 
   if (loading) {
     return (
-      <PageShell variant="scroll" tabBarReserve>
+      <PageShell variant="scroll">
         <Text className="page-title">记忆</Text>
         <StatusStateCard title="正在整理记忆" message="系统正在读取角色维度的关系与剧情摘要。" icon="…" />
       </PageShell>
@@ -79,7 +79,7 @@ export default function Memory() {
 
   if (error) {
     return (
-      <PageShell variant="scroll" tabBarReserve>
+      <PageShell variant="scroll">
         <Text className="page-title">记忆</Text>
         <StatusStateCard title="记忆暂时不可用" message={error} tone="error" icon="!" />
       </PageShell>
@@ -88,7 +88,7 @@ export default function Memory() {
 
   if (needsLogin) {
     return (
-      <PageShell variant="scroll" tabBarReserve>
+      <PageShell variant="scroll">
         <Text className="page-title">记忆</Text>
         <StatusStateCard
           title="登录后查看角色记忆"
@@ -101,7 +101,7 @@ export default function Memory() {
   }
 
   return (
-    <PageShell variant="scroll" tabBarReserve>
+    <PageShell variant="scroll">
       <Text className="page-title">记忆</Text>
       <Text className="page-subtitle">系统从对话中整理的关键信息，仅供参考</Text>
 

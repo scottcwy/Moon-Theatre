@@ -1,0 +1,12 @@
+{
+  "name": "chat-empty",
+  "auth": "logged-in",
+  "route": "pages/chat/index?characterId=hakuzo&mode=free",
+  "characterId": "hakuzo",
+  "balancePoints": 999,
+  "starters": [
+    "白藏，今天酒馆里有什么有趣的事吗？",
+    "如果今晚只推荐一杯酒，你会选哪杯？",
+    "暂时没想好聊什么，能陪我坐一会儿吗？"
+  ]
+}

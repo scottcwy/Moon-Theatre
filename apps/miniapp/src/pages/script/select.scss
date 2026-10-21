@@ -1,73 +1,243 @@
 @use '../../styles/tokens.scss' as *;
 
+$select-ink: #170e12;
+$select-paper: #e4d7c5;
+$select-wine: #4a1020;
+$select-gold: #e0bf94;
+$select-gold-line: rgba($select-gold, 0.58);
+$select-gutter: 36rpx;
+
+.script-select {
+  min-height: 100vh;
+  background-color: $select-ink;
+  color: #f6e4d0;
+  box-sizing: border-box;
+}
+
+.script-select__nav {
+  background-color: transparent;
+}
+
+.script-select__nav .top-bar__content {
+  position: relative;
+}
+
+.script-select__nav-title,
+.script-select__nav-text {
+  color: #f8e8d5;
+}
+
+.script-select__nav-title {
+  position: absolute;
+  left: 50%;
+  width: 240rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(-50%);
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 30rpx;
+  font-weight: 600;
+  letter-spacing: 3rpx;
+}
+
+.script-select__nav .top-bar__back {
+  color: #f8e8d5;
+  background-color: rgba(23, 14, 18, 0.34);
+}
+
 .script-select__hero {
   position: relative;
-  height: 620rpx;
+  height: 600rpx;
   overflow: hidden;
-  background-color: $color-primary;
+  background-color: $select-ink;
 }
 
 .script-select__cover {
   width: 100%;
   height: 100%;
   display: block;
-  transform: scale(1.08) translateY(16rpx);
+  transform: scale(1.06);
 }
 
 .script-select__cover--placeholder {
-  background-color: $color-primary;
+  background:
+    radial-gradient(circle at 72% 24%, rgba(224, 191, 148, 0.28), transparent 34%),
+    linear-gradient(160deg, #3a1c2a, $select-ink);
 }
 
 .script-select__shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(18, 13, 16, 0.08) 10%, rgba(18, 13, 16, 0.88) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(15, 5, 8, 0.72) 0%,
+    rgba(15, 5, 8, 0.12) 24%,
+    rgba(15, 5, 8, 0.32) 48%,
+    rgba(15, 5, 8, 0.94) 100%
+  );
 }
 
 .script-select__hero-copy {
   position: absolute;
-  left: $space-5;
-  right: $space-5;
-  bottom: $space-6;
+  left: $select-gutter;
+  right: $select-gutter;
+  bottom: 92rpx;
+}
+
+.script-select__hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.script-select__genre {
+  padding: 5rpx 16rpx;
+  border: 1rpx solid rgba($select-gold, 0.7);
+  border-radius: $radius-full;
+  background-color: rgba($select-wine, 0.76);
+  color: #f6dfc2;
+  font-size: 22rpx;
+  line-height: 1.2;
+  letter-spacing: 1rpx;
+}
+
+.script-select__character-count {
+  color: rgba(246, 228, 208, 0.72);
+  font-size: 22rpx;
+  line-height: 1.3;
 }
 
 .script-select__title {
-  display: block;
-  margin-top: $space-3;
-  color: $color-on-primary;
+  display: -webkit-box;
+  margin-top: 18rpx;
+  overflow: hidden;
+  color: #fff2df;
+  font-family: Georgia, 'Songti SC', serif;
   font-size: $font-display-sm;
-  line-height: 1.2;
-  font-weight: 800;
+  line-height: 1.18;
+  font-weight: 600;
+  text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .script-select__description {
-  display: block;
-  margin-top: $space-2;
-  color: $color-on-primary;
+  display: -webkit-box;
+  margin-top: 12rpx;
+  overflow: hidden;
+  color: rgba(246, 228, 208, 0.8);
   font-size: $font-body-md;
   line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .script-select__content {
   position: relative;
-  margin-top: -$space-4;
-  padding: $space-5 $page-padding-h calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
-  border-radius: $radius-xl $radius-xl 0 0;
-  background-color: $color-background;
+  z-index: 2;
+  margin: -44rpx $select-gutter 0;
+  padding: 38rpx $space-4 calc($space-8 + env(safe-area-inset-bottom, $safe-bottom));
+  border: 1rpx solid $select-gold-line;
+  border-radius: 18rpx 18rpx 0 0;
+  background-color: $select-paper;
+  box-shadow: 0 18rpx 50rpx rgba(0, 0, 0, 0.28);
+  box-sizing: border-box;
+}
+
+.script-select__world-section {
+  margin-bottom: 36rpx;
+  padding-bottom: 32rpx;
+  border-bottom: 1rpx solid rgba(201, 162, 94, 0.32);
+
+  .page-section__title {
+    margin-bottom: 16rpx;
+    color: #3a2228;
+    font-family: Georgia, 'Songti SC', serif;
+    font-size: 32rpx;
+    font-weight: 600;
+  }
 }
 
 .script-select__world {
-  color: $color-on-surface-variant;
+  color: #6f5b56;
   font-size: $font-body-md;
-  line-height: 1.65;
+  line-height: 1.62;
 }
 
 .script-select__characters {
-  margin-top: $space-6;
+  margin-bottom: 0;
+
+  .page-section__title {
+    margin-bottom: $space-4;
+    color: #3a2228;
+    font-family: Georgia, 'Songti SC', serif;
+    font-size: 34rpx;
+    font-weight: 600;
+  }
 }
 
 .script-select__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: $space-4 $space-3;
+  column-gap: 20rpx;
+  row-gap: 30rpx;
+}
+
+.script-select__poster-card .character-poster-card__poster {
+  border: 1rpx solid rgba(201, 162, 94, 0.38);
+  border-radius: 14rpx;
+  background-color: #2b2023;
+  box-shadow: 0 8rpx 18rpx rgba(58, 7, 24, 0.12);
+}
+
+.script-select__poster-card .character-poster-card__badge {
+  left: 12rpx;
+  bottom: 12rpx;
+  min-height: 36rpx;
+  padding: 0 14rpx;
+  border: 1rpx solid rgba($select-gold, 0.62);
+  border-radius: 8rpx;
+  background-color: rgba($select-wine, 0.9);
+}
+
+.script-select__poster-card .character-poster-card__badge-text {
+  color: #f5e1ca;
+  font-size: 20rpx;
+  font-weight: 500;
+}
+
+.script-select__poster-card .character-poster-card__title {
+  margin-top: 12rpx;
+  color: #3a2228;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.script-select__poster-card .character-poster-card__subtitle {
+  margin-top: 4rpx;
+  color: #8d766c;
+  font-size: 22rpx;
+}
+
+.script-select__poster-card .character-poster-card__description {
+  margin-top: 8rpx;
+  color: #6f5b56;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
+.script-select__empty {
+  margin-top: $space-2;
+}
+
+.script-select__state {
+  min-height: 100vh;
+  padding: calc(var(--topbar-total-height, #{$topbar-height}) + 72rpx) $space-5
+    calc($space-8 + env(safe-area-inset-bottom, $safe-bottom));
+  background:
+    radial-gradient(circle at 50% 0, rgba(105, 37, 52, 0.2), transparent 34%),
+    $select-ink;
+  box-sizing: border-box;
 }

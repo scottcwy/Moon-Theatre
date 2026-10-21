@@ -27,9 +27,11 @@ describe('WeChat DevTools warning regressions', () => {
 
     const detailPage = readSrc('pages/character/detail.tsx');
     expect(detailPage).toContain('description={character.description}');
-    expect(detailPage).toContain('<Text className="detail__description" userSelect>{character.script.description}</Text>');
-    expect(detailPage).toContain('<Text className="detail__description detail__description--muted" userSelect>');
-    expect(detailPage).not.toContain('<Text className="detail__description" userSelect>{character.description}</Text>');
+    expect(detailPage).toContain('worldView={character.script ?');
+    expect(detailPage).not.toContain('detail__description');
+    expect(readMiniappUiSrc('components/character/CharacterDetailHero.tsx')).toContain(
+      '<Text className="character-detail-hero__world-text" userSelect>{worldView.description}</Text>',
+    );
   });
 
   it('keeps padding off the scroll-view and moves it to an inner content wrapper', () => {

@@ -8,11 +8,41 @@ export interface ScriptCoverInput {
 export const homeSections = {
   scriptKicker: '今日开演',
   scriptTitle: '热门剧本',
-  scriptModeEntry: '剧本',
+  scriptModeEntry: '剧本模式',
   characterKicker: '选择一位角色开始',
   frequentCharacterTitle: '常聊角色',
   recommendedCharacterTitle: '推荐角色',
 } as const;
+
+export const localHomeScripts = [
+  {
+    id: 'local-moon-garden',
+    title: '月见庭院：狐神的新娘',
+    description: '你因家族旧债被送入一座只在满月出现的庭院。',
+    slug: 'moon-garden',
+    genre: '古风悬疑',
+    coverUrl: '/assets/home/moon-garden-cover.jpg',
+    sortOrder: 1,
+    supportsScriptMode: true,
+  },
+  {
+    id: 'local-moon-tower',
+    title: '月下高塔',
+    description: '在月色与秘密交错的剧本中选择你的角色。',
+    slug: 'moon-tower',
+    genre: '情感推理',
+    coverUrl: '/assets/home/moon-tower-cover.jpg',
+    sortOrder: 2,
+    supportsScriptMode: true,
+  },
+] as const;
+
+export const localHomeCharacters = [
+  { id: 'local-bai-cang', name: '白藏', identity: '月见庭院的狐神', avatarUrl: null },
+  { id: 'local-kiyoharu', name: '贺茂清玄', identity: '京都阴阳师', avatarUrl: null },
+  { id: 'local-mio', name: '月岛澪', identity: '沉默的旅人', avatarUrl: null },
+  { id: 'local-kuon', name: '久远', identity: '守夜人', avatarUrl: null },
+] as const;
 
 /** 剧本搜索防抖：输入停止后延迟多少毫秒发起请求。 */
 export const SCRIPT_SEARCH_DEBOUNCE_MS = 250;

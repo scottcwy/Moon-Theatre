@@ -7,6 +7,7 @@ interface StatusStateCardProps {
   message: string;
   icon?: string;
   tone?: 'points' | 'empty' | 'safe' | 'error';
+  surface?: 'light' | 'dark';
   primaryText?: string;
   secondaryText?: string;
   onPrimary?: () => void;
@@ -19,6 +20,7 @@ export function StatusStateCard({
   message,
   icon = '•',
   tone = 'empty',
+  surface = 'light',
   primaryText,
   secondaryText,
   onPrimary,
@@ -26,7 +28,14 @@ export function StatusStateCard({
   className = '',
 }: StatusStateCardProps) {
   return (
-    <View className={['status-state-card', `status-state-card--${tone}`, className].filter(Boolean).join(' ')}>
+    <View
+      className={[
+        'status-state-card',
+        `status-state-card--${tone}`,
+        `status-state-card--surface-${surface}`,
+        className,
+      ].filter(Boolean).join(' ')}
+    >
       <View className="status-state-card__icon">
         <Text className="status-state-card__icon-text">{icon}</Text>
       </View>
@@ -46,6 +55,6 @@ export function StatusStateCard({
   );
 }
 
-export function EmptyState(props: Omit<StatusStateCardProps, 'tone' | 'icon'>) {
-  return <StatusStateCard {...props} tone="empty" icon="□" />;
+export function EmptyState(props: Omit<StatusStateCardProps, 'icon'>) {
+  return <StatusStateCard {...props} tone={props.tone ?? 'empty'} icon="□" />;
 }

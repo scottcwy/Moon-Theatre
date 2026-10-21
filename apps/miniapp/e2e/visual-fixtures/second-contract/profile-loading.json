@@ -1,0 +1,6 @@
+{
+  "name": "profile-loading",
+  "auth": "logged-in",
+  "route": "pages/profile/index",
+  "pending": ["/api/me", "/api/quota/balance", "/api/achievements"]
+}

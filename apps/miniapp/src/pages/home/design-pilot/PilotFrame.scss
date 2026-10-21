@@ -1,0 +1,54 @@
+@import url('https://cdn.jsdelivr.net/npm/misans@4.1.0/lib/Normal/MiSans-Regular.min.css');
+
+:root {
+  --pilot-font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.pilot-shell {
+  min-height: 100vh;
+  background: #170E12;
+  overflow-x: hidden;
+}
+
+.pilot-shell--misans {
+  --pilot-font: MiSans, -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+}
+
+.pilot-frame {
+  position: relative;
+  overflow: hidden;
+  color: #FFFFFF;
+  font-family: var(--pilot-font);
+  isolation: isolate;
+}
+
+.pilot-node {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.pilot-node--text,
+.pilot-node--media,
+.pilot-node--vector,
+.pilot-node--surface {
+  display: block;
+}
+
+/* H5 Playground renders the Figma tabbar inside each frame. */
+.taro-tabbar__tabbar {
+  display: none !important;
+}
+
+html,
+body {
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+.taro-tabbar__container,
+.taro-tabbar__panel,
+.taro_tabbar_page {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+}

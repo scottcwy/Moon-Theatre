@@ -1,99 +1,103 @@
 @use '../../styles/tokens.scss' as *;
 
-.buy__balance {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  background-color: $color-tertiary-container;
-  border-radius: $radius-lg;
-  padding: $space-4 $space-5;
-  margin: $space-5 0;
-  box-shadow: $shadow-card;
+$buy-paper: #e4d7c5;
+$buy-wine: #4a1020;
+
+.buy {
+  min-height: 100vh;
+  background-color: $buy-paper;
 }
 
-.buy__balance-label {
-  font-size: $font-body-md;
-  color: $color-on-tertiary-container;
+.buy__nav {
+  background-color: transparent;
 }
 
-.buy__balance-value {
-  font-size: $font-display-sm;
-  font-weight: 700;
-  color: $color-on-tertiary-container;
+.buy__nav-title,
+.buy__nav-text {
+  color: #fdf1e0;
 }
 
-.buy__packages {
-  margin-bottom: $space-5;
+.buy__scroll {
+  height: 100vh;
 }
 
-.buy__package {
-  position: relative;
-  margin-bottom: $space-3;
-  transition: all 0.15s ease;
-
-  &--selected {
-    border: 3rpx solid $color-primary;
-    background-color: $color-surface;
-  }
-
-  &--recommended {
-    box-shadow: $shadow-panel;
-  }
-}
-
-.buy__package-badge {
-  position: absolute;
-  top: $space-2;
-  right: $space-3;
-  background-color: $color-primary;
-  border-radius: $radius-full;
-  padding: $space-1 $space-3;
-}
-
-.buy__package-badge-text {
-  font-size: $font-label-sm;
-  font-weight: 600;
-  color: $color-on-primary;
-}
-
-.buy__package-name {
-  font-size: $font-title-lg;
-  font-weight: 600;
-  color: $color-on-surface;
-  display: block;
-  margin-bottom: $space-1;
-}
-
-.buy__package-points {
-  font-size: $font-body-md;
-  color: $color-on-surface-variant;
-  display: block;
-  margin-bottom: $space-2;
-}
-
-.buy__package-desc {
-  font-size: $font-label-sm;
-  color: $color-outline;
-  display: block;
-  margin-bottom: $space-3;
-}
-
-.buy__package-price {
-  font-size: $font-headline-md;
-  font-weight: 700;
-  color: $color-primary;
-  display: block;
+.buy__body {
+  padding: 36rpx 0 0;
 }
 
 .buy__notice {
-  font-size: $font-label-sm;
-  color: $color-outline;
-  text-align: center;
-  margin-top: $space-4;
   display: block;
+  margin: 28rpx 40rpx 0;
+  font-size: 22rpx;
+  color: #7b6660;
 }
 
-/* PrimaryButton inside BottomAction spans full width */
+.buy__fineprint {
+  display: block;
+  margin: 8rpx 40rpx 0;
+  font-size: 20rpx;
+  line-height: 1.6;
+  color: #9a857c;
+}
+
+.buy__scroll-tail {
+  height: 300rpx;
+}
+
+.buy__bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  padding: 16rpx 40rpx calc(16rpx + env(safe-area-inset-bottom));
+  background-color: $buy-paper;
+}
+
+.buy__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14rpx;
+  color: #5a4a4e;
+}
+
+.buy__summary-label {
+  font-size: 22rpx;
+}
+
+.buy__summary-value {
+  font-size: 22rpx;
+}
+
 .buy__pay-btn {
-  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  border-radius: 14rpx;
+  background: linear-gradient(135deg, $buy-wine 0%, #651b2d 100%);
+  box-shadow: 0 10rpx 26rpx rgba(58, 7, 24, 0.22);
+}
+
+.buy__pay-btn--disabled {
+  opacity: 0.6;
+}
+
+.buy__pay-text {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #fdf1e0;
+}
+
+.buy__bottom-note {
+  display: block;
+  margin-top: 8rpx;
+  text-align: center;
+  font-size: 18rpx;
+  color: #9a857c;
+}
+
+.buy__state {
+  padding: 220rpx 48rpx 0;
 }

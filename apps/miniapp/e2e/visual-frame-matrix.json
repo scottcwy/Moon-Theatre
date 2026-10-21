@@ -1,0 +1,19 @@
+{
+  "viewport": {"width": 375, "height": 812},
+  "longPageViewport": {"width": 375, "height": 951},
+  "frames": [
+    {"frame":"1-773","route":"pages/login/index","state":"logged-out","fixture":"login-basic","ready":".login-page__content","baseline":"1-773.png","open":"reLaunch","keyboard":"hidden","scrollTop":0},
+    {"frame":"1-863","route":"pages/home/index","state":"anonymous","fixture":"home-default","ready":".theater-home__content","baseline":"1-863.png","open":"switchTab","keyboard":"hidden","scrollTop":0},
+    {"frame":"1-1164","route":"pages/home/index","state":"search-active","fixture":"home-search-empty","ready":".theater-home__content","baseline":"1-1164.png","open":"switchTab","keyboard":"hidden","scrollTop":0,"search":"不存在剧本"},
+    {"frame":"1-387","route":"pages/chat/index?characterId=hakuzo&mode=free","state":"logged-in","fixture":"chat-1-empty","ready":".chat-page","baseline":"1-387.png","open":"reLaunch","keyboard":"hidden","scrollTop":0},
+    {"frame":"1-494","route":"pages/chat/index?characterId=hakuzo&mode=free","state":"logged-in","fixture":"chat-2-focused","ready":".chat-page","baseline":"1-494.png","open":"reLaunch","keyboard":"shown","scrollTop":0,"focus":".chat-input-bar"},
+    {"frame":"1-626","route":"pages/chat/index?sessionId=visual-chat-626","state":"logged-in","fixture":"chat-3-reply","ready":".chat-page","baseline":"1-626.png","open":"reLaunch","keyboard":"shown","scroll":"bottom","focus":".chat-input-bar"},
+    {"frame":"1-1657","route":"pages/character/detail?characterId=hakuzo","state":"logged-in","fixture":"character-hakuzo","ready":".character-detail","baseline":"1-1657.png","open":"reLaunch","keyboard":"hidden","scrollTop":0},
+    {"frame":"1-2325","route":"pages/character/detail?characterId=hakuzo","state":"logged-in","fixture":"character-hakuzo","ready":".character-detail","baseline":"1-2325.png","open":"reLaunch","keyboard":"hidden","scroll":"full","longPage":true},
+    {"frame":"1-1766","route":"pages/profile/index","state":"logged-in","fixture":"profile-logged-in","ready":".profile","baseline":"1-1766.png","open":"switchTab","keyboard":"hidden","scrollTop":0},
+    {"frame":"1-1892","route":"pages/profile/index","state":"logged-out","fixture":"profile-logged-out","ready":".profile","baseline":"1-1892.png","open":"switchTab","keyboard":"hidden","scrollTop":0},
+    {"frame":"1-1987","route":"pages/profile/index","state":"loading","fixture":"profile-loading","ready":".status-state-card","baseline":"1-1987.png","open":"switchTab","keyboard":"hidden","scrollTop":0},
+    {"frame":"1-2080","route":"pages/chat/list","state":"logged-out","fixture":"chat-list-logged-out","ready":".chat-list__body","baseline":"1-2080.png","open":"switchTab","keyboard":"hidden","scrollTop":0},
+    {"frame":"1-2180","route":"pages/community/index","state":"anonymous","fixture":"community-empty","ready":".community__body","baseline":"1-2180.png","open":"switchTab","keyboard":"hidden","scrollTop":0}
+  ]
+}

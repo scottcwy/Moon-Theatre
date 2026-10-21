@@ -1,0 +1,7 @@
+{
+  "name": "home-search-empty",
+  "auth": "anonymous",
+  "route": "pages/home/index",
+  "query": "文案",
+  "response": {"scripts": []}
+}

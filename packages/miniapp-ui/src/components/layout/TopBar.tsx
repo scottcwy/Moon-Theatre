@@ -2,20 +2,34 @@ import { View } from '@tarojs/components';
 import type { ReactNode } from 'react';
 import './TopBar.scss';
 
-interface TopBarProps {
+export interface TopBarProps {
   title?: ReactNode;
   left?: ReactNode;
   right?: ReactNode;
+  onBack?: () => void;
+  backLabel?: string;
+  showBack?: boolean;
   className?: string;
   titleClassName?: string;
 }
 
-export function TopBar({ title, left, right, className = '', titleClassName = '' }: TopBarProps) {
+export function TopBar({
+  title,
+  left,
+  right,
+  onBack,
+  backLabel = '返回',
+  showBack = Boolean(onBack),
+  className = '',
+  titleClassName = '',
+}: TopBarProps) {
   return (
     <View className={['top-bar', className].filter(Boolean).join(' ')}>
       <View className="top-bar__status-area" />
       <View className="top-bar__content">
-        <View className="top-bar__left">{left}</View>
+        <View className="top-bar__left">
+          {showBack ? <View className="top-bar__back" aria-label={backLabel} onTap={onBack}><View className="top-bar__chevron" /></View> : left}
+        </View>
         <View className={['top-bar__title', titleClassName].filter(Boolean).join(' ')}>
           {title}
         </View>

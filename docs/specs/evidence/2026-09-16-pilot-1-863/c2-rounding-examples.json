@@ -1,0 +1,216 @@
+{
+  "total": 1559,
+  "fractional": 1141,
+  "maxError": {
+    "id": "1:864",
+    "name": "Group 2085663656",
+    "kind": "stroke",
+    "framePx": 1,
+    "rpxRaw": 0.5,
+    "rpxRounded": 1,
+    "errorRpx": 0.5,
+    "errorCssPx": 0.25
+  },
+  "examples": [
+    {
+      "id": "1:864",
+      "name": "Group 2085663656",
+      "kind": "stroke",
+      "framePx": 1,
+      "rpxRaw": 0.5,
+      "rpxRounded": 1,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:865",
+      "name": "Rectangle 346243618",
+      "kind": "stroke",
+      "framePx": 1,
+      "rpxRaw": 0.5,
+      "rpxRounded": 1,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:884",
+      "name": "Home Indicator",
+      "kind": "x",
+      "framePx": 495,
+      "rpxRaw": 247.5,
+      "rpxRounded": 248,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:885",
+      "name": "Group 2085663658",
+      "kind": "width",
+      "framePx": 1349,
+      "rpxRaw": 674.5,
+      "rpxRounded": 675,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:885",
+      "name": "Group 2085663658",
+      "kind": "stroke",
+      "framePx": 1,
+      "rpxRaw": 0.5,
+      "rpxRounded": 1,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:886",
+      "name": "Group 2085663595",
+      "kind": "width",
+      "framePx": 1349,
+      "rpxRaw": 674.5,
+      "rpxRounded": 675,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:887",
+      "name": "Rectangle 346243595",
+      "kind": "width",
+      "framePx": 1349,
+      "rpxRaw": 674.5,
+      "rpxRounded": 675,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:888",
+      "name": "Group 2085663594",
+      "kind": "width",
+      "framePx": 1349,
+      "rpxRaw": 674.5,
+      "rpxRounded": 675,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:888",
+      "name": "Group 2085663594",
+      "kind": "height",
+      "framePx": 115,
+      "rpxRaw": 57.5,
+      "rpxRounded": 58,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:889",
+      "name": "Object",
+      "kind": "x",
+      "framePx": 643,
+      "rpxRaw": 321.5,
+      "rpxRounded": 322,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:889",
+      "name": "Object",
+      "kind": "height",
+      "framePx": 115,
+      "rpxRaw": 57.5,
+      "rpxRounded": 58,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:890",
+      "name": "Object",
+      "kind": "height",
+      "framePx": 115,
+      "rpxRaw": 57.5,
+      "rpxRounded": 58,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:891",
+      "name": "Rectangle 346243597",
+      "kind": "x",
+      "framePx": 81,
+      "rpxRaw": 40.5,
+      "rpxRounded": 41,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:891",
+      "name": "Rectangle 346243597",
+      "kind": "width",
+      "framePx": 1339,
+      "rpxRaw": 669.5,
+      "rpxRounded": 670,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:891",
+      "name": "Rectangle 346243597",
+      "kind": "height",
+      "framePx": 107,
+      "rpxRaw": 53.5,
+      "rpxRounded": 54,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:892",
+      "name": "Group 2085663657",
+      "kind": "x",
+      "framePx": 115,
+      "rpxRaw": 57.5,
+      "rpxRounded": 58,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:892",
+      "name": "Group 2085663657",
+      "kind": "y",
+      "framePx": 589,
+      "rpxRaw": 294.5,
+      "rpxRounded": 295,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:892",
+      "name": "Group 2085663657",
+      "kind": "width",
+      "framePx": 651,
+      "rpxRaw": 325.5,
+      "rpxRounded": 326,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:892",
+      "name": "Group 2085663657",
+      "kind": "stroke",
+      "framePx": 1,
+      "rpxRaw": 0.5,
+      "rpxRounded": 1,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    },
+    {
+      "id": "1:893",
+      "name": "搜索剧本名称，类型或关键词",
+      "kind": "y",
+      "framePx": 589,
+      "rpxRaw": 294.5,
+      "rpxRounded": 295,
+      "errorRpx": 0.5,
+      "errorCssPx": 0.25
+    }
+  ]
+}

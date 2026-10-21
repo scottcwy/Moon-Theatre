@@ -1,3 +1,7 @@
+const visualFixturePages = process.env.VISUAL_FIXTURES === 'true'
+  ? ['pages/quota/visual-fixture/index']
+  : [];
+
 export default defineAppConfig({
   pages: [
     'pages/home/index',
@@ -13,8 +17,10 @@ export default defineAppConfig({
     'pages/quota/result',
     'pages/share/preview',
     'pages/login/index',
+    ...visualFixturePages,
   ],
   tabBar: {
+    custom: true,
     color: '#5A4A4E',
     selectedColor: '#8B4258',
     backgroundColor: '#FFFBF8',
@@ -25,7 +31,7 @@ export default defineAppConfig({
       { pagePath: 'pages/community/index', text: '社区', iconPath: 'assets/icons/community.png', selectedIconPath: 'assets/icons/community-active.png' },
       { pagePath: 'pages/profile/index', text: '我的', iconPath: 'assets/icons/profile.png', selectedIconPath: 'assets/icons/profile-active.png' },
     ],
-  },
+  } as any,
   window: {
     backgroundColor: '#FFFBF8',
     backgroundTextStyle: 'dark',

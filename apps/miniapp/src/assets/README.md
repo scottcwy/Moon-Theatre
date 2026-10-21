@@ -1,6 +1,19 @@
 # assets 资源目录
 
-本目录是微信小程序本地运行图片的唯一入口。`config/index.ts` 只复制这里的运行资源，并排除 `**/*.md` 与 `**/.DS_Store`；不要在这里放源文件、视觉稿、设计证据或未接入素材。
+本目录是微信小程序本地运行图片的唯一入口。`config/index.ts` 只复制这里的运行资源，并排除 `**/*.md` 与 `**/.DS_Store`；不要在这里放源文件、视觉稿、H5 pilot、设计证据或未接入素材。
+
+## 主包边界
+
+| 资产类型 | 位置 | 是否进入微信主包 |
+|---|---|---|
+| 小程序运行图片 | `apps/miniapp/src/assets/` | 是 |
+| H5 pilot 图片 | `apps/miniapp/playground/` | 否 |
+| Logo 源文件与导出说明 | `docs/assets/brand-assets/` | 否 |
+| 剧本原始素材与调研资料 | `docs/assets/reference/流氓叙事/`、`docs/assets/reference/芸芸素材/` | 否 |
+| 设计比对证据 | `docs/specs/evidence/` | 否 |
+| E2E 生成产物 | `apps/miniapp/e2e/artifacts/` | 否，已由 Git 忽略 |
+
+`docs/assets/reference/` 是本地参考素材，已由 Git 忽略；干净克隆中不包含这些源图。
 
 ## 目录职责
 
@@ -22,9 +35,9 @@
 
 角色与封面来源、尺寸和压缩说明：
 
-- `characters/` 以 600×600 JPG 方形头像为主，源图来自官方角色海报或本地占位图；程聿怀、羌青瓷的性别变体按选角结果切换。
-- `home/moon-tower-cover.jpg` 来自《流氓叙事》主海报；`home/yunyun-cover.jpg` 来自 `芸芸素材/00_主视觉封面_沧海浮尘.png`。
-- `logo/logo-icon-480.png` 是聊天列表页运行文件。
+- `characters/` 以 600×600 JPG 方形头像为主，源图来自官方角色海报或本地占位图；程聿怀、羌青瓷的性别变体按选角结果切换。完整源图位于 `docs/assets/reference/流氓叙事/`、`docs/assets/reference/芸芸素材/`。
+- `home/moon-tower-cover.jpg` 来自《流氓叙事》主海报；`home/yunyun-cover.jpg` 来自 `docs/assets/reference/芸芸素材/00_主视觉封面_沧海浮尘.png`。
+- `logo/logo-icon-480.png` 是聊天列表页运行文件；完整 Logo 源文件与导出尺寸见 `docs/assets/brand-assets/README.md`。
 
 ## 图标规范（`icons/`）
 
@@ -36,7 +49,7 @@
 ## 规则
 
 - 新增运行图片放入对应目录，并同步更新本索引中的数量、文件名和引用方；不放死文件。
-- 本目录只放会进入微信主包的运行图片。视觉稿、证据和源文件不得放入。
+- 本目录只放会进入微信主包的运行图片。H5 pilot、视觉稿、证据和源文件不得放入。
 - 删除资源前先全仓 grep 引用，确认无引用再删。
 - 与视觉 token 相关的颜色走 `styles/tokens.scss`，不要在资源里硬编码业务色。
 - 占位图统一用品牌酒红底 + 角色名文字（本目录 `characters/`、`home/` 内标注「占位」的 JPG）；正式美术图到位后整体替换，替换前先全仓 grep 确认引用。

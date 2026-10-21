@@ -9,6 +9,38 @@
   box-shadow: 0 12rpx 32rpx rgba(58, 7, 24, 0.08);
 }
 
+.status-state-card--surface-dark {
+  background-color: #25161c;
+  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.3);
+}
+
+.status-state-card--surface-dark .status-state-card__icon {
+  background-color: rgba(106, 35, 49, 0.8);
+  color: #d9a36d;
+}
+
+.status-state-card--surface-dark .status-state-card__title {
+  color: #f6e7d5;
+}
+
+.status-state-card--surface-dark .status-state-card__message {
+  color: rgba(246, 231, 213, 0.72);
+}
+
+.status-state-card--surface-dark .ui-button {
+  border-color: #d9a36d;
+}
+
+.status-state-card--surface-dark .ui-button--primary {
+  background: transparent;
+  color: #f1cc99;
+}
+
+.status-state-card--surface-dark .ui-button--tonal {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1cc99;
+}
+
 .status-state-card__icon {
   width: 136rpx;
   height: 136rpx;

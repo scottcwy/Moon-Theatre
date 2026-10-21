@@ -2,13 +2,16 @@ import { Text, View } from '@tarojs/components';
 import type { ReactNode } from 'react';
 import './Button.scss';
 
-interface ButtonProps {
+export interface ButtonProps {
   children: ReactNode;
   variant?: 'primary' | 'tonal' | 'ghost';
-  size?: 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg';
+  tone?: 'primary' | 'tonal' | 'neutral';
   disabled?: boolean;
+  loading?: boolean;
   className?: string;
   onTap?: () => void;
+  onPress?: () => void;
 }
 
 interface IconButtonProps {
@@ -32,23 +35,33 @@ export function BaseButton({
   children,
   variant = 'primary',
   size = 'lg',
+  tone,
   disabled = false,
+  loading = false,
   className = '',
   onTap,
+  onPress,
 }: ButtonProps) {
+  const resolvedVariant = tone === 'neutral' ? 'ghost' : tone ?? variant;
+  const isDisabled = disabled || loading;
   const classes = [
     'ui-button',
-    `ui-button--${variant}`,
+    `ui-button--${resolvedVariant}`,
     `ui-button--${size}`,
-    disabled ? 'ui-button--disabled' : '',
+    isDisabled ? 'ui-button--disabled' : '',
+    loading ? 'ui-button--loading' : '',
     className,
   ].filter(Boolean).join(' ');
 
   return (
-    <View className={classes} onTap={disabled ? undefined : onTap}>
-      <Text className="ui-button__text">{children}</Text>
+    <View className={classes} aria-disabled={isDisabled} onTap={isDisabled ? undefined : onTap ?? onPress}>
+      <Text className="ui-button__text">{loading ? '加载中' : children}</Text>
     </View>
   );
+}
+
+export function Button({ variant = 'primary', ...props }: ButtonProps) {
+  return <BaseButton {...props} variant={variant} />;
 }
 
 export function IconButton({
@@ -68,7 +81,7 @@ export function IconButton({
 
   return (
     <View className={classes} aria-label={label} onTap={disabled ? undefined : onTap}>
-      <Text className="ui-icon-button__icon">{icon}</Text>
+      <View className="ui-icon-button__icon">{icon}</View>
     </View>
   );
 }

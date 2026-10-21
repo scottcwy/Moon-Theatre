@@ -319,7 +319,6 @@ describe('playbook component functional behavior', () => {
         avatarUrl="/a.jpg"
         identity="狐神"
         description="守着庭院边界的狐神。"
-        mood="happy"
         relationship="信赖"
         bond={heroBond}
         onBack={onBack}
@@ -327,6 +326,7 @@ describe('playbook component functional behavior', () => {
     );
     expect(hero.props.className).toContain('character-detail-hero');
     expect(textContent(hero)).toContain('守着庭院边界的狐神。');
+    expect(textContent(hero)).not.toContain('平静');
     expect(textContent(hero)).not.toContain('角色相册');
     expect(textContent(hero)).not.toContain('回忆记录');
     expect(findAll(hero, (node) => String(node.props.className ?? '').includes('character-detail-hero__watermark'))).toHaveLength(0);

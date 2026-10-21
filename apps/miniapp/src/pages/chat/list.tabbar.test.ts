@@ -8,10 +8,11 @@ const styleSource = readFileSync(resolve(__dirname, 'list.scss'), 'utf8');
 const appConfigSource = readFileSync(resolve(__dirname, '../../app.config.ts'), 'utf8');
 
 describe('chat list tab bar integration', () => {
-  it('uses the global chat tab instead of rendering a page-local tab bar', () => {
+  it('keeps chat as a switchTab route with one floating stage navigation', () => {
     expect(appConfigSource).toContain("pagePath: 'pages/chat/list', text: '聊天'");
+    expect(appConfigSource).toContain('custom: true');
+    expect(source).toContain('<StageTabBar selected="/pages/chat/list" />');
     expect(source).not.toContain('hideTabBar');
-    expect(source).not.toContain('TheaterTabBar');
     expect(source).not.toContain('chat-list-tabbar');
   });
 

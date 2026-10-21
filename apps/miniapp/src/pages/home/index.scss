@@ -1,133 +1,25 @@
 @use '../../styles/tokens.scss' as *;
 
+$home-ink: #170e12;
+$home-gold: #e0bf94;
+$home-gold-line: rgba(201, 162, 94, 0.55);
+$home-paper: #e4d7c5;
+$home-wine: #8d294a;
+
+.theater-home {
+  color: #f6e4d0;
+}
+
 .theater-home__topbar-shell {
   --topbar-status-height: #{$status-bar-height};
   --topbar-content-height: calc(#{$capsule-height} + 16px);
   --topbar-total-height: #{$topbar-height};
   --topbar-menu-reserve: #{$page-padding-h};
-}
-
-.theater-home__settings-button {
-  width: 56rpx;
-  height: 56rpx;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-}
-
-.theater-home__settings {
-  color: $color-primary;
-  font-size: 32rpx;
-  line-height: 1;
-}
-
-.theater-home__hero-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: $space-3;
-  margin-bottom: $space-3;
-}
-
-.theater-home__hero-heading {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.theater-home__hero-kicker {
-  margin-bottom: $space-1;
-  color: $color-secondary;
-  font-size: $font-label-sm;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: 3rpx;
-}
-
-.theater-home__hero-title {
-  color: $color-on-surface;
-  font-size: 40rpx;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.theater-home__mode-hint {
-  display: block;
-  margin: 0 0 $space-3;
-  color: rgba($color-on-surface-variant, 0.72);
-  font-size: 22rpx;
-  line-height: 1.4;
-  text-align: left;
-}
-
-/* 剧本模式滑动开关：左侧「剧本」文字常显（设置行形态）+ 右侧 88×52 标准小轨道。
-   关=灰粉轨道+白钮在左（标准模式）；开=酒红轨道+白钮 transform 滑到右侧。
-   拇指位移走 transform 过渡，轨道只做颜色过渡，布局不漂移。 */
-.theater-home__mode-switch {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: $space-2;
-}
-
-.theater-home__mode-switch:active .theater-home__mode-switch-track {
-  transform: scale(0.96);
-}
-
-.theater-home__mode-switch-track {
-  position: relative;
-  flex-shrink: 0;
-  width: 88rpx;
-  height: 52rpx;
-  border-radius: $radius-full;
-  background-color: $color-surface-container-high;
-  box-shadow: inset 0 2rpx 8rpx rgba(58, 7, 24, 0.08);
-  box-sizing: border-box;
-  transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.theater-home__mode-switch--on .theater-home__mode-switch-track {
-  background-color: $color-primary;
-  box-shadow: 0 8rpx 18rpx rgba(139, 66, 88, 0.28);
-}
-
-.theater-home__mode-switch-label {
-  color: $color-on-surface;
-  font-size: $font-label-sm;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-/* 拇指绝对定位贴左，开启时右滑 36rpx（轨道 88 - 两侧各 6 边距 - 拇指 40）。 */
-.theater-home__mode-switch-thumb {
-  position: absolute;
-  top: 6rpx;
-  left: 6rpx;
-  width: 40rpx;
-  height: 40rpx;
-  border-radius: $radius-full;
-  background-color: $color-background;
-  box-shadow: 0 4rpx 14rpx rgba(58, 7, 24, 0.22);
-  transition: transform 240ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.theater-home__mode-switch--on .theater-home__mode-switch-thumb {
-  transform: translateX(36rpx);
-}
-
-.theater-home__brand {
-  color: $color-primary;
-  font-size: 34rpx;
-  font-weight: 700;
-  line-height: 1.1;
+  background: $home-ink;
 }
 
 .theater-home__topbar {
-  background-color: $color-background;
-  border-bottom: 1rpx solid rgba($color-outline-variant, 0.34);
+  background: $home-ink;
 }
 
 .theater-home__topbar .top-bar__content {
@@ -145,31 +37,86 @@
   transform: translateX(-50%);
 }
 
+.theater-home__brand {
+  color: #f6e4d0;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 34rpx;
+  font-weight: 600;
+  letter-spacing: 4rpx;
+}
+
 .theater-home__content {
   min-height: 100vh;
-  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-3}) $page-padding-h calc($page-padding-bottom + env(safe-area-inset-bottom, $safe-bottom));
-  background-color: $color-background;
+  padding: calc(var(--topbar-total-height, #{$topbar-height}) + 10rpx) 40rpx calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
+  background:
+    radial-gradient(circle at 50% 0, rgba(105, 37, 52, 0.18), transparent 34%),
+    $home-ink;
   box-sizing: border-box;
 }
 
 .theater-home__hero-section,
 .theater-home__character-section {
-  margin-bottom: $space-6;
+  margin-bottom: 20rpx;
 }
 
-.theater-home__hero-section {
-  margin-top: $space-3;
+.theater-home__hero-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.theater-home__hero-heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.theater-home__hero-kicker {
+  color: rgba(224, 191, 148, 0.72);
+  font-size: 22rpx;
+  line-height: 1.2;
+}
+
+.theater-home__hero-title {
+  margin-top: 2rpx;
+  color: #f8e8d5;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 42rpx;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.theater-home__mode-switch {
+  flex-shrink: 0;
+  min-height: 56rpx;
+  padding: 0 26rpx;
+  border: 1rpx solid $home-gold;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #7c2742 0%, #5c1a2f 100%);
+  box-shadow: 0 6rpx 18rpx rgba(0, 0, 0, 0.28);
+}
+
+.theater-home__mode-switch:active {
+  opacity: 0.8;
+}
+
+.theater-home__mode-switch-label {
+  color: #f8e3c7;
+  font-size: 24rpx;
+  letter-spacing: 2rpx;
+  white-space: nowrap;
 }
 
 .theater-home__script-search {
-  margin-bottom: $space-4;
-  border-color: transparent;
-  background-color: $color-surface-container-low;
-  box-shadow: none;
+  margin: 18rpx 0 16rpx;
 }
 
-.theater-home__script-state {
-  margin-top: $space-2;
+.theater-home__hero-stage {
+  position: relative;
 }
 
 .theater-home__script-scroll {
@@ -178,121 +125,340 @@
   box-sizing: border-box;
 }
 
-.theater-home__script-dots {
-  margin-top: $space-3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: $space-1;
-}
-
-.theater-home__script-dot {
-  width: 12rpx;
-  height: 12rpx;
-  border-radius: $radius-full;
-  background-color: $color-outline-variant;
-  transform: scaleX(1);
-  transform-origin: center;
-  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1),
-    background-color 160ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.theater-home__script-dot--active {
-  transform: scaleX(1.75);
-  background-color: $color-primary;
-}
-
 .theater-home__hero-card {
   position: relative;
-  flex: 0 0 72%;
-  height: 288rpx;
-  margin-right: $space-3;
-  border-radius: 32rpx;
+  flex: 0 0 100%;
+  height: 500rpx;
+  border: 1rpx solid $home-gold-line;
+  border-radius: 8rpx;
   overflow: hidden;
-  background-color: $color-bottom-action-dark;
-  box-shadow: $shadow-subtle;
+  background-color: #28151b;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.42);
   transform: translateZ(0);
-}
-
-.theater-home__hero-card:active {
-  transform: scale(0.98);
 }
 
 .theater-home__hero-image {
   width: 100%;
   height: 100%;
   display: block;
-  border-radius: inherit;
 }
 
 .theater-home__hero-image--placeholder {
-  background-color: $color-primary;
+  background-color: #3a1c2a;
 }
 
 .theater-home__hero-shade {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(180deg, rgba(15, 5, 8, 0) 30%, rgba(15, 5, 8, 0.68) 100%),
-    linear-gradient(90deg, rgba(58, 7, 24, 0.28) 0%, rgba(58, 7, 24, 0.06) 60%);
+  background: linear-gradient(180deg, rgba(15, 5, 8, 0.08) 30%, rgba(15, 5, 8, 0.86) 100%);
 }
 
 .theater-home__hero-content {
   position: absolute;
-  left: $space-4;
-  right: $space-4;
-  bottom: $space-4;
+  left: 30rpx;
+  right: 26rpx;
+  bottom: 24rpx;
+}
+
+.theater-home__hero-tags {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.theater-home__hero-genre {
+  padding: 4rpx 16rpx;
+  border: 1rpx solid rgba(224, 191, 148, 0.6);
+  border-radius: 20rpx;
+  background: rgba(40, 20, 24, 0.62);
+  color: #f2ddc2;
+  font-size: 18rpx;
+}
+
+.theater-home__hero-enter {
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+  background: #e7d3b4;
+  color: #3a2228;
+  font-size: 18rpx;
 }
 
 .theater-home__hero-card-title {
   display: -webkit-box;
-  color: $color-on-primary;
+  color: #fff1de;
+  font-family: Georgia, 'Songti SC', serif;
+  font-size: 48rpx;
+  font-weight: 600;
+  line-height: 1.2;
+  text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.theater-home__hero-desc {
+  display: -webkit-box;
+  margin-top: 8rpx;
+  color: rgba(255, 241, 222, 0.82);
+  font-size: 22rpx;
+  line-height: 1.55;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.theater-home__primary-action {
+  position: relative;
+  width: 100%;
+  height: 76rpx;
+  margin-top: 18rpx;
+  border: 1rpx solid $home-gold;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #8d294a 0%, #6d1f38 100%);
+  color: #fff0dc;
+  font-size: 26rpx;
+  box-sizing: border-box;
+}
+
+.theater-home__hero-arrow {
+  position: absolute;
+  top: 44%;
+  z-index: 2;
+  width: 40rpx;
+  height: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid $home-gold;
+  background: rgba(30, 14, 18, 0.72);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.theater-home__hero-arrow--prev {
+  left: 6rpx;
+}
+
+.theater-home__hero-arrow--next {
+  right: 6rpx;
+}
+
+.theater-home__hero-arrow-text {
+  color: #f0d7ad;
+  font-size: 32rpx;
+  transform: rotate(-45deg);
+}
+
+.theater-home__script-dots {
+  margin-top: 14rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+}
+
+.theater-home__script-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: #6b4a58;
+}
+
+.theater-home__script-dot--active {
+  background: #c26b85;
+}
+
+.theater-home__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8rpx 0 14rpx;
+}
+
+.theater-home__section-rule {
+  width: 96rpx;
+  height: 1rpx;
+  background: linear-gradient(90deg, transparent, $home-gold-line);
+}
+
+.theater-home__section-rule + .theater-home__section-title + .theater-home__section-rule {
+  background: linear-gradient(90deg, $home-gold-line, transparent);
+}
+
+.theater-home__section-title {
+  margin: 0 14rpx;
+  color: #e9d3b3;
+  font-size: 24rpx;
+  letter-spacing: 2rpx;
+}
+
+.theater-home__script-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.theater-home__script-row {
+  position: relative;
+  display: flex;
+  height: 196rpx;
+  margin-bottom: 16rpx;
+  border: 1rpx solid $home-gold-line;
+  border-radius: 6rpx;
+  overflow: hidden;
+  background: #28151b;
+}
+
+.theater-home__script-spine {
+  position: absolute;
+  left: 0;
+  top: 8rpx;
+  bottom: 8rpx;
+  z-index: 2;
+  width: 40rpx;
+  margin-left: 6rpx;
+  border: 1rpx solid rgba(201, 162, 94, 0.7);
+  border-radius: 6rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(50, 28, 34, 0.88);
+}
+
+.theater-home__script-spine-text {
+  width: 24rpx;
+  color: #f0dcc2;
+  font-size: 18rpx;
+  line-height: 1.35;
+  letter-spacing: 2rpx;
+  text-align: center;
+  writing-mode: vertical-rl;
+}
+
+.theater-home__script-art {
+  width: 56%;
+  height: 100%;
+  display: block;
+  opacity: 0.92;
+}
+
+.theater-home__script-copy {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 24rpx 16rpx 16rpx 18rpx;
+  background: linear-gradient(90deg, rgba(40, 20, 24, 0.5) 0%, rgba(40, 20, 24, 0.9) 30%);
+}
+
+.theater-home__script-badge {
+  position: absolute;
+  top: -1rpx;
+  right: 0;
+  padding: 4rpx 18rpx;
+  border-bottom-left-radius: 12rpx;
+  background: #7c2742;
+  color: #f4dfc4;
+  font-size: 18rpx;
+}
+
+.theater-home__script-desc {
+  display: -webkit-box;
+  margin-top: 18rpx;
+  color: rgba(244, 226, 203, 0.72);
+  font-size: 18rpx;
+  line-height: 1.6;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.theater-home__script-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 6rpx;
+  padding: 30rpx 32rpx 36rpx;
+  border: 1rpx solid $home-gold-line;
+  border-radius: 8rpx;
+  background-color: $home-paper;
+}
+
+.theater-home__script-state-art {
+  width: 330rpx;
+  height: 290rpx;
+}
+
+.theater-home__script-state-title {
+  margin-top: 6rpx;
+  color: #3a2228;
+  font-size: 34rpx;
+  letter-spacing: 2rpx;
+}
+
+.theater-home__script-state-message {
+  margin-top: 12rpx;
+  color: #8c766e;
+  font-size: 22rpx;
+}
+
+.theater-home__script-state .status-state-card__title,
+.theater-home__script-state .status-state-card__message {
+  color: #3a2228;
+}
+
+.theater-home__character-section .page-section__kicker {
+  color: #e0bf94;
+  font-size: 22rpx;
+  letter-spacing: 1rpx;
+}
+
+.theater-home__character-section .page-section__title {
+  color: #f8e8d5;
+  font-family: Georgia, 'Songti SC', serif;
   font-size: 36rpx;
   font-weight: 700;
-  line-height: 1.24;
-  overflow: hidden;
-  text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .theater-home__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: $space-5 $space-3;
-}
-
-.theater-home__poster-card {
-  min-width: 0;
+  gap: 18rpx 12rpx;
 }
 
 .theater-home__poster-card .character-poster-card__poster {
-  aspect-ratio: 1 / 1.28;
-  border-radius: 32rpx;
-  background-color: $color-surface-container-low;
-  box-shadow: $shadow-subtle;
+  aspect-ratio: 1.28 / 1;
+  border: 1rpx solid rgba(231, 193, 152, 0.66);
+  border-radius: 0;
+  background: #28151b;
+  box-shadow: 0 8rpx 18rpx rgba(0, 0, 0, 0.34);
 }
 
 .theater-home__poster-card .character-poster-card__badge {
-  background-color: rgba(255, 251, 248, 0.9);
+  bottom: 34rpx;
   border: 0;
-  box-shadow: $shadow-subtle;
+  border-radius: 0;
+  background: rgba(58, 7, 24, 0.92);
+  box-shadow: none;
 }
 
-.theater-home__poster-card .character-poster-card__badge-text {
-  color: $color-primary;
+.theater-home__poster-card .character-poster-card__badge-text,
+.theater-home__poster-card .character-poster-card__title {
+  color: #f5e1ca;
+  font-family: Georgia, 'Songti SC', serif;
 }
 
 .theater-home__poster-card .character-poster-card__title {
-  margin-top: $space-2;
-  font-size: $font-label-md;
+  margin-top: 8rpx;
+  font-size: 23rpx;
 }
 
 .theater-home__poster-card .character-poster-card__subtitle {
-  color: $color-on-surface-variant;
-  line-height: 1.35;
+  color: rgba(238, 211, 184, 0.64);
+  font-size: 18rpx;
 }
 
 .theater-home__empty {
-  margin-top: $space-2;
+  margin-top: 8rpx;
 }

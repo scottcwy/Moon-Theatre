@@ -1,0 +1,20 @@
+{
+  "name": "home-search-results",
+  "auth": "anonymous",
+  "route": "pages/home/index",
+  "query": "月见",
+  "response": {
+    "scripts": [
+      {
+        "id": "moon-garden",
+        "title": "月见庭院：狐神的新娘",
+        "description": "你因家族旧债被送入一座只在满月出现的庭院，成为狐神新娘的候选人。庭院中的每个人都声称等你很久，却没人愿意说清百年前那场未完成的婚契。",
+        "slug": "moon-garden",
+        "genre": "和风悬疑",
+        "coverUrl": null,
+        "sortOrder": 1,
+        "supportsScriptMode": true
+      }
+    ]
+  }
+}

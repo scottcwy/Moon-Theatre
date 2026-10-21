@@ -79,7 +79,7 @@ describe('production pages use shared miniapp ui', () => {
     expect(detailPage).toContain('CharacterDetailHero');
     expect(detailPage).toContain('BottomAction');
     expect(detailPage).toContain('PrimaryButton');
-    expect(detailPage).toContain('PageSection');
+    expect(detailPage).toContain('worldView=');
     expect(detailPage).toContain('createBondViewModel');
     expect(detailPage).toContain('buildCharacterChatUrl');
     expect(detailPage).toContain('进入剧本');
@@ -131,8 +131,12 @@ describe('production pages use shared miniapp ui', () => {
     expect(scriptSelectPage).toContain("`/api/scripts/${encodeURIComponent(scriptId)}`");
     expect(scriptSelectPage).toContain('CharacterPosterCard');
     expect(scriptSelectPage).toContain('getScriptCharacterDetailUrl');
-    expect(scriptSelectPage).toContain('<PageSection title="世界观" surface>');
-    expect(scriptSelectStyles).toContain('transform: scale(1.08) translateY(16rpx);');
-    expect(scriptSelectStyles).toContain('padding: $space-5 $page-padding-h');
+    expect(scriptSelectPage).toContain('TopBar');
+    expect(scriptSelectPage).toContain('navigateBackOrHome');
+    expect(scriptSelectPage).toContain("navigationStyle: 'custom'");
+    expect(scriptSelectPage).toContain('<PageSection title="世界观"');
+    expect(scriptSelectStyles).toContain('background-color: $select-paper;');
+    expect(scriptSelectStyles).toContain('margin: -44rpx $select-gutter 0;');
+    expect(scriptSelectStyles).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
   });
 });

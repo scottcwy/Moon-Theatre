@@ -1,3 +1,32 @@
 @use '../../styles/tokens.scss' as *;
 
-/* quota-result-page now uses PageShell for layout */
+$result-paper: #e4d7c5;
+
+.result {
+  min-height: 100vh;
+  background-color: $result-paper;
+}
+
+.result__nav {
+  background-color: transparent;
+}
+
+.result__nav-title,
+.result__nav-text {
+  color: #fdf1e0;
+}
+
+.result__scroll {
+  height: 100vh;
+}
+
+.result__state {
+  padding: 220rpx 48rpx 0;
+}
+
+.result .payment-result-panel {
+  min-height: 480rpx;
+  margin-top: -40rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  border-radius: 40rpx 40rpx 0 0;
+}
