@@ -1,6 +1,6 @@
 # Spec 状态矩阵
 
-> 最后更新：2026-10-20 · 基线提交 `1047c5b`
+> 最后更新：2026-10-29 · 基线提交 `006d4a9`
 > 维护规则：新增或修改 Spec 时，同一提交更新本表；状态词见下。
 
 状态词：
@@ -40,8 +40,9 @@
 | [Miniapp H5 Playground](./2026-09-15-miniapp-h5-playground-spec.md) | `VERIFIED` | 本地设计工具已实现 | 不是生产交付物 |
 | [H5 全帧复刻与组件化验证](./2026-09-16-新视觉H5全帧复刻与组件化验证.md) | `VERIFIED / IMPLEMENTED` | H5 13 帧已验证；生产迁移已落地 | 生产状态见 2026-10-01 Spec；第二份合同部分取代 |
 | [H5 视觉到 Taro 生产前端](./2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md) | `IMPLEMENTED / PARTIAL / SUPERSEDED_IN_PART` | 功能 E2E 通过；13 帧视觉 `BLOCKED` | §2.1 列出的 5 个状态由第二份合同 Spec 取代；其余帧仍有效 |
-| [UI 细节打磨](./2026-10-19-月满楼小程序UI细节打磨Spec.md) | `IMPLEMENTED / PARTIAL / SUPERSEDED_IN_PART` | smoke、UI、认证 UI 通过；视觉门禁 `BLOCKED` | 功能结论仍有效；被取代帧的视觉细节以第二份合同 Spec 为准 |
-| [第二份合同 UI 前端更新](./2026-10-19-第二份合同UI前端更新Spec.md) | `FROZEN / IMPLEMENTED / VISUAL_BLOCKED` | 12 帧代码与 harness 已落地；smoke/UI/auth 通过 | revision 3；支付只读真实数据；8/9 整屏 `BLOCKED`；5/6/7 键盘未弹出；开发者工具 `390×844` |
+| [UI 细节打磨](./2026-10-19-月满楼小程序UI细节打磨Spec.md) | `IMPLEMENTED / PARTIAL / SUPERSEDED_IN_PART` | smoke、UI、认证 UI 通过；视觉门禁 2026-10-29 已解阻 | 功能结论仍有效；被取代帧的视觉细节以第二份合同 Spec 与 2026-10-29 审计 Spec 为准 |
+| [第二份合同 UI 前端更新](./2026-10-19-第二份合同UI前端更新Spec.md) | `FROZEN / IMPLEMENTED / MEASURED_FAILING` | `390×844` 下 12/12 出分；loading、聊天空态通过；首页搜索空态仅像素通过 | revision 6；最新 run `2026-10-29T09-48-25-647Z`；5/6/7 键盘、8/9 整屏仍 BLOCKED |
+| [UI 视觉差异审计与修复](./2026-10-29-UI视觉差异审计与修复Spec.md) | `PARTIAL / EXECUTING` | S0 已完成，S1 字体替换取消；S2/S3 部分通过，首页 MAE 15.560 / 变化像素 33.64% 仍 FAIL | 保留当前字体；新会话先收敛首页，再推进 S4/S5；最新实测见 §10.11，剩余清单见 §10.12 |
 
 ### 2.1 第二份合同逐帧取代矩阵
 

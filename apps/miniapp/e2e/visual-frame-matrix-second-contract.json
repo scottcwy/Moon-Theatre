@@ -1,10 +1,10 @@
 {
   "viewport": {
-    "width": 375,
-    "height": 812
+    "width": 390,
+    "height": 844
   },
-  "baselineDir": "docs/specs/evidence/2026-10-19-second-contract/baseline-375x812",
-  "componentBaselineDir": "docs/specs/evidence/2026-10-19-second-contract/component-375x812",
+  "baselineDir": "docs/specs/evidence/2026-10-19-second-contract/baseline-390x844",
+  "componentBaselineDir": "docs/specs/evidence/2026-10-19-second-contract/component-390x844",
   "frames": [
     {
       "frame": "1030:2153",
@@ -16,7 +16,7 @@
       "open": "reLaunch",
       "keyboard": "hidden",
       "scrollTop": 0,
-      "masks": "default",
+      "masks": "tabDefault",
       "baseline": "01-home-default.png"
     },
     {
@@ -29,7 +29,7 @@
       "open": "reLaunch",
       "keyboard": "hidden",
       "scrollTop": 0,
-      "masks": "default",
+      "masks": "chatEmpty",
       "baseline": "02-chat-empty.png"
     },
     {
@@ -42,7 +42,7 @@
       "open": "reLaunch",
       "keyboard": "hidden",
       "scrollTop": 0,
-      "masks": "default",
+      "masks": "tabDefault",
       "baseline": "03-profile-loading.png"
     },
     {
@@ -85,7 +85,7 @@
       "open": "reLaunch",
       "keyboard": "shown",
       "scrollTop": 0,
-      "masks": "keyboard",
+      "masks": "tabKeyboard",
       "search": "月见",
       "baseline": "06-home-search-results.png",
       "baseReady": ".theater-home__content"
@@ -100,7 +100,7 @@
       "open": "reLaunch",
       "keyboard": "shown",
       "scrollTop": 0,
-      "masks": "keyboard",
+      "masks": "tabKeyboard",
       "search": "文案",
       "baseline": "07-home-search-empty.png",
       "baseReady": ".theater-home__content"

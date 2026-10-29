@@ -1,6 +1,7 @@
 import { Input, View, Text } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import { useCallback, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import {
   AchievementIcon,
   Badge,
@@ -51,6 +52,13 @@ interface TitleItem {
 
 export default function Profile() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [loadingStageStyle] = useState(() => {
+    try {
+      return { '--profile-status-height': `${Taro.getWindowInfo().statusBarHeight ?? 47}px` } as CSSProperties;
+    } catch {
+      return {};
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
@@ -198,8 +206,10 @@ export default function Profile() {
   if (loading) {
     return (
       <PageShell variant="scroll" tabBarReserve className="profile profile--loading">
-        <View className="profile__topbar"><Text>我的</Text></View>
-        <ProfileLoadingCard />
+        <View className="profile__loading-stage" style={loadingStageStyle}>
+          <View className="profile__topbar"><Text>我的</Text></View>
+          <ProfileLoadingCard />
+        </View>
         <StageTabBar selected="/pages/profile/index" />
       </PageShell>
     );

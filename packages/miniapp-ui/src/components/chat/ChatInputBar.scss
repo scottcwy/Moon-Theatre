@@ -43,6 +43,21 @@
   color: $color-outline;
 }
 
+.chat-input-bar__starters-toggle {
+  flex: 0 0 98rpx;
+  min-height: 72rpx;
+  margin-left: 8rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 40rpx;
+  background: #ead1b0;
+  color: #3d2022;
+  font-size: 24rpx;
+  line-height: 1.2;
+}
+
 .chat-input-bar__send {
   width: $touch-target-min;
   height: $touch-target-min;

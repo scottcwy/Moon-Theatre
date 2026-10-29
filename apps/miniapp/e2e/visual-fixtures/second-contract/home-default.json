@@ -3,14 +3,20 @@
   "auth": "anonymous",
   "route": "pages/home/index",
   "scripts": [
-    {"id": "moon-garden", "title": "月见庭院：狐神的新娘", "genre": "和风悬疑"},
-    {"id": "moon-tower", "title": "月下楼台", "genre": "古风情感"},
-    {"id": "night-letter", "title": "长夜书", "genre": "民国悬疑"},
-    {"id": "lantern-street", "title": "灯街旧事", "genre": "市井群像"},
-    {"id": "jade-bell", "title": "玉铃响时", "genre": "东方奇幻"},
-    {"id": "ink-river", "title": "墨河渡", "genre": "江湖"},
-    {"id": "moonlit-banquet", "title": "月下宴", "genre": "宫廷"}
+    {"id": "moon-garden", "title": "月见庭院：狐神的新娘", "genre": "和风悬疑", "description": "你因家族旧债被送入一座只在满月出现的庭院，成为狐神新娘的候选人。庭院中的每个人都声称等你很久，却没人愿意说清百年前那场未完成的婚契。"},
+    {"id": "moon-tower", "title": "月下楼台", "genre": "古风情感", "description": ""},
+    {"id": "night-letter", "title": "长夜书", "genre": "民国悬疑", "description": ""},
+    {"id": "lantern-street", "title": "灯街旧事", "genre": "市井群像", "description": ""},
+    {"id": "jade-bell", "title": "玉铃响时", "genre": "东方奇幻", "description": ""},
+    {"id": "ink-river", "title": "墨河渡", "genre": "江湖", "description": ""},
+    {"id": "moonlit-banquet", "title": "月下宴", "genre": "宫廷", "description": ""}
   ],
+  "scriptRow": {
+    "scriptIds": ["moon-garden", "moon-tower", "night-letter"],
+    "title": "剧本名称在这里",
+    "badge": "类别",
+    "description": "剧本内容在这里剧本内容在这里剧本内容在这里剧本内容在这里剧本内容在这里剧本内容在这里剧本内容在这里剧本内容在这里剧本内容在这里剧本内容在这里剧本内容......"
+  },
   "characters": [
     {"id": "hakuzo", "name": "白藏", "identity": "月见庭院的狐神"},
     {"id": "chengyuhuai", "name": "程聿怀", "identity": "记者"}

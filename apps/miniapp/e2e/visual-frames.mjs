@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Launcher } from '@weapp-vite/miniprogram-automator';
 import { startMockApiServer } from './mock-api-server.mjs';
@@ -37,6 +38,7 @@ function resolveOption(value, fallback) {
 const args = parseArgs(process.argv.slice(2));
 const matrixPath = resolveOption(args.matrix, path.join(e2eDir, 'visual-frame-matrix.json'));
 const matrix = readJson(matrixPath);
+const secondContract = path.basename(matrixPath) === 'visual-frame-matrix-second-contract.json';
 const masksPath = resolveOption(args.masks, path.join(e2eDir, 'approved-masks.json'));
 const fixturesDir = resolveOption(args.fixtures, path.join(e2eDir, 'visual-fixtures'));
 const defaultBaselineDir = path.join(repoRoot, 'docs/specs/evidence/2026-09-16-h5-all-frames/browser');
@@ -55,7 +57,7 @@ const viewport = matrix.viewport ?? { width: 375, height: 812 };
 const configuredApiPort = Number(process.env.VISUAL_FIXTURE_API_PORT || 3000);
 let activeApiPort = configuredApiPort;
 const defaultViewport = { width: viewport.width, height: viewport.height };
-const longViewport = { width: 375, height: 951 };
+const longViewport = matrix.longPageViewport ?? defaultViewport;
 const captureOnly = process.env.VISUAL_FRAME_CAPTURE_ONLY === 'true';
 const skipInteractions = captureOnly && process.env.VISUAL_FRAME_SKIP_INTERACTIONS === 'true';
 
@@ -65,6 +67,10 @@ function assert(condition, message) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function sha256(filePath) {
+  return createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
 function sleep(ms) {
@@ -182,6 +188,9 @@ function createFixtureProxy(upstream, port) {
       if (decodeURIComponent(characterMatch[1]) === fixtureData.character.id) {
         return json(res, 200, fixtureData.character);
       }
+    }
+    if (req.method === 'POST' && url.pathname === '/api/return-messages/check' && fixtureData?.returnMessages) {
+      return json(res, 200, fixtureData.returnMessages);
     }
     if (req.method === 'GET' && url.pathname === '/api/chat/characters' && fixtureData?.response?.characters) {
       return json(res, 200, {
@@ -340,6 +349,29 @@ async function runInteraction(miniProgram, page, frame) {
   }
 }
 
+async function measureLayout(miniProgram) {
+  return miniProgram.evaluate(() => new Promise((resolve) => {
+    const selectors = [
+      '.profile', '.profile__topbar', '.profile__loading-card',
+      '.theater-home__content', '.theater-home__hero-header', '.theater-home__hero-card',
+      '.theater-home__hero-content', '.theater-home__primary-action', '.theater-home__script-row',
+      '.chat-page', '.chat-page__scope-bar', '.chat-page__messages', '.chat-page__starters',
+      '.chat-starters-panel', '.chat-input-bar', '.chat-input-bar__input',
+      '.chat-list', '.ui-search-bar', '.ui-search-bar__input', '.chat-list__state', '.chat-list__item',
+      '.share-preview-card', '.quota-balance-hero', '.quota-package-list',
+      '.payment-confirm-sheet', '.payment-result-panel',
+    ];
+    const query = wx.createSelectorQuery();
+    for (const selector of selectors) {
+      query.selectAll(selector).fields({
+        rect: true, size: true,
+        computedStyle: ['box-sizing', 'padding-top', 'padding-bottom', 'margin-top', 'height', 'font-family', 'font-size', 'line-height'],
+      });
+    }
+    query.exec((results) => resolve(Object.fromEntries(selectors.map((selector, i) => [selector, results[i]]))));
+  }));
+}
+
 async function saveScreenshot(miniProgram, targetPath) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   await miniProgram.screenshot({ path: targetPath, timeout: 30000 });
@@ -391,7 +423,7 @@ function rebuildWithApiPort(port) {
   return new Promise((resolve, reject) => {
     const child = execFile('pnpm', ['exec', 'taro', 'build', '--type', 'weapp'], {
       cwd: miniappRoot,
-      env: { ...process.env, NODE_ENV: 'development', DEV_AUTH_BYPASS: 'false', API_BASE_URL: `http://127.0.0.1:${port}` },
+      env: { ...process.env, NODE_ENV: 'development', DEV_AUTH_BYPASS: 'false', VISUAL_FIXTURES: 'true', API_BASE_URL: `http://127.0.0.1:${port}` },
       maxBuffer: 16 * 1024 * 1024,
     }, (error, stdout, stderr) => {
       if (error) {
@@ -421,7 +453,7 @@ function markdownSummary(report) {
   const lines = ['# Visual Frame Summary', '', `- Run: ${report.runId}`, `- API fixture port: ${report.apiPort}`, `- DevTools CLI: ${report.cliPath}`, `- System info: ${JSON.stringify(report.systemInfo)}`, ''];
   for (const item of report.frames) {
     const wholeScreen = item.wholeScreenStatus ? ` [whole-screen ${item.wholeScreenStatus}]` : '';
-    lines.push(`- ${item.frame}${item.semanticName ? ` (${item.semanticName})` : ''}: ${item.ok ? 'PASS' : 'FAIL'}${item.metrics ? ` (MAE ${item.metrics.mae.toFixed(3)}, changed ${(item.metrics.changedRatio * 100).toFixed(2)}%)` : ''}${wholeScreen}`);
+    lines.push(`- ${item.frame}${item.semanticName ? ` (${item.semanticName})` : ''}: ${item.status}${item.metrics ? ` (MAE ${item.metrics.mae.toFixed(3)}, changed ${(item.metrics.changedRatio * 100).toFixed(2)}%, pixels ${item.visualStatus})` : ''}${wholeScreen}${item.keyboardStatus === 'BLOCKED' ? ' [keyboard BLOCKED: 未验证真实键盘]' : ''}`);
   }
   lines.push('');
   return `${lines.join('\n')}\n`;
@@ -467,21 +499,42 @@ async function main() {
     await proxy.listen();
     rebuilt = true;
   }
-  if (rebuilt) await rebuildWithApiPort(activeApiPort);
   const cliPath = resolveWechatDevtoolsCli();
   const launcher = new Launcher();
   let miniProgram;
   const report = {
     runId: path.basename(artifactRoot),
+    configuredApiPort,
     apiPort: activeApiPort,
+    rebuilt,
     cliPath,
     captureOnly,
     systemInfo: null,
+    capsuleRect: null,
+    codeHead: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim(),
+    codeStatus: execFileSync('git', ['status', '--short'], { cwd: repoRoot, encoding: 'utf8' }),
+    sourceHashes: Object.fromEntries([
+      currentFile, matrixPath, masksPath,
+      ...['home/index.tsx', 'home/index.scss', 'chat/index.tsx', 'chat/index.scss', 'chat/list.tsx', 'chat/list.scss',
+        'profile/index.tsx', 'profile/index.scss', 'share/preview.tsx', 'share/preview.scss',
+        'quota/buy.tsx', 'quota/buy.scss', 'quota/result.tsx', 'quota/result.scss']
+        .map((file) => path.join(miniappRoot, 'src/pages', file)),
+      ...['profile/ProfileLoadingCard', 'chat/ChatStartersPanel', 'chat/ChatInputBar',
+        'quota/PaymentConfirmSheet', 'quota/PaymentResultPanel', 'quota/QuotaBalanceHero', 'quota/QuotaPackageList', 'share/SharePreviewCard']
+        .flatMap((file) => ['tsx', 'scss'].map((extension) => path.join(repoRoot, 'packages/miniapp-ui/src/components', `${file}.${extension}`))),
+      path.join(miniappRoot, 'src/pages/quota/visual-fixture/fixtures.ts'),
+      path.join(miniappRoot, 'src/pages/quota/visual-fixture/index.tsx'),
+    ].map((file) => [path.relative(repoRoot, file), sha256(file)])),
     frames: [],
   };
   let fatalError = null;
 
   try {
+    if (rebuilt) await rebuildWithApiPort(activeApiPort);
+    report.builtPages = readJson(path.join(miniappRoot, 'dist/app.json')).pages;
+    for (const frame of matrix.frames) {
+      assert(report.builtPages.includes(frame.route.split('?')[0]), `${frame.frame}: 构建缺少路由 ${frame.route} (port=${activeApiPort}, rebuilt=${rebuilt}); 请运行 build:weapp:visual-fixture`);
+    }
     miniProgram = await launcher.launch({
       platform: 'wechat',
       cliPath,
@@ -492,6 +545,7 @@ async function main() {
     });
     await miniProgram.waitForAppReady(60000);
     report.systemInfo = await miniProgram.systemInfo();
+    report.capsuleRect = await miniProgram.evaluate(() => wx.getMenuButtonBoundingClientRect());
     if (!captureOnly) {
       assert(Number(report.systemInfo.windowWidth) === defaultViewport.width, `windowWidth must be ${defaultViewport.width}, got ${report.systemInfo.windowWidth}`);
       assert(Number(report.systemInfo.windowHeight) === defaultViewport.height, `windowHeight must be ${defaultViewport.height}, got ${report.systemInfo.windowHeight}`);
@@ -507,6 +561,10 @@ async function main() {
         route: frame.route,
         fixture: frame.fixture,
         keyboard: frame.keyboard,
+        keyboardStatus: secondContract && frame.keyboard === 'shown' ? 'BLOCKED' : 'NOT_REQUIRED',
+        maskGroup: frame.masks,
+        masks: masks[frame.masks],
+        visualStatus: 'N/A',
         ok: false,
       };
       report.frames.push(item);
@@ -515,11 +573,15 @@ async function main() {
         assert(fs.existsSync(fixturePath), `${frame.frame}: fixture missing ${fixturePath}`);
         const fixture = readJson(fixturePath);
         assert(fixture.name === frame.fixture, `${frame.frame}: fixture name mismatch`);
+        if (secondContract) assert(fixture.route === frame.route, `${frame.frame}: fixture route mismatch`);
+        item.fixtureSha256 = sha256(fixturePath);
         await setFixture(proxy, frame.fixture, fixture);
         await clearStorage(miniProgram, frame.state);
         const page = await openFrame(miniProgram, frame);
         if (!skipInteractions) await runInteraction(miniProgram, page, frame);
-        await waitForSelector(page, frame.ready, 25000, `${frame.frame} post-interaction`);
+        const ready = await waitForSelector(page, frame.ready, 25000, `${frame.frame} post-interaction`);
+        item.readyText = await ready.text();
+        if (secondContract) item.layout = await measureLayout(miniProgram);
         if (process.env.VISUAL_DEBUG_SELECTOR) {
           const debugMatches = await page.$$(process.env.VISUAL_DEBUG_SELECTOR).catch(() => []);
           console.log(`[visual] debug ${frame.frame} ${process.env.VISUAL_DEBUG_SELECTOR} matches=${debugMatches.length}`);
@@ -527,8 +589,8 @@ async function main() {
         const actualPath = path.join(artifactRoot, 'actual', `${frame.frame}.png`);
         await captureFrame(miniProgram, page, frame, actualPath);
         const systemImage = decodePng(actualPath);
+        item.captureDimensions = { width: systemImage.width, height: systemImage.height };
         if (captureOnly) {
-          item.captureDimensions = { width: systemImage.width, height: systemImage.height };
           item.ok = true;
           if (frame.fixture === 'profile-loading') {
             await fetch(`http://127.0.0.1:${activeApiPort}/__visual/release`, { method: 'POST' });
@@ -542,16 +604,22 @@ async function main() {
         assert(systemImage.width === viewport.width && systemImage.height === viewport.height, `${frame.frame}: screenshot must be ${viewport.width}x${viewport.height}, got ${systemImage.width}x${systemImage.height}`);
         const frameBaselineDir = frame.kind === 'component' ? componentBaselineDir : baselineDir;
         const baselinePath = path.join(frameBaselineDir, frame.baseline);
+        item.baselineSha256 = sha256(baselinePath);
         const diffPath = path.join(artifactRoot, 'diff', `${frame.frame}.png`);
         const frameMasks = masks[frame.masks || frame.frame] || masks.default || [];
         const metrics = compareVisualFrames({ actualPath, baselinePath, diffPath, masks: frameMasks });
         item.metrics = metrics;
+        item.visualStatus = 'FAIL';
         enforceVisualThreshold(frame, metrics);
-        item.ok = true;
+        item.visualStatus = 'PASS';
+        item.ok = item.keyboardStatus !== 'BLOCKED';
       } catch (error) {
         item.error = error instanceof Error ? error.message : String(error);
         console.error(`[visual] error ${frame.frame}: ${item.error}`);
       } finally {
+        item.status = captureOnly && item.ok ? 'CAPTURED'
+          : item.metrics && item.keyboardStatus === 'BLOCKED' ? 'BLOCKED'
+            : item.ok ? 'PASS' : 'FAIL';
         console.log(`[visual] done ${frame.frame} ok=${item.ok}`);
       }
     }
@@ -572,6 +640,7 @@ async function main() {
     if (paymentError && !fatalError) fatalError = paymentError;
   }
 
+  report.fatalError = fatalError?.message ?? null;
   const reportPath = path.join(artifactRoot, 'report.json');
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(path.join(artifactRoot, 'summary.md'), markdownSummary(report));

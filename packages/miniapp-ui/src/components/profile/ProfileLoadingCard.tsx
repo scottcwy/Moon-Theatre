@@ -7,7 +7,9 @@ export function ProfileLoadingCard() {
       <View className="profile__loading-arc profile__loading-arc--outer" />
       <View className="profile__loading-arc profile__loading-arc--inner" />
       <View className="profile__loading-moon" />
+      <View className="profile__loading-dot profile__loading-dot--left" />
       <View className="profile__loading-dot" />
+      <View className="profile__loading-dot profile__loading-dot--right" />
       <Text className="profile__loading-text">正在叩响梦境之门…</Text>
     </View>
   );

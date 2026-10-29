@@ -61,6 +61,16 @@ interface FrequentCharacterEntry {
   identity: string;
 }
 
+// 仅视觉构建加载设计占位数据；生产编译时移除 require 及整个 JSON 模块。
+const visualScriptRow: {
+  scriptIds: string[];
+  title: string;
+  badge: string;
+  description: string;
+} | undefined = typeof VISUAL_FIXTURES !== 'undefined' && VISUAL_FIXTURES
+  ? require('../../../e2e/visual-fixtures/second-contract/home-default.json').scriptRow
+  : undefined;
+
 export default function Home() {
   const [characters, setCharacters] = useState<CharacterCard[]>([]);
   const [hasFrequentCharacters, setHasFrequentCharacters] = useState(false);
@@ -248,7 +258,10 @@ export default function Home() {
         />
       </View>
 
-      <View className="theater-home__content" style={topBarStyle as CSSProperties}>
+      <View
+        className={`theater-home__content${hasScriptQuery && !scriptsLoading && !scriptsError && scripts.length === 0 ? ' theater-home__content--search-empty' : ''}`}
+        style={topBarStyle as CSSProperties}
+      >
         <PageSection className="theater-home__hero-section">
           <View className="theater-home__hero-header">
             <View className="theater-home__hero-heading">
@@ -297,7 +310,10 @@ export default function Home() {
                   onScroll={handleScriptScroll}
                 >
                   {scripts.map((script, index) => {
-                    const coverUrl = getScriptCoverUrl(script);
+                    const originalCover = getScriptCoverUrl(script);
+                    const coverUrl = originalCover === '/assets/home/moon-garden-cover.jpg'
+                      ? '/assets/second-contract/hero.webp'
+                      : originalCover;
                     return (
                       <View
                         key={script.id}
@@ -306,14 +322,19 @@ export default function Home() {
                         onTap={() => chooseRole(script)}
                       >
                         {coverUrl ? (
-                          <Image className="theater-home__hero-image" src={coverUrl} mode="aspectFill" lazyLoad />
+                          <Image
+                            className={`theater-home__hero-image${coverUrl === '/assets/second-contract/hero.webp' ? ' theater-home__hero-image--courtyard' : ''}`}
+                            src={coverUrl}
+                            mode="aspectFill"
+                            lazyLoad
+                          />
                         ) : (
                           <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
                         )}
                         <View className="theater-home__hero-shade" />
+                        {script.genre ? <Text className="theater-home__hero-genre">{script.genre}</Text> : null}
                         <View className="theater-home__hero-content">
                           <View className="theater-home__hero-tags">
-                            {script.genre ? <Text className="theater-home__hero-genre">{script.genre}</Text> : null}
                             <Text className="theater-home__hero-enter">可进入</Text>
                           </View>
                           <Text className="theater-home__hero-card-title" userSelect>{script.title}</Text>
@@ -351,7 +372,7 @@ export default function Home() {
             </>
           ) : (
             <View className="theater-home__script-state">
-              <Image className="theater-home__script-state-art" src="/assets/second-contract/home-search-empty.png" mode="aspectFit" />
+              <Image className="theater-home__script-state-art" src="/assets/second-contract/home-search-empty.webp" mode="aspectFit" />
               <Text className="theater-home__script-state-title">{hasScriptQuery ? '没有找到相关剧本' : '暂无可用剧本'}</Text>
               <Text className="theater-home__script-state-message">
                 {hasScriptQuery ? '换个剧本名或关键词试试' : '剧本准备好后会在这里出现'}
@@ -395,18 +416,21 @@ export default function Home() {
             <View className="theater-home__section-rule" />
           </View>
           <View className="theater-home__script-list">
-            {(scripts.length > 0 ? scripts : []).slice(0, 3).map((script) => (
-              <View key={script.id} className="theater-home__script-row" onTap={() => chooseRole(script)}>
-                <View className="theater-home__script-spine">
-                  <Text className="theater-home__script-spine-text">{script.title.slice(0, 6)}</Text>
+            {(scripts.length > 0 ? scripts : []).slice(0, 3).map((script) => {
+              const display = visualScriptRow?.scriptIds.includes(script.id) ? visualScriptRow : undefined;
+              return (
+                <View key={script.id} className="theater-home__script-row" onTap={() => chooseRole(script)}>
+                  <View className="theater-home__script-spine">
+                    <Text className="theater-home__script-spine-text">{display?.title ?? script.title.slice(0, 6)}</Text>
+                  </View>
+                  <Image className="theater-home__script-art" src="/assets/second-contract/script-art.webp" mode="aspectFill" />
+                  <View className="theater-home__script-copy">
+                    <Text className="theater-home__script-badge">{display?.badge ?? (script.genre || '剧本')}</Text>
+                    <Text className="theater-home__script-desc">{display?.description ?? (script.description || '这一段故事，等你入场。')}</Text>
+                  </View>
                 </View>
-                <Image className="theater-home__script-art" src="/assets/home/yunyun-cover.jpg" mode="aspectFill" />
-                <View className="theater-home__script-copy">
-                  <Text className="theater-home__script-badge">{script.genre || '剧本'}</Text>
-                  <Text className="theater-home__script-desc">{script.description || '这一段故事，等你入场。'}</Text>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         </View>
         )}

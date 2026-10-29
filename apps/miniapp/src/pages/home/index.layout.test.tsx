@@ -15,13 +15,27 @@ describe('home hot scripts layout', () => {
     expect(styleSource).toContain('.theater-home__script-scroll');
   });
 
-  it('keeps the gallery card full-bleed with the frozen 500rpx stage height', () => {
+  it('按第二份合同使用横版卡片与窄 CTA，保留全宽轮播', () => {
     expect(styleSource).toContain('flex: 0 0 100%');
-    expect(styleSource).toContain('height: 500rpx');
+    expect(styleSource).toContain('height: 442rpx');
+    expect(styleSource).toContain('.theater-home__hero-image--courtyard');
+    expect(styleSource).toContain('width: calc(442rpx * 16 / 9)');
+    expect(source).toContain('mode="aspectFill"');
+    expect(styleSource).toContain('width: 308rpx');
+    expect(source).toContain("originalCover === '/assets/home/moon-garden-cover.jpg'");
+    expect(source).toContain("'/assets/second-contract/hero.webp'");
   });
 
-  it('shows the script title plus a three-line description on the stage card', () => {
-    expect(styleSource).toContain('-webkit-line-clamp: 3');
+  it('将空态留白与剧本行裁切限制在首页展示，保持字体 family', () => {
+    expect(styleSource).toContain('.theater-home__content--search-empty .theater-home__script-state');
+    expect(styleSource).toContain('margin-left: 71%');
+    expect(styleSource).toContain('height: 188rpx');
+    expect(styleSource).toContain("font-family: Georgia, 'Songti SC', serif");
+    expect(source).toContain('/assets/second-contract/script-art.webp');
+  });
+
+  it('保留真实标题、点击入口与设计中的四行正文', () => {
+    expect(styleSource).toContain('-webkit-line-clamp: 4');
     expect(styleSource).toContain('overflow: hidden');
     expect(source).toContain('theater-home__hero-desc');
     expect(source).toContain('onTap={() => chooseRole(script)}');

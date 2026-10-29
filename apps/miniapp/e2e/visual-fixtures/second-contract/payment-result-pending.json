@@ -1,8 +1,12 @@
 {
   "name": "payment-result-pending",
   "auth": "visual",
-  "route": "pages/quota/visual-fixture?state=result-pending",
+  "route": "pages/quota/visual-fixture/index?state=result-pending",
   "state": "result-pending",
+  "panel": {
+    "title": "支付尚未完成",
+    "message": "点数暂未到账。若已扣款，请先核实支付结果，避免重复付款。"
+  },
   "order": {
     "id": "visual-order-pending",
     "status": "prepay_created",

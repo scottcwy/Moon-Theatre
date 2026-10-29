@@ -1,0 +1,176 @@
+{
+  "generatedAt": "2026-10-29",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "rule": "PNG 1500x3247 -> 390x844 fit=fill; overlay 1500x1508 -> 390x392 at y=452",
+  "items": [
+    {
+      "semanticName": "01-home-default",
+      "source": "1.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "8ff2c4ec4ab76658b73bc4c7b6506d8cc417e57ef735d909d973c5ad5dd35ecb"
+    },
+    {
+      "semanticName": "02-chat-empty",
+      "source": "2.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "eb8f7e2da8b32de99aad919b4e190c261606a91d5ec802e1b74ed96424377cd1"
+    },
+    {
+      "semanticName": "03-profile-loading",
+      "source": "3.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "2f6450b523096b74efcf55c8bcb1990bccdf19233fde1549bc87e69909ebfd1b"
+    },
+    {
+      "semanticName": "04-chat-list-search-empty",
+      "source": "4.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "09d1a980d79afc85500af2881f685f231126ba3cdc7b8698d456cc079c8796dd"
+    },
+    {
+      "semanticName": "05-chat-list-search-results",
+      "source": "5.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "ecd5eb5d10db7202c2c3872b2b5a357d3ce1f4f5d8ccb491e181013200079fc8"
+    },
+    {
+      "semanticName": "06-home-search-results",
+      "source": "6.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "5297504bcca8dd64dc5c8a8a3d1239f82a1661e39e284667abd917f4197627a0"
+    },
+    {
+      "semanticName": "07-home-search-empty",
+      "source": "7.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "0a76d1415f19a83b61c2035a660d3ae7e25f5852ca6d1cf03fa73da848ae43d2"
+    },
+    {
+      "semanticName": "10-share-preview",
+      "source": "10.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "6fd0a275026a00b8de62043180922ad0e14bf50528e0188dcc5e2bfdc7075820"
+    },
+    {
+      "semanticName": "11-quota-package-list",
+      "source": "11.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "a1761b99f2b3acd2c17926bb2c56515788cc076c0bfdafd4ea875516682db784"
+    },
+    {
+      "semanticName": "12-payment-result-success",
+      "source": "12.png",
+      "sourceSize": [
+        1500,
+        3247
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "sha256": "cbda05f22aecc30bce0e8ced6e9b9d453551e951ca3449708ac3c2aeac343d10"
+    },
+    {
+      "semanticName": "08-payment-confirm-sheet",
+      "source": "8-confirm-overlay.png",
+      "sourceSize": [
+        1500,
+        1508
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "placement": {
+        "x": 0,
+        "y": 452
+      },
+      "kind": "component-reference",
+      "sha256": "7a52999779338fa15895f205e3f6f49515b4179dbff4279a3a9134b99fd923c1"
+    },
+    {
+      "semanticName": "09-payment-result-failed",
+      "source": "9-failure-overlay.png",
+      "sourceSize": [
+        1500,
+        1508
+      ],
+      "targetSize": [
+        390,
+        844
+      ],
+      "placement": {
+        "x": 0,
+        "y": 452
+      },
+      "kind": "component-reference",
+      "sha256": "43523424615b61ed97b14a44c999d7e68e2943f2dd67ab9540d5af7f1ec00fd8"
+    }
+  ]
+}

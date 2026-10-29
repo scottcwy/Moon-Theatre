@@ -264,7 +264,7 @@ export default function ChatList() {
             <View className="chat-list__state chat-list__state--search">
               <Image
                 className="chat-list__state-art"
-                src="/assets/second-contract/chat-empty.png"
+                src="/assets/second-contract/chat-empty.webp"
                 mode="aspectFit"
               />
               <Text className="chat-list__state-title">{hasSearchQuery ? '没有找到相关聊天' : '还没有聊天记录'}</Text>

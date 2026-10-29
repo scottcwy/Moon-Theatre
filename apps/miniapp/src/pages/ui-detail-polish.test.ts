@@ -55,7 +55,7 @@ describe('UI detail polish contract', () => {
     const chatStyles = readPage('chat/index.scss');
     expect((chatPage.match(/surface="dark"/g) ?? []).length).toBeGreaterThanOrEqual(10);
     expect(chatStyles).toContain('chat-input-bar__placeholder');
-    expect(chatStyles).toContain('$safe-bottom');
+    expect(chatStyles).toContain('env(safe-area-inset-bottom, 34px)');
   });
 
   it('uses custom navigation on the dark full-screen pages', () => {

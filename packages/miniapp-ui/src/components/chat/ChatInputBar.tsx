@@ -13,6 +13,7 @@ interface ChatInputBarProps {
   onSend: () => void;
   onBuyPoints: () => void;
   onShare?: () => void;
+  onToggleStarters?: () => void;
 }
 
 export function ChatInputBar({
@@ -25,6 +26,7 @@ export function ChatInputBar({
   onSend,
   onBuyPoints,
   onShare,
+  onToggleStarters,
 }: ChatInputBarProps) {
   const action = insufficientPoints ? onBuyPoints : onSend;
   const [focused, setFocused] = useState(false);
@@ -48,6 +50,11 @@ export function ChatInputBar({
           onConfirm={onSend}
           disabled={disabled}
         />
+        {onToggleStarters && (
+          <View className="chat-input-bar__starters-toggle" aria-label="灵感对话" onTap={onToggleStarters}>
+            <Text>灵感</Text><Text>对话</Text>
+          </View>
+        )}
       </View>
       <View className={`chat-input-bar__send${disabled ? ' chat-input-bar__send--disabled' : ''}`} aria-label={insufficientPoints ? '充值' : sending ? '发送中' : '发送'} onTap={disabled && !insufficientPoints ? undefined : action}>
         {insufficientPoints || sending ? (

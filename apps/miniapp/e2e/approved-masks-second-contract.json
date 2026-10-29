@@ -1,19 +1,38 @@
 {
   "default": [
-    {"x": 0, "y": 0, "width": 375, "height": 88, "reason": "WeChat status bar and capsule"},
-    {"x": 0, "y": 778, "width": 375, "height": 34, "reason": "Home indicator"}
+    {"x": 0, "y": 0, "width": 390, "height": 47, "reason": "微信系统状态栏"},
+    {"x": 283, "y": 44, "width": 100, "height": 39, "reason": "设计系统胶囊与实测胶囊边界并集，不遮标题"},
+    {"x": 0, "y": 810, "width": 390, "height": 34, "reason": "Home indicator"}
   ],
   "keyboard": [
-    {"x": 0, "y": 0, "width": 375, "height": 88, "reason": "WeChat status bar and capsule"},
-    {"x": 0, "y": 496, "width": 375, "height": 316, "reason": "System keyboard; appearance is OS-owned"}
+    {"x": 0, "y": 0, "width": 390, "height": 47, "reason": "微信系统状态栏"},
+    {"x": 283, "y": 44, "width": 100, "height": 39, "reason": "设计系统胶囊与实测胶囊边界并集，不遮标题"},
+    {"x": 0, "y": 516, "width": 390, "height": 328, "reason": "System keyboard; appearance is OS-owned"}
   ],
   "searchInputText": [
-    {"x": 0, "y": 0, "width": 375, "height": 88, "reason": "WeChat status bar and capsule"},
-    {"x": 0, "y": 778, "width": 375, "height": 34, "reason": "Home indicator"},
-    {"x": 50, "y": 136, "width": 260, "height": 28, "reason": "Production query differs from design placeholder"}
+    {"x": 0, "y": 0, "width": 390, "height": 47, "reason": "微信系统状态栏"},
+    {"x": 283, "y": 44, "width": 100, "height": 39, "reason": "设计系统胶囊与实测胶囊边界并集，不遮标题"},
+    {"x": 0, "y": 810, "width": 390, "height": 34, "reason": "Home indicator"},
+    {"x": 52, "y": 141, "width": 270, "height": 29, "reason": "Production query differs from design placeholder"}
+  ],
+  "chatEmpty": [
+    {"x":0,"y":0,"width":390,"height":47,"reason":"微信系统状态栏"},
+    {"x":0,"y":810,"width":390,"height":34,"reason":"Home indicator"}
+  ],
+  "tabDefault": [
+    {"x":0,"y":0,"width":390,"height":47,"reason":"微信系统状态栏"},
+    {"x":283,"y":44,"width":100,"height":39,"reason":"设计系统胶囊与实测胶囊边界并集，不遮标题"},
+    {"x":18,"y":47,"width":16,"height":23,"reason":"§9 已批准 Tab 根页不重建设计返回图标"},
+    {"x":0,"y":810,"width":390,"height":34,"reason":"Home indicator"}
+  ],
+  "tabKeyboard": [
+    {"x":0,"y":0,"width":390,"height":47,"reason":"微信系统状态栏"},
+    {"x":283,"y":44,"width":100,"height":39,"reason":"设计系统胶囊与实测胶囊边界并集，不遮标题"},
+    {"x":18,"y":47,"width":16,"height":23,"reason":"§9 已批准 Tab 根页不重建设计返回图标"},
+    {"x":0,"y":516,"width":390,"height":328,"reason":"System keyboard; appearance is OS-owned"}
   ],
   "component": [
-    {"x": 0, "y": 778, "width": 375, "height": 34, "reason": "Home indicator is system UI"}
+    {"x": 0, "y": 810, "width": 390, "height": 34, "reason": "Home indicator is system UI"}
   ],
   "none": []
 }

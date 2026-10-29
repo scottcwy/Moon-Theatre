@@ -14,13 +14,8 @@ export default function QuotaVisualFixture() {
         <View className="visual-fixture__spacer" />
         <PaymentResultPanel
           tone="pending"
-          title="支付尚未完成"
-          message="点数暂未到账。若已扣款，请先核实支付结果，避免重复付款。"
-          points={PENDING_RESULT_FIXTURE.points}
-          packageName={PENDING_RESULT_FIXTURE.packageName}
-          amountLabel={PENDING_RESULT_FIXTURE.amountLabel}
-          balancePoints={PENDING_RESULT_FIXTURE.balancePoints}
-          orderNo={PENDING_RESULT_FIXTURE.orderNo}
+          title={PENDING_RESULT_FIXTURE.title}
+          message={PENDING_RESULT_FIXTURE.message}
           primaryText="返回订单"
           secondaryText="返回选购"
           onPrimary={() => undefined}

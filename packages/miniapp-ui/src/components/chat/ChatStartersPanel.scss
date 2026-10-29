@@ -4,7 +4,9 @@ $starters-wine: #2a1519;
 $starters-gold: #c9a25e;
 
 .chat-page__starters {
-  padding: 24rpx 24rpx 18rpx;
+  box-sizing: border-box;
+  min-height: 520rpx;
+  padding: 34rpx 20rpx 20rpx;
   border: 1rpx solid rgba(201, 162, 94, 0.35);
   border-radius: 16rpx;
   background-color: $starters-wine;
@@ -33,7 +35,7 @@ $starters-gold: #c9a25e;
   display: block;
   margin-top: 6rpx;
   color: rgba(245, 227, 202, 0.55);
-  font-size: 20rpx;
+  font-size: 22rpx;
 }
 
 .chat-page__starters-actions {
@@ -57,8 +59,7 @@ $starters-gold: #c9a25e;
   width: 44rpx;
   height: 44rpx;
   margin-left: 8rpx;
-  border: 1rpx solid rgba(201, 162, 94, 0.5);
-  border-radius: 50%;
+  border-left: 1rpx solid rgba(201, 162, 94, 0.5);
 }
 
 .chat-page__starters-close-text {
@@ -78,7 +79,7 @@ $starters-gold: #c9a25e;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 70rpx;
+  min-height: 96rpx;
   padding: 0 20rpx;
   border: 1rpx solid rgba(201, 162, 94, 0.45);
   border-radius: 10rpx;
@@ -93,7 +94,7 @@ $starters-gold: #c9a25e;
   flex: 1;
   min-width: 0;
   color: #f5e3cc;
-  font-size: 23rpx;
+  font-size: 26rpx;
   line-height: 1.4;
 }
 

@@ -985,6 +985,9 @@ export default function Chat() {
         onSend={handleSend}
         onBuyPoints={handleBuyPoints}
         onShare={handleShare}
+        onToggleStarters={isBareFreeChat && baseStarterQuestions.length > 0
+          ? () => setStartersDismissed((value) => !value)
+          : undefined}
       />
     </View>
   );

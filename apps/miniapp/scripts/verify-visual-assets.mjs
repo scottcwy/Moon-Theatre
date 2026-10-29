@@ -75,7 +75,10 @@ function imageSize(filePath) {
     const chunk = buffer.toString('ascii', 12, 16);
     if (chunk === 'VP8X') return { width: 1 + buffer.readUIntLE(24, 3), height: 1 + buffer.readUIntLE(27, 3), format: 'webp' };
     if (chunk === 'VP8 ') return { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff, format: 'webp' };
-    if (chunk === 'VP8L') fail(`unsupported lossless WebP size read: ${filePath}`);
+    if (chunk === 'VP8L' && buffer.length >= 25 && buffer[20] === 0x2f) {
+      const bits = buffer.readUInt32LE(21);
+      return { width: 1 + (bits & 0x3fff), height: 1 + ((bits >>> 14) & 0x3fff), format: 'webp' };
+    }
   }
   fail(`unsupported image format: ${filePath}`);
 }

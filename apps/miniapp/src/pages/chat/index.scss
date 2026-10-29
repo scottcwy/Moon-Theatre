@@ -2,6 +2,7 @@
 
 .chat-page {
   height: 100vh;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -215,8 +216,8 @@
 }
 
 .chat-page__scope-bar {
-  margin: 0 18rpx 12rpx;
-  min-height: 86rpx;
+  margin: 0 36rpx 12rpx;
+  min-height: 98rpx;
   padding: 14rpx 20rpx;
   border: 1rpx solid rgba(136, 82, 67, 0.22);
   border-radius: 8rpx;
@@ -249,7 +250,8 @@
 }
 
 .chat-page__starters-dock {
-  padding: 0 18rpx 10rpx;
+  flex-shrink: 0;
+  padding: 0 36rpx 32rpx;
 }
 
 .chat-page__scope-label,
@@ -308,16 +310,30 @@
 }
 
 .chat-page .chat-input-bar {
-  padding: 12rpx 18rpx calc($space-3 + env(safe-area-inset-bottom, $safe-bottom));
+  flex-shrink: 0;
+  padding: 12rpx 36rpx env(safe-area-inset-bottom, 34px);
   background: #170e12;
 }
 
 .chat-page .chat-input-bar__input-wrap {
+  min-height: 84rpx;
+  padding: 0 12rpx 0 30rpx;
   border-color: #d6a78a;
   background: #281a1e;
+  box-shadow: inset 0 0 0 4rpx #281a1e, inset 0 0 0 5rpx rgba(214, 167, 138, 0.45);
+}
+
+.chat-page .chat-input-bar__share {
+  width: 64rpx;
+  height: 64rpx;
+  border: 1rpx solid rgba(214, 167, 138, 0.25);
+  border-radius: 10rpx;
 }
 
 .chat-page .chat-input-bar__input {
+  flex: 1;
+  min-width: 0;
+  font-size: 32rpx;
   color: #f8e9d7;
 }
 
@@ -326,6 +342,8 @@
 }
 
 .chat-page .chat-input-bar__send {
-  border-color: #b3755e;
+  width: 84rpx;
+  height: 84rpx;
+  border: 1rpx solid #b3755e;
   background: #562130;
 }

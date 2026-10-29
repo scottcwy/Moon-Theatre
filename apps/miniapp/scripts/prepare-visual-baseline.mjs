@@ -8,12 +8,26 @@ import { decodePng, encodePng } from '../../../scripts/compare-visual-frames.mjs
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
 const evidenceDir = path.join(repoRoot, 'docs/specs/evidence/2026-10-19-second-contract');
-const screenDir = path.join(evidenceDir, 'baseline-375x812');
-const componentDir = path.join(evidenceDir, 'component-375x812');
-const manifestPath = path.join(evidenceDir, 'baseline-manifest.json');
-const SCREEN = { width: 375, height: 812 };
+const SOURCE = { width: 1500, height: 3247 };
 const OVERLAY = { width: 1500, height: 1508 };
-const OVERLAY_TARGET = { width: 375, height: 377, y: 435 };
+
+function parseTarget(argv) {
+  const index = argv.indexOf('--target');
+  if (index === -1) return { width: 375, height: 812 };
+  const match = /^(\d+)x(\d+)$/.exec(argv[index + 1] ?? '');
+  if (!match) throw new Error('--target must look like 390x844');
+  return { width: Number(match[1]), height: Number(match[2]) };
+}
+
+const SCREEN = parseTarget(process.argv.slice(2));
+const SCREEN_LABEL = `${SCREEN.width}x${SCREEN.height}`;
+const screenDir = path.join(evidenceDir, `baseline-${SCREEN_LABEL}`);
+const componentDir = path.join(evidenceDir, `component-${SCREEN_LABEL}`);
+const manifestPath = path.join(evidenceDir, `baseline-manifest-${SCREEN_LABEL}.json`);
+// The overlay is cropped from the same 1500x3247 canvas, so its height tracks the
+// target height and it stays bottom-anchored on the home indicator.
+const overlayHeight = Math.round((SCREEN.height * OVERLAY.height) / SOURCE.height);
+const OVERLAY_TARGET = { width: SCREEN.width, height: overlayHeight, y: SCREEN.height - overlayHeight };
 
 const screens = [
   ['01-home-default', '1.png'],
@@ -140,8 +154,8 @@ function main() {
   for (const [semanticName, file] of screens) {
     const sourcePath = path.join(evidenceDir, file);
     const source = decodePng(sourcePath);
-    if (source.width !== 1500 || source.height !== 3247) {
-      throw new Error(`${file}: expected 1500x3247, got ${source.width}x${source.height}`);
+    if (source.width !== SOURCE.width || source.height !== SOURCE.height) {
+      throw new Error(`${file}: expected ${SOURCE.width}x${SOURCE.height}, got ${source.width}x${source.height}`);
     }
     const resized = resize(source, SCREEN.width, SCREEN.height);
     const target = path.join(screenDir, `${semanticName}.png`);
@@ -174,7 +188,8 @@ function main() {
   }
   const manifest = {
     generatedAt: new Date().toISOString().slice(0, 10),
-    rule: 'PNG 1500x3247 -> 375x812 fit=fill; overlay 1500x1508 -> 375x377 at y=435',
+    viewport: SCREEN,
+    rule: `PNG ${SOURCE.width}x${SOURCE.height} -> ${SCREEN_LABEL} fit=fill; overlay ${OVERLAY.width}x${OVERLAY.height} -> ${OVERLAY_TARGET.width}x${OVERLAY_TARGET.height} at y=${OVERLAY_TARGET.y}`,
     items,
   };
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);

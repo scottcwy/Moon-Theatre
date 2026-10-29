@@ -3,6 +3,10 @@
   "auth": "logged-in",
   "route": "pages/chat/list",
   "query": "月",
+  "returnMessages": {
+    "messages": [],
+    "characterUnread": {"tsukishima-rin": 1}
+  },
   "response": {
     "characters": [
       {
