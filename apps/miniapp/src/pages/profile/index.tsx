@@ -5,12 +5,12 @@ import type { CSSProperties } from 'react';
 import {
   AchievementIcon,
   Badge,
+  BalancePanel,
   CharacterAvatar,
   EmptyState,
   IconButton,
   NoticeBlock,
   PageShell,
-  PointsBadge,
   PrimaryButton,
   ProfileLoadingCard,
   StatusStateCard,
@@ -239,132 +239,146 @@ export default function Profile() {
   }
 
   return (
-    <PageShell variant="scroll" tabBarReserve className="profile">
-      <View className="profile__topbar"><Text>我的</Text></View>
-      <View className="profile__hero">
-        <View className="profile__hero-main">
-          <CharacterAvatar name={displayName} src={profile?.avatarUrl || undefined} size="lg" />
-          <View className="profile__identity">
-            <View className="profile__name-line">
-              {editingPreferredName ? (
-                <View className="profile__name-editor">
-                  <Input
-                    className="profile__name-input"
-                    value={preferredNameDraft}
-                    maxlength={20}
-                    placeholder="输入对话称呼"
-                    placeholderClass="profile__name-placeholder"
-                    disabled={savingPreferredName}
-                    focus
-                    onInput={(event) => setPreferredNameDraft(event.detail.value)}
-                  />
-                  <PrimaryButton
-                    className="profile__name-save"
-                    size="md"
-                    disabled={savingPreferredName}
-                    onTap={handleSavePreferredName}
-                  >
-                    {savingPreferredName ? '保存中…' : '保存'}
-                  </PrimaryButton>
+    <PageShell variant="scroll" tabBarReserve className="profile profile--redesigned">
+      <View className="profile__stage" style={loadingStageStyle}>
+        <View className="profile__topbar"><Text>我的</Text></View>
+        <View className="profile__hero">
+          <View className="profile__hero-main">
+            <CharacterAvatar name={displayName} src={profile?.avatarUrl || undefined} size="lg" />
+            <View className="profile__identity">
+              <View className="profile__name-line">
+                {editingPreferredName ? (
+                  <View className="profile__name-editor">
+                    <Input
+                      className="profile__name-input"
+                      value={preferredNameDraft}
+                      maxlength={20}
+                      placeholder="输入对话称呼"
+                      placeholderClass="profile__name-placeholder"
+                      disabled={savingPreferredName}
+                      focus
+                      onInput={(event) => setPreferredNameDraft(event.detail.value)}
+                    />
+                    <PrimaryButton
+                      className="profile__name-save"
+                      size="md"
+                      disabled={savingPreferredName}
+                      onTap={handleSavePreferredName}
+                    >
+                      {savingPreferredName ? '保存中…' : '保存'}
+                    </PrimaryButton>
+                  </View>
+                ) : (
+                  <View className="profile__name-display">
+                    <Text className="profile__nickname">{displayName}</Text>
+                    <IconButton
+                      className="profile__name-edit"
+                      label="编辑对话称呼"
+                      icon={<View className="ui-pencil" />}
+                      tone="tonal"
+                      onTap={handleEditPreferredName}
+                    />
+                  </View>
+                )}
+              </View>
+              <Text className="profile__subtitle">玩家档案 · {displayStatus}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View className="profile__balance-card">
+          <BalancePanel
+            className="profile__balance-panel"
+            label="我的灯火"
+            value={balance ?? '—'}
+            unit="点"
+            hint="一盏灯火，续一段故事"
+          />
+          <View className="profile__lantern" aria-hidden><View /></View>
+          <PrimaryButton className="profile__renew-button" onTap={handleBuyPoints}>去续灯 ›</PrimaryButton>
+        </View>
+
+        {error && (
+          <View className="profile__error">
+            <StatusStateCard title="资料暂时不可用" message={error} tone="error" icon="!" />
+          </View>
+        )}
+
+        <View className="profile__growth-card">
+          <View className="profile__section-head">
+            <Text className="profile__section-title">成长记录</Text>
+            <Text className="profile__section-note">对话后自动解锁</Text>
+          </View>
+
+          <View className="profile__stat-grid">
+            <View className="profile__stat-item">
+              <Text className="profile__stat-value">{titles.length}</Text>
+              <Text className="profile__stat-label">已获称号</Text>
+            </View>
+            <View className="profile__stat-item">
+              <Text className="profile__stat-value">{achievements.length}</Text>
+              <Text className="profile__stat-label">已获成就</Text>
+            </View>
+          </View>
+
+          {hasGrowthRecords ? (
+            <View className="profile__growth-content">
+              {hasTitles && (
+                <View className="profile__title-group">
+                  <Text className="profile__group-label">我的称号</Text>
+                  <View className="profile__title-list">
+                    {titles.map((title) => (
+                      <Badge key={title.id}>{title.name}</Badge>
+                    ))}
+                  </View>
                 </View>
-              ) : (
-                <View className="profile__name-display">
-                  <Text className="profile__nickname">{displayName}</Text>
-                  <IconButton
-                    className="profile__name-edit"
-                    label="编辑对话称呼"
-                    icon={<View className="ui-pencil" />}
-                    tone="tonal"
-                    onTap={handleEditPreferredName}
-                  />
+              )}
+
+              {hasAchievements && (
+                <View className="profile__achievement-list">
+                  <View className="profile__achievement-head">
+                    <Text className="profile__group-label">已解锁成就</Text>
+                    <Text className="profile__section-note">每次入戏，都留下印记</Text>
+                  </View>
+                  {achievements.map((achievement) => (
+                    <View key={achievement.id} className="profile__achievement">
+                      <AchievementIcon
+                        className="profile__achievement-icon"
+                        code={achievement.code}
+                        name={achievement.name}
+                      />
+                      <View className="profile__achievement-copy">
+                        <Text className="profile__achievement-name">{achievement.name}</Text>
+                        <Text className="profile__achievement-desc">{achievement.description}</Text>
+                      </View>
+                      <Text className="profile__achievement-status">已解锁</Text>
+                    </View>
+                  ))}
                 </View>
               )}
             </View>
-            <Text className="profile__subtitle">玩家档案 · {displayStatus}</Text>
-          </View>
+          ) : (
+            <View className="profile__empty-panel">
+              <EmptyState
+                title="开始第一段角色经历"
+                message="去首页选择角色并完成几次对话后，称号和成就会记录在这里。"
+                primaryText="去选角色"
+                secondaryText="查看聊天"
+                onPrimary={handleChooseCharacter}
+                onSecondary={handleViewChats}
+              />
+            </View>
+          )}
         </View>
-        <View className="profile__hero-actions">
-          <PointsBadge points={balance} onTap={handleBuyPoints} />
+
+        <View className="profile__account">
+          <TonalButton className="profile__logout-button" onTap={handleLogout}>
+            退出登录
+          </TonalButton>
         </View>
+        <NoticeBlock className="profile__ai-notice">角色及对话均为虚构 · 内容由 AI 生成</NoticeBlock>
+        <StageTabBar selected="/pages/profile/index" />
       </View>
-
-      {error && (
-        <View className="profile__error">
-          <StatusStateCard title="资料暂时不可用" message={error} tone="error" icon="!" />
-        </View>
-      )}
-
-      <View className="profile__growth-card">
-        <View className="profile__section-head">
-          <Text className="profile__section-title">成长记录</Text>
-          <Text className="profile__section-note">对话后自动解锁</Text>
-        </View>
-
-        <View className="profile__stat-grid">
-          <View className="profile__stat-item">
-            <Text className="profile__stat-value">{titles.length}</Text>
-            <Text className="profile__stat-label">称号</Text>
-          </View>
-          <View className="profile__stat-item">
-            <Text className="profile__stat-value">{achievements.length}</Text>
-            <Text className="profile__stat-label">成就</Text>
-          </View>
-        </View>
-
-        {hasGrowthRecords ? (
-          <View className="profile__growth-content">
-            {hasTitles && (
-              <View className="profile__title-group">
-                <Text className="profile__group-label">称号</Text>
-                <View className="profile__title-list">
-                  {titles.map((title) => (
-                    <Badge key={title.id}>{title.name}</Badge>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {hasAchievements && (
-              <View className="profile__achievement-list">
-                <Text className="profile__group-label">成就</Text>
-                {achievements.map((achievement) => (
-                  <View key={achievement.id} className="profile__achievement">
-                    <AchievementIcon
-                      className="profile__achievement-icon"
-                      code={achievement.code}
-                      name={achievement.name}
-                    />
-                    <View className="profile__achievement-copy">
-                      <Text className="profile__achievement-name">{achievement.name}</Text>
-                      <Text className="profile__achievement-desc">{achievement.description}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        ) : (
-          <View className="profile__empty-panel">
-            <EmptyState
-              title="开始第一段角色经历"
-              message="去首页选择角色并完成几次对话后，称号和成就会记录在这里。"
-              primaryText="去选角色"
-              secondaryText="查看聊天"
-              onPrimary={handleChooseCharacter}
-              onSecondary={handleViewChats}
-            />
-          </View>
-        )}
-      </View>
-
-      {aiNotice}
-
-      <View className="profile__account">
-        <TonalButton className="profile__logout-button" onTap={handleLogout}>
-          退出登录
-        </TonalButton>
-      </View>
-      <StageTabBar selected="/pages/profile/index" />
     </PageShell>
   );
 }
