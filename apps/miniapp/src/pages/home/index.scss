@@ -10,6 +10,25 @@ $home-wine: #8d294a;
   color: #f6e4d0;
 }
 
+/* 基线底部有全宽黑渐隐：页面底色自 y711 的 ink 线性压到 y810 的 0.79，
+   tab 胶囊浮在渐隐之上（z-index 1000）。 */
+.theater-home::after {
+  content: ' ';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+  height: 277rpx;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 7.6%,
+    rgba(0, 0, 0, 0.79) 76.4%,
+    rgba(0, 0, 0, 0.9) 100%
+  );
+}
+
 .theater-home__topbar-shell {
   --topbar-status-height: #{$status-bar-height};
   --topbar-content-height: calc(#{$capsule-height} + 16px);
@@ -36,7 +55,8 @@ $home-wine: #8d294a;
   display: flex;
   align-items: center;
   justify-content: center;
-  transform: translateX(-50%);
+  /* 基线字块中心 188.5，非屏幕中心 195；左移 14rpx 对齐设计标题位。 */
+  transform: translateX(calc(-50% - 14rpx));
 }
 
 .theater-home__brand {
@@ -60,6 +80,7 @@ $home-wine: #8d294a;
 }
 
 .theater-home__hero-header {
+  position: relative;
   min-height: 74rpx;
   display: flex;
   align-items: flex-end;
@@ -89,25 +110,30 @@ $home-wine: #8d294a;
 }
 
 .theater-home__mode-switch {
-  flex-shrink: 0;
-  min-height: 56rpx;
-  padding: 0 26rpx;
+  /* 基线胶囊酒红实测 84×30px，文字块 79×23px（38rpx 字号几乎撑满）。
+     基线高度超出 header，用绝对定位避免把搜索框与 hero 推低。 */
+  position: absolute;
+  right: 0;
+  bottom: -2rpx;
+  min-height: 58rpx;
+  padding: 0 2rpx;
   border: 1rpx solid $home-gold;
   border-radius: 8rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #7c2742 0%, #5c1a2f 100%);
+  /* 基线胶囊实心 (116,44,76)，上下不再走渐变。 */
+  background: #742c4c;
   box-shadow: 0 6rpx 18rpx rgba(0, 0, 0, 0.28);
 }
-
 .theater-home__mode-switch:active {
   opacity: 0.8;
 }
 
 .theater-home__mode-switch-label {
-  color: #f8e3c7;
-  font-size: 24rpx;
+  /* 基线胶囊内壁与底色稳定在 (116,44,76)。 */
+  color: #e0a49e;
+  font-size: 38rpx;
   letter-spacing: 2rpx;
   white-space: nowrap;
 }
@@ -116,8 +142,10 @@ $home-wine: #8d294a;
   min-height: 64rpx;
   margin: 28rpx 0 20rpx;
   padding: 0 18rpx;
-  background: #332729;
-  box-shadow: inset 0 0 0 4rpx #22171b, inset 0 0 0 5rpx rgba(224, 191, 148, 0.45);
+  /* 基线搜索框：外缘 1px 玫瑰亮线 + 1px 暗环 + 内层 1px 亮线，内底 (47,36,38)。 */
+  background: #2f2426;
+  border-color: rgba(150, 105, 100, 0.95);
+  box-shadow: inset 0 0 0 2rpx #22171b, inset 0 0 0 4rpx rgba(120, 90, 85, 0.85);
 }
 
 .theater-home__script-search .ui-search-bar__input {
@@ -133,6 +161,29 @@ $home-wine: #8d294a;
 
 .theater-home__hero-stage {
   position: relative;
+  /* 设计基线 hero 图片按 390 全宽出血，抵消页面左右 padding 36rpx。 */
+  margin: 0 -36rpx;
+  overflow: hidden;
+}
+
+.theater-home__hero-card::before,
+.theater-home__hero-card::after {
+  content: '';
+  position: absolute;
+  left: 40rpx;
+  right: 40rpx;
+  z-index: 3;
+  height: 1rpx;
+  background: $home-gold-line;
+  pointer-events: none;
+}
+
+.theater-home__hero-card::before {
+  top: 0;
+}
+
+.theater-home__hero-card::after {
+  bottom: 0;
 }
 
 .theater-home__script-scroll {
@@ -147,8 +198,9 @@ $home-wine: #8d294a;
   flex: 0 0 100%;
   height: 442rpx;
   box-sizing: border-box;
-  border: 1rpx solid $home-gold-line;
-  border-radius: 8rpx;
+  /* 全宽图盖住左右描边，基线只保留上下金线（由 hero-stage 伪元素绘制）。 */
+  border: none;
+  border-radius: 0;
   overflow: hidden;
   background-color: #28151b;
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.42);
@@ -163,8 +215,11 @@ $home-wine: #8d294a;
 
 .theater-home__hero-image--courtyard {
   position: absolute;
-  right: 0;
+  /* 基线配准：408×230 在屏幕 x-34 起，右缘 374（卡宽 390）；实测整体偏高 1px。 */
+  top: 2rpx;
+  right: 31rpx;
   width: calc(442rpx * 16 / 9);
+  height: 100%;
   max-width: none;
 }
 
@@ -178,10 +233,102 @@ $home-wine: #8d294a;
   background: linear-gradient(90deg, rgba(15, 5, 8, 0.08), transparent 80%);
 }
 
+/* 基线 courtyard 图左右各有一条约 20px 宽的书脊带：内缘 1px 亮缝线，
+   外侧是随画面明暗变化的竖向渐变（逐行均值采样）。 */
+.theater-home__hero-edge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 40rpx;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(30, 26, 30, 0.9) 0,
+      rgba(30, 26, 30, 0.9) 1rpx,
+      rgba(150, 128, 130, 0.95) 1rpx,
+      rgba(150, 128, 130, 0.95) 3rpx,
+      rgba(36, 30, 34, 0.85) 3rpx,
+      rgba(36, 30, 34, 0.85) 5rpx,
+      rgba(36, 30, 34, 0) 5rpx
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 150, 140, 0) 0,
+      rgba(255, 150, 140, 0) 20rpx,
+      rgba(255, 150, 140, 0.14) 40rpx
+    ),
+    linear-gradient(
+      180deg,
+      rgb(23, 14, 18) 0%,
+      rgb(23, 14, 18) 2.2%,
+      rgb(14, 32, 39) 2.8%,
+      rgb(16, 31, 39) 3.9%,
+      rgb(24, 34, 44) 12.7%,
+      rgb(35, 40, 51) 21.4%,
+      rgb(49, 37, 48) 30.3%,
+      rgb(65, 30, 45) 39%,
+      rgb(72, 34, 46) 43.4%,
+      rgb(105, 32, 48) 52.2%,
+      rgb(124, 23, 44) 60.9%,
+      rgb(154, 27, 45) 69.7%,
+      rgb(108, 21, 36) 78.4%,
+      rgb(125, 18, 33) 87.1%,
+      rgb(105, 18, 35) 97.3%,
+      rgb(23, 14, 18) 98%,
+      rgb(23, 14, 18) 100%
+    );
+}
+
+.theater-home__hero-edge--left {
+  left: 0;
+  right: auto;
+  width: 39rpx;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(36, 30, 34, 0) 0,
+      rgba(36, 30, 34, 0) 35rpx,
+      rgba(36, 30, 34, 0.75) 35rpx,
+      rgba(36, 30, 34, 0.75) 36rpx,
+      rgba(148, 128, 131, 0.95) 36rpx,
+      rgba(148, 128, 131, 0.95) 38rpx,
+      rgba(36, 30, 34, 0.9) 38rpx,
+      rgba(36, 30, 34, 0.9) 39rpx
+    ),
+    linear-gradient(
+      180deg,
+      rgb(23, 14, 18) 0%,
+      rgb(23, 14, 18) 2.2%,
+      rgb(40, 76, 86) 3.9%,
+      rgb(49, 79, 90) 12.7%,
+      rgb(51, 80, 91) 21.4%,
+      rgb(64, 80, 92) 30.3%,
+      rgb(72, 77, 90) 39%,
+      rgb(74, 67, 79) 42.4%,
+      rgb(66, 55, 62) 45.9%,
+      rgb(74, 62, 71) 49.4%,
+      rgb(86, 66, 82) 52.9%,
+      rgb(82, 59, 75) 56.4%,
+      rgb(90, 60, 78) 59.9%,
+      rgb(97, 63, 82) 60.9%,
+      rgb(108, 58, 80) 69.7%,
+      rgb(118, 50, 74) 78.4%,
+      rgb(129, 45, 70) 87.1%,
+      rgb(122, 42, 67) 95.8%,
+      rgb(122, 42, 67) 97.3%,
+      rgb(23, 14, 18) 98%,
+      rgb(23, 14, 18) 100%
+    );
+}
+
 .theater-home__hero-content {
   position: absolute;
-  left: 54rpx;
+  left: 92rpx;
   right: 26rpx;
+  /* 基线按钮酒红实心底在 397（hero 底 416），留 34rpx。 */
   bottom: 34rpx;
 }
 
@@ -189,7 +336,7 @@ $home-wine: #8d294a;
   display: flex;
   align-items: center;
   gap: 12rpx;
-  margin-bottom: 12rpx;
+  margin-bottom: 6rpx;
 }
 
 .theater-home__hero-genre {
@@ -214,6 +361,9 @@ $home-wine: #8d294a;
 
 .theater-home__hero-card-title {
   display: -webkit-box;
+  /* 基线标题单行：10 字占 x48-224（步进 17.7px），盒子不再收紧以免折行。 */
+  width: 100%;
+  max-width: 100%;
   color: #fff1de;
   font-family: Georgia, 'Songti SC', serif;
   font-size: 36rpx;
@@ -222,17 +372,19 @@ $home-wine: #8d294a;
   text-shadow: 0 4rpx 18rpx rgba(0, 0, 0, 0.42);
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
 }
 
 .theater-home__hero-desc {
   display: -webkit-box;
-  width: 420rpx;
+  /* 基线正文四行字形顶 306/318/330/343，行距 12.3px，20rpx 下取 1.26。 */
+  width: 346rpx;
   max-width: 100%;
-  margin-top: 12rpx;
-  color: rgba(255, 241, 222, 0.9);
+  margin-top: 16rpx;
+  /* 基线正文 p90 实测 (185,188,192)，比原暖白更亮更中性。 */
+  color: rgba(232, 232, 236, 0.9);
   font-size: 20rpx;
-  line-height: 1.25;
+  line-height: 1.26;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
@@ -240,10 +392,13 @@ $home-wine: #8d294a;
 
 .theater-home__primary-action {
   position: relative;
-  width: 308rpx;
+  /* 基线按钮酒红实心 x42-207、y367-397，左缘比正文再外扩 14rpx。 */
+  width: 326rpx;
   max-width: 100%;
-  height: 58rpx;
-  margin-top: 28rpx;
+  /* 基线酒红实心 y367-397，高 31px 即 60rpx；行间留白靠 margin-top 抵回。 */
+  height: 60rpx;
+  margin-top: 31rpx;
+  margin-left: -14rpx;
   border: 1rpx solid $home-gold;
   border-radius: 28rpx;
   display: flex;
@@ -251,7 +406,8 @@ $home-wine: #8d294a;
   justify-content: center;
   background: #852c49;
   box-shadow: inset 0 0 0 4rpx #852c49, inset 0 0 0 5rpx rgba(224, 191, 148, 0.6);
-  color: #fff0dc;
+  /* 基线按钮文字 p90 (227,205,211)，暖白带粉。 */
+  color: #f2e2e4;
   font-size: 26rpx;
   box-sizing: border-box;
 }
@@ -271,11 +427,16 @@ $home-wine: #8d294a;
 }
 
 .theater-home__hero-arrow--prev {
-  left: -16rpx;
+  left: 10rpx;
+}
+
+/* 基线首帧不显示左箭头（轮播未回绕）。 */
+.theater-home__hero-arrow--hidden {
+  display: none;
 }
 
 .theater-home__hero-arrow--next {
-  right: -16rpx;
+  right: 10rpx;
 }
 
 .theater-home__hero-arrow-text {
@@ -336,6 +497,7 @@ $home-wine: #8d294a;
 .theater-home__script-row {
   position: relative;
   display: flex;
+  /* 行高与 script-art（768×234）的 aspectFill 裁切耦合，保持 188rpx。 */
   height: 188rpx;
   box-sizing: border-box;
   margin-bottom: 34rpx;
@@ -378,6 +540,8 @@ $home-wine: #8d294a;
   height: 100%;
   display: block;
   opacity: 1;
+  /* 基线配准：行封面整体偏左下 1px。 */
+  transform: translate(-1px, 1px);
 }
 
 .theater-home__script-copy {
@@ -386,27 +550,31 @@ $home-wine: #8d294a;
   min-width: 0;
   margin-left: 71%;
   padding: 32rpx 12rpx 10rpx 16rpx;
-  background: rgba(82, 80, 70, 0.72);
+  /* 基线 x264 处 (109,110,114)、x340 处 (81,81,91)：半透明层约 0.5 才能保留底图横向渐变。 */
+  background: rgba(66, 60, 60, 0.5);
 }
 
 .theater-home__script-badge {
   position: absolute;
   top: 0;
   right: 0;
-  padding: 0 16rpx;
+  padding: 0 18rpx;
   border: 1rpx solid rgba(224, 191, 148, 0.55);
   border-radius: 10rpx;
-  background: #522635;
-  color: #f4dfc4;
-  font-size: 18rpx;
+  /* 基线角标底色实测 (83,34,48)，比原 #522635 深一档。 */
+  background: #481a28;
+  color: #f2d3ae;
+  font-size: 14rpx;
+  line-height: 1.5;
 }
 
 .theater-home__script-desc {
   display: -webkit-box;
   margin-top: 8rpx;
-  color: rgba(255, 248, 234, 0.9);
+  /* 基线正文 p90 (191,191,191)，比原冷白更亮更中性。 */
+  color: rgba(246, 246, 246, 0.92);
   font-size: 14rpx;
-  line-height: 1.25;
+  line-height: 1.41;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 8;

@@ -49,7 +49,7 @@ export default function ScriptCatalog() {
   const hasQuery = query.trim().length > 0;
 
   return (
-    <PageShell variant="scroll">
+    <PageShell variant="scroll" className="script-catalog">
       <PageSection title={scriptCatalogSections.title} kicker={scriptCatalogSections.kicker}>
         <SearchBar
           value={query}
@@ -60,9 +60,10 @@ export default function ScriptCatalog() {
         />
 
         {loading ? (
-          <StatusStateCard className="script-catalog__state" title="正在读取剧本目录" message="可用剧本加载中。" icon="…" />
+          <StatusStateCard surface="dark" className="script-catalog__state" title="正在读取剧本目录" message="可用剧本加载中。" icon="…" />
         ) : error ? (
           <StatusStateCard
+            surface="dark"
             className="script-catalog__state"
             title="剧本目录暂时不可用"
             message="请稍后重试。"
@@ -101,6 +102,7 @@ export default function ScriptCatalog() {
           </View>
         ) : (
           <EmptyState
+            surface="dark"
             className="script-catalog__state"
             title={hasQuery ? '没有找到相关剧本' : '暂无可用剧本'}
             message={hasQuery ? '换个关键词，或清除搜索查看全部剧本。' : '剧本准备好后会在这里出现。'}
@@ -115,4 +117,8 @@ export default function ScriptCatalog() {
 
 definePageConfig({
   navigationBarTitleText: '剧本目录',
+  navigationBarBackgroundColor: '#170e12',
+  navigationBarTextStyle: 'white',
+  backgroundColor: '#170e12',
+  backgroundTextStyle: 'light',
 });

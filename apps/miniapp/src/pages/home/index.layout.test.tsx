@@ -15,13 +15,14 @@ describe('home hot scripts layout', () => {
     expect(styleSource).toContain('.theater-home__script-scroll');
   });
 
-  it('按第二份合同使用横版卡片与窄 CTA，保留全宽轮播', () => {
+  it('按第二份合同使用全宽出血 hero、窄 CTA，保留全宽轮播', () => {
     expect(styleSource).toContain('flex: 0 0 100%');
     expect(styleSource).toContain('height: 442rpx');
     expect(styleSource).toContain('.theater-home__hero-image--courtyard');
-    expect(styleSource).toContain('width: calc(442rpx * 16 / 9)');
+    expect(styleSource).toContain('margin: 0 -36rpx');
+    expect(styleSource).toContain('width: 346rpx');
     expect(source).toContain('mode="aspectFill"');
-    expect(styleSource).toContain('width: 308rpx');
+    expect(styleSource).toContain('width: 326rpx');
     expect(source).toContain("originalCover === '/assets/home/moon-garden-cover.jpg'");
     expect(source).toContain("'/assets/second-contract/hero.webp'");
   });
@@ -31,7 +32,7 @@ describe('home hot scripts layout', () => {
     expect(styleSource).toContain('margin-left: 71%');
     expect(styleSource).toContain('height: 188rpx');
     expect(styleSource).toContain("font-family: Georgia, 'Songti SC', serif");
-    expect(source).toContain('/assets/second-contract/script-art.webp');
+    expect(source).toMatch(/const coverUrl = getScriptCoverUrl\(script\);[\s\S]*?className="theater-home__script-art" src=\{coverUrl\}/);
   });
 
   it('保留真实标题、点击入口与设计中的四行正文', () => {

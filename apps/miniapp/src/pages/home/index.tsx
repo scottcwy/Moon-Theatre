@@ -332,6 +332,8 @@ export default function Home() {
                           <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
                         )}
                         <View className="theater-home__hero-shade" />
+                        {coverUrl === '/assets/second-contract/hero.webp' ? <View className="theater-home__hero-edge theater-home__hero-edge--left" /> : null}
+                        {coverUrl === '/assets/second-contract/hero.webp' ? <View className="theater-home__hero-edge" /> : null}
                         {script.genre ? <Text className="theater-home__hero-genre">{script.genre}</Text> : null}
                         <View className="theater-home__hero-content">
                           <View className="theater-home__hero-tags">
@@ -349,7 +351,7 @@ export default function Home() {
                 </ScrollView>
                 {scripts.length > 1 && (
                   <>
-                    <View className="theater-home__hero-arrow theater-home__hero-arrow--prev" onTap={() => goToScript(-1)}>
+                    <View className={`theater-home__hero-arrow theater-home__hero-arrow--prev${scripts.length > 1 && activeScriptIndex > 0 ? '' : ' theater-home__hero-arrow--hidden'}`} onTap={() => goToScript(-1)}>
                       <Text className="theater-home__hero-arrow-text">‹</Text>
                     </View>
                     <View className="theater-home__hero-arrow theater-home__hero-arrow--next" onTap={() => goToScript(1)}>
@@ -418,12 +420,13 @@ export default function Home() {
           <View className="theater-home__script-list">
             {(scripts.length > 0 ? scripts : []).slice(0, 3).map((script) => {
               const display = visualScriptRow?.scriptIds.includes(script.id) ? visualScriptRow : undefined;
+              const coverUrl = getScriptCoverUrl(script);
               return (
                 <View key={script.id} className="theater-home__script-row" onTap={() => chooseRole(script)}>
                   <View className="theater-home__script-spine">
                     <Text className="theater-home__script-spine-text">{display?.title ?? script.title.slice(0, 6)}</Text>
                   </View>
-                  <Image className="theater-home__script-art" src="/assets/second-contract/script-art.webp" mode="aspectFill" />
+                  {coverUrl ? <Image className="theater-home__script-art" src={coverUrl} mode="aspectFill" /> : null}
                   <View className="theater-home__script-copy">
                     <Text className="theater-home__script-badge">{display?.badge ?? (script.genre || '剧本')}</Text>
                     <Text className="theater-home__script-desc">{display?.description ?? (script.description || '这一段故事，等你入场。')}</Text>

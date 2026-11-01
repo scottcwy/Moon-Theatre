@@ -14,7 +14,8 @@
   border-radius: $radius-full;
   background:
     linear-gradient(180deg, rgba(255, 214, 180, 0.08) 0%, rgba(255, 214, 180, 0) 38%),
-    linear-gradient(180deg, #5a1d31 0%, #451426 58%, #37101e 100%);
+    /* 基线胶囊顶部实测 (88,34,53)，原 #5a1d31 叠加高光后偏高约 20。 */
+    linear-gradient(180deg, #4a1526 0%, #451426 58%, #37101e 100%);
   box-shadow: 0 10rpx 24rpx rgba(22, 7, 13, 0.5), inset 0 1rpx 0 rgba(255, 220, 180, 0.14);
   box-sizing: border-box;
 }
