@@ -207,7 +207,7 @@ unknown
 
 客户端心跳错误码（非服务端事件）：`stream_stalled`——15s 内无任何 chunk 且未收到 `done` 时客户端触发 `onError('stream_stalled')` 并中止请求（`requestTask.abort()`），stall 后不再送达 delta/done，客户端忽略迟到回调。
 
-产品聊天由 API 拥有上下文状态：API 从数据库选取 `excluded_from_context=false` 的近期干净历史并显式传给 FastClaw；产品聊天请求不得依赖 FastClaw session history 或发送 `x-fastclaw-session-key`。
+角色 Agent 架构（`USE_ROLEPLAY_AGENTS=true`）下，FastClaw session 持有生成上下文与历史（含 compaction）；API 每轮只发动态上下文（system 动态 + 当前 user 消息），clean history 为 `[]`。API 发送完整请求头契约：`x-fastclaw-agent-id` / `x-fastclaw-user-id` / `x-fastclaw-session-key`（映射 `chat_sessions.id`）/ `x-fastclaw-scope` / `x-fastclaw-message-id`；回访留言另发 `x-fastclaw-no-persist: true`（`adapter.ts` L61-76）。关闭开关时保持旧链路：API 从数据库选取 `excluded_from_context=false` 的近期干净历史并组装 system prompt。
 
 ### `GET /api/chat/characters`
 

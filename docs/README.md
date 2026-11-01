@@ -12,6 +12,8 @@
 | 当前技术架构 | `docs/技术开发架构与前后端文档.md` | 仓库结构、页面、模块、部署总览；不定义视觉权威 |
 | V1 历史技术基线 | `docs/technical-spec-v1.md` | 仅供追溯 V1 方案；当前实现以代码和当前架构文档为准 |
 | API 契约 | `docs/api-v1.md` | 45 个 API 路径的请求/响应说明；路径覆盖与代码对齐 |
+| Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PLANNED`；已确认需求及验收，不代表现有 API 已实现 |
+| Miniapp 个人页组件复用 | [个人页设计系统与组件复用 Spec](./specs/2026-10-31-个人页设计系统与组件复用Spec.md) | `FROZEN / PLANNED`；冻结个人页的组件复用边界、footer 一致性和 E2E 验收 |
 | 部署与回滚 | `docs/deployment.md` | Docker Compose、镜像、域名、迁移、回滚 |
 | 当前视觉系统 | `DESIGN.md` | 视觉摘要与实现状态；不定义逐帧验收 |
 | H5 13 帧契约 | `docs/specs/2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md` | 未被第二份合同取代的帧仍是权威；被取代状态见 `docs/specs/README.md` §2.1 |

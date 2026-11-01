@@ -1,10 +1,12 @@
 # Spec 状态矩阵
 
-> 最后更新：2026-10-29 · 基线提交 `006d4a9`
+> 最后更新：2026-10-31 · 既有状态基线提交 `006d4a9`；新增后台规格见 §1.1
 > 维护规则：新增或修改 Spec 时，同一提交更新本表；状态词见下。
 
 状态词：
 
+- `FROZEN`：需求与边界已确认；不代表已实现。
+- `PLANNED`：需求已确认，能力尚待实现与验收。
 - `IMPLEMENTED`：代码已存在（已实现）。
 - `VERIFIED`：实现已通过对应验证（已验证）。
 - `PARTIAL`：部分实现或验收未闭环（部分实现）。
@@ -32,6 +34,18 @@
 | [生产就绪本地准备](./2026-08-12-production-readiness-local-prep-spec.md) | `IMPLEMENTED` | 本地准备已落地；`test:deploy-config` 通过 | 服务器发布状态另行确认 |
 | [FastClaw 角色 Agent 架构](./2026-08-14-fastclaw-roleplay-agent-architecture-spec.md) | `FROZEN / IMPLEMENTED` | 代码与测试已落地；ADR 0004 已接受 | revision 4 |
 | [首 token 并行化 P2-2](./2026-08-12-chat-p2-2-first-token-parallelization-spec.md) | `SUPERSEDED / NOT_IMPLEMENTED` | 未实现 | 基于旧 API 组装链，已被 2026-08-14 架构 Spec 取代 |
+
+### 1.1 Web 运营后台
+
+| Spec | 状态 | 实现 / 验收 | 备注 |
+| --- | --- | --- | --- |
+| [Web 运营管理后台 V1](./2026-10-31-web-admin-spec.md) | `FROZEN / PLANNED` | 需求已确认，新增与改造能力待实现；未验收 | 含剧本、角色、用户、聊天查看、订单、充值及模型配置；实现设计与外部前置条件见 §10/§12 |
+
+### 1.2 Miniapp 个人页组件复用
+
+| Spec | 状态 | 实现 / 验收 | 备注 |
+| --- | --- | --- | --- |
+| [个人页设计系统与组件复用](./2026-10-31-个人页设计系统与组件复用Spec.md) | `FROZEN / PLANNED` | 复用边界已冻结；footer 收敛、余额适配和 E2E 验收待实施 | 适用于 `apps/miniapp/src/pages/profile` 及共享 UI 组件 |
 
 ## 2. H5 视觉与生产迁移
 

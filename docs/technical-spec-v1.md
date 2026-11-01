@@ -1,6 +1,8 @@
 # 剧本杀角色扮演小程序技术 SPEC v1（历史基线）
 
-> **修订标注（2026-08-14）**：本文档 §7.3「当前 adapter 支持 x-fastclaw-session-key 请求头」为文档漂移（adapter 实际未发送该头），且 §7.4「记忆由业务后端结构化管理，不依赖 Agent 内部 Markdown 记忆作为唯一来源」被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）推翻；相应小节已按 2026-08-14 架构 Spec 修订（见 §7.3/§7.4）。
+> **修订标注（2026-08-14）**：本文档 §7.4「记忆由业务后端结构化管理，不依赖 Agent 内部 Markdown 记忆作为唯一来源」被 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`（revision 4，冻结）推翻；相应小节已按 2026-08-14 架构 Spec 修订（见 §7.4）。
+>
+> **修订标注（2026-10-29）**：§7.3 请求头契约描述已按代码现实更新——角色 Agent 架构（`USE_ROLEPLAY_AGENTS=true`）下 adapter 已补齐完整 6 头契约（`adapter.ts` L61-76），旧「文档漂移」标注不再适用。
 >
 > **修订标注（2026-10-19）**：本文档为 V1 历史基线。当前视觉与生产端实现以 `docs/specs/2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md` 和 `docs/specs/2026-10-19-月满楼小程序UI细节打磨Spec.md` 为准；`DESIGN.md` 已重构为当前 H5 剧场视觉契约，旧 Material 暖白体系不再是视觉依据。
 
@@ -334,7 +336,7 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。当前生产不配置降级（Spec 5：`FASTCLAW_FALLBACK_ENABLED=false`）。
 - 当前 adapter 调用 `${FASTCLAW_BASE_URL}/v1/chat/completions`，使用 `Authorization: Bearer ${FASTCLAW_API_KEY}`，解析 OpenAI SSE 兼容的 `data: ...` 和 `[DONE]`。
 - 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
-- 当前 adapter 实际只发送 `x-fastclaw-agent-id`，**不发送 `x-fastclaw-session-key`**（原表述为文档漂移，2026-08-14 架构 Spec §2.3/§11 修正）；新链路将补齐 `x-fastclaw-user-id`/`x-fastclaw-session-key`/`x-fastclaw-scope`/`x-fastclaw-message-id`/`x-fastclaw-no-persist` 请求头契约。
+- 角色 Agent 架构（`USE_ROLEPLAY_AGENTS=true`）下，adapter 已补齐完整请求头契约：`x-fastclaw-agent-id` / `x-fastclaw-user-id` / `x-fastclaw-session-key` / `x-fastclaw-scope` / `x-fastclaw-message-id` / `x-fastclaw-no-persist`（`adapter.ts` L61-76，2026-08-14 架构 Spec §8 实现）。关闭开关时（`USE_ROLEPLAY_AGENTS=false`）保持旧链路：仅发送 `x-fastclaw-agent-id`。
 - 当前 FastClaw API 暴露 `GET /v1/agents/{id}/runtime-spec`，只返回 `id`、`model`、`maxTokens`、`temperature`、`maxToolIterations`、`thinking` 等非敏感运行参数。
 - 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、`${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations = 0`、`thinking = "off"`（缺失或非 off 不通过）；`/api/health` 只表示 API 进程存活。
 - 当前 readiness 尚未检查数据库连接和生产关键配置完整性，生产部署验收仍需补强。
