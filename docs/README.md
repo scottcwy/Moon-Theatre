@@ -14,7 +14,7 @@
 | API 契约 | `docs/api-v1.md` | 45 个 API 路径的请求/响应说明；路径覆盖与代码对齐 |
 | Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PLANNED`；已确认需求及验收，不代表现有 API 已实现 |
 | Miniapp 个人页组件复用 | [个人页设计系统与组件复用 Spec](./specs/2026-10-31-个人页设计系统与组件复用Spec.md) | `FROZEN / IMPLEMENTED / SUPERSEDED_IN_PART`；组件复用与视觉约束继续有效，footer 挂载位置以新 Spec 为准 |
-| Miniapp Tab 生命周期与导航 | [Tab 页面生命周期与底部导航统一重构 Spec](./specs/2026-11-04-Miniapp-Tab页面生命周期与底部导航统一重构Spec.md) | `FROZEN / IMPLEMENTED / PARTIAL`；H5 与微信四 Tab 切换通过；完整认证 UI 仍有 3 个既有/环境失败 |
+| Miniapp Tab 生命周期与导航 | [Tab 页面生命周期与底部导航统一重构 Spec](./specs/2026-11-04-Miniapp-Tab页面生命周期与底部导航统一重构Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED`；H5 与微信四 Tab 切换、请求去重、静默刷新和认证生命周期通过；仓库级认证 UI 为 20/22，2 个失败均为未修改角色详情页的自动化 spread 错误 |
 | 部署与回滚 | `docs/deployment.md` | Docker Compose、镜像、域名、迁移、回滚 |
 | 当前视觉系统 | `DESIGN.md` | 视觉摘要与实现状态；不定义逐帧验收 |
 | H5 13 帧契约 | `docs/specs/2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md` | 未被第二份合同取代的帧仍是权威；被取代状态见 `docs/specs/README.md` §2.1 |
