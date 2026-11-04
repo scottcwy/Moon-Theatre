@@ -1,15 +1,35 @@
 import path from 'path';
 import { getApiBaseUrlForMode } from './api-base-url';
+import { BuildProvenancePlugin, createBuildProvenance } from '../scripts/build-provenance.mjs';
 
 const H5_OUTPUT_ROOT = 'dist/h5';
 const h5OutputPath = path.resolve(__dirname, '..', H5_OUTPUT_ROOT);
 const ASSET_COPY_IGNORE = ['**/*.md', '**/.DS_Store'];
+const MAIN_ASSET_COPY_IGNORE = [
+  ...ASSET_COPY_IGNORE,
+  '**/community/**',
+  '**/design/**',
+  '**/characters/detail/**',
+  '**/icons/tab-selected.png',
+  '**/icons/tab-surface.png',
+  '**/login/**',
+];
 
 function applyTsExtensionAlias(chain) {
   chain.resolve.set('extensionAlias', {
     '.js': ['.ts', '.tsx', '.js'],
     '.mjs': ['.mts', '.mjs'],
   });
+}
+
+function applyMiniWebpackChain(chain) {
+  applyTsExtensionAlias(chain);
+  chain.plugin('build-provenance').use(BuildProvenancePlugin, [{
+    outputPath: path.resolve(__dirname, '..', '.build-provenance.json'),
+    createMetadata: () => createBuildProvenance({
+      apiBaseUrl,
+    }),
+  }]);
 }
 
 // H5 playground：微信专有 API（getMenuButtonBoundingClientRect 等）在 H5 端走 rejected promise，
@@ -32,11 +52,16 @@ const copyPatterns = [
   {
     from: 'src/assets',
     to: 'dist/assets',
-    ignore: ASSET_COPY_IGNORE,
+    ignore: MAIN_ASSET_COPY_IGNORE,
   },
   {
     from: 'sitemap.json',
     to: 'dist/sitemap.json',
+  },
+  {
+    from: 'src/assets/login',
+    to: 'dist/pages/login/assets/login',
+    ignore: ASSET_COPY_IGNORE,
   },
 ];
 
@@ -78,7 +103,7 @@ const config = {
         path.resolve(__dirname, '../../../packages/miniapp-ui/src'),
       ],
     },
-    webpackChain: applyTsExtensionAlias,
+    webpackChain: applyMiniWebpackChain,
     postcss: {
       pxtransform: { enable: true, config: {} },
       cssModules: {

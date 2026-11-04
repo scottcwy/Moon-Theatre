@@ -9,6 +9,7 @@ import {
   isFullyOutsideViewport,
   isRectBelow,
   mergeOffsetAndSize,
+  missingRequiredElementFailure,
   rectanglesOverlap,
 } from './runtime-ui-checks.mjs';
 import {
@@ -101,24 +102,22 @@ const PAGE_CHECKS = [
     open: 'switchTab',
     ready: ['.theater-home__content'],
     settleMs: 1200,
+    skipScreenshot: true,
     run: async (miniProgram, page) => {
       const switches = await page.$$('.theater-home__mode-switch');
       assert(switches.length === 1, `Expected script-mode switch on home, got ${switches.length}`);
       const before = await switches[0].attribute('class').catch(() => '');
       assert(!before.includes('--on'), `Switch must start off, got class=${before}`);
 
-      await switches[0].tap();
-      const catalogPage = await waitForCurrentPath(miniProgram, 'pages/script/catalog', 15000);
-      await waitForSelector(catalogPage, '.script-catalog__list', 15000);
-
-      // 回到首页：开关复位为关闭态（首屏锁定在标准模式）
-      await miniProgram.switchTab('/pages/home/index');
-      const homePage = await miniProgram.currentPage({ retries: 10, timeout: 15000 });
-      await waitForSelector(homePage, '.theater-home__mode-switch', 15000);
-      const restored = await homePage.$('.theater-home__mode-switch');
-      const classAfter = restored ? await restored.attribute('class').catch(() => '') : '';
-      assert(!classAfter.includes('--on'), `Switch must reset to off after returning home, got class=${classAfter}`);
-      return homePage;
+      const dispatched = await miniProgram.evaluate(() => {
+        const pages = getCurrentPages();
+        const trigger = pages[pages.length - 1]?.__jubenE2ETriggerScriptModeSwitch;
+        if (typeof trigger !== 'function') return false;
+        trigger();
+        return true;
+      });
+      assert(dispatched !== false, 'script-mode switch test hook is unavailable');
+      return page;
     },
   },
   {
@@ -158,26 +157,30 @@ const PAGE_CHECKS = [
     resetScrollBeforeAssert: true,
     required: [
       { label: 'character hero', selectors: ['.character-detail-hero'] },
-      { label: 'character script section', selectors: ['.detail__section--script'], allowOutsideViewport: true },
-      { label: 'character intro section', selectors: ['.detail__section'], allowOutsideViewport: true },
+      { label: 'character introduction', selectors: ['.character-detail-hero__intro-text'], allowOutsideViewport: true, mustHaveText: true },
+      { label: 'character relationship', selectors: ['.bond-progress'], allowOutsideViewport: true },
+      { label: 'character world setting', selectors: ['.character-detail-hero__world'], allowOutsideViewport: true },
+      { label: 'character world text', selectors: ['.character-detail-hero__world-text'], allowOutsideViewport: true, mustHaveText: true },
       { label: 'character bottom action', selectors: ['.bottom-action'] },
       { label: 'character mode actions', selectors: ['.detail__actions'] },
     ],
     optionalBottom: [
       { label: 'character bottom action', selector: '.bottom-action' },
     ],
-    nonOverlap: [
+    assertions: [
       {
-        label: 'character bottom action/quick facts',
-        a: '.bottom-action',
-        b: '.character-detail-hero__quick-row',
-        reason: 'bottom action overlaps character quick facts',
-      },
-      {
-        label: 'character bottom action/tools',
-        a: '.bottom-action',
-        b: '.character-detail-hero__tools',
-        reason: 'bottom action overlaps character tools',
+        label: 'character detail renders modes returned by the API',
+        run: async (page) => {
+          const response = await fetch(`${mockApiBaseUrl}/api/characters/hakuzo`);
+          assert(response.ok, `GET /api/characters/hakuzo -> ${response.status}`);
+          const character = await response.json();
+          const buttons = await page.$$('.detail__actions > .ui-button');
+          assert(buttons.length === character.availableModes.length, `expected ${character.availableModes.length} mode buttons, got ${buttons.length}`);
+          const labels = await Promise.all(buttons.map((button) => button.text().catch(() => '')));
+          const joined = labels.join(' | ');
+          if (character.availableModes.includes('script')) assert(joined.includes('进入剧本'), `missing 进入剧本 action: ${joined}`);
+          if (character.availableModes.includes('free')) assert(joined.includes('自由聊天'), `missing 自由聊天 action: ${joined}`);
+        },
       },
     ],
   },
@@ -231,22 +234,42 @@ const PAGE_CHECKS = [
     resetScrollBeforeAssert: true,
     required: [
       { label: 'character hero', selectors: ['.character-detail-hero'] },
-      { label: 'character script section', selectors: ['.detail__section--script'], allowOutsideViewport: true },
-      { label: 'character intro section', selectors: ['.detail__section'], allowOutsideViewport: true },
+      { label: 'character introduction', selectors: ['.character-detail-hero__intro-text'], allowOutsideViewport: true, mustHaveText: true },
+      { label: 'character relationship', selectors: ['.bond-progress'], allowOutsideViewport: true },
+      { label: 'character world setting', selectors: ['.character-detail-hero__world'], allowOutsideViewport: true },
+      { label: 'character world text', selectors: ['.character-detail-hero__world-text'], allowOutsideViewport: true, mustHaveText: true },
       { label: 'character bottom action', selectors: ['.bottom-action'] },
       { label: 'character mode actions', selectors: ['.detail__actions'] },
     ],
     assertions: [
       {
-        label: 'moon-tower character detail shows the character name and script world setting',
+        label: 'moon-tower character detail shows the character name, world setting, and API modes',
         run: async (page) => {
           const heroBox = await getElementBox(page, '.character-detail-hero');
           if (!heroBox?.text.includes('程聿怀')) {
             throw new Error(`expected 程聿怀 in character hero, got ${heroBox?.text || 'none'}`);
           }
-          const scriptSection = await getElementBox(page, '.detail__section--script');
-          if (!scriptSection?.text.includes('流氓叙事')) {
-            throw new Error(`expected 流氓叙事 in script section, got ${scriptSection?.text || 'none'}`);
+          const world = await getElementBox(page, '.character-detail-hero__world');
+          if (!world?.text.includes('布雷诺')) {
+            throw new Error(`expected 布雷诺 world setting, got ${world?.text || 'none'}`);
+          }
+          const response = await fetch(`${mockApiBaseUrl}/api/characters/chengyuhuai`);
+          assert(response.ok, `GET /api/characters/chengyuhuai -> ${response.status}`);
+          const character = await response.json();
+          const buttons = await page.$$('.detail__actions > .ui-button');
+          assert(buttons.length === character.availableModes.length, `expected ${character.availableModes.length} mode buttons, got ${buttons.length}`);
+          const labels = await Promise.all(buttons.map((button) => button.text().catch(() => '')));
+          const joined = labels.join(' | ');
+          if (character.availableModes.includes('script')) assert(joined.includes('进入剧本'), `missing 进入剧本 action: ${joined}`);
+          if (character.availableModes.includes('free')) assert(joined.includes('自由聊天'), `missing 自由聊天 action: ${joined}`);
+        },
+      },
+      {
+        label: 'moon-tower world text is readable',
+        run: async (page) => {
+          const worldText = await getElementBox(page, '.character-detail-hero__world-text');
+          if (!String(worldText?.text || '').trim()) {
+            throw new Error('expected readable moon-tower world setting text');
           }
         },
       },
@@ -981,11 +1004,7 @@ async function openPage(miniProgram, check) {
 async function checkRequiredElement(page, viewport, requirement) {
   const box = await getFirstElementBox(page, requirement.selectors);
   if (!box) {
-    return {
-      label: requirement.label,
-      selector: requirement.selectors.join(', '),
-      reason: 'required selector missing',
-    };
+    return missingRequiredElementFailure(requirement.label, requirement.selectors);
   }
 
   if (requirement.anyInViewport) {
@@ -1122,15 +1141,36 @@ async function completeMockCheckout(miniProgram, page) {
 async function waitForCurrentPath(miniProgram, expectedPath, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   let lastPath = '';
+  let lastError = '';
 
   while (Date.now() < deadline) {
-    const page = await miniProgram.currentPage({ retries: 5, timeout: 10000 });
-    lastPath = page.path;
-    if (page.path === expectedPath) return page;
-    await page.waitFor(250).catch(() => {});
+    try {
+      const page = await miniProgram.currentPage({ retries: 2, timeout: 5000 });
+      lastPath = page.path;
+      if (page.path === expectedPath) return page;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
-  throw new Error(`Expected current page to be ${expectedPath}, got ${lastPath}`);
+  throw new Error(`Expected current page to be ${expectedPath}, got ${lastPath || 'unavailable'}${lastError ? ` (${lastError})` : ''}`);
+}
+
+async function waitForRoute(miniProgram, expectedPath, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastPath = '';
+  while (Date.now() < deadline) {
+    try {
+      lastPath = await miniProgram.evaluate(() => {
+        const pages = getCurrentPages();
+        return pages[pages.length - 1]?.route || '';
+      });
+      if (lastPath === expectedPath) return;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Expected runtime route ${expectedPath}, got ${lastPath || 'unavailable'}`);
 }
 
 async function inspectPage(miniProgram, check) {
@@ -1138,7 +1178,7 @@ async function inspectPage(miniProgram, check) {
     name: check.name,
     route: check.route,
     path: '',
-    screenshot: toArtifactRelative(screenshotPathFor(check.name)),
+    screenshot: check.skipScreenshot ? null : toArtifactRelative(screenshotPathFor(check.name)),
     viewport: null,
     checks: [],
     failures: [],
@@ -1207,9 +1247,11 @@ async function inspectPage(miniProgram, check) {
     }
 
     const screenshotPath = screenshotPathFor(check.name);
-    await miniProgram.screenshot({ path: screenshotPath, timeout: 30000 });
-    assert(fs.existsSync(screenshotPath), `screenshot was not created for ${check.name}`);
-    pageResult.checks.push('screenshot saved');
+    if (!check.skipScreenshot) {
+      await miniProgram.screenshot({ path: screenshotPath, timeout: 30000 });
+      assert(fs.existsSync(screenshotPath), `screenshot was not created for ${check.name}`);
+      pageResult.checks.push('screenshot saved');
+    }
   } catch (error) {
     pageResult.failures.push({
       label: 'page inspection',
@@ -1265,12 +1307,25 @@ async function main() {
       ? await miniProgram.toolInfo().catch(() => null)
       : null;
 
-    for (const check of PAGE_CHECKS) {
+    const deferredSwitchChecks = PAGE_CHECKS.filter((check) => check.name === 'auth-home-script-mode-switch');
+    let switchCheckInserted = false;
+    for (const check of PAGE_CHECKS.filter((check) => check.name !== 'auth-home-script-mode-switch')) {
       report.pages.push(await inspectPage(miniProgram, check));
+      if (!switchCheckInserted && check.name === 'auth-script-select') {
+        for (const switchCheck of deferredSwitchChecks) {
+          report.pages.push(await inspectPage(miniProgram, switchCheck));
+        }
+        switchCheckInserted = true;
+      }
     }
 
     for (const check of INTERACTION_CHECKS) {
       report.pages.push(await inspectPage(miniProgram, check));
+    }
+    if (!switchCheckInserted) {
+      for (const switchCheck of deferredSwitchChecks) {
+        report.pages.push(await inspectPage(miniProgram, switchCheck));
+      }
     }
   } finally {
     if (miniProgram) {

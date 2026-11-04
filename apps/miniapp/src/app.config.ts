@@ -1,26 +1,52 @@
 import { getAppTabBarItems } from './components/tab-bar.model';
 
 const visualFixturePages = process.env.VISUAL_FIXTURES === 'true'
-  ? ['pages/quota/visual-fixture/index']
+  ? ['visual-fixture/index']
   : [];
+const subpackageConfig = {
+  subpackages: [
+    {
+      root: 'pages/script',
+      name: 'script',
+      pages: ['select', 'catalog'],
+    },
+    {
+      root: 'pages/memory',
+      name: 'memory',
+      pages: ['index'],
+    },
+    {
+      root: 'pages/character',
+      name: 'character',
+      pages: ['detail'],
+    },
+    {
+      root: 'pages/quota',
+      name: 'quota',
+      pages: ['buy', 'result', ...visualFixturePages],
+    },
+    {
+      root: 'pages/share',
+      name: 'share',
+      pages: ['preview'],
+    },
+    {
+      root: 'pages/login',
+      name: 'login',
+      pages: ['index'],
+    },
+  ],
+};
 
 export default defineAppConfig({
   pages: [
     'pages/home/index',
-    'pages/script/select',
-    'pages/script/catalog',
-    'pages/chat/index',
     'pages/chat/list',
-    'pages/memory/index',
+    'pages/chat/index',
     'pages/community/index',
     'pages/profile/index',
-    'pages/character/detail',
-    'pages/quota/buy',
-    'pages/quota/result',
-    'pages/share/preview',
-    'pages/login/index',
-    ...visualFixturePages,
   ],
+  ...subpackageConfig,
   tabBar: {
     custom: true,
     color: '#5A4A4E',

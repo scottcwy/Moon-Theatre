@@ -6,9 +6,7 @@
   --topbar-total-height: #{$topbar-height};
   --topbar-menu-reserve: #{$page-padding-h};
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, rgba(16, 11, 13, 0.04) 0 38%, rgba(226, 212, 198, 0.84) 72%, #decdbd 100%),
-    url('../../assets/backgrounds/courtyard.jpg') center top / 100% auto no-repeat;
+  background: linear-gradient(180deg, rgba(16, 11, 13, 0.04) 0 38%, rgba(226, 212, 198, 0.84) 72%, #decdbd 100%);
 }
 
 .community__topbar {

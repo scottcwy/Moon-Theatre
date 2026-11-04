@@ -47,6 +47,9 @@ interface ChatMessage {
   content: string;
   createdAt: string;
   fallback?: boolean;
+  blocked?: boolean;
+  outOfScope?: boolean;
+  complete?: boolean;
 }
 
 interface CharacterData {
@@ -696,6 +699,9 @@ export default function Chat() {
           id: result.messageId,
           content: result.content ?? current.content,
           fallback: result.fallback,
+          blocked: result.blocked,
+          outOfScope: result.outOfScope,
+          complete: true,
         }));
         if (isSuccessfulDoneEvent(result)) setHasSuccessfulTurn(true);
         if (typeof result.bondLevel === 'number') {
@@ -945,6 +951,9 @@ export default function Chat() {
                 role={message.role}
                 content={message.content}
                 fallback={message.fallback}
+                blocked={message.blocked}
+                outOfScope={message.outOfScope}
+                complete={message.complete}
                 avatarUrl={characterAvatarUrl}
                 characterName={character.name}
                 typing={sending && index === messages.length - 1 && message.role === 'assistant' && !message.content}

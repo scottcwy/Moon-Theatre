@@ -22,6 +22,10 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (!arg.startsWith('--')) throw new Error(`unknown argument: ${arg}`);
     const key = arg.slice(2);
+    if (key === 'validate-only') {
+      parsed.validateOnly = true;
+      continue;
+    }
     const value = argv[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`missing value for ${arg}`);
     parsed[key] = value;
@@ -71,6 +75,14 @@ function readJson(filePath) {
 
 function sha256(filePath) {
   return createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function getBuiltPages(appConfig) {
+  const mainPages = appConfig.pages ?? [];
+  const subpackagePages = (appConfig.subPackages ?? appConfig.subpackages ?? []).flatMap((subpackage) => (
+    (subpackage.pages ?? []).map((page) => `${subpackage.root.replace(/\/+$/, '')}/${page.replace(/^\/+/, '')}`)
+  ));
+  return [...mainPages, ...subpackagePages];
 }
 
 function sleep(ms) {
@@ -453,7 +465,7 @@ function markdownSummary(report) {
   const lines = ['# Visual Frame Summary', '', `- Run: ${report.runId}`, `- API fixture port: ${report.apiPort}`, `- DevTools CLI: ${report.cliPath}`, `- System info: ${JSON.stringify(report.systemInfo)}`, ''];
   for (const item of report.frames) {
     const wholeScreen = item.wholeScreenStatus ? ` [whole-screen ${item.wholeScreenStatus}]` : '';
-    lines.push(`- ${item.frame}${item.semanticName ? ` (${item.semanticName})` : ''}: ${item.status}${item.metrics ? ` (MAE ${item.metrics.mae.toFixed(3)}, changed ${(item.metrics.changedRatio * 100).toFixed(2)}%, pixels ${item.visualStatus})` : ''}${wholeScreen}${item.keyboardStatus === 'BLOCKED' ? ' [keyboard BLOCKED: 未验证真实键盘]' : ''}`);
+    lines.push(`- ${item.frame}${item.semanticName ? ` (${item.semanticName})` : ''}: ${item.status}${item.metrics ? ` (MAE ${item.metrics.mae.toFixed(3)}, changed ${(item.metrics.changedRatio * 100).toFixed(2)}%, pixels ${item.visualStatus})` : ''}${wholeScreen}${item.keyboardStatus === 'BLOCKED' ? ' [keyboard BLOCKED: 未验证真实键盘]' : ''}${item.viewportStatus === 'BLOCKED' ? ` [viewport BLOCKED: ${item.viewportError}]` : ''}`);
   }
   lines.push('');
   return `${lines.join('\n')}\n`;
@@ -482,6 +494,15 @@ function validateMatrixConfig(visualMatrix, masks) {
 async function main() {
   const masks = readJson(masksPath);
   validateMatrixConfig(matrix, masks);
+  if (args.validateOnly) {
+    console.log(JSON.stringify({
+      ok: true,
+      matrix: path.relative(repoRoot, matrixPath),
+      frames: matrix.frames.length,
+      semanticNames: matrix.frames.map((frame) => frame.semanticName),
+    }, null, 2));
+    return;
+  }
   assert(Number.isInteger(configuredApiPort) && configuredApiPort > 0, 'VISUAL_FIXTURE_API_PORT must be a positive integer');
   assert(fs.existsSync(path.join(miniappRoot, 'dist', 'app.json')), 'dist/app.json is missing; run build:weapp:visual-fixture first');
   fs.mkdirSync(path.join(artifactRoot, 'actual'), { recursive: true });
@@ -531,7 +552,7 @@ async function main() {
 
   try {
     if (rebuilt) await rebuildWithApiPort(activeApiPort);
-    report.builtPages = readJson(path.join(miniappRoot, 'dist/app.json')).pages;
+    report.builtPages = getBuiltPages(readJson(path.join(miniappRoot, 'dist/app.json')));
     for (const frame of matrix.frames) {
       assert(report.builtPages.includes(frame.route.split('?')[0]), `${frame.frame}: 构建缺少路由 ${frame.route} (port=${activeApiPort}, rebuilt=${rebuilt}); 请运行 build:weapp:visual-fixture`);
     }
@@ -546,10 +567,16 @@ async function main() {
     await miniProgram.waitForAppReady(60000);
     report.systemInfo = await miniProgram.systemInfo();
     report.capsuleRect = await miniProgram.evaluate(() => wx.getMenuButtonBoundingClientRect());
-    if (!captureOnly) {
-      assert(Number(report.systemInfo.windowWidth) === defaultViewport.width, `windowWidth must be ${defaultViewport.width}, got ${report.systemInfo.windowWidth}`);
-      assert(Number(report.systemInfo.windowHeight) === defaultViewport.height, `windowHeight must be ${defaultViewport.height}, got ${report.systemInfo.windowHeight}`);
-    }
+    const viewportMismatch = !captureOnly && (
+      Number(report.systemInfo.windowWidth) !== defaultViewport.width
+      || Number(report.systemInfo.windowHeight) !== defaultViewport.height
+    );
+    report.viewportStatus = viewportMismatch ? 'BLOCKED' : 'MATCHED';
+    report.viewportExpected = defaultViewport;
+    report.viewportActual = {
+      width: Number(report.systemInfo.windowWidth),
+      height: Number(report.systemInfo.windowHeight),
+    };
 
     for (const frame of matrix.frames) {
       console.log(`[visual] start ${frame.frame} ${frame.route}`);
@@ -565,10 +592,15 @@ async function main() {
         maskGroup: frame.masks,
         masks: masks[frame.masks],
         visualStatus: 'N/A',
+        viewportStatus: viewportMismatch ? 'BLOCKED' : 'MATCHED',
         ok: false,
       };
       report.frames.push(item);
       try {
+        if (viewportMismatch) {
+          item.viewportError = `expected ${defaultViewport.width}x${defaultViewport.height}, got ${report.viewportActual.width}x${report.viewportActual.height}`;
+          continue;
+        }
         const fixturePath = path.join(fixturesDir, `${frame.fixture}.json`);
         assert(fs.existsSync(fixturePath), `${frame.frame}: fixture missing ${fixturePath}`);
         const fixture = readJson(fixturePath);
@@ -619,6 +651,7 @@ async function main() {
       } finally {
         item.status = captureOnly && item.ok ? 'CAPTURED'
           : item.metrics && item.keyboardStatus === 'BLOCKED' ? 'BLOCKED'
+            : item.viewportStatus === 'BLOCKED' ? 'BLOCKED'
             : item.ok ? 'PASS' : 'FAIL';
         console.log(`[visual] done ${frame.frame} ok=${item.ok}`);
       }

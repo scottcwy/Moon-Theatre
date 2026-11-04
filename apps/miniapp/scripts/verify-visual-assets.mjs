@@ -8,7 +8,7 @@ const assetsRoot = path.join(sourceRoot, 'assets');
 const manifestPath = path.join(assetsRoot, 'design', 'manifest.json');
 const distRoot = path.join(projectRoot, 'dist');
 const maxSingleAssetBytes = 300 * 1024;
-const maxMainPackageBytes = 2 * 1024 * 1024;
+const maxAssetDirectoryBytes = 2 * 1024 * 1024;
 const maxFrameBytes = 800 * 1024;
 
 const legacyFrames = [
@@ -184,14 +184,16 @@ function packageBytes(root) {
 const { manifest, frameBytes } = readManifest();
 assertNoPlaygroundRuntimeReferences();
 const sourceBytes = packageBytes(assetsRoot);
-if (sourceBytes > maxMainPackageBytes) fail(`source asset package exceeds 2 MiB: ${sourceBytes}`);
+if (sourceBytes > maxAssetDirectoryBytes) {
+  fail(`source assets directory exceeds 2 MiB: ${sourceBytes} > ${maxAssetDirectoryBytes} bytes (not a main-package measurement)`);
+}
 
 const report = {
   manifestVersion: manifest.version,
   resources: manifest.resources.length,
   sourceAssetBytes: sourceBytes,
   sourceAssetKiB: Number((sourceBytes / 1024).toFixed(2)),
-  mainPackageLimitBytes: maxMainPackageBytes,
+  assetDirectoryLimitBytes: maxAssetDirectoryBytes,
   frameBudgetLimitBytes: maxFrameBytes,
   frameBytes: Object.fromEntries([...frameBytes.entries()].map(([frame, bytes]) => [frame, bytes])),
   distAssetBytes: fs.existsSync(path.join(distRoot, 'assets')) ? packageBytes(path.join(distRoot, 'assets')) : null,

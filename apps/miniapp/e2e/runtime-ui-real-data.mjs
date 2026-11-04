@@ -19,13 +19,24 @@ import readline from 'node:readline';
 import { Launcher } from '@weapp-vite/miniprogram-automator';
 import { resolveWechatDevtoolsCli } from './wechat-devtools.mjs';
 import { parseDotEnv } from '../../../scripts/dev.mjs';
-import { isCustomNavigationPage, mergeOffsetAndSize } from './runtime-ui-checks.mjs';
+import {
+  createFatalE2EReport,
+  isCustomNavigationPage,
+  mergeOffsetAndSize,
+  summarizeCheckStatuses,
+} from './runtime-ui-checks.mjs';
+import {
+  BUILD_PROVENANCE_FILE,
+  getBuildProvenanceMismatches,
+  REAL_DATA_BUILD_CONTEXT,
+} from '../scripts/build-provenance.mjs';
 
 const currentFile = fileURLToPath(import.meta.url);
 const e2eDir = path.dirname(currentFile);
 const repoRoot = path.resolve(e2eDir, '../../..');
 const projectRoot = path.resolve(e2eDir, '..');
 const distDir = path.join(projectRoot, 'dist');
+const buildProvenancePath = path.join(projectRoot, BUILD_PROVENANCE_FILE);
 const REAL_API = 'http://127.0.0.1:3000';
 const FASTCLAW_HEALTH = 'http://127.0.0.1:18953/readyz';
 const AUTH = 'Bearer dev-auth-bypass-token';
@@ -33,7 +44,9 @@ const DEFAULT_FASTCLAW_BIN = path.join(repoRoot, 'fastclaw/bin/fastclaw');
 const MOCK_MESSAGE_ID_PREFIX = 'msg-chengyuhuai-';
 const artifactRoot = path.join(e2eDir, 'artifacts', 'runtime-ui-real-data');
 const reportPath = path.join(artifactRoot, 'report.json');
+const runStartedAt = new Date().toISOString();
 fs.mkdirSync(artifactRoot, { recursive: true });
+fs.rmSync(reportPath, { force: true });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
@@ -48,6 +61,18 @@ async function waitForSelector(page, selector, timeoutMs) {
     await sleep(500);
   }
   throw new Error(`timeout waiting for ${selector}`);
+}
+
+async function waitForText(page, selector, expectedText, timeoutMs) {
+  const t0 = Date.now();
+  let lastText = '';
+  while (Date.now() - t0 < timeoutMs) {
+    const element = await page.$(selector).catch(() => null);
+    lastText = element ? ((await element.text().catch(() => '')) || '').trim() : '';
+    if (lastText.includes(expectedText)) return lastText;
+    await sleep(500);
+  }
+  throw new Error(`timeout waiting for ${selector} to contain "${expectedText}"; last text: ${lastText || 'none'}`);
 }
 
 async function bubbleCount(page) {
@@ -155,26 +180,36 @@ async function ensureDatabase(env) {
   runPnpm(['--filter', '@juben-sha/api', 'seed'], env, 'seed');
 }
 
-function listDistFiles(dir) {
-  const out = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...listDistFiles(full));
-    else out.push(full);
+function readBuildProvenance() {
+  if (!fs.existsSync(buildProvenancePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(buildProvenancePath, 'utf8'));
+  } catch {
+    return { parseError: true };
   }
-  return out;
 }
 
 function ensureDistBuiltForRealApi(env) {
   const appJson = path.join(distDir, 'app.json');
-  const builtForReal = fs.existsSync(appJson)
-    && listDistFiles(distDir)
-      .filter((file) => /\.(js|json|wxml|wxss)$/.test(file))
-      .some((file) => fs.readFileSync(file, 'utf8').includes(REAL_API));
-  if (builtForReal) return;
-  process.stderr.write(`[miniapp] dist not built for ${REAL_API}; building (DEV_AUTH_BYPASS=true)\n`);
-  runPnpm(['--filter', '@juben-sha/miniapp', 'build:weapp'], env, 'miniapp build:weapp');
+  const actual = readBuildProvenance();
+  const mismatches = getBuildProvenanceMismatches(actual);
+  if (fs.existsSync(appJson) && mismatches.length === 0) return;
+
+  process.stderr.write(`[miniapp] build provenance mismatch; rebuilding for real-data E2E\n${JSON.stringify({ expected: REAL_DATA_BUILD_CONTEXT, actual, mismatches }, null, 2)}\n`);
+  runPnpm(['--filter', '@juben-sha/miniapp', 'build:weapp'], {
+    ...env,
+    NODE_ENV: 'development',
+    API_BASE_URL: REAL_API,
+    DEV_AUTH_BYPASS: 'true',
+    VISUAL_FIXTURES: 'false',
+  }, 'miniapp build:weapp');
   runPnpm(['--filter', '@juben-sha/miniapp', 'verify:weapp'], env, 'verify:weapp');
+
+  const rebuilt = readBuildProvenance();
+  const rebuiltMismatches = getBuildProvenanceMismatches(rebuilt);
+  if (!fs.existsSync(appJson) || rebuiltMismatches.length > 0) {
+    throw new Error(`miniapp rebuild did not produce the expected build provenance: ${JSON.stringify({ expected: REAL_DATA_BUILD_CONTEXT, actual: rebuilt, mismatches: rebuiltMismatches })}`);
+  }
 }
 
 // ---- 真实 API 数据 ----
@@ -214,18 +249,31 @@ async function findLongSession() {
 // ---- UI 检查 ----
 
 async function checkRealHome(miniProgram, report) {
-  const failures = [];
-  const name = 'real-data-home';
   const realScripts = (await apiJson('/api/scripts')).scripts;
+  const realCharacters = (await apiJson('/api/characters')).characters;
   const realTitles = new Set(realScripts.map((script) => script.title));
-  try {
+  const realCharactersById = new Map(realCharacters.map((character) => [character.id, character]));
+
+  const openHome = async () => {
     const page = await miniProgram.reLaunch('/pages/home/index');
     await waitForSelector(page, '.theater-home__content', 20000);
     await sleep(1500);
+    return page;
+  };
+
+  const enterScriptQuery = async (page, query) => {
+    const input = await waitForSelector(page, '.ui-search-bar__input', 10000);
+    await input.input(query);
+  };
+
+  try {
+    const page = await openHome();
     const cards = await page.$$('.theater-home__hero-card');
     const dots = await page.$$('.theater-home__script-dot');
+    const rows = await page.$$('.theater-home__script-row');
     assert(cards.length >= 2, `expected >=2 script cards from real API, got ${cards.length}`);
     assert(dots.length === cards.length, `expected ${cards.length} page dots, got ${dots.length}`);
+    assert(rows.length > 0, 'expected the real script list below the default home hero');
     const cardTitles = [];
     for (const card of cards) {
       const titleEl = await card.$('.theater-home__hero-card-title');
@@ -240,21 +288,119 @@ async function checkRealHome(miniProgram, report) {
     for (const title of domTitleSet) {
       assert(realTitles.has(title), `unexpected script card "${title}" (not in real /api/scripts; mock ghost data?)`);
     }
-    const posters = await page.$$('.theater-home__poster-card');
-    assert(posters.length >= 2, `expected >=2 character posters from real API, got ${posters.length}`);
-    const shot = path.join(artifactRoot, 'home.png');
+    assert((await page.$$('.theater-home__poster-card')).length === 0, 'default home must not require character search posters');
+    const shot = path.join(artifactRoot, 'home-default.png');
     await miniProgram.screenshot({ path: shot, timeout: 30000 });
-    report.checks.push({ name, ok: true, failures: [], screenshot: shot, scriptTitles: cardTitles });
+    report.checks.push({
+      name: 'real-data-home-default',
+      status: 'passed',
+      ok: true,
+      failures: [],
+      screenshot: shot,
+      scriptTitles: cardTitles,
+    });
   } catch (error) {
-    failures.push({ label: 'real home data', reason: error.message });
-    report.checks.push({ name, ok: false, failures, scriptTitles: realTitles.size });
+    report.checks.push({
+      name: 'real-data-home-default',
+      status: 'failed',
+      ok: false,
+      failures: [{ label: 'real home default', reason: error?.message || String(error) }],
+      scriptTitles: realTitles.size,
+    });
+  }
+
+  try {
+    const query = realScripts[0]?.title;
+    assert(query, 'real /api/scripts returned no script for the search-hit check');
+    const page = await openHome();
+    await enterScriptQuery(page, query);
+    await waitForSelector(page, '.theater-home__poster-card', 15000);
+    await sleep(800);
+
+    const hitCards = await page.$$('.theater-home__hero-card');
+    assert(hitCards.length > 0, `expected at least one script card for query "${query}"`);
+    const cardTitles = [];
+    for (const card of hitCards) {
+      const titleEl = await card.$('.theater-home__hero-card-title');
+      const title = titleEl ? ((await titleEl.text().catch(() => '')) || '').trim() : '';
+      if (title) cardTitles.push(title);
+    }
+    assert(cardTitles.every((title) => title.includes(query) || query.includes(title)), `search results contain non-matching script titles: ${cardTitles.join(' | ')}`);
+
+    const posters = await page.$$('.theater-home__poster-card');
+    assert(posters.length > 0, 'search-hit state should render real character posters');
+    const posterIds = [];
+    for (const poster of posters) {
+      const posterId = await poster.attribute('id').catch(() => '');
+      const id = posterId.startsWith('character-card-') ? posterId.slice('character-card-'.length) : '';
+      assert(id, 'search poster is missing character-card id');
+      assert(realCharactersById.has(id), `search poster character "${id}" is outside real /api/characters`);
+      const nameEl = await poster.$('.character-poster-card__title');
+      const name = nameEl ? ((await nameEl.text().catch(() => '')) || '').trim() : '';
+      assert(name === realCharactersById.get(id).name, `search poster ${id} shows "${name}" instead of "${realCharactersById.get(id).name}"`);
+      posterIds.push(id);
+    }
+    assert(posterIds.every((id) => !id.startsWith('local-')), `search posters used local fallback ids: ${posterIds.join(' | ')}`);
+
+    const shot = path.join(artifactRoot, 'home-search-hit.png');
+    await miniProgram.screenshot({ path: shot, timeout: 30000 });
+    report.checks.push({
+      name: 'real-data-home-search-hit',
+      status: 'passed',
+      ok: true,
+      failures: [],
+      screenshot: shot,
+      query,
+      scriptTitles: cardTitles,
+      posterCount: posters.length,
+      posterIds,
+    });
+  } catch (error) {
+    report.checks.push({
+      name: 'real-data-home-search-hit',
+      status: 'failed',
+      ok: false,
+      failures: [{ label: 'real home search hit', reason: error?.message || String(error) }],
+    });
+  }
+
+  try {
+    const page = await openHome();
+    await enterScriptQuery(page, '__no_such_real_script_2026_11_04__');
+    const emptyText = await waitForText(page, '.theater-home__script-state-title', '没有找到相关剧本', 15000);
+    assert((await page.$$('.theater-home__hero-card')).length === 0, 'search-empty state must not render script cards');
+    const emptyContent = await page.$('.theater-home__content--search-empty');
+    assert(emptyContent, 'search-empty state should expose the empty-state content class');
+    const shot = path.join(artifactRoot, 'home-search-empty.png');
+    await miniProgram.screenshot({ path: shot, timeout: 30000 });
+    report.checks.push({
+      name: 'real-data-home-search-empty',
+      status: 'passed',
+      ok: true,
+      failures: [],
+      screenshot: shot,
+      emptyText,
+    });
+  } catch (error) {
+    report.checks.push({
+      name: 'real-data-home-search-empty',
+      status: 'failed',
+      ok: false,
+      failures: [{ label: 'real home search empty', reason: error?.message || String(error) }],
+    });
   }
 }
 
 async function checkRealChatHistory(miniProgram, longSession, report) {
   const name = 'real-data-chat-history';
   if (!longSession) {
-    report.checks.push({ name, ok: true, skipped: 'no real session with >50 messages found; pagination assertions skipped' });
+    report.checks.push({
+      name,
+      status: 'skipped',
+      ok: false,
+      skippedReason: 'no real session with >50 messages found; pagination assertions were not verified',
+      unverified: ['chat history first window', 'scroll-to-upper pagination', 'earliest-message reachability', 'prepend anchor stability'],
+    });
     return;
   }
   const failures = [];
@@ -323,6 +469,7 @@ async function checkRealChatHistory(miniProgram, longSession, report) {
     await miniProgram.screenshot({ path: shot, timeout: 30000 });
     report.checks.push({
       name,
+      status: 'passed',
       ok: true,
       failures: [],
       screenshot: shot,
@@ -332,8 +479,8 @@ async function checkRealChatHistory(miniProgram, longSession, report) {
       firstScreenCount,
     });
   } catch (error) {
-    failures.push({ label: 'real chat history', reason: error.message });
-    report.checks.push({ name, ok: false, failures, characterName: longSession.characterName });
+    failures.push({ label: 'real chat history', reason: error?.message || String(error) });
+    report.checks.push({ name, status: 'failed', ok: false, failures, characterName: longSession.characterName });
   }
 }
 
@@ -348,32 +495,68 @@ async function checkRealChatTurn(miniProgram, report) {
     await waitForSelector(page, '.chat-page', 20000);
     await sleep(1200);
     const before = await bubbleCount(page);
+    const beforeAssistant = (await page.$$('.chat-bubble-row--assistant')).length;
     const input = await waitForSelector(page, '.chat-input-bar__input', 10000);
-    await input.input('请用一句话介绍你自己');
+    const userMessage = '请用一句话介绍你自己';
+    await input.input(userMessage);
     await sleep(300);
     const send = await page.$('.chat-input-bar__send');
     if (send) await send.tap();
-    else await input.input('请用一句话介绍你自己\n');
+    else await input.input(`${userMessage}\n`);
 
     const t0 = Date.now();
     let count = before;
     let assistant = '';
+    let completed = false;
+    let newAssistantCount = 0;
     while (Date.now() - t0 < 90000) {
       count = await bubbleCount(page);
-      const bubbles = await page.$$('.chat-bubble-row');
-      const last = bubbles[bubbles.length - 1];
-      if (last) assistant = ((await last.text().catch(() => '')) || '').trim();
-      if (count > before && assistant && !assistant.includes('请用一句话介绍你自己')) break;
+      const streamError = await page.$('.chat-page__stream-error');
+      assert(!streamError, 'stream error appeared during the real chat turn');
+      const assistants = await page.$$('.chat-bubble-row--assistant');
+      if (assistants.length > beforeAssistant) {
+        const newReplies = assistants.slice(beforeAssistant);
+        newAssistantCount = newReplies.length;
+        for (const reply of newReplies) {
+          const replyClass = await reply.attribute('class').catch(() => '') || '';
+          const fallback = await reply.$('.chat-bubble__fallback');
+          assert(!replyClass.includes('chat-bubble-row--fallback'), 'real chat reply is a fallback');
+          assert(!replyClass.includes('chat-bubble-row--blocked'), 'real chat done event was blocked');
+          assert(!replyClass.includes('chat-bubble-row--out-of-scope'), 'real chat done event was outOfScope');
+          assert(!fallback, 'real chat reply displays 本地模式');
+        }
+        const reply = newReplies[newReplies.length - 1];
+        assistant = ((await reply.text().catch(() => '')) || '').trim();
+        const replyClass = await reply.attribute('class').catch(() => '') || '';
+        if (replyClass.includes('chat-bubble-row--complete')) {
+          completed = true;
+          break;
+        }
+      }
       await sleep(1000);
     }
+    assert(completed, 'timeout waiting for the real chat assistant done event');
     assert(count > before, `no new bubble after real chat send (before=${before}, after=${count})`);
     assert(assistant.length > 0, 'assistant bubble text empty after real chat');
+    assert(assistant !== userMessage, 'assistant bubble only echoed the user input');
+    await sleep(500);
+    assert(!(await page.$('.chat-page__stream-error')), 'stream error appeared after the real chat done event');
     const shot = path.join(artifactRoot, 'chat.png');
     await miniProgram.screenshot({ path: shot, timeout: 30000 });
-    report.checks.push({ name, ok: true, failures: [], screenshot: shot, assistant: assistant.slice(0, 200), bubbles: count });
+    report.checks.push({
+      name,
+      status: 'passed',
+      ok: true,
+      failures: [],
+      screenshot: shot,
+      assistant: assistant.slice(0, 200),
+      bubbles: count,
+      assistantBubbles: newAssistantCount,
+      assistantDoneObserved: true,
+    });
   } catch (error) {
-    failures.push({ label: 'real chat turn', reason: error.message });
-    report.checks.push({ name, ok: false, failures });
+    failures.push({ label: 'real chat turn', reason: error?.message || String(error) });
+    report.checks.push({ name, status: 'failed', ok: false, failures });
   }
 }
 
@@ -386,10 +569,10 @@ async function checkRealMemory(miniProgram, report) {
     await sleep(1200);
     const shot = path.join(artifactRoot, 'memory.png');
     await miniProgram.screenshot({ path: shot, timeout: 30000 });
-    report.checks.push({ name, ok: true, failures: [], screenshot: shot });
+    report.checks.push({ name, status: 'passed', ok: true, failures: [], screenshot: shot });
   } catch (error) {
-    failures.push({ label: 'real memory', reason: error.message });
-    report.checks.push({ name, ok: false, failures });
+    failures.push({ label: 'real memory', reason: error?.message || String(error) });
+    report.checks.push({ name, status: 'failed', ok: false, failures });
   }
 }
 
@@ -399,7 +582,7 @@ async function main() {
   const env = loadEnv();
   const cliPath = resolveWechatDevtoolsCli();
   const report = {
-    startedAt: new Date().toISOString(),
+    startedAt: runStartedAt,
     cliPath,
     projectRoot,
     api: REAL_API,
@@ -467,18 +650,40 @@ async function main() {
   }
 
   report.finishedAt = new Date().toISOString();
-  report.ok = report.checks.length > 0 && report.checks.every((check) => check.ok);
+  report.status = summarizeCheckStatuses(report.checks);
+  report.ok = report.status === 'passed';
+  report.unverified = report.checks
+    .filter((check) => check.status === 'skipped')
+    .flatMap((check) => check.unverified ?? [check.name]);
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
-  console.log('=== E2E SUMMARY ===', JSON.stringify({
+  console[report.ok ? 'log' : 'error']('=== E2E SUMMARY ===', JSON.stringify({
+    status: report.status,
     ok: report.ok,
+    unverified: report.unverified,
     longSession: report.longSession,
-    checks: report.checks.map((check) => ({ name: check.name, ok: check.ok, skipped: check.skipped ?? null })),
+    checks: report.checks.map((check) => ({
+      name: check.name,
+      status: check.status,
+      ok: check.ok,
+      skippedReason: check.skippedReason ?? null,
+    })),
   }));
   console.log('report ->', reportPath);
   process.exit(report.ok ? 0 : 1);
 }
 
 main().catch((error) => {
+  const fatalReport = createFatalE2EReport({
+    startedAt: runStartedAt,
+    context: {
+      projectRoot,
+      api: REAL_API,
+      fastclawHealth: FASTCLAW_HEALTH,
+      reportPath,
+    },
+    error,
+  });
+  fs.writeFileSync(reportPath, `${JSON.stringify(fatalReport, null, 2)}\n`);
   console.error('E2E FATAL', error);
   process.exit(1);
 });

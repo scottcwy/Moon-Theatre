@@ -73,37 +73,46 @@ const LOCAL_SCRIPT_COVERS: Record<string, string> = {
 
 const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
   白藏: '/assets/characters/hakuzo.jpg',
-  贺茂清玄: '/assets/characters/kiyoharu.jpg',
-  月岛澪: '/assets/characters/mio.jpg',
-  久远: '/assets/characters/kuon.jpg',
+  贺茂清玄: '/assets/characters/kiyoharu.webp',
+  月岛澪: '/assets/characters/mio.webp',
+  久远: '/assets/characters/kuon.webp',
   程聿怀: '/assets/characters/chengyuhuai.jpg',
-  蒋伯驾: '/assets/characters/jiangbojia.jpg',
-  程走柳: '/assets/characters/chengzouliu.jpg',
-  缪宏谟: '/assets/characters/miaohongmo.jpg',
-  黛利拉: '/assets/characters/delilah.jpg',
-  以撒: '/assets/characters/isaac.jpg',
-  羌青瓷: '/assets/characters/qiangqingci.jpg',
-  奥丁: '/assets/characters/odin.jpg',
-  阿奇: '/assets/characters/archie.jpg',
-  南窗: '/assets/characters/nanchuang.jpg',
-  赋霄: '/assets/characters/fuxiao.jpg',
-  岑奕岚: '/assets/characters/cenyilan.jpg',
-  季沧海: '/assets/characters/jicanghai.jpg',
-  知何: '/assets/characters/zhihe.jpg',
-  叶上秋: '/assets/characters/yeshangqiu.jpg',
+  蒋伯驾: '/assets/characters/jiangbojia.webp',
+  程走柳: '/assets/characters/chengzouliu.webp',
+  缪宏谟: '/assets/characters/miaohongmo.webp',
+  黛利拉: '/assets/characters/delilah.webp',
+  以撒: '/assets/characters/isaac.webp',
+  羌青瓷: '/assets/characters/qiangqingci.webp',
+  奥丁: '/assets/characters/odin.webp',
+  阿奇: '/assets/characters/archie.webp',
+  南窗: '/assets/characters/nanchuang.webp',
+  赋霄: '/assets/characters/fuxiao.webp',
+  岑奕岚: '/assets/characters/cenyilan.webp',
+  季沧海: '/assets/characters/jicanghai.webp',
+  知何: '/assets/characters/zhihe.webp',
+  叶上秋: '/assets/characters/yeshangqiu.webp',
 };
 
 /** 有男女双版本海报的角色：选角时按性别切换头像。默认版本与 LOCAL_CHARACTER_AVATARS 一致。 */
 const CHARACTER_GENDER_VARIANTS: Record<string, Partial<Record<CharacterGender, string>>> = {
   程聿怀: {
     male: '/assets/characters/chengyuhuai.jpg',
-    female: '/assets/characters/chengyuhuai-female.jpg',
+    female: '/assets/characters/chengyuhuai-female.webp',
   },
   羌青瓷: {
-    male: '/assets/characters/qiangqingci-male.jpg',
-    female: '/assets/characters/qiangqingci.jpg',
+    male: '/assets/characters/qiangqingci-male.webp',
+    female: '/assets/characters/qiangqingci.webp',
   },
 };
+
+const CONVERTED_CHARACTER_AVATAR_REDIRECTS = Object.fromEntries(
+  [
+    ...Object.values(LOCAL_CHARACTER_AVATARS),
+    ...Object.values(CHARACTER_GENDER_VARIANTS).flatMap((variants) => Object.values(variants)),
+  ]
+    .filter((path): path is string => Boolean(path?.endsWith('.webp')))
+    .map((path) => [path.replace(/\.webp$/, '.jpg'), path]),
+);
 
 /** 角色卡片决策建议徽标的通用文案；差异化建议后续由后端字段数据驱动。 */
 export const CHARACTER_DECISION_BADGE = '可选角色';
@@ -147,7 +156,7 @@ export function getCharacterAvatarUrl(name: string, avatarUrl?: string | null, g
   const explicitUrl = avatarUrl?.trim();
   const variantUrl = gender ? CHARACTER_GENDER_VARIANTS[name]?.[gender] : undefined;
   if (variantUrl) return variantUrl;
-  if (explicitUrl) return explicitUrl;
+  if (explicitUrl) return CONVERTED_CHARACTER_AVATAR_REDIRECTS[explicitUrl] ?? explicitUrl;
   return LOCAL_CHARACTER_AVATARS[name] ?? '';
 }
 

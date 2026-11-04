@@ -256,7 +256,7 @@ export default function ChatList() {
   const showSignedOut = needsLogin || !isLoggedIn();
 
   return (
-    <PageShell variant="scroll" noPadding>
+    <PageShell variant="scroll" noPadding backgroundImage="/assets/backgrounds/courtyard.jpg">
       <View className={`chat-list${hasSearchQuery && !loading && !error && !showSignedOut ? ' chat-list--search' : ''}`} style={topBarStyle as CSSProperties}>
         <ChatListTopBackdrop />
         <View className="chat-list__body">
