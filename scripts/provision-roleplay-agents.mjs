@@ -1,4 +1,4 @@
-// Provisioning: 19 roleplay agents + role-card owner rows for FastClaw.
+// Provisioning: roleplay agents from the shared contract + role-card owner rows for FastClaw.
 //
 // Contract: docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md
 // §6/§7/§8/§9.1. Reads character_prompts (5 fields) from
@@ -30,30 +30,15 @@ import { parseDotEnv } from './dev.mjs';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // ---------------------------------------------------------------------------
-// Frozen contract (orchestrator / track C shared, must stay byte-for-byte):
-// 19 stable role agent slugs, keyed by seed character name.
+// Versioned contract shared with apps/api readiness. Additions are deliberate
+// releases, not runtime-discovered agent sets.
 // ---------------------------------------------------------------------------
-export const ROLE_AGENT_BY_NAME = Object.freeze({
-  白藏: 'role-baizang',
-  贺茂清玄: 'role-hemaoqingxuan',
-  月岛澪: 'role-yuedaoling',
-  久远: 'role-jiuyuan',
-  程聿怀: 'role-chengyuhuai',
-  蒋伯驾: 'role-jiangbojia',
-  程走柳: 'role-chengzouliu',
-  缪宏谟: 'role-miaohongmo',
-  黛利拉: 'role-dailila',
-  以撒: 'role-yisa',
-  羌青瓷: 'role-qiangqingci',
-  奥丁: 'role-aoding',
-  阿奇: 'role-aqi',
-  南窗: 'role-nanchuang',
-  赋霄: 'role-fuxiao',
-  岑奕岚: 'role-cenyilan',
-  季沧海: 'role-jicanghai',
-  知何: 'role-zhihe',
-  叶上秋: 'role-yeshangqiu',
-});
+const ROLE_AGENT_CONTRACT_PATH = path.join(repoRoot, 'packages/shared/src/roleplay-agents.json');
+const roleAgentContract = JSON.parse(fs.readFileSync(ROLE_AGENT_CONTRACT_PATH, 'utf8'));
+
+export const ROLE_AGENT_BY_NAME = Object.freeze(Object.fromEntries(
+  roleAgentContract.agents.map((agent) => [agent.name, agent.agentId]),
+));
 
 export const ROLE_AGENT_SLUGS = Object.freeze(Object.values(ROLE_AGENT_BY_NAME));
 
@@ -178,7 +163,8 @@ export function buildDesiredAgents(seedCharacters, ownerUserId) {
  * production path for content managed by the admin UI; seedCharacters above
  * remains available only for the initial bootstrap and backwards-compatible
  * tests. A published character owns its agent id, so a rename never changes
- * routing and a new character can be added without editing this script.
+ * routing, but the complete agent-id set still requires a versioned contract
+ * release.
  */
 export function buildDesiredAgentsFromPublished(publishedCharacters, ownerUserId) {
   if (!Array.isArray(publishedCharacters)) {
@@ -217,6 +203,19 @@ export function buildDesiredAgentsFromPublished(publishedCharacters, ownerUserId
       }),
     };
   });
+
+  const unknownAgentIds = [...seenIds]
+    .filter((agentId) => !ROLE_AGENT_SLUGS.includes(agentId))
+    .sort();
+  const missingAgentIds = ROLE_AGENT_SLUGS.filter((agentId) => !seenIds.has(agentId));
+  if (unknownAgentIds.length > 0 || missingAgentIds.length > 0) {
+    throw new Error(
+      `published roleplay agents must match the versioned contract: `
+      + `expected ${ROLE_AGENT_SLUGS.length}, found ${seenIds.size}; `
+      + `missingAgentIds=${JSON.stringify(missingAgentIds)}; `
+      + `unknownAgentIds=${JSON.stringify(unknownAgentIds)}`,
+    );
+  }
   return desired;
 }
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ROLEPLAY_AGENT_IDS } from '@juben-sha/shared';
 
 const { dbExecuteMock, dbSelectMock } = vi.hoisted(() => ({
   dbExecuteMock: vi.fn(),
@@ -33,6 +34,7 @@ interface ReadyResponseBody {
         missingAgentIds?: string[];
         duplicateAgentIds?: string[];
         unknownAgentIds?: string[];
+        emptyAgentIdCount?: number;
       };
     };
     fastclaw: {
@@ -52,27 +54,7 @@ interface ReadyResponseBody {
   };
 }
 
-const ROLE_AGENT_SLUGS = [
-  'role-baizang',
-  'role-hemaoqingxuan',
-  'role-yuedaoling',
-  'role-jiuyuan',
-  'role-chengyuhuai',
-  'role-jiangbojia',
-  'role-chengzouliu',
-  'role-miaohongmo',
-  'role-dailila',
-  'role-yisa',
-  'role-qiangqingci',
-  'role-aoding',
-  'role-aqi',
-  'role-nanchuang',
-  'role-fuxiao',
-  'role-cenyilan',
-  'role-jicanghai',
-  'role-zhihe',
-  'role-yeshangqiu',
-];
+const ROLE_AGENT_SLUGS = ROLEPLAY_AGENT_IDS;
 
 function roleSpec(agentId: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -544,6 +526,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
     const specs = allRoleSpecs();
     specs['agt_7c8acb3dde163e04bb'] = roleSpec('agt_7c8acb3dde163e04bb', { roleplay: false });
     vi.stubGlobal('fetch', mockRoleplayFetch(specs));
+    dbSelectMock.mockImplementation(() => selectChain([...allAgentIdRows()].reverse()));
 
     const { GET } = await loadRoute();
     const response = await GET();
@@ -561,7 +544,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
     }));
   });
 
-  it('fails readiness in roleplay mode when an active character has no agent_id', async () => {
+  it('fails readiness and reports the count when an active character has an empty agent_id', async () => {
     vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw:18953');
     vi.stubEnv('FASTCLAW_API_KEY', 'fc_test');
     vi.stubEnv('FASTCLAW_AGENT_ID', 'agt_7c8acb3dde163e04bb');
@@ -571,7 +554,7 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
     vi.stubGlobal('fetch', mockRoleplayFetch(specs));
     dbSelectMock.mockImplementation(() => selectChain([
       ...ROLE_AGENT_SLUGS.slice(0, 18).map((agentId) => ({ agentId })),
-      { agentId: null },
+      { agentId: '   ' },
     ]));
 
     const { GET } = await loadRoute();
@@ -587,9 +570,11 @@ describe('GET /api/ready FastClaw chat speed guard', () => {
         ok: false,
         expectedCount: 19,
         foundCount: 19,
+        emptyAgentIdCount: 1,
         missingAgentIds: ['role-yeshangqiu'],
       }),
     }));
+    expect(body.checks.db.error).toContain('emptyAgentIdCount=1');
     expect(body.checks.db.error).toContain('missingAgentIds=["role-yeshangqiu"]');
   });
 

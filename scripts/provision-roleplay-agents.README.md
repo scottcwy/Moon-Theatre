@@ -1,15 +1,17 @@
 # provision-roleplay-agents.mjs
 
 按 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md` §6/§7/§8/§9.1
-把已发布角色 agent 与角色卡（SOUL.md / IDENTITY.md / USER.md）幂等同步进 FastClaw。
+把当前版本清单中的角色 agent 与角色卡（SOUL.md / IDENTITY.md / USER.md）幂等同步进 FastClaw。
 
 ## 契约要点
 
-- 19 个稳定 slug 为冻结名单（与轨道 C 共用，一字不差）：见脚本内
-  `ROLE_AGENT_BY_NAME` / `ROLE_AGENT_SLUGS`（`role-baizang` … `role-yeshangqiu`）。
+- 当前版本固定 19 个稳定 slug；唯一 ID 清单是
+  `packages/shared/src/roleplay-agents.json`，provisioning 与 `/api/ready` 均读取该清单。
 - 编辑源：后台发布读模型导出的 JSON（`--published-file` 或
   `CONTENT_PUBLISHED_FILE`），每个角色必须携带稳定 `agentId` 和 `prompt` 五字段。
   seed 仅用于首次空库 bootstrap；设置发布文件后不会再读 seed，因此部署/初始化不会覆盖运营修改。
+- 发布读模型可以更新角色资料，但 `agentId` 集合必须与共享清单精确一致；数量不足、
+  多出未知 ID 或重复 ID 时 provisioning 直接失败，不接受任意动态集合。
 - 渲染（Spec §7）：
   - `SOUL.md` = 核心人设（systemPrompt）+ 人格 + 剧情（scenario）+ 安全 + 输出风格；
   - `IDENTITY.md` = 名字 + 身份 + 关系起点；
@@ -23,6 +25,10 @@
   `no changes (diff is empty)`）。
 - 旧默认 agent（`FASTCLAW_AGENT_ID`，当前 `agt_7c8acb3dde163e04bb`）保留且
   保持非 roleplay；脚本对默认 agent 做守卫（roleplay=true 时拒绝执行）。
+
+新增角色时先成对追加共享清单项与 `seedCharacters`，再发布包含全部角色及其稳定
+`agentId` 的读模型并运行本脚本同步 FastClaw。API 上线后 `/api/ready` 会按新清单
+校验完整集合；禁止只改数据库或改为动态接受任意集合。
 
 ## 用法
 
@@ -63,8 +69,8 @@ node scripts/provision-roleplay-agents.mjs \
   （`apikey_agents` ACL；`/api/ready` 会对每个 agent 调 runtime-spec，
   403 会判失败）。
 - FastClaw 镜像需含 roleplay 内核（F1–F5/F7/F8/F9/F10 补丁）。`/api/ready`
-  动态读取 active/published 角色集合；合法增减角色不会因固定数量失败，缺失、重复、
-  无效 agent id 或 runtime-spec 不可访问仍会 fail-closed。
+  按版本化共享清单校验完整 active 角色集合；新增或移除 Agent 需要先发布新清单，
+  缺失、空、重复、未知 agent id 或 runtime-spec 不可访问都会 fail-closed。
 - 先跑 FastClaw 一次完成 AutoMigrate，再执行本脚本。
 
 ## 测试

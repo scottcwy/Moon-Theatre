@@ -8,7 +8,6 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
 ) {
   const admin = await verifyAdminAuth(request);
   if (!admin.ok) {

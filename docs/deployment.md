@@ -88,6 +88,8 @@ rtk curl -fsS https://api.yuemanlou.xyz/api/ready
 
 `/api/health` 只表示 API 进程存活。`/api/ready` 检查 API 进程、Postgres 连通（`select 1`，5 秒超时）、FastClaw 配置与 `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec；任一检查失败返回 `503` 且 `status=not_ready`。业务聊天 Agent 若超过 `maxTokens=768`、`maxToolIterations` 不等于 `0` 或 `thinking` 不等于 `"off"`，readiness 会返回 `503`。
 
+`USE_ROLEPLAY_AGENTS=true` 时，`/api/ready` 还以代码中的版本化清单 `packages/shared/src/roleplay-agents.json` 为准，校验 `characters.agent_id` 的完整集合。当前版本固定 19 个 Agent；缺少或空 ID、重复 ID、未知 ID、数量不足或多出都返回 `503`，空 ID 通过 `emptyAgentIdCount` 明示。集合顺序不影响结果，API 不提供运行时增减 Agent 的参数。
+
 ## 5. 小程序生产构建
 
 域名统一配置在 `apps/miniapp/config/hosts.json`（`dev` 本地调试 / `lan` 真机预览 / `prod` 生产域名）。当前 `prod` 指向 `https://api.yuemanlou.xyz`，生产构建直接读取。
@@ -194,13 +196,16 @@ rtk pnpm build:miniapp:prod
 ```
 
    `build:miniapp:prod` 内部执行 `build:weapp:prod` 并自动运行 `verify:weapp`；等价旧方式为 `rtk pnpm --filter @juben-sha/miniapp build:weapp:prod`（同样含 verify）。
+
 6. 上线后执行第 4 节健康检查（`/api/health`、`/api/ready`）与小程序关键链路联调。
 
 > 注：v1.1 对应 `origin/main` 的迁移 `0004`–`0009`；07-06 快照是 2026-08-10 的历史状态（见 `docs/版本说明-dev.md`），实际服务器镜像需按第 3 节命令重新核查。
 
 > 注（fastclaw-disable-model-thinking 发布顺序）：FastClaw 新镜像（含 `thinking=off` 请求参数）必须先于 apps/api（含新 ready 校验）发布，并确认 agent 配置 `thinking="off"` 已生效（`GET /v1/agents/{id}/runtime-spec` 返回 `thinking=off`）；回滚顺序相反（先回 apps/api 再回 FastClaw 镜像与配置）。旧 FastClaw（runtime-spec 无 `thinking`）遇新 ready 校验会失败，属安全失败；新 FastClaw + 旧 apps/api 直接通过，属可接受（旧版无此要求），非回归。
 
-> 注（fastclaw-roleplay-agent-architecture 发布/回滚，2026-08-14）：下一架构版本（`docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`，revision 4，冻结）上线顺序为：FastClaw 补丁（F1–F5/F7–F10）→ 脚本 provisioning 创建/更新 19 个 roleplay agent（旧默认 agent 保留且保持非 roleplay）→ apps/api 切换（`USE_ROLEPLAY_AGENTS=false` 可一键回退）→ 小流量/全量。回滚顺序与第 6 节一致：**先 apps/api 再 FastClaw**——旧 FastClaw + 新 apps/api 时 `resolveAgent` 会静默回退默认/首个 agent 造成角色错乱，`/api/ready` 的 19-agent 校验作为回滚窗口哨兵；发布/回滚前备份 FastClaw `fastclaw-data` 卷（见第 7 节）。
+> 注（fastclaw-roleplay-agent-architecture 发布/回滚，2026-08-14）：下一架构版本（`docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md`，revision 4，冻结）上线顺序为：FastClaw 补丁（F1–F5/F7–F10）→ 脚本 provisioning 创建/更新当前版本的全部 roleplay agent（旧默认 agent 保留且保持非 roleplay）→ apps/api 切换（`USE_ROLEPLAY_AGENTS=false` 可一键回退）→ 小流量/全量。回滚顺序与第 6 节一致：**先 apps/api 再 FastClaw**——旧 FastClaw + 新 apps/api 时 `resolveAgent` 会静默回退默认/首个 agent 造成角色错乱，`/api/ready` 的完整 Agent 集合校验作为回滚窗口哨兵；发布/回滚前备份 FastClaw `fastclaw-data` 卷（见第 7 节）。
+
+> 注（新增角色 Agent）：先向 `packages/shared/src/roleplay-agents.json` 与 `seedCharacters` 成对追加稳定的 `agentId`，再运行 `node scripts/provision-roleplay-agents.mjs --apply` 创建/同步 FastClaw Agent；确认 `/api/ready` 对新清单的每一项都通过后，才能发布对应 API。禁止先发布 API 或让 readiness 改为从数据库动态接受任意 Agent 集合，否则旧 FastClaw 缺项会在运行时静默回退到默认 Agent。
 
 ## 10. 附录 A：微信后台上线清单（非仓库操作，人工执行）
 

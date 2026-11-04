@@ -97,7 +97,7 @@ export class AggregatePaymentProvider implements PaymentProvider {
     return notify.status;
   }
 
-  async queryPayment(_orderId: string): Promise<PaymentQueryResult> {
+  async queryPayment(): Promise<PaymentQueryResult> {
     // This provider currently only implements signed notifications. Returning a
     // local or guessed status here would make an admin verification unsafe.
     throw new PaymentProviderUnavailableError(

@@ -784,9 +784,6 @@ function createGenerationResponse(input: {
         const generationStartedAt = Date.now();
         for await (const event of streamChat(input.systemPrompt, input.userMessage, {
           messages: input.messages,
-          // The selected model profile is part of the accepted turn contract;
-          // forward it to FastClaw so a tier change changes inference, not just billing.
-          model: input.modelName,
           // 角色 Agent 请求头契约（Spec §8）：agentId/userId/sessionKey/scope/messageId。
           // clean history 在开关内为 []，messages 恒为 [system(动态上下文), user(当前消息)]。
           ...(config.useRoleplayAgents ? {

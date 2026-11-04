@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "agents": [
+    { "name": "白藏", "agentId": "role-baizang" },
+    { "name": "贺茂清玄", "agentId": "role-hemaoqingxuan" },
+    { "name": "月岛澪", "agentId": "role-yuedaoling" },
+    { "name": "久远", "agentId": "role-jiuyuan" },
+    { "name": "程聿怀", "agentId": "role-chengyuhuai" },
+    { "name": "蒋伯驾", "agentId": "role-jiangbojia" },
+    { "name": "程走柳", "agentId": "role-chengzouliu" },
+    { "name": "缪宏谟", "agentId": "role-miaohongmo" },
+    { "name": "黛利拉", "agentId": "role-dailila" },
+    { "name": "以撒", "agentId": "role-yisa" },
+    { "name": "羌青瓷", "agentId": "role-qiangqingci" },
+    { "name": "奥丁", "agentId": "role-aoding" },
+    { "name": "阿奇", "agentId": "role-aqi" },
+    { "name": "南窗", "agentId": "role-nanchuang" },
+    { "name": "赋霄", "agentId": "role-fuxiao" },
+    { "name": "岑奕岚", "agentId": "role-cenyilan" },
+    { "name": "季沧海", "agentId": "role-jicanghai" },
+    { "name": "知何", "agentId": "role-zhihe" },
+    { "name": "叶上秋", "agentId": "role-yeshangqiu" }
+  ]
+}

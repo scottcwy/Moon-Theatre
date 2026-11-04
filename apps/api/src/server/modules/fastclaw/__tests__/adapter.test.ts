@@ -115,7 +115,6 @@ describe('streamChat FastClaw integration', () => {
     const events = await collectEvents(configuredStreamChat('角色上下文', '你好', {
       sessionId: 'session-1',
       agentId: 'jiang-bojia',
-      model: 'standard-model',
     }));
 
     expect(events).toEqual([
@@ -295,7 +294,6 @@ describe('streamChat FastClaw integration', () => {
 
     await collectEvents(configuredStreamChat('剧本杀系统上下文', '继续调查', {
       sessionId: 'chat-session-123',
-      model: 'gpt-4o',
     }));
 
     const [, init] = fetchMock.mock.calls[0] ?? [];

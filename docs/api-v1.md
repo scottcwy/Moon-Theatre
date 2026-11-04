@@ -504,7 +504,9 @@ Authorization: Bearer <jwt>
 | 模块 | 方法 | 路径 | 说明 |
 | --- | --- | --- | --- |
 | Health | GET | `/api/health` | 进程存活检查，返回 `status: "ok"` |
-| Readiness | GET | `/api/ready` | 检查 FastClaw 配置、`${FASTCLAW_BASE_URL}/readyz` 和 `FASTCLAW_AGENT_ID` 对应 agent 的 runtime spec；未 ready 返回 `503` |
+| Readiness | GET | `/api/ready` | 检查 Postgres、FastClaw 配置/`readyz`/runtime spec，以及当前版本化清单中的完整角色 Agent 集合；缺少/空/重复/未知 Agent 均未 ready，返回 `503` |
+
+roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foundCount` 及失败时的 `missingAgentIds`、`duplicateAgentIds`、`unknownAgentIds`、`emptyAgentIdCount`。Agent 集合按 `agentId` 比较，匹配顺序不影响结果。
 
 ## 支付回调 API
 

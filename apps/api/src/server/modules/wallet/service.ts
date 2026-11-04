@@ -12,26 +12,35 @@ export interface WalletAccount {
   totalConsumedPoints: number;
 }
 
-export async function getOrCreateWallet(userId: string): Promise<WalletAccount> {
-  const [existing] = await db
+async function getOrCreateWalletForUpdate(
+  tx: WalletTransactionClient,
+  userId: string,
+): Promise<WalletAccount> {
+  const [created] = await tx
+    .insert(walletAccounts)
+    .values({ userId })
+    .onConflictDoNothing({ target: walletAccounts.userId })
+    .returning();
+
+  if (created) {
+    return created;
+  }
+
+  const [existing] = await tx
     .select()
     .from(walletAccounts)
     .where(eq(walletAccounts.userId, userId))
-    .limit(1);
+    .limit(1)
+    .for('update');
 
-  if (existing) {
-    return existing;
-  }
-
-  const [created] = await db
-    .insert(walletAccounts)
-    .values({ userId })
-    .returning();
-
-  if (!created) {
+  if (!existing) {
     throw new Error('Failed to create wallet account');
   }
-  return created;
+  return existing;
+}
+
+export async function getOrCreateWallet(userId: string): Promise<WalletAccount> {
+  return db.transaction((tx) => getOrCreateWalletForUpdate(tx, userId));
 }
 
 export async function getBalance(userId: string): Promise<number> {
@@ -87,25 +96,7 @@ export async function creditWalletInTransaction(
     };
   }
 
-  const wallet = await tx
-    .select()
-    .from(walletAccounts)
-    .where(eq(walletAccounts.userId, userId))
-    .limit(1)
-    .for('update');
-
-  let account = wallet[0];
-  if (!account) {
-    const [created] = await tx
-      .insert(walletAccounts)
-      .values({ userId })
-      .returning();
-
-    if (!created) {
-      throw new Error('Failed to create wallet account');
-    }
-    account = created;
-  }
+  const account = await getOrCreateWalletForUpdate(tx, userId);
 
   const newBalance = account.balancePoints + amount;
   const newRecharged = account.totalRechargedPoints + amount;

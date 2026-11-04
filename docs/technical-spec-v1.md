@@ -336,10 +336,11 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。当前生产不配置降级（Spec 5：`FASTCLAW_FALLBACK_ENABLED=false`）。
 - 当前 adapter 调用 `${FASTCLAW_BASE_URL}/v1/chat/completions`，使用 `Authorization: Bearer ${FASTCLAW_API_KEY}`，解析 OpenAI SSE 兼容的 `data: ...` 和 `[DONE]`。
 - 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
+- adapter 请求体不得携带 `model`；模型、temperature、maxTokens 与 thinking 均以 FastClaw 配置的 Agent 为唯一来源。`modelTier` 只用于计费和展示，不参与请求级模型选择。
 - 角色 Agent 架构（`USE_ROLEPLAY_AGENTS=true`）下，adapter 已补齐完整请求头契约：`x-fastclaw-agent-id` / `x-fastclaw-user-id` / `x-fastclaw-session-key` / `x-fastclaw-scope` / `x-fastclaw-message-id` / `x-fastclaw-no-persist`（`adapter.ts` L61-76，2026-08-14 架构 Spec §8 实现）。关闭开关时（`USE_ROLEPLAY_AGENTS=false`）保持旧链路：仅发送 `x-fastclaw-agent-id`。
 - 当前 FastClaw API 暴露 `GET /v1/agents/{id}/runtime-spec`，只返回 `id`、`model`、`maxTokens`、`temperature`、`maxToolIterations`、`thinking` 等非敏感运行参数。
-- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、`${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations = 0`、`thinking = "off"`（缺失或非 off 不通过）；`/api/health` 只表示 API 进程存活。
-- 当前 readiness 尚未检查数据库连接和生产关键配置完整性，生产部署验收仍需补强。
+- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、Postgres 连接与 `${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations = 0`、`thinking = "off"`（缺失或非 off 不通过）；`/api/health` 只表示 API 进程存活。
+- roleplay readiness 以 `packages/shared/src/roleplay-agents.json` 为唯一期望集合，当前为 19 个；必须与 `characters.agent_id` 精确对应。缺少/空 ID、重复、未知 ID、数量不足或多出均 fail closed，输出对应的 `missingAgentIds`、`duplicateAgentIds`、`unknownAgentIds` 或 `emptyAgentIdCount`。后续新增 Agent 通过发布新清单与 provisioning 完成，不接受任意动态集合。
 
 ### 7.4 长期记忆
 

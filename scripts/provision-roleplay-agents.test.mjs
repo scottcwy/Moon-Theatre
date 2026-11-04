@@ -12,6 +12,7 @@ import {
   ROLEPLAY_AGENT_CONFIG,
   USER_MD_TEMPLATE,
   buildDesiredAgents,
+  buildDesiredAgentsFromPublished,
   buildPlan,
   buildPlanSummary,
   configRowId,
@@ -23,6 +24,10 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scriptPath = path.join(repoRoot, 'scripts/provision-roleplay-agents.mjs');
+const sharedRoleContract = JSON.parse(fs.readFileSync(
+  path.join(repoRoot, 'packages/shared/src/roleplay-agents.json'),
+  'utf8',
+));
 
 const FROZEN_SLUGS = [
   'role-baizang', 'role-hemaoqingxuan', 'role-yuedaoling', 'role-jiuyuan',
@@ -92,8 +97,20 @@ function makeFixtureDb() {
   return { dir, dbPath };
 }
 
+function publishedCharactersFromSeed() {
+  return loadSeedCharacters().map((character) => ({
+    ...character,
+    agentId: ROLE_AGENT_BY_NAME[character.name],
+  }));
+}
+
 describe('provision-roleplay-agents frozen contract', () => {
   it('exports exactly the frozen 19 slugs in order', () => {
+    assert.deepEqual(
+      sharedRoleContract.agents.map((agent) => agent.agentId),
+      FROZEN_SLUGS,
+      'shared role contract must be the single source for provisioning',
+    );
     assert.deepEqual(ROLE_AGENT_SLUGS, FROZEN_SLUGS);
     assert.equal(ROLE_AGENT_SLUGS.length, 19);
     assert.equal(new Set(ROLE_AGENT_SLUGS).size, 19, 'slugs must be unique');
@@ -108,6 +125,34 @@ describe('provision-roleplay-agents frozen contract', () => {
       assert.ok(ROLE_AGENT_BY_NAME[name], `missing slug for ${name}`);
     }
     assert.deepEqual(Object.values(ROLE_AGENT_BY_NAME), FROZEN_SLUGS);
+  });
+
+  it('accepts the versioned role set from published content regardless of order', () => {
+    const desired = buildDesiredAgentsFromPublished(
+      publishedCharactersFromSeed().reverse(),
+      'u_test_owner',
+    );
+
+    assert.deepEqual(
+      desired.map((agent) => agent.id).sort(),
+      [...FROZEN_SLUGS].sort(),
+    );
+  });
+
+  it('rejects published content that adds an unknown or omits a frozen agent', () => {
+    const published = publishedCharactersFromSeed();
+
+    assert.throws(
+      () => buildDesiredAgentsFromPublished(
+        [...published, { ...published[0], name: '额外角色', agentId: 'role-extra' }],
+        'u_test_owner',
+      ),
+      /unknownAgentIds=\["role-extra"\]/,
+    );
+    assert.throws(
+      () => buildDesiredAgentsFromPublished(published.slice(1), 'u_test_owner'),
+      /missingAgentIds=\["role-baizang"\]/,
+    );
   });
 });
 
@@ -159,15 +204,14 @@ describe('provision-roleplay-agents seed + rendering', () => {
     }
   });
 
-  it('keeps ready route slug list identical (single source of truth test)', () => {
+  it('keeps ready route on the shared role contract (single source of truth test)', () => {
     const routeSource = fs.readFileSync(
       path.join(repoRoot, 'apps/api/src/app/api/ready/route.ts'),
       'utf8',
     );
-    const match = routeSource.match(/const ROLE_AGENT_SLUGS = \[([\s\S]*?)\];/);
-    assert.ok(match, 'route.ts must export ROLE_AGENT_SLUGS array');
-    const routeSlugs = [...match[1].matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
-    assert.deepEqual(routeSlugs, ROLE_AGENT_SLUGS);
+    assert.match(routeSource, /ROLEPLAY_AGENT_IDS/);
+    assert.doesNotMatch(routeSource, /const ROLE_AGENT_SLUGS = \[/);
+    assert.match(routeSource, /from '@juben-sha\/shared'/);
   });
 });
 

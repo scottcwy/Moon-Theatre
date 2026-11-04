@@ -22,9 +22,6 @@ export interface StreamChatOptions {
   sessionId?: string;
   agentId?: string;
   messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
-  // Runtime provider/model/temperature/thinking settings belong to the configured FastClaw agent.
-  // This legacy option is intentionally not sent as a request-level model override.
-  model?: string;
   // Per-call timeout override; defaults to config.fastclawTimeoutMs.
   timeoutMs?: number;
   // 角色 Agent 请求头契约（Spec §8）：product userId → x-fastclaw-user-id。
@@ -86,7 +83,6 @@ export async function* streamChat(
           body: JSON.stringify({
             messages,
             stream: true,
-            ...(options.model ? { model: options.model } : {}),
           }),
           signal: controller.signal,
         });

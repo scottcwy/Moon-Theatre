@@ -720,7 +720,6 @@ describe('runChatStream', () => {
     await readEvents(response);
 
     expect(streamChatMock).toHaveBeenCalledWith('system prompt', '继续调查', {
-      model: 'deepseek-ai/DeepSeek-V4-Flash',
       messages: [
         { role: 'system', content: 'system prompt' },
         { role: 'user', content: '上一轮问题' },

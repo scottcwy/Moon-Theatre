@@ -46,7 +46,7 @@ export class MockPaymentProvider implements PaymentProvider {
     return notify.status;
   }
 
-  async queryPayment(_orderId: string): Promise<PaymentQueryResult> {
+  async queryPayment(): Promise<PaymentQueryResult> {
     throw new PaymentProviderUnavailableError('Mock payment provider has no external order query');
   }
 }
