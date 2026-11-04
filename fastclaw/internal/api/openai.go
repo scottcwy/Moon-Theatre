@@ -322,15 +322,14 @@ func (s *Server) fullResponse(w http.ResponseWriter, reply, chatID, model string
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// resolveAgent picks an agent out of the caller's user space, preferring an
-// explicit agent ID from the x-fastclaw-agent-id header and falling back to
-// the default / first agent.
+// resolveAgent picks an agent out of the caller's user space. An explicit
+// agent ID is authoritative: an unknown ID returns nil so a role cannot be
+// silently routed to the default/first character. The default fallback is
+// retained only when the caller omitted the header (legacy non-roleplay API).
 func resolveAgent(space *UserSpaceView, agentID string) *agent.Agent {
 	mgr := space.Agents
 	if agentID != "" {
-		if ag := mgr.AgentByID(agentID); ag != nil {
-			return ag
-		}
+		return mgr.AgentByID(agentID)
 	}
 	if def := mgr.DefaultAgent(); def != nil {
 		return def

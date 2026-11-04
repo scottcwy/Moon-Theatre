@@ -40,12 +40,15 @@ interface RoleplayAgentsCheck {
   missingAgentIds?: string[];
   duplicateAgentIds?: string[];
   unknownAgentIds?: string[];
+  agentIds?: string[];
 }
 
 interface DatabaseCheckResult {
   ok: boolean;
   error?: string;
   roleplayAgents?: RoleplayAgentsCheck;
+  /** Stable IDs from active, published content; used by FastClaw checks. */
+  roleplayAgentIds?: string[];
 }
 
 interface FastClawAgentSpec {
@@ -82,10 +85,14 @@ interface FastClawCheckResult {
 
 export async function GET() {
   const roleplayMode = process.env.USE_ROLEPLAY_AGENTS === 'true';
+  const dbCheck = await checkDatabase(roleplayMode);
   const checks = {
     api: { ok: true },
-    db: await checkDatabase(roleplayMode),
-    fastclaw: await checkFastClaw(),
+    db: dbCheck,
+    // The database is the source of truth for the role set. Passing it into
+    // FastClaw readiness makes adding/removing a published role legal while
+    // still failing closed for a missing or inaccessible agent.
+    fastclaw: await checkFastClaw(dbCheck.roleplayAgentIds),
   };
   const ok = Object.values(checks).every((check) => check.ok);
 
@@ -122,11 +129,14 @@ async function checkDatabase(requireRoleplayAgents: boolean): Promise<DatabaseCh
       db.select({ agentId: characters.agentId }).from(characters).where(eq(characters.status, 'active')),
       timeout,
     ]);
-    const roleplayAgents = validateRoleplayAgentIds(rows);
+    // Published/active content owns the current role set. Do not pin
+    // readiness to the historical 19-role sentinel; additions and removals
+    // must be deployable as long as every active role has a unique stable id.
+    const roleplayAgents = validateRoleplayAgentIds(rows, null);
     if (!roleplayAgents.ok) {
       return { ok: false, roleplayAgents, error: describeRoleplayAgentsFailure(roleplayAgents) };
     }
-    return { ok: true, roleplayAgents };
+      return { ok: true, roleplayAgents, roleplayAgentIds: roleplayAgents.agentIds };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'DB readiness check failed';
     return { ok: false, error: message };
@@ -135,9 +145,13 @@ async function checkDatabase(requireRoleplayAgents: boolean): Promise<DatabaseCh
   }
 }
 
-function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): RoleplayAgentsCheck {
-  const expectedCount = ROLE_AGENT_SLUGS.length;
-  const expected = new Set(ROLE_AGENT_SLUGS);
+export function validateRoleplayAgentIds(
+  rows: Array<{ agentId: string | null }>,
+  expectedAgentIds: readonly string[] | null = ROLE_AGENT_SLUGS,
+): RoleplayAgentsCheck {
+  const dynamic = expectedAgentIds === null;
+  const expectedCount = dynamic ? rows.length : expectedAgentIds.length;
+  const expected = new Set(expectedAgentIds ?? []);
   const found = new Set<string>();
   const counts = new Map<string, number>();
   let nullCount = 0;
@@ -151,18 +165,22 @@ function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): Role
     found.add(row.agentId);
   }
 
-  const missingAgentIds = ROLE_AGENT_SLUGS.filter((slug) => !found.has(slug));
+  const missingAgentIds = dynamic ? [] : expectedAgentIds.filter((slug) => !found.has(slug));
   const duplicateAgentIds = [...counts.entries()]
     .filter(([, count]) => count > 1)
     .map(([agentId]) => agentId);
-  const unknownAgentIds = [...found].filter((agentId) => !expected.has(agentId)).sort();
+  const unknownAgentIds = dynamic ? [] : [...found].filter((agentId) => !expected.has(agentId)).sort();
+  // Agent IDs are system-owned stable routing keys. A malformed key must be
+  // rejected before it can be interpreted as a fallback/default agent.
+  const malformedAgentIds = [...found].filter((agentId) => !/^role-[a-z0-9][a-z0-9-]{1,62}$/.test(agentId)).sort();
 
   const ok =
     rows.length === expectedCount &&
     nullCount === 0 &&
     missingAgentIds.length === 0 &&
     duplicateAgentIds.length === 0 &&
-    unknownAgentIds.length === 0;
+    unknownAgentIds.length === 0 &&
+    malformedAgentIds.length === 0;
 
   return {
     ok,
@@ -171,6 +189,8 @@ function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): Role
     ...(missingAgentIds.length > 0 ? { missingAgentIds } : {}),
     ...(duplicateAgentIds.length > 0 ? { duplicateAgentIds } : {}),
     ...(unknownAgentIds.length > 0 ? { unknownAgentIds } : {}),
+    ...(malformedAgentIds.length > 0 ? { unknownAgentIds: [...new Set([...(unknownAgentIds ?? []), ...malformedAgentIds])] } : {}),
+    agentIds: [...found].sort(),
   };
 }
 
@@ -241,7 +261,7 @@ function validateAgentSpec(
   return { ok: true, maxTokens, maxToolIterations, thinking, roleplay };
 }
 
-async function checkFastClaw(): Promise<FastClawCheckResult> {
+export async function checkFastClaw(roleplayAgentIds?: readonly string[]): Promise<FastClawCheckResult> {
   if (!config.fastclawBaseUrl || !config.fastclawApiKey) {
     return { ok: false, configured: false, error: 'FASTCLAW_BASE_URL and FASTCLAW_API_KEY are required' };
   }
@@ -268,16 +288,20 @@ async function checkFastClaw(): Promise<FastClawCheckResult> {
       return checkLegacyFastClaw(controller.signal);
     }
 
-    // Roleplay sentinel (Spec §9.2): all 19 role agents must exist with
-    // roleplay=true and thinking="off"; the legacy default agent must still
-    // exist and stay non-roleplay (Spec §9.1).
+    // Roleplay agents are derived from active published content. The old
+    // frozen list remains the direct-call default for compatibility, while
+    // the /ready endpoint always supplies the DB-derived list.
+    const configuredRoleAgentIds = roleplayAgentIds ?? ROLE_AGENT_SLUGS;
+    if (configuredRoleAgentIds.length === 0) {
+      return { ok: false, configured: true, agentId: config.fastclawAgentId, roleplayMode: true, error: 'no active published roleplay agents' };
+    }
     const [defaultAgent, roleAgentChecks] = await Promise.all([
       checkSingleAgent(config.fastclawAgentId, controller.signal, {
         requireRoleplay: false,
         requireNonRoleplay: true,
       }),
       Promise.all(
-        ROLE_AGENT_SLUGS.map(async (slug) => {
+        configuredRoleAgentIds.map(async (slug) => {
           const check = await checkSingleAgent(slug, controller.signal, {
             requireRoleplay: true,
             requireNonRoleplay: false,
@@ -298,7 +322,7 @@ async function checkFastClaw(): Promise<FastClawCheckResult> {
       configured: true,
       agentId: config.fastclawAgentId,
       roleplayMode: true,
-      roleplayAgentsChecked: ROLE_AGENT_SLUGS.length,
+      roleplayAgentsChecked: configuredRoleAgentIds.length,
       agents,
       defaultAgent,
       error: failed.length > 0 ? summarizeRoleplayFailures(agents, defaultAgent, failed.length) : undefined,

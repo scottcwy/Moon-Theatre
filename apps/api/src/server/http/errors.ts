@@ -25,6 +25,13 @@ export class ValidationError extends HttpError {
   }
 }
 
+export class ConflictError extends HttpError {
+  constructor(message = 'Conflict') {
+    super(message, 409);
+    this.name = 'ConflictError';
+  }
+}
+
 export function internalErrorResponse(error?: unknown): NextResponse {
   if (error !== undefined) {
     // 诊断细节只写服务端日志，不向客户端泄漏原始异常（稳定错误码 internal_error）。

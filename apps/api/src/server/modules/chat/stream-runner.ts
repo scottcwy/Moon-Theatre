@@ -20,6 +20,10 @@ import {
   finalizeAssistantTurn,
   saveUserMessage,
   failTurn,
+  persistGenerationSnapshot,
+  ensureGenerationAttempt,
+  markGenerationAttemptCharge,
+  markGenerationAttemptRefund,
   ScriptUnavailableError,
   SessionScopeMismatchError,
 } from './index.js';
@@ -197,6 +201,21 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           ? []
           : await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
         const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory, scope.script);
+        if (typeof persistGenerationSnapshot === 'function') {
+          await persistGenerationSnapshot(resolved.userMessage.id, {
+            modelTier,
+            modelName: profile.modelName,
+            pointsPerCall: profile.pointsPerCall,
+            systemPrompt: promptContext.systemPrompt,
+            scriptTitle: promptContext.scriptTitle,
+            worldSetting: promptContext.worldSetting,
+            characterName: character.name,
+            characterIdentity: character.identity,
+            agentId: character.agentId ?? null,
+            mode: scope.mode,
+            scriptId: scope.scriptId,
+          });
+        }
         return createPreparedGenerationResponse({
           requestStartedAt,
           userId,
@@ -216,6 +235,7 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           cleanHistory,
           clientMessageId,
           generationAttempt: resolved.generationAttempt,
+          generationSnapshot: resolved.userMessage.generationSnapshot ?? undefined,
           mode: scope.mode,
           scriptId: scope.scriptId,
         });
@@ -247,6 +267,21 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           ? []
           : await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
         const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory, scope.script);
+        if (typeof persistGenerationSnapshot === 'function') {
+          await persistGenerationSnapshot(resolved.userMessageId, {
+            modelTier,
+            modelName: profile.modelName,
+            pointsPerCall: profile.pointsPerCall,
+            systemPrompt: promptContext.systemPrompt,
+            scriptTitle: promptContext.scriptTitle,
+            worldSetting: promptContext.worldSetting,
+            characterName: character.name,
+            characterIdentity: character.identity,
+            agentId: character.agentId ?? null,
+            mode: scope.mode,
+            scriptId: scope.scriptId,
+          });
+        }
         return createPreparedGenerationResponse({
           requestStartedAt,
           userId,
@@ -418,17 +453,61 @@ async function createPreparedGenerationResponse(input: {
   generationAttempt: number;
   mode: ChatMode;
   scriptId: string | null;
+  generationSnapshot?: {
+    modelTier: 'casual' | 'standard' | 'immersive';
+    modelName: string;
+    pointsPerCall: number;
+    systemPrompt: string;
+    scriptTitle?: string;
+    worldSetting?: string;
+    characterName: string;
+    characterIdentity: string;
+    agentId: string | null;
+    mode: ChatMode;
+    scriptId: string | null;
+  };
 }): Promise<Response> {
+  const snapshot = input.generationSnapshot;
+  const modelTier = snapshot?.modelTier ?? input.modelTier;
+  const modelName = snapshot?.modelName ?? input.modelName;
+  const pointsPerCall = snapshot?.pointsPerCall ?? input.pointsPerCall;
+  const systemPrompt = snapshot?.systemPrompt ?? input.systemPrompt;
+  const scriptTitle = snapshot ? snapshot.scriptTitle : input.scriptTitle;
+  const worldSetting = snapshot ? snapshot.worldSetting : input.worldSetting;
+  const characterName = snapshot ? snapshot.characterName : input.characterName;
+  const characterIdentity = snapshot ? snapshot.characterIdentity : input.characterIdentity;
+  const agentId = snapshot ? snapshot.agentId : input.agentId;
+  const mode = snapshot ? snapshot.mode : input.mode;
+  const scriptId = snapshot ? snapshot.scriptId : input.scriptId;
+
+  if (typeof ensureGenerationAttempt === 'function') {
+    await ensureGenerationAttempt(input.userMessageId, input.generationAttempt, pointsPerCall);
+  }
   // wallet 已在入口并行创建（4.2）；getBalance 内部幂等，保持原位。
   const balance = await getBalance(input.userId);
-  if (balance < input.pointsPerCall) {
+  if (balance < pointsPerCall) {
     await failTurn(input.userMessageId);
+    if (typeof markGenerationAttemptCharge === 'function') {
+      await markGenerationAttemptCharge(input.userMessageId, input.generationAttempt, 'failed', null, 'insufficient_points');
+    }
     return errorResponse('insufficient_points', 402);
   }
 
-  const consumeResult = await consumePoints(input.userId, input.pointsPerCall, `consume_${input.userMessageId}_${input.generationAttempt}`);
+  let consumeResult: Awaited<ReturnType<typeof consumePoints>>;
+  try {
+    consumeResult = await consumePoints(input.userId, pointsPerCall, `consume_${input.userMessageId}_${input.generationAttempt}`);
+  } catch (error) {
+    if (typeof markGenerationAttemptCharge === 'function') {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await markGenerationAttemptCharge(input.userMessageId, input.generationAttempt, errorMessage === 'Insufficient balance' ? 'failed' : 'unknown', null, errorMessage).catch(() => undefined);
+    }
+    throw error;
+  }
+  if (typeof markGenerationAttemptCharge === 'function') {
+    await markGenerationAttemptCharge(input.userMessageId, input.generationAttempt, 'succeeded', consumeResult.transactionId);
+  }
   const messages = [
-    { role: 'system' as const, content: input.systemPrompt },
+    { role: 'system' as const, content: systemPrompt },
     ...input.cleanHistory,
     { role: 'user' as const, content: input.userMessage },
   ];
@@ -441,22 +520,22 @@ async function createPreparedGenerationResponse(input: {
     sessionId: input.sessionId,
     userMessageId: input.userMessageId,
     userMessage: input.userMessage,
-    modelTier: input.modelTier,
-    modelName: input.modelName,
-    pointsPerCall: input.pointsPerCall,
+    modelTier,
+    modelName,
+    pointsPerCall,
     walletTransactionId: consumeResult.transactionId,
     initialBalanceAfter: consumeResult.balanceAfter,
-    systemPrompt: input.systemPrompt,
-    scriptTitle: input.scriptTitle,
-    worldSetting: input.worldSetting,
-    characterName: input.characterName,
-    characterIdentity: input.characterIdentity,
-    agentId: input.agentId,
+    systemPrompt,
+    scriptTitle,
+    worldSetting,
+    characterName,
+    characterIdentity,
+    agentId,
     messages,
     clientMessageId: input.clientMessageId,
     generationAttempt: input.generationAttempt,
-    mode: input.mode,
-    scriptId: input.scriptId,
+    mode,
+    scriptId,
   });
 }
 
@@ -608,6 +687,48 @@ type ChatStreamErrorCode =
   | 'in_progress'
   | 'unknown';
 
+async function refundGenerationAttempt(input: {
+  userId: string;
+  pointsPerCall: number;
+  userMessageId: string;
+  generationAttempt: number;
+}): Promise<Awaited<ReturnType<typeof refundConsumedPoints>> | undefined> {
+  if (typeof markGenerationAttemptRefund === 'function') {
+    await Promise.resolve(markGenerationAttemptRefund(
+      input.userMessageId,
+      input.generationAttempt,
+      'pending',
+    )).catch(() => undefined);
+  }
+  try {
+    const result = await refundConsumedPoints(
+      input.userId,
+      input.pointsPerCall,
+      `refund_${input.userMessageId}_${input.generationAttempt}`,
+    );
+    if (typeof markGenerationAttemptRefund === 'function') {
+      await Promise.resolve(markGenerationAttemptRefund(
+        input.userMessageId,
+        input.generationAttempt,
+        'succeeded',
+        result.transactionId,
+      )).catch(() => undefined);
+    }
+    return result;
+  } catch (error) {
+    if (typeof markGenerationAttemptRefund === 'function') {
+      await Promise.resolve(markGenerationAttemptRefund(
+        input.userMessageId,
+        input.generationAttempt,
+        'unknown',
+        null,
+        error instanceof Error ? error.message : String(error),
+      )).catch(() => undefined);
+    }
+    return undefined;
+  }
+}
+
 function createGenerationResponse(input: {
   requestStartedAt: number;
   prepareMs: number;
@@ -663,6 +784,9 @@ function createGenerationResponse(input: {
         const generationStartedAt = Date.now();
         for await (const event of streamChat(input.systemPrompt, input.userMessage, {
           messages: input.messages,
+          // The selected model profile is part of the accepted turn contract;
+          // forward it to FastClaw so a tier change changes inference, not just billing.
+          model: input.modelName,
           // 角色 Agent 请求头契约（Spec §8）：agentId/userId/sessionKey/scope/messageId。
           // clean history 在开关内为 []，messages 恒为 [system(动态上下文), user(当前消息)]。
           ...(config.useRoleplayAgents ? {
@@ -685,7 +809,7 @@ function createGenerationResponse(input: {
             break;
           } else if (event.type === 'error') {
             const code = event.code ?? 'unknown';
-            const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`).catch(() => undefined);
+            const refundResult = await refundGenerationAttempt(input);
             if (refundResult) {
               balanceAfter = refundResult.balanceAfter;
             }
@@ -744,7 +868,10 @@ function createGenerationResponse(input: {
         // 保留 outOfScope 状态标记与审计（Spec §6 计费行）；不加羁绊/成就（AC-P0-07）。
         if (isOutOfScope && !config.useRoleplayAgents) {
           const saveStartedAt = Date.now();
-          const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
+          const refundResult = await refundGenerationAttempt(input);
+          if (!refundResult) {
+            throw new Error('refund_pending');
+          }
           balanceAfter = refundResult.balanceAfter;
           const saved = await finalizeAssistantTurn({
             sessionId: input.sessionId,
@@ -813,7 +940,10 @@ function createGenerationResponse(input: {
 
         const saveStartedAt = Date.now();
         if (blocked || isOutOfScope) {
-          const refundResult = await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`);
+          const refundResult = await refundGenerationAttempt(input);
+          if (!refundResult) {
+            throw new Error('refund_pending');
+          }
           balanceAfter = refundResult.balanceAfter;
         }
         const saved = await finalizeAssistantTurn({
@@ -906,7 +1036,7 @@ function createGenerationResponse(input: {
         }) + '\n'));
         controller.close();
       } catch (err) {
-        await refundConsumedPoints(input.userId, input.pointsPerCall, `refund_${input.userMessageId}_${input.generationAttempt}`).catch(() => undefined);
+        await refundGenerationAttempt(input);
         const errorMessage = err instanceof Error ? err.message : 'Stream error';
         await failTurn(input.userMessageId).catch(() => undefined);
         await insertModelUsage(input, 'failed', 0, 'unknown').catch(() => undefined);

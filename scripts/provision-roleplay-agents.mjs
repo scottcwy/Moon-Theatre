@@ -173,6 +173,66 @@ export function buildDesiredAgents(seedCharacters, ownerUserId) {
   }));
 }
 
+/**
+ * Build role agents from the published content read model. This is the
+ * production path for content managed by the admin UI; seedCharacters above
+ * remains available only for the initial bootstrap and backwards-compatible
+ * tests. A published character owns its agent id, so a rename never changes
+ * routing and a new character can be added without editing this script.
+ */
+export function buildDesiredAgentsFromPublished(publishedCharacters, ownerUserId) {
+  if (!Array.isArray(publishedCharacters)) {
+    throw new Error('publishedCharacters must be an array');
+  }
+  if (typeof ownerUserId !== 'string' || ownerUserId === '') {
+    throw new Error('ownerUserId is required');
+  }
+
+  const seenIds = new Set();
+  const desired = publishedCharacters.map((character) => {
+    const name = String(character?.name ?? '').trim();
+    const agentId = String(character?.agentId ?? '').trim();
+    if (!name) throw new Error('published character is missing name');
+    if (!/^role-[a-z0-9][a-z0-9-]{1,62}$/.test(agentId)) {
+      throw new Error(`published character ${name} has invalid agentId: ${agentId || 'missing'}`);
+    }
+    if (seenIds.has(agentId)) {
+      throw new Error(`duplicate published character agentId: ${agentId}`);
+    }
+    seenIds.add(agentId);
+    const prompt = character.prompt ?? character.prompts ?? {};
+    return {
+      id: agentId,
+      name,
+      userId: ownerUserId,
+      files: renderRoleFiles({
+        ...character,
+        prompt: {
+          systemPrompt: prompt.systemPrompt,
+          personalityPrompt: prompt.personalityPrompt,
+          scenarioPrompt: prompt.scenarioPrompt,
+          safetyPrompt: prompt.safetyPrompt,
+          outputFormatPrompt: prompt.outputFormatPrompt,
+        },
+      }),
+    };
+  });
+  return desired;
+}
+
+export function loadPublishedCharacters(filePath = process.env.CONTENT_PUBLISHED_FILE) {
+  if (!filePath) {
+    throw new Error('CONTENT_PUBLISHED_FILE is required; provisioning must not read seed content in managed mode');
+  }
+  const raw = fs.readFileSync(path.resolve(filePath), 'utf8');
+  const parsed = JSON.parse(raw);
+  const characters = Array.isArray(parsed) ? parsed : parsed?.characters;
+  if (!Array.isArray(characters)) {
+    throw new Error(`published content file ${filePath} must contain a characters array`);
+  }
+  return characters;
+}
+
 export function assertFrozenSlugs(seedCharacters) {
   const names = seedCharacters.map((character) => character.name);
   if (names.length !== ROLE_AGENT_SLUGS.length) {
@@ -522,7 +582,7 @@ function loadRootEnv() {
 }
 
 function resolveArgs(argv) {
-  const args = { apply: false, db: null, ownerUserId: null, defaultAgentId: null };
+  const args = { apply: false, db: null, ownerUserId: null, defaultAgentId: null, publishedFile: null };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--apply') args.apply = true;
@@ -530,6 +590,7 @@ function resolveArgs(argv) {
     else if (arg === '--db') args.db = argv[++index];
     else if (arg === '--owner-user-id') args.ownerUserId = argv[++index];
     else if (arg === '--default-agent-id') args.defaultAgentId = argv[++index];
+    else if (arg === '--published-file') args.publishedFile = argv[++index];
     else {
       throw new Error(`unknown argument: ${arg}`);
     }
@@ -560,6 +621,7 @@ export async function main(argv = process.argv.slice(2)) {
         '  --owner-user-id  FastClaw user id owning the role agents (default:',
         '               super_admin / first user)',
         '  --default-agent-id  legacy default agent id to guard (default: FASTCLAW_AGENT_ID)',
+        '  --published-file  JSON exported by the admin published-content read model',
         '',
       ].join('\n'),
     );
@@ -572,8 +634,13 @@ export async function main(argv = process.argv.slice(2)) {
   const defaultAgentId =
     args.defaultAgentId || process.env.FASTCLAW_AGENT_ID || rootEnv.FASTCLAW_AGENT_ID || '';
 
-  const seedCharacters = loadSeedCharacters();
-  assertFrozenSlugs(seedCharacters);
+  const publishedFile = args.publishedFile || process.env.CONTENT_PUBLISHED_FILE || rootEnv.CONTENT_PUBLISHED_FILE;
+  const publishedCharacters = publishedFile ? loadPublishedCharacters(publishedFile) : null;
+  // Seed bootstrap is retained for an empty/legacy environment. Once the
+  // admin exports published content, that immutable read model is the only
+  // source; this prevents a deploy from overwriting an operator's edits.
+  const desiredSource = publishedCharacters ?? loadSeedCharacters();
+  if (!publishedCharacters) assertFrozenSlugs(desiredSource);
 
   const driver = makeDriver(dbTarget);
   const actual = driver.readActual();
@@ -583,7 +650,9 @@ export async function main(argv = process.argv.slice(2)) {
       'could not resolve a FastClaw owner user: pass --owner-user-id or FASTCLAW_OWNER_USER_ID',
     );
   }
-  const desiredAgents = buildDesiredAgents(seedCharacters, resolvedOwner);
+  const desiredAgents = publishedCharacters
+    ? buildDesiredAgentsFromPublished(publishedCharacters, resolvedOwner)
+    : buildDesiredAgents(desiredSource, resolvedOwner);
   const changes = buildPlan(desiredAgents, actual);
 
   // Guard (Spec §9.1): the legacy default agent must stay non-roleplay.

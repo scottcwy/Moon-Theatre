@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { walletAccounts, walletTransactions } from '../../db/schema.js';
 
@@ -153,6 +153,165 @@ export interface RefundResult {
   transactionId: string;
   balanceAfter: number;
   alreadyRefunded: boolean;
+}
+
+export interface AdjustmentResult {
+  transactionId: string;
+  balanceAfter: number;
+  alreadyAdjusted: boolean;
+}
+
+export class WalletAdjustmentConflictError extends Error {
+  readonly code = 'idempotency_conflict';
+
+  constructor() {
+    super('Idempotency key was already used with different adjustment parameters');
+    this.name = 'WalletAdjustmentConflictError';
+  }
+}
+
+/**
+ * Applies a signed administrator adjustment as one atomic wallet transaction.
+ * The idempotency key is global to wallet transactions; a matching replay returns
+ * the original result, while reusing it with any changed parameter is rejected.
+ */
+export async function adjustWalletPoints(
+  userId: string,
+  delta: number,
+  idempotencyKey: string,
+  reason: string,
+  adminUserId: string,
+): Promise<AdjustmentResult> {
+  if (!Number.isInteger(delta) || delta === 0) {
+    throw new Error('Adjustment delta must be a non-zero integer');
+  }
+  const normalizedReason = reason.trim();
+  if (!normalizedReason) {
+    throw new Error('Adjustment reason is required');
+  }
+  if (!idempotencyKey.trim()) {
+    throw new Error('Idempotency key is required');
+  }
+
+  return db.transaction(async (tx) => {
+    const execute = (tx as unknown as { execute?: (query: unknown) => Promise<unknown> }).execute;
+    if (execute) {
+      await execute.call(tx, sql`select pg_advisory_xact_lock(hashtext(${idempotencyKey}))`);
+    }
+
+    const findExisting = async () => {
+      const [row] = await tx
+        .select({
+          id: walletTransactions.id,
+          userId: walletTransactions.userId,
+          amount: walletTransactions.amount,
+          balanceAfter: walletTransactions.balanceAfter,
+          adminUserId: walletTransactions.adminUserId,
+          adjustmentReason: walletTransactions.adjustmentReason,
+        })
+        .from(walletTransactions)
+        .where(eq(walletTransactions.idempotencyKey, idempotencyKey))
+        .limit(1);
+      return row;
+    };
+
+    const existing = await findExisting();
+    if (existing) {
+      if (
+        existing.userId !== userId ||
+        existing.amount !== delta ||
+        existing.adminUserId !== adminUserId ||
+        existing.adjustmentReason !== normalizedReason
+      ) {
+        throw new WalletAdjustmentConflictError();
+      }
+      return {
+        transactionId: existing.id,
+        balanceAfter: existing.balanceAfter,
+        alreadyAdjusted: true,
+      };
+    }
+
+    const walletRows = await tx
+      .select()
+      .from(walletAccounts)
+      .where(eq(walletAccounts.userId, userId))
+      .limit(1)
+      .for('update');
+
+    let account = walletRows[0];
+    if (!account) {
+      if (delta < 0) {
+        throw new Error('Wallet account not found');
+      }
+      const [created] = await tx
+        .insert(walletAccounts)
+        .values({ userId })
+        .onConflictDoNothing({ target: walletAccounts.userId })
+        .returning();
+      if (created) {
+        account = created;
+      } else {
+        // Another transaction created the account while this one was waiting
+        // on the unique key. Lock and read its current balance before applying.
+        const [existingAccount] = await tx
+          .select()
+          .from(walletAccounts)
+          .where(eq(walletAccounts.userId, userId))
+          .limit(1)
+          .for('update');
+        if (!existingAccount) throw new Error('Failed to create wallet account');
+        account = existingAccount;
+      }
+    }
+
+    // Recheck after locking the account so a concurrent replay on the same
+    // user cannot create a second adjustment.
+    const concurrent = await findExisting();
+    if (concurrent) {
+      if (
+        concurrent.userId !== userId ||
+        concurrent.amount !== delta ||
+        concurrent.adminUserId !== adminUserId ||
+        concurrent.adjustmentReason !== normalizedReason
+      ) {
+        throw new WalletAdjustmentConflictError();
+      }
+      return {
+        transactionId: concurrent.id,
+        balanceAfter: concurrent.balanceAfter,
+        alreadyAdjusted: true,
+      };
+    }
+
+    const newBalance = account.balancePoints + delta;
+    if (newBalance < 0) {
+      throw new Error('Insufficient balance');
+    }
+
+    const now = new Date();
+    await tx
+      .update(walletAccounts)
+      .set({ balancePoints: newBalance, updatedAt: now })
+      .where(eq(walletAccounts.id, account.id));
+
+    const [txRow] = await tx
+      .insert(walletTransactions)
+      .values({
+        userId,
+        type: 'adjust',
+        amount: delta,
+        balanceAfter: newBalance,
+        idempotencyKey,
+        description: normalizedReason,
+        adminUserId,
+        adjustmentReason: normalizedReason,
+      })
+      .returning({ id: walletTransactions.id });
+
+    if (!txRow) throw new Error('Failed to create wallet adjustment transaction');
+    return { transactionId: txRow.id, balanceAfter: newBalance, alreadyAdjusted: false };
+  });
 }
 
 /**

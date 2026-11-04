@@ -86,6 +86,7 @@ export async function* streamChat(
           body: JSON.stringify({
             messages,
             stream: true,
+            ...(options.model ? { model: options.model } : {}),
           }),
           signal: controller.signal,
         });

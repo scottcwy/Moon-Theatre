@@ -10,7 +10,6 @@ const navItems = [
   { href: '/admin/wallet', label: 'Wallet' },
   { href: '/admin/quota-packages', label: 'Quota Packages' },
   { href: '/admin/model-usage', label: 'Model Usage' },
-  { href: '/admin/memories', label: 'Memories' },
   { href: '/admin/blocked-keywords', label: 'Blocked Keywords' },
   { href: '/admin/review-logs', label: 'Review Logs' },
 ];

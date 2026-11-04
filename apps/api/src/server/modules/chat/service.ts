@@ -10,12 +10,15 @@ import {
   modelUsageLogs,
   relationshipBondExpEvents,
   relationships,
+  chatGenerationAttempts,
 } from '../../db/schema';
+import type { ChatGenerationSnapshot } from '../../db/schema';
 
 export type ChatGenerationStatus = 'generating' | 'completed' | 'failed';
 export type ChatPromptMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 export type ChatModelTier = 'casual' | 'standard' | 'immersive';
 export type ChatMode = 'script' | 'free';
+export type { ChatGenerationSnapshot };
 
 export class ScriptUnavailableError extends Error {
   public readonly code = 'script_unavailable' as const;
@@ -35,6 +38,7 @@ export interface ChatTurnUserMessage {
   createdAt: Date;
   outOfScope: boolean;
   excludedFromContext: boolean;
+  generationSnapshot?: ChatGenerationSnapshot | null;
 }
 
 export interface ChatTurnAssistantMessage {
@@ -117,6 +121,8 @@ export type SaveAssistantForTurnInput = {
   outOfScope?: boolean;
   excludedFromContext?: boolean;
 };
+
+export type GenerationAttemptStatus = 'pending' | 'succeeded' | 'failed' | 'unknown';
 
 export type FinalizeAssistantTurnInput = SaveAssistantForTurnInput & {
   userMessageId: string;
@@ -354,6 +360,7 @@ export async function saveUserMessage(
     generationAttempt?: number;
     outOfScope?: boolean;
     excludedFromContext?: boolean;
+    generationSnapshot?: ChatGenerationSnapshot | null;
   } = {},
 ): Promise<{ id: string; generationAttempt: number }> {
   const [msg] = await db
@@ -366,6 +373,7 @@ export async function saveUserMessage(
       generationStatus: options.generationStatus ?? (options.clientMessageId ? 'generating' : null),
       generationLeaseExpiresAt: options.generationLeaseExpiresAt ?? (options.clientMessageId ? createGenerationLeaseExpiresAt() : null),
       generationAttempt: options.generationAttempt ?? 1,
+      generationSnapshot: options.generationSnapshot ?? null,
       outOfScope: options.outOfScope ?? false,
       excludedFromContext: options.excludedFromContext ?? false,
     })
@@ -376,6 +384,66 @@ export async function saveUserMessage(
   }
   await touchSession(sessionId);
   return { id: msg.id, generationAttempt: msg.generationAttempt };
+}
+
+/** Persist the first accepted turn's immutable routing/content/price snapshot. */
+export async function persistGenerationSnapshot(
+  userMessageId: string,
+  snapshot: ChatGenerationSnapshot,
+): Promise<boolean> {
+  const updated = await db
+    .update(messages)
+    .set({ generationSnapshot: snapshot })
+    .where(and(eq(messages.id, userMessageId), eq(messages.role, 'user'), isNull(messages.generationSnapshot)))
+    .returning({ id: messages.id });
+  return updated.length > 0;
+}
+
+export async function ensureGenerationAttempt(
+  userMessageId: string,
+  attempt: number,
+  pointsPerCall: number,
+): Promise<void> {
+  await db
+    .insert(chatGenerationAttempts)
+    .values({ userMessageId, attempt, pointsPerCall })
+    .onConflictDoNothing({ target: [chatGenerationAttempts.userMessageId, chatGenerationAttempts.attempt] });
+}
+
+export async function markGenerationAttemptCharge(
+  userMessageId: string,
+  attempt: number,
+  status: GenerationAttemptStatus,
+  walletTransactionId?: string | null,
+  error?: string | null,
+): Promise<void> {
+  await db
+    .update(chatGenerationAttempts)
+    .set({
+      chargeStatus: status,
+      ...(walletTransactionId !== undefined ? { chargeWalletTransactionId: walletTransactionId } : {}),
+      ...(error !== undefined ? { lastError: error } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(chatGenerationAttempts.userMessageId, userMessageId), eq(chatGenerationAttempts.attempt, attempt)));
+}
+
+export async function markGenerationAttemptRefund(
+  userMessageId: string,
+  attempt: number,
+  status: GenerationAttemptStatus,
+  walletTransactionId?: string | null,
+  error?: string | null,
+): Promise<void> {
+  await db
+    .update(chatGenerationAttempts)
+    .set({
+      refundStatus: status === 'succeeded' ? 'succeeded' : status,
+      ...(walletTransactionId !== undefined ? { refundWalletTransactionId: walletTransactionId } : {}),
+      ...(error !== undefined ? { lastError: error } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(chatGenerationAttempts.userMessageId, userMessageId), eq(chatGenerationAttempts.attempt, attempt)));
 }
 
 export async function saveAssistantMessage(
@@ -480,6 +548,7 @@ export async function findTurnByClientMessageId(
       generationStatus: messages.generationStatus,
       generationLeaseExpiresAt: messages.generationLeaseExpiresAt,
       generationAttempt: messages.generationAttempt,
+      generationSnapshot: messages.generationSnapshot,
       createdAt: messages.createdAt,
       outOfScope: messages.outOfScope,
       excludedFromContext: messages.excludedFromContext,
@@ -508,6 +577,7 @@ export async function findTurnByClientMessageId(
       generationStatus: userRow.generationStatus,
       generationLeaseExpiresAt: userRow.generationLeaseExpiresAt,
       generationAttempt: userRow.generationAttempt,
+      generationSnapshot: userRow.generationSnapshot,
       createdAt: userRow.createdAt,
       outOfScope: userRow.outOfScope,
       excludedFromContext: userRow.excludedFromContext,

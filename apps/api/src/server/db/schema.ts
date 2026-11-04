@@ -16,6 +16,20 @@ export const reviewStatusEnum = pgEnum('review_status', ['normal', 'flagged', 'r
 export const chatModeEnum = pgEnum('chat_mode', ['script', 'free']);
 export const memoryScopeEnum = pgEnum('memory_scope', ['shared', 'script']);
 
+export type ChatGenerationSnapshot = {
+  modelTier: 'casual' | 'standard' | 'immersive';
+  modelName: string;
+  pointsPerCall: number;
+  systemPrompt: string;
+  scriptTitle?: string;
+  worldSetting?: string;
+  characterName: string;
+  characterIdentity: string;
+  agentId: string | null;
+  mode: 'script' | 'free';
+  scriptId: string | null;
+};
+
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   openid: varchar('openid', { length: 128 }).notNull().unique(),
@@ -142,6 +156,7 @@ export const messages = pgTable('messages', {
   generationStatus: varchar('generation_status', { length: 32 }),
   generationLeaseExpiresAt: timestamp('generation_lease_expires_at', { withTimezone: true }),
   generationAttempt: integer('generation_attempt').default(1).notNull(),
+  generationSnapshot: jsonb('generation_snapshot').$type<ChatGenerationSnapshot | null>(),
   mood: moodTypeEnum('mood'),
   modelTier: modelTierEnum('model_tier'),
   tokensUsed: integer('tokens_used'),
@@ -353,6 +368,8 @@ export const walletTransactions = pgTable('wallet_transactions', {
   modelUsageLogId: uuid('model_usage_log_id'),
   idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull().unique(),
   description: varchar('description', { length: 256 }),
+  adminUserId: uuid('admin_user_id').references(() => users.id),
+  adjustmentReason: varchar('adjustment_reason', { length: 256 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -390,6 +407,128 @@ export const characterReturnMessages = pgTable('character_return_messages', {
     .on(table.userId, table.characterId, table.windowStart),
   unreadIdx: index('character_return_messages_unread_idx')
     .on(table.userId, table.readAt),
+}));
+
+// Web admin control-plane state. Status fields remain strings so recovery can
+// represent partial/unknown cross-system outcomes without enum migrations.
+export const adminSessions = pgTable('admin_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  provider: varchar('provider', { length: 32 }).notNull(),
+  externalSubject: varchar('external_subject', { length: 256 }).notNull(),
+  stateHash: varchar('state_hash', { length: 128 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  subjectIdx: index('admin_sessions_subject_idx').on(table.provider, table.externalSubject),
+  activeIdx: index('admin_sessions_active_idx').on(table.userId, table.expiresAt),
+}));
+
+export const adminAuditLogs = pgTable('admin_audit_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  actorUserId: uuid('actor_user_id').references(() => users.id).notNull(),
+  action: varchar('action', { length: 96 }).notNull(),
+  objectType: varchar('object_type', { length: 64 }).notNull(),
+  objectId: varchar('object_id', { length: 128 }),
+  requestId: varchar('request_id', { length: 128 }),
+  taskId: varchar('task_id', { length: 128 }),
+  result: varchar('result', { length: 32 }).notNull(),
+  summary: jsonb('summary'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  requestIdx: index('admin_audit_logs_request_idx').on(table.requestId, table.createdAt),
+  objectIdx: index('admin_audit_logs_object_idx').on(table.objectType, table.objectId, table.createdAt),
+}));
+
+export const contentVersions = pgTable('content_versions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  entityType: varchar('entity_type', { length: 32 }).notNull(),
+  entityId: uuid('entity_id').notNull(),
+  versionNo: integer('version_no').notNull(),
+  status: varchar('status', { length: 32 }).notNull(),
+  contentHash: varchar('content_hash', { length: 128 }).notNull(),
+  payload: jsonb('payload').notNull(),
+  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+}, (table) => ({
+  entityVersionUnique: uniqueIndex('content_versions_entity_version_unique').on(table.entityType, table.entityId, table.versionNo),
+  entityStatusIdx: index('content_versions_entity_status_idx').on(table.entityType, table.entityId, table.status),
+}));
+
+export const publishTasks = pgTable('publish_tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull().unique(),
+  entityType: varchar('entity_type', { length: 32 }).notNull(),
+  entityId: uuid('entity_id').notNull(),
+  versionId: uuid('version_id').references(() => contentVersions.id).notNull(),
+  status: varchar('status', { length: 32 }).notNull(),
+  desiredHash: varchar('desired_hash', { length: 128 }).notNull(),
+  appliedHash: varchar('applied_hash', { length: 128 }),
+  lastError: text('last_error'),
+  recoveryState: varchar('recovery_state', { length: 32 }),
+  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const modelProfileVersions = pgTable('model_profile_versions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  profileId: uuid('profile_id').references(() => modelProfiles.id).notNull(),
+  versionNo: integer('version_no').notNull(),
+  status: varchar('status', { length: 32 }).notNull(),
+  provider: varchar('provider', { length: 64 }).notNull(),
+  modelName: varchar('model_name', { length: 128 }).notNull(),
+  pointsPerCall: integer('points_per_call').notNull(),
+  runtimeParams: jsonb('runtime_params').notNull().default({}),
+  credentialRef: varchar('credential_ref', { length: 128 }),
+  configHash: varchar('config_hash', { length: 128 }).notNull(),
+  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+}, (table) => ({
+  profileVersionUnique: uniqueIndex('model_profile_versions_profile_version_unique').on(table.profileId, table.versionNo),
+}));
+
+export const chatTurnSnapshots = pgTable('chat_turn_snapshots', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userMessageId: uuid('user_message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull().unique(),
+  clientMessageId: varchar('client_message_id', { length: 128 }).notNull(),
+  characterId: uuid('character_id').references(() => characters.id).notNull(),
+  contentVersionId: uuid('content_version_id').references(() => contentVersions.id).notNull(),
+  modelProfileVersionId: uuid('model_profile_version_id').references(() => modelProfileVersions.id).notNull(),
+  modelTier: modelTierEnum('model_tier').notNull(),
+  provider: varchar('provider', { length: 64 }).notNull(),
+  modelName: varchar('model_name', { length: 128 }).notNull(),
+  pointsPerCall: integer('points_per_call').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const chatGenerationAttempts = pgTable('chat_generation_attempts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  snapshotId: uuid('snapshot_id').references(() => chatTurnSnapshots.id, { onDelete: 'cascade' }),
+  attemptNo: integer('attempt_no'),
+  status: varchar('status', { length: 32 }),
+  consumeKey: varchar('consume_key', { length: 160 }).unique(),
+  refundKey: varchar('refund_key', { length: 160 }).unique(),
+  consumeTransactionId: uuid('consume_transaction_id').references(() => walletTransactions.id),
+  refundTransactionId: uuid('refund_transaction_id').references(() => walletTransactions.id),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  userMessageId: uuid('user_message_id').references(() => messages.id, { onDelete: 'cascade' }),
+  attempt: integer('attempt'),
+  pointsPerCall: integer('points_per_call'),
+  chargeStatus: varchar('charge_status', { length: 16 }).default('pending'),
+  chargeWalletTransactionId: uuid('charge_wallet_transaction_id'),
+  refundStatus: varchar('refund_status', { length: 16 }).default('not_required'),
+  refundWalletTransactionId: uuid('refund_wallet_transaction_id'),
+}, (table) => ({
+  snapshotAttemptUnique: uniqueIndex('chat_generation_attempts_snapshot_attempt_unique').on(table.snapshotId, table.attemptNo),
+  userMessageAttemptUnique: uniqueIndex('chat_generation_attempts_message_attempt_unique').on(table.userMessageId, table.attempt),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -440,6 +579,10 @@ export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => 
 
 export const messagesRelations = relations(messages, ({ one }) => ({
   session: one(chatSessions, { fields: [messages.sessionId], references: [chatSessions.id] }),
+}));
+
+export const chatGenerationAttemptsRelations = relations(chatGenerationAttempts, ({ one }) => ({
+  userMessage: one(messages, { fields: [chatGenerationAttempts.userMessageId], references: [messages.id] }),
 }));
 
 export const memoriesRelations = relations(memories, ({ one }) => ({

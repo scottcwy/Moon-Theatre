@@ -19,3 +19,11 @@ export {
 export type { PaginationParams, PaginatedResult } from './service.js';
 export { getAdminStats } from './stats.js';
 export type { AdminStats } from './stats.js';
+export {
+  recordAdminAudit,
+  createAdminSession,
+  revokeAdminSession,
+  resolveAdminSession,
+} from './audit.js';
+export type { AdminAuditInput } from './audit.js';
+export { listAdminScripts, createScriptDraft, updateScriptDraft, publishScript, listAdminCharacters } from './content.js';

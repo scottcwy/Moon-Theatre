@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
 import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
-import { listMessages } from '@/server/modules/admin/index.js';
+import { listMessages, recordAdminAudit } from '@/server/modules/admin/index.js';
 import { listMessagesQuerySchema, parseAdminQuery } from '@/server/modules/admin/query.js';
-import { jsonError } from '@/server/http/errors.js';
+import { HttpError, jsonError } from '@/server/http/errors.js';
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
@@ -18,6 +18,19 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const query = parseAdminQuery(listMessagesQuerySchema, url.searchParams);
     const result = await listMessages(query);
+    try {
+      await recordAdminAudit({
+        actorUserId: admin.auth.userId,
+        action: 'admin.messages.read',
+        objectType: 'chat_session',
+        objectId: query.sessionId,
+        requestId: request.headers.get('x-request-id') ?? undefined,
+        result: 'committed',
+        summary: { page: query.page, pageSize: query.pageSize, count: result.items.length },
+      });
+    } catch {
+      return jsonError(new HttpError('admin_audit_unavailable', 503));
+    }
     return successResponse(result);
   } catch (err) {
     return jsonError(err);

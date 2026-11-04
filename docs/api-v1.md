@@ -4,6 +4,8 @@
 
 聊天接口当前是 `incremental-buffered`（`X-Stream-Mode: incremental-buffered`）：响应为 NDJSON streaming 形态，服务端边生成边按行净化并下发 `delta`（不做整段缓冲），生成结束后对已发送全文复核输出过滤；命中过滤时追加修正提示 delta，并在 `done` 携带 `blocked:true` 与可选 `content`（= 落库 finalContent）；当落库 finalContent 与已下发增量不一致（blocked / outOfScope / JSON 块被剥离等文本修正场景）时 `done` 同样携带 `content` 供客户端以落库内容覆盖气泡。
 
+管理后台内容接口（实现批次 0-1）沿用 `/api/admin` 与同一双层鉴权：`GET/POST /api/admin/scripts` 用于脚本草稿列表和新建草稿，`PATCH/POST /api/admin/scripts/:id` 分别按 `expectedUpdatedAt` 保存草稿和按幂等键发布，`GET /api/admin/characters` 返回角色及其人设编辑数据。草稿写入 `content_versions`，发布激活选定脚本并标记版本；这些接口仍处于本地实现验证阶段，未宣称生产可用。`GET /api/admin/messages` 返回聊天原文前必须先成功写入管理员访问审计，审计不可用时返回 `503 admin_audit_unavailable`。
+
 ## 小程序 API
 
 | 模块 | 方法 | 路径 | 说明 |
@@ -534,8 +536,10 @@ Authorization: Bearer <jwt>
 | Quota Packages | POST | `/api/admin/quota-packages` | 创建额度包配置 |
 | Quota Packages | PATCH | `/api/admin/quota-packages/:id` | 更新额度包价格、点数、上下架等 |
 | Model Usage | GET | `/api/admin/model-usage-logs` | 模型调用日志 |
-| Memories | GET | `/api/admin/memories` | 记忆列表，可按 `userId`、`characterId`、`type`、`enabled` 筛选 |
-| Memories | PATCH | `/api/admin/memories/:id` | 禁用/启用或覆盖记忆内容 |
+| Models | GET/PATCH | `/api/admin/models` | 三档模型配置查询与启停、单价、展示信息调整；聊天入口读取启用档位的真实 provider/modelName/pointsPerCall |
+| Memories | GET/PATCH | `/api/admin/memories[/:id]` | 已退场；直接请求返回 `410 admin_memories_removed` 且无副作用 |
+| Payments | POST | `/api/admin/orders/:id/verify` | 向真实支付渠道查单；渠道不可用、金额不符或结果未知均不会伪造成功 |
+| Wallet | POST | `/api/admin/wallet/adjustments` | 管理员人工调账；同 key 同参数幂等重放，参数冲突 `409`，原因必填 |
 | Blocked Keywords | GET | `/api/admin/blocked-keywords` | 敏感词列表 |
 | Blocked Keywords | POST | `/api/admin/blocked-keywords` | 新增敏感词 |
 | Return Messages | POST | `/api/admin/return-messages/sweep` | 触发回访留言补发清扫（需 admin） |
@@ -558,18 +562,15 @@ Authorization: Bearer <jwt>
 }
 ```
 
-### `PATCH /api/admin/memories/:id`
+旧 Memories 页面和接口已退场。任何直接 `PATCH /api/admin/memories/:id` 请求均返回 `410`，不会修改记忆。
 
-请求体至少包含一个字段：
+### `POST /api/admin/orders/:id/verify`
 
-```json
-{
-  "content": "修正后的记忆内容",
-  "enabled": false
-}
-```
+服务端使用订单记录的支付 provider 和 merchant order 查询真实渠道。渠道明确返回已支付且金额匹配时才推进订单；渠道不可用返回 `503`，金额不符返回 `409`，未完成或结果未知保持可恢复状态，不显示完整成功。
 
-`content` 会 trim 并限制为 500 字符；空内容会返回错误。
+### `POST /api/admin/wallet/adjustments`
+
+请求体：`{ "userId": "uuid", "delta": 10, "reason": "补偿", "idempotencyKey": "case-1" }`。`delta` 为非零整数，原因必填；重复 key 且参数一致返回原流水，参数不同返回 `409`。事务内按 key 串行化并拒绝负余额，流水记录管理员和原因。
 
 ### `POST /api/admin/return-messages/sweep`
 

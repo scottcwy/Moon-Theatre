@@ -57,9 +57,14 @@ vi.mock('../../../db/schema', () => ({
     generationStatus: 'messages.generationStatus',
     generationLeaseExpiresAt: 'messages.generationLeaseExpiresAt',
     generationAttempt: 'messages.generationAttempt',
+    generationSnapshot: 'messages.generationSnapshot',
     outOfScope: 'messages.outOfScope',
     excludedFromContext: 'messages.excludedFromContext',
     mood: 'messages.mood',
+  },
+  chatGenerationAttempts: {
+    userMessageId: 'chatGenerationAttempts.userMessageId',
+    attempt: 'chatGenerationAttempts.attempt',
   },
   modelUsageLogs: {
     id: 'modelUsageLogs.id',
@@ -347,6 +352,57 @@ describe('finalizeAssistantTurn', () => {
       generationStatus: 'completed',
       generationLeaseExpiresAt: null,
     }));
+  });
+});
+
+describe('generation recovery state', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    updateMock.mockReturnValue({ set: setMock });
+    setMock.mockReturnValue({ where: updateWhereMock });
+    updateWhereMock.mockReturnValue({ returning: returningMock });
+    returningMock.mockResolvedValue([{ id: 'user-message-1' }]);
+  });
+
+  it('persists a snapshot only when the user message has none', async () => {
+    const { persistGenerationSnapshot } = await import('../service.js');
+    const snapshot = {
+      modelTier: 'standard' as const,
+      modelName: 'model-a',
+      pointsPerCall: 3,
+      systemPrompt: 'prompt-a',
+      characterName: '铃音',
+      characterIdentity: '巫女',
+      agentId: null,
+      mode: 'script' as const,
+      scriptId: 'script-1',
+    };
+
+    await expect(persistGenerationSnapshot('user-message-1', snapshot)).resolves.toBe(true);
+    expect(setMock).toHaveBeenCalledWith({ generationSnapshot: snapshot });
+    expect(JSON.stringify(updateWhereMock.mock.calls[0]?.[0])).toContain('messages.generationSnapshot');
+
+    returningMock.mockResolvedValue([]);
+    await expect(persistGenerationSnapshot('user-message-1', snapshot)).resolves.toBe(false);
+  });
+
+  it('records charge and refund status against an idempotent attempt row', async () => {
+    const onConflictDoNothingMock = vi.fn().mockResolvedValue(undefined);
+    insertMock.mockReturnValue({ values: valuesMock });
+    valuesMock.mockReturnValue({ onConflictDoNothing: onConflictDoNothingMock });
+    updateWhereMock.mockResolvedValue(undefined);
+    const { ensureGenerationAttempt, markGenerationAttemptCharge, markGenerationAttemptRefund } = await import('../service.js');
+
+    await ensureGenerationAttempt('user-message-1', 2, 5);
+    expect(insertMock).toHaveBeenCalledTimes(1);
+    expect(valuesMock).toHaveBeenCalledWith({ userMessageId: 'user-message-1', attempt: 2, pointsPerCall: 5 });
+    expect(onConflictDoNothingMock).toHaveBeenCalledTimes(1);
+
+    await markGenerationAttemptCharge('user-message-1', 2, 'unknown', null, 'wallet timeout');
+    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({ chargeStatus: 'unknown', chargeWalletTransactionId: null, lastError: 'wallet timeout' }));
+    await markGenerationAttemptRefund('user-message-1', 2, 'unknown', null, 'refund timeout');
+    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({ refundStatus: 'unknown', refundWalletTransactionId: null, lastError: 'refund timeout' }));
   });
 });
 

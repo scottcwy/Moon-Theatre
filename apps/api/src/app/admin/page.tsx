@@ -17,7 +17,6 @@ const sections: DashboardSection[] = [
   { href: '/admin/wallet', title: 'Wallet', description: 'View wallet accounts and transactions', metric: 'wallet' },
   { href: '/admin/quota-packages', title: 'Quota Packages', description: 'Configure quota package pricing and points', count: '3 packages' },
   { href: '/admin/model-usage', title: 'Model Usage', description: 'View model call logs and consumption', metric: 'modelUsage' },
-  { href: '/admin/memories', title: 'Memories', description: 'Review, disable, and correct extracted memories', count: 'Admin memory list' },
   { href: '/admin/blocked-keywords', title: 'Blocked Keywords', description: 'Manage content filtering keywords', count: 'Keyword list' },
   { href: '/admin/review-logs', title: 'Review Logs', description: 'View flagged content and review records', count: 'All logs' },
 ];

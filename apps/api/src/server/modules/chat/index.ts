@@ -18,6 +18,10 @@ export {
   markTurnOutOfScope,
   saveAssistantForTurn,
   finalizeAssistantTurn,
+  persistGenerationSnapshot,
+  ensureGenerationAttempt,
+  markGenerationAttemptCharge,
+  markGenerationAttemptRefund,
 } from './service.js';
 export type {
   ChatGenerationStatus,
@@ -34,6 +38,8 @@ export type {
   ChatMode,
   ChatSessionScope,
   FinalizeAssistantTurnResult,
+  ChatGenerationSnapshot,
+  GenerationAttemptStatus,
 } from './service.js';
 
 export { buildSystemPrompt } from './prompt-builder.js';

@@ -31,6 +31,10 @@ const finalizeAssistantTurnMock = vi.fn();
 const completeTurnMock = vi.fn();
 const failTurnMock = vi.fn();
 const markTurnOutOfScopeMock = vi.fn();
+const persistGenerationSnapshotMock = vi.fn();
+const ensureGenerationAttemptMock = vi.fn();
+const markGenerationAttemptChargeMock = vi.fn();
+const markGenerationAttemptRefundMock = vi.fn();
 
 vi.mock('../../../db/index.js', () => ({
   db: {
@@ -121,6 +125,10 @@ vi.mock('../index.js', async () => {
     completeTurn: completeTurnMock,
     failTurn: failTurnMock,
     markTurnOutOfScope: markTurnOutOfScopeMock,
+    persistGenerationSnapshot: persistGenerationSnapshotMock,
+    ensureGenerationAttempt: ensureGenerationAttemptMock,
+    markGenerationAttemptCharge: markGenerationAttemptChargeMock,
+    markGenerationAttemptRefund: markGenerationAttemptRefundMock,
     ScriptUnavailableError,
     SessionScopeMismatchError,
   };
@@ -712,6 +720,7 @@ describe('runChatStream', () => {
     await readEvents(response);
 
     expect(streamChatMock).toHaveBeenCalledWith('system prompt', '继续调查', {
+      model: 'deepseek-ai/DeepSeek-V4-Flash',
       messages: [
         { role: 'system', content: 'system prompt' },
         { role: 'user', content: '上一轮问题' },
@@ -719,6 +728,47 @@ describe('runChatStream', () => {
         { role: 'user', content: '继续调查' },
       ],
     });
+  });
+
+  it('retries an acquired turn with its persisted generation snapshot', async () => {
+    resolveClientTurnMock.mockResolvedValue({
+      status: 'acquired_existing',
+      sessionId: 'session-1',
+      userMessage: {
+        id: 'user-message-1',
+        content: '继续调查',
+        generationStatus: 'generating',
+        generationLeaseExpiresAt: new Date(Date.now() - 1),
+        generationAttempt: 2,
+        generationSnapshot: {
+          modelTier: 'casual',
+          modelName: 'model-from-first-accept',
+          pointsPerCall: 7,
+          systemPrompt: 'prompt-from-first-accept',
+          scriptTitle: '旧剧本标题',
+          worldSetting: '旧世界',
+          characterName: '旧角色名',
+          characterIdentity: '旧身份',
+          agentId: null,
+          mode: 'script',
+          scriptId: 'script-1',
+        },
+      },
+      generationAttempt: 2,
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '继续调查',
+      modelTier: 'standard',
+      clientMessageId: 'client-1',
+    });
+    await readEvents(response);
+
+    expect(consumePointsMock).toHaveBeenCalledWith('user-1', 7, 'consume_user-message-1_2');
+    expect(streamChatMock).toHaveBeenCalledWith('prompt-from-first-accept', '继续调查', expect.any(Object));
   });
 
   it('discards out-of-scope drafts, refunds points, records usage, and skips effects', async () => {

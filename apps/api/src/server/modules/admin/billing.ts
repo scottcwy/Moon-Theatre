@@ -201,6 +201,8 @@ export async function listWalletTransactions(params: PaginationParams & { userId
         modelUsageLogId: walletTransactions.modelUsageLogId,
         idempotencyKey: walletTransactions.idempotencyKey,
         description: walletTransactions.description,
+        adminUserId: walletTransactions.adminUserId,
+        adjustmentReason: walletTransactions.adjustmentReason,
         createdAt: walletTransactions.createdAt,
         userName: users.nickname,
       })

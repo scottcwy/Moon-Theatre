@@ -69,7 +69,16 @@ export type AdminAuthResult =
   | { ok: false; response: NextResponse };
 
 export async function verifyAdminAuth(request: NextRequest): Promise<AdminAuthResult> {
-  const auth = await verifyAuth(request);
+  let auth = await verifyAuth(request);
+  // QR/cookie sessions are resolved server-side; JWT remains supported for
+  // existing clients and deployment-level Basic Auth still runs upstream.
+  if (!auth) {
+    const sessionId = request.cookies.get('admin_session')?.value ?? request.headers.get('x-admin-session');
+    if (sessionId) {
+      const { resolveAdminSession } = await import('../modules/admin/audit.js');
+      auth = await resolveAdminSession(sessionId);
+    }
+  }
   if (!auth) {
     return { ok: false, response: unauthorizedResponse() };
   }

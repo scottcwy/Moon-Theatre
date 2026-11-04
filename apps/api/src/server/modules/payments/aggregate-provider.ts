@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
-import type { PaymentProvider } from './provider.interface.js';
+import { PaymentProviderUnavailableError, type PaymentProvider, type PaymentQueryResult } from './provider.interface.js';
 import type { CreatePrepayInput, CreatePrepayResult, VerifiedPaymentNotify } from '@juben-sha/shared';
 import type { PaymentStatus } from '@juben-sha/shared';
 
@@ -95,6 +95,14 @@ export class AggregatePaymentProvider implements PaymentProvider {
 
   normalizeStatus(notify: VerifiedPaymentNotify): PaymentStatus {
     return notify.status;
+  }
+
+  async queryPayment(_orderId: string): Promise<PaymentQueryResult> {
+    // This provider currently only implements signed notifications. Returning a
+    // local or guessed status here would make an admin verification unsafe.
+    throw new PaymentProviderUnavailableError(
+      'Aggregate payment provider order query is unavailable; use a signed provider result',
+    );
   }
 
   private assertConfigured(): void {

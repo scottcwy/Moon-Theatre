@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { PaymentProvider } from '../provider.interface.js';
 import { MockPaymentProvider } from '../mock-provider.js';
+import { PaymentProviderUnavailableError } from '../provider.interface.js';
 
 describe('PaymentProvider contract', () => {
   function runContractTests(createProvider: () => PaymentProvider) {
@@ -37,6 +38,10 @@ describe('PaymentProvider contract', () => {
       const status = provider.normalizeStatus(notify);
 
       expect(['pending', 'success', 'failed', 'cancelled']).toContain(status);
+    });
+
+    it('must expose explicit unavailable channel-query capability', async () => {
+      await expect(provider.queryPayment('order-123')).rejects.toBeInstanceOf(PaymentProviderUnavailableError);
     });
   }
 

@@ -1,4 +1,4 @@
-import type { PaymentProvider } from './provider.interface.js';
+import { PaymentProviderUnavailableError, type PaymentProvider, type PaymentQueryResult } from './provider.interface.js';
 import type { CreatePrepayInput, CreatePrepayResult, VerifiedPaymentNotify } from '@juben-sha/shared';
 import type { PaymentStatus } from '@juben-sha/shared';
 import { randomUUID } from 'crypto';
@@ -44,6 +44,10 @@ export class MockPaymentProvider implements PaymentProvider {
 
   normalizeStatus(notify: VerifiedPaymentNotify): PaymentStatus {
     return notify.status;
+  }
+
+  async queryPayment(_orderId: string): Promise<PaymentQueryResult> {
+    throw new PaymentProviderUnavailableError('Mock payment provider has no external order query');
   }
 }
 
