@@ -1,6 +1,8 @@
 import { listWalletAccounts, listWalletTransactions } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 export default async function WalletPage() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   let accounts: Awaited<ReturnType<typeof listWalletAccounts>>;
   let transactions: Awaited<ReturnType<typeof listWalletTransactions>>;
 

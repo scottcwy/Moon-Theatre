@@ -1,4 +1,5 @@
 /** Validation shared by draft save, publish and JSON import paths. */
+import { ValidationError } from '../../http/errors.js';
 
 export type ContentEntityType = 'script' | 'character';
 
@@ -43,11 +44,13 @@ export interface ValidationIssue {
   message: string;
 }
 
-export class ContentValidationError extends Error {
+export class ContentValidationError extends ValidationError {
   readonly issues: ValidationIssue[];
 
   constructor(issues: ValidationIssue[]) {
-    super('Content validation failed');
+    super(
+      `Content validation failed: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')}`,
+    );
     this.name = 'ContentValidationError';
     this.issues = issues;
   }

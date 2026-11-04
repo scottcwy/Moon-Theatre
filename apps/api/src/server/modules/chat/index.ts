@@ -44,3 +44,7 @@ export type {
 
 export { buildSystemPrompt } from './prompt-builder.js';
 export { parseMood } from './mood-parser.js';
+export {
+  listUnresolvedGenerationAttempts,
+  recoverGenerationAttempts,
+} from './generation-recovery.js';

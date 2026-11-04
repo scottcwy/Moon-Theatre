@@ -1,6 +1,8 @@
 import { listReviewLogs } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 export default async function ReviewLogsPage() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   let result: Awaited<ReturnType<typeof listReviewLogs>>;
   try {
     result = await listReviewLogs({ page: 1, pageSize: 50 });

@@ -1,4 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
+import { CHAT_RUNTIME_MODEL } from '@juben-sha/shared';
 import { isFastClawConfigured, streamChat } from '../adapter.js';
 import type { StreamEvent } from '../adapter.js';
 
@@ -14,11 +15,23 @@ async function collectStream(
   return events;
 }
 
-function mockSseResponse(chunks: string[], init?: ResponseInit): Response {
+function mockSseResponse(chunks: string[], init?: ResponseInit, injectModel = true): Response {
   const encoder = new TextEncoder();
+  const normalizedChunks = injectModel ? chunks.map((chunk) => {
+    const prefix = 'data: ';
+    if (!chunk.startsWith(prefix)) return chunk;
+    const data = chunk.slice(prefix.length).trim();
+    if (data === '[DONE]') return chunk;
+    try {
+      const parsed = JSON.parse(data) as Record<string, unknown>;
+      return `${prefix}${JSON.stringify({ model: CHAT_RUNTIME_MODEL, ...parsed })}\n\n`;
+    } catch {
+      return chunk;
+    }
+  }) : chunks;
   const stream = new ReadableStream({
     start(controller) {
-      for (const chunk of chunks) {
+      for (const chunk of normalizedChunks) {
         controller.enqueue(encoder.encode(chunk));
       }
       controller.close();
@@ -51,7 +64,7 @@ describe('streamChat fallback', () => {
     const events = await collectStream('You are a helpful assistant.', '你好！');
 
     expect(events.length).toBeGreaterThan(0);
-    expect(events[events.length - 1]).toEqual({ type: 'done', fallback: true });
+    expect(events[events.length - 1]).toEqual({ type: 'done', fallback: true, actualModel: null });
 
     const deltas = events.filter((e): e is Extract<StreamEvent, { type: 'delta' }> => e.type === 'delta');
     expect(deltas.length).toBeGreaterThan(0);
@@ -87,7 +100,7 @@ describe('streamChat fallback', () => {
   it('fallback always ends with done event', async () => {
     const events = await collectStream('system', 'any message');
     const lastEvent = events[events.length - 1];
-    expect(lastEvent).toEqual({ type: 'done', fallback: true });
+    expect(lastEvent).toEqual({ type: 'done', fallback: true, actualModel: null });
   });
 });
 
@@ -120,7 +133,7 @@ describe('streamChat FastClaw integration', () => {
     expect(events).toEqual([
       { type: 'delta', content: '真实' },
       { type: 'delta', content: '回复' },
-      { type: 'done', fallback: false },
+      { type: 'done', fallback: false, actualModel: CHAT_RUNTIME_MODEL },
     ]);
   });
 
@@ -316,6 +329,28 @@ describe('streamChat FastClaw integration', () => {
     ]);
   });
 
+  it('fails closed when FastClaw returns a non-DeepSeek runtime model', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockSseResponse([
+      'data: {"model":"qwen/qwen3","choices":[{"delta":{"content":"wrong model"}}]}\n\n',
+      'data: [DONE]\n\n',
+    ])));
+
+    const { streamChat: configuredStreamChat } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+    });
+
+    const events = await collectEvents(configuredStreamChat('system', 'hello'));
+
+    expect(events).toEqual([
+      {
+        type: 'error',
+        code: 'upstream_error',
+        message: 'FastClaw runtime model is not allowed: qwen/qwen3',
+      },
+    ]);
+  });
+
   it('returns an error when configured FastClaw closes the stream without done', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockSseResponse([
       'data: {"choices":[{"delta":{"content":"半截"}}]}\n\n',
@@ -331,6 +366,28 @@ describe('streamChat FastClaw integration', () => {
     expect(events).toEqual([
       { type: 'delta', content: '半截' },
       { type: 'error', code: 'upstream_incomplete', message: 'FastClaw stream ended before completion' },
+    ]);
+  });
+
+  it('fails closed when FastClaw omits the actual runtime model', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockSseResponse([
+      'data: {"choices":[{"delta":{"content":"没有模型字段"}}]}\n\n',
+      'data: [DONE]\n\n',
+    ], undefined, false)));
+
+    const { streamChat: configuredStreamChat } = await loadAdapterWithEnv({
+      FASTCLAW_BASE_URL: 'http://fastclaw:18953',
+      FASTCLAW_API_KEY: 'fc_test',
+    });
+
+    const events = await collectEvents(configuredStreamChat('system', 'hello'));
+
+    expect(events).toEqual([
+      {
+        type: 'error',
+        code: 'upstream_error',
+        message: 'FastClaw stream omitted runtime model',
+      },
     ]);
   });
 

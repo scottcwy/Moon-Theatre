@@ -3,7 +3,7 @@ import { MODEL_TIER_COSTS } from '@juben-sha/shared';
 
 const insertMock = vi.fn();
 const valuesMock = vi.fn();
-const onConflictDoUpdateMock = vi.fn();
+const onConflictDoNothingMock = vi.fn();
 
 vi.mock('../../db/index.js', () => ({
   closeDb: vi.fn(),
@@ -17,6 +17,8 @@ vi.mock('../../db/schema.js', () => ({
   characters: {},
   characterPrompts: {},
   blockedKeywords: {},
+  contentVersions: {},
+  publishTasks: {},
   modelProfiles: {
     tier: 'modelProfiles.tier',
     modelName: 'modelProfiles.modelName',
@@ -33,18 +35,19 @@ vi.mock('../../db/schema.js', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn(),
   sql: vi.fn((strings: TemplateStringsArray) => ({ sql: strings.join('') })),
+  count: vi.fn(() => ({ count: true })),
 }));
 
 describe('model profile seed', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    onConflictDoUpdateMock.mockResolvedValue(undefined);
-    valuesMock.mockReturnValue({ onConflictDoUpdate: onConflictDoUpdateMock });
+    onConflictDoNothingMock.mockResolvedValue(undefined);
+    valuesMock.mockReturnValue({ onConflictDoNothing: onConflictDoNothingMock });
     insertMock.mockReturnValue({ values: valuesMock });
   });
 
-  it('updates existing model profiles when provider metadata changes', async () => {
+  it('inserts defaults only and leaves existing model configuration untouched', async () => {
     const { seedModelProfiles } = await import('../index.js');
 
     await seedModelProfiles();
@@ -69,13 +72,8 @@ describe('model profile seed', () => {
         pointsPerCall: MODEL_TIER_COSTS.immersive,
       }),
     ]));
-    expect(onConflictDoUpdateMock).toHaveBeenCalledWith({
+    expect(onConflictDoNothingMock).toHaveBeenCalledWith({
       target: 'modelProfiles.tier',
-      set: expect.objectContaining({
-        modelName: expect.anything(),
-        provider: expect.anything(),
-        updatedAt: expect.any(Date),
-      }),
     });
   });
 

@@ -1,6 +1,7 @@
 export { type PaymentProvider, type PaymentQueryResult, PaymentProviderUnavailableError } from './provider.interface.js';
 export { MockPaymentProvider } from './mock-provider.js';
 export { AggregatePaymentProvider, type AggregateConfig } from './aggregate-provider.js';
+export { createOrReusePrepayment, PaymentPrepayError } from './prepay-service.js';
 
 import type { PaymentProvider } from './provider.interface.js';
 import { MockPaymentProvider } from './mock-provider.js';

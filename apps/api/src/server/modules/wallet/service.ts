@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { walletAccounts, walletTransactions } from '../../db/schema.js';
+import { recordAdminAuditInTransaction } from '../admin/audit.js';
 
 type WalletTransactionClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -172,6 +173,10 @@ export async function adjustWalletPoints(
   idempotencyKey: string,
   reason: string,
   adminUserId: string,
+  audit?: {
+    requestId?: string;
+    dedupeKey: string;
+  },
 ): Promise<AdjustmentResult> {
   if (!Number.isInteger(delta) || delta === 0) {
     throw new Error('Adjustment delta must be a non-zero integer');
@@ -185,6 +190,26 @@ export async function adjustWalletPoints(
   }
 
   return db.transaction(async (tx) => {
+    const recordIntent = async (result: AdjustmentResult) => {
+      if (!audit) return;
+      await recordAdminAuditInTransaction(tx, {
+        actorUserId: adminUserId,
+        action: 'admin.wallet.adjust',
+        objectType: 'wallet_transaction',
+        objectId: result.transactionId,
+        requestId: audit.requestId,
+        dedupeKey: audit.dedupeKey,
+        result: 'audit_pending',
+        summary: {
+          idempotencyKey,
+          userId,
+          delta,
+          reason: normalizedReason,
+          balanceAfter: result.balanceAfter,
+          alreadyApplied: result.alreadyAdjusted,
+        },
+      });
+    };
     const execute = (tx as unknown as { execute?: (query: unknown) => Promise<unknown> }).execute;
     if (execute) {
       await execute.call(tx, sql`select pg_advisory_xact_lock(hashtext(${idempotencyKey}))`);
@@ -216,11 +241,13 @@ export async function adjustWalletPoints(
       ) {
         throw new WalletAdjustmentConflictError();
       }
-      return {
+      const result = {
         transactionId: existing.id,
         balanceAfter: existing.balanceAfter,
         alreadyAdjusted: true,
       };
+      await recordIntent(result);
+      return result;
     }
 
     const walletRows = await tx
@@ -268,11 +295,13 @@ export async function adjustWalletPoints(
       ) {
         throw new WalletAdjustmentConflictError();
       }
-      return {
+      const result = {
         transactionId: concurrent.id,
         balanceAfter: concurrent.balanceAfter,
         alreadyAdjusted: true,
       };
+      await recordIntent(result);
+      return result;
     }
 
     const newBalance = account.balancePoints + delta;
@@ -301,7 +330,9 @@ export async function adjustWalletPoints(
       .returning({ id: walletTransactions.id });
 
     if (!txRow) throw new Error('Failed to create wallet adjustment transaction');
-    return { transactionId: txRow.id, balanceAfter: newBalance, alreadyAdjusted: false };
+    const result = { transactionId: txRow.id, balanceAfter: newBalance, alreadyAdjusted: false };
+    await recordIntent(result);
+    return result;
   });
 }
 
@@ -393,70 +424,79 @@ export async function refundConsumedPoints(
   idempotencyKey: string,
   modelUsageLogId?: string,
 ): Promise<RefundResult> {
+  return db.transaction((tx) =>
+    refundConsumedPointsInTransaction(tx, userId, amount, idempotencyKey, modelUsageLogId));
+}
+
+export async function refundConsumedPointsInTransaction(
+  tx: WalletTransactionClient,
+  userId: string,
+  amount: number,
+  idempotencyKey: string,
+  modelUsageLogId?: string,
+): Promise<RefundResult> {
   if (amount <= 0) {
     throw new Error('Refund amount must be positive');
   }
 
-  return db.transaction(async (tx) => {
-    const [existingTx] = await tx
-      .select({ id: walletTransactions.id, balanceAfter: walletTransactions.balanceAfter })
-      .from(walletTransactions)
-      .where(eq(walletTransactions.idempotencyKey, idempotencyKey))
-      .limit(1);
+  const [existingTx] = await tx
+    .select({ id: walletTransactions.id, balanceAfter: walletTransactions.balanceAfter })
+    .from(walletTransactions)
+    .where(eq(walletTransactions.idempotencyKey, idempotencyKey))
+    .limit(1);
 
-    if (existingTx) {
-      return {
-        transactionId: existingTx.id,
-        balanceAfter: existingTx.balanceAfter,
-        alreadyRefunded: true,
-      };
-    }
-
-    const wallet = await tx
-      .select()
-      .from(walletAccounts)
-      .where(eq(walletAccounts.userId, userId))
-      .limit(1)
-      .for('update');
-
-    const account = wallet[0];
-    if (!account) {
-      throw new Error('Wallet account not found');
-    }
-
-    const newBalance = account.balancePoints + amount;
-    const newConsumed = Math.max(0, account.totalConsumedPoints - amount);
-
-    await tx
-      .update(walletAccounts)
-      .set({
-        balancePoints: newBalance,
-        totalConsumedPoints: newConsumed,
-        updatedAt: new Date(),
-      })
-      .where(eq(walletAccounts.id, account.id));
-
-    const [txRow] = await tx
-      .insert(walletTransactions)
-      .values({
-        userId,
-        type: 'adjust',
-        amount,
-        balanceAfter: newBalance,
-        modelUsageLogId: modelUsageLogId ?? null,
-        idempotencyKey,
-        description: `Refunded ${amount} consumed points`,
-      })
-      .returning({ id: walletTransactions.id });
-
-    if (!txRow) {
-      throw new Error('Failed to create wallet refund transaction');
-    }
-
+  if (existingTx) {
     return {
-      transactionId: txRow.id,
-      balanceAfter: newBalance,
-      alreadyRefunded: false,
+      transactionId: existingTx.id,
+      balanceAfter: existingTx.balanceAfter,
+      alreadyRefunded: true,
     };
-  });
+  }
+
+  const wallet = await tx
+    .select()
+    .from(walletAccounts)
+    .where(eq(walletAccounts.userId, userId))
+    .limit(1)
+    .for('update');
+
+  const account = wallet[0];
+  if (!account) {
+    throw new Error('Wallet account not found');
+  }
+
+  const newBalance = account.balancePoints + amount;
+  const newConsumed = Math.max(0, account.totalConsumedPoints - amount);
+
+  await tx
+    .update(walletAccounts)
+    .set({
+      balancePoints: newBalance,
+      totalConsumedPoints: newConsumed,
+      updatedAt: new Date(),
+    })
+    .where(eq(walletAccounts.id, account.id));
+
+  const [txRow] = await tx
+    .insert(walletTransactions)
+    .values({
+      userId,
+      type: 'adjust',
+      amount,
+      balanceAfter: newBalance,
+      modelUsageLogId: modelUsageLogId ?? null,
+      idempotencyKey,
+      description: `Refunded ${amount} consumed points`,
+    })
+    .returning({ id: walletTransactions.id });
+
+  if (!txRow) {
+    throw new Error('Failed to create wallet refund transaction');
+  }
+
+  return {
+    transactionId: txRow.id,
+    balanceAfter: newBalance,
+    alreadyRefunded: false,
+  };
 }

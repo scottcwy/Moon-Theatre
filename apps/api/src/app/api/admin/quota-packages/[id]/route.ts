@@ -35,7 +35,10 @@ export async function PATCH(
       throw new ValidationError(formatZodIssues(parsed.error.issues));
     }
 
-    const result = await updateQuotaPackage(id, parsed.data);
+    const result = await updateQuotaPackage(id, parsed.data, {
+      actorUserId: admin.auth.userId,
+      requestId: request.headers.get('x-request-id') ?? undefined,
+    });
     return successResponse(result);
   } catch (err) {
     return jsonError(err);

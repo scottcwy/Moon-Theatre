@@ -24,16 +24,16 @@ rtk cp .env.example .env
 - `CADDY_API_SITE_ADDRESS`: API 域名，不带协议。
 - `POSTGRES_PASSWORD`: Postgres 密码。
 - `DATABASE_URL`: API 使用的数据库连接串，密码必须和 `POSTGRES_PASSWORD` 一致。
-- `JWT_SECRET`: 长随机字符串。
+- `JWT_SECRET`: 至少 32 字符的随机字符串；生产启动会拒绝默认值、缺失值和短值。
 - `WECHAT_APP_ID`, `WECHAT_APP_SECRET`: 小程序登录使用。
 - `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。`FASTCLAW_AGENT_ID` 必须指向专用业务聊天 Agent，且 `FASTCLAW_API_KEY` 必须有访问该 Agent 的权限。对话生成仅支持 DeepSeek agent（`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`）；Qwen agent 已停用，不配置降级（Spec 5）。该 Agent 的 `thinking` 必须为 `"off"`（模型级思考关闭，`2026-08-12-fastclaw-disable-model-thinking` Spec），缺失或非 off 时 `/api/ready` 不通过。
 - `FASTCLAW_TIMEOUT_MS`: API 调 FastClaw 的超时，默认 `120000`。
-- `FASTCLAW_FALLBACK_ENABLED`: 必须保持 `false`（Spec 5：Qwen 停用，不配置降级）。
+- `FASTCLAW_FALLBACK_ENABLED`: 必须保持 `false`（Spec 5：Qwen 停用，不配置降级）；生产启动拒绝 `true`。
 - `FASTCLAW_LOG_LEVEL`: FastClaw 日志级别，取值 `debug` / `info` / `warn` / `error`，默认 `info`（未设置或未知值回退 `info`）。
 - `CHAT_EFFECTS_ASYNC_ENABLED`: 聊天 effects 异步开关，默认 `false`。设为 `true` 后，记忆、羁绊、成就/称号后台执行，聊天 `done` 只同步保证核心字段。
-- `PAYMENT_PROVIDER` 和支付服务商参数。
-- `ADMIN_USER_IDS`, `ADMIN_BASIC_AUTH_USER`, `ADMIN_BASIC_AUTH_PASSWORD`。
-- `TEST_USER_INITIAL_POINTS`: 测试版体验赠点。正式版保持 `0`；只发测试版时可临时设为 `1000`，每个微信用户首次成功登录后按用户维度幂等入账一次。
+- `PAYMENT_PROVIDER` 和支付服务商参数。生产只接受 `aggregate`；`mock` 和未知 provider 启动失败。
+- `ADMIN_USER_IDS`, `ADMIN_BASIC_AUTH_USER`, `ADMIN_BASIC_AUTH_PASSWORD`。Basic password 至少 12 字符且拒绝常见弱密码；Basic 只是外层门禁，管理员仍需用白名单 JWT 调用 `POST /api/admin/session` 建立页面身份。
+- `TEST_USER_INITIAL_POINTS`: 生产必须为 `0`；非零值启动失败。
 
 不要把真实 `.env` 提交到仓库。
 
@@ -73,11 +73,13 @@ CADDY_IMAGE=ccr.ccs.tencentyun.com/juben-sha/caddy:2-alpine
 rtk docker compose pull
 rtk docker compose up -d postgres fastclaw
 rtk docker compose --profile tools run --rm api-migrate
-rtk docker compose --profile tools run --rm api-seed
+rtk docker compose --profile tools run --rm api-seed  # 仅全新空库首次 bootstrap
 rtk docker compose up -d api caddy
 ```
 
 `api-migrate` 和 `api-seed` 使用 `API_TOOLS_IMAGE`，避免服务器为迁移/种子任务拉 Docker Hub 基础镜像或现场构建。
+
+普通升级不得再次运行 `api-seed`。seed 现在会在已有剧本、角色、内容版本或发布任务时拒绝执行，也不会覆盖运营改过的价格、套餐状态、prompt 或用户数据。现有环境只运行 `api-migrate`，内容变更走管理后台。
 
 ## 4. 健康检查
 
@@ -86,9 +88,11 @@ rtk curl -fsS https://api.yuemanlou.xyz/api/health
 rtk curl -fsS https://api.yuemanlou.xyz/api/ready
 ```
 
-`/api/health` 只表示 API 进程存活。`/api/ready` 检查 API 进程、Postgres 连通（`select 1`，5 秒超时）、FastClaw 配置与 `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec；任一检查失败返回 `503` 且 `status=not_ready`。业务聊天 Agent 若超过 `maxTokens=768`、`maxToolIterations` 不等于 `0` 或 `thinking` 不等于 `"off"`，readiness 会返回 `503`。
+`/api/health` 只表示 API 进程存活。`/api/ready` 检查 API 进程、Postgres 连通（`select 1`，5 秒超时）、FastClaw 配置与 `/readyz`，以及 `FASTCLAW_AGENT_ID` 对应 Agent 的 runtime spec；任一检查失败返回 `503` 且 `status=not_ready`。业务聊天 Agent 若超过 `maxTokens=768`、`maxToolIterations` 不等于 `0`、`thinking` 不等于 `"off"`，或实际 `model` 不是 `siliconflow/deepseek-ai/DeepSeek-V4-Flash`，readiness 会返回 `503`。
 
-`USE_ROLEPLAY_AGENTS=true` 时，`/api/ready` 还以代码中的版本化清单 `packages/shared/src/roleplay-agents.json` 为准，校验 `characters.agent_id` 的完整集合。当前版本固定 19 个 Agent；缺少或空 ID、重复 ID、未知 ID、数量不足或多出都返回 `503`，空 ID 通过 `emptyAgentIdCount` 明示。集合顺序不影响结果，API 不提供运行时增减 Agent 的参数。
+`USE_ROLEPLAY_AGENTS=true` 时，`/api/ready` 还以代码中的版本化清单 `packages/shared/src/roleplay-agents.json` 为准，校验全部角色行 `agent_id` 的完整稳定映射。当前版本固定 19 个 Agent；合法下架一个角色（保留 agent_id、status=inactive）不会导致全局 `503`。空 ID、重复 ID、未知 ID、数量不足或多出都会失败。`USE_ROLEPLAY_AGENTS=false` 时默认 Agent 也必须非 roleplay。
+
+管理页面要求 Basic 之外还有 `admin_session` cookie。使用白名单用户 JWT 调用 `POST /api/admin/session` 后浏览器才可读取管理数据；直接用共享 Basic 凭据访问 `/admin/**` 会返回 `401`。
 
 ## 5. 小程序生产构建
 
@@ -188,7 +192,7 @@ rtk docker compose pull
 rtk docker compose up -d
 ```
 
-4. 确认数据库迁移 `0004`–`0009` 已应用（`api-migrate` 执行后核对迁移记录；`0007` / `0008` / `0009` 幂等可重放）。
+4. 确认数据库迁移 `0004`–`0012` 已应用（`api-migrate` 执行后核对迁移记录；`0012` 为支付活动记录与审计幂等键的 additive 迁移）。
 5. 小程序生产构建 + 产物校验：
 
 ```bash

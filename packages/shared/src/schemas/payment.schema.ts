@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const createPrepayInputSchema = z.object({
   orderId: z.string(),
+  idempotencyKey: z.string().min(1),
+  createdAt: z.string().datetime(),
   userId: z.string(),
   amountCents: z.number().int().positive(),
   description: z.string(),

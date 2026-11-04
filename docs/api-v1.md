@@ -1,10 +1,10 @@
 # API v1 初版
 
-本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；其中 `GET /api/characters`、`GET /api/scripts`、`GET /api/models`、`GET /api/quota/packages` 为公开只读接口，无需认证；admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内；同时 `/api/admin/**` 与 `/admin/**` 页面均由 Basic Auth middleware 保护，admin API 需 Basic Auth 与 JWT 白名单双层校验都通过。生产环境必须配置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。
+本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；其中 `GET /api/characters`、`GET /api/scripts`、`GET /api/models`、`GET /api/quota/packages` 为公开只读接口，无需认证。admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内；`/api/admin/**` 与 `/admin/**` 仍由 Basic Auth 作为部署外层门禁，但 Basic 本身不是管理员身份。管理员先用白名单用户 JWT 调用 `POST /api/admin/session` 建立 HttpOnly 管理会话，页面和 API 都必须再通过该会话或 JWT 的白名单校验。
 
-聊天接口当前是 `incremental-buffered`（`X-Stream-Mode: incremental-buffered`）：响应为 NDJSON streaming 形态，服务端边生成边按行净化并下发 `delta`（不做整段缓冲），生成结束后对已发送全文复核输出过滤；命中过滤时追加修正提示 delta，并在 `done` 携带 `blocked:true` 与可选 `content`（= 落库 finalContent）；当落库 finalContent 与已下发增量不一致（blocked / outOfScope / JSON 块被剥离等文本修正场景）时 `done` 同样携带 `content` 供客户端以落库内容覆盖气泡。
+聊天接口当前是 `incremental-buffered`（`X-Stream-Mode: incremental-buffered`）：响应为 NDJSON streaming 形态，服务端边生成边按行净化并下发 `delta`（不做整段缓冲），生成结束后对已发送全文复核输出过滤；命中过滤时追加修正提示 delta，并在 `done` 携带 `blocked:true` 与可选 `content`（= 落库 finalContent）；当落库 finalContent 与已下发增量不一致（blocked / outOfScope / JSON 块被剥离等文本修正场景）时 `done` 同样携带 `content` 供客户端以落库内容覆盖气泡。客户端在首个 delta 后断开只关闭下游输出，不撤销已提交回合；服务端继续持久化 assistant、usage、关系和 turn completed，不会退款或追加 failed usage。
 
-管理后台内容接口（实现批次 0-1）沿用 `/api/admin` 与同一双层鉴权：`GET/POST /api/admin/scripts` 用于脚本草稿列表和新建草稿，`PATCH/POST /api/admin/scripts/:id` 分别按 `expectedUpdatedAt` 保存草稿和按幂等键发布，`GET /api/admin/characters` 返回角色及其人设编辑数据。草稿写入 `content_versions`，发布激活选定脚本并标记版本；这些接口仍处于本地实现验证阶段，未宣称生产可用。`GET /api/admin/messages` 返回聊天原文前必须先成功写入管理员访问审计，审计不可用时返回 `503 admin_audit_unavailable`。
+管理后台内容接口沿用 `/api/admin` 的统一身份边界：`GET/POST /api/admin/scripts` 用于脚本草稿列表和新建草稿，`PATCH/POST /api/admin/scripts/:id` 分别按 `expectedUpdatedAt` 原子保存草稿和按 `idempotencyKey` 发布，`GET /api/admin/characters` 返回角色及其人设编辑数据。草稿只写 `content_versions`，不修改公开接口读取的 `scripts` 线上行；发布事务锁定所选 draft，将 payload 原子应用到线上行并提交 `publish_tasks`。同 key 重放返回首次任务结果，同 key 不同目标返回 `409`。`GET /api/admin/messages` 和 `GET /api/admin/sessions/:id` 返回聊天原文前必须先成功写入管理员访问审计，审计不可用时返回 `503 admin_audit_unavailable`。
 
 ## 小程序 API
 
@@ -24,15 +24,30 @@
 | Sessions | GET | `/api/chat/sessions/:id/messages` | 当前用户会话消息，含 session 元数据（canSend/hasSuccessfulTurn） |
 | Memory | GET | `/api/memory` | 当前用户启用记忆分组（按角色分组，scope 隔离） |
 | Achievements | GET | `/api/achievements` | 当前用户已解锁成就和称号 |
-| Models | GET | `/api/models` | 可用模型档位，含 modelName 和 provider（无需认证） |
+| Models | GET | `/api/models` | 可用计费档位；`modelName` / `provider` 是历史计费配置字段，不等于 FastClaw 实际运行模型 |
 | Quota | GET | `/api/quota/packages` | 上架额度包（无需认证） |
 | Quota | GET | `/api/quota/balance` | 当前用户点数余额 |
 | Orders | POST | `/api/orders` | 创建额度包订单 |
 | Orders | GET | `/api/orders/:id` | 当前用户订单详情 |
-| Payments | POST | `/api/orders/:id/prepay` | 创建预支付参数 |
+| Payments | POST | `/api/orders/:id/prepay` | 创建或复用订单唯一活动支付凭证；创建中可返回 `202 prepay_in_progress` |
 | Payments | POST | `/api/orders/:id/mock-confirm` | 本地 mock 支付确认，仅 mock provider 使用 |
 | Return Messages | POST | `/api/return-messages/check` | 检查并补齐当前用户的回访留言，返回未读留言与各角色未读数（需登录） |
 | Return Messages | POST | `/api/return-messages/read` | 将指定角色全部未读回访留言标记为已读（需登录） |
+
+### `POST /api/orders/:id/prepay`
+
+每个订单最多有一条 active payment。服务端在事务中锁订单并创建/复用支付占位，渠道凭证生成完成后返回：
+
+```json
+{
+  "orderId": "uuid",
+  "paymentId": "uuid",
+  "providerOrderId": "provider-order-id",
+  "prepayParams": { "package": "prepay_id=..." }
+}
+```
+
+另一个并发请求看到同一支付仍在创建时返回 `202 { "status": "prepay_in_progress", "retryable": true }`，不会创建新 payment。已 `credited`、`failed`、`closed`、`refunded` 的订单不能再新开支付凭证。支付占位的 `paymentId` 和 payment `createdAt` 作为稳定 provider 幂等输入传给渠道；nonce、时间戳和签名等字段由这些输入稳定派生。渠道调用结果未知时保留该 payment，重试必须提交同一幂等输入，不得创建第二份有效凭证。
 
 ### `GET /api/scripts`
 
@@ -180,7 +195,7 @@ Authorization: Bearer <jwt>
 
 `done` 事件始终包含 `mode` 字段。
 
-`clientMessageId` 由小程序每次发送生成，服务端写入同一轮 user/assistant 消息，用于失败对账、幂等重试和分析。相同 `clientMessageId` 的已完成重试会重放已保存 assistant；仍在生成且 lease 未过期时返回 `error.code="in_progress"`；失败或 lease 过期后允许同 ID 重新获取生成 lease。
+`clientMessageId` 由小程序每次发送生成。服务端按 `userId + clientMessageId` 建立跨 free/script 模式的原子幂等边界，再写入同一轮 user/assistant 消息。相同 ID 并发最多一个请求 accepted，其余返回 replay、`in_progress` 或明确冲突；已完成重试会重放已保存 assistant；仍在生成且 lease 未过期时返回 `error.code="in_progress"`；失败或 lease 过期后允许同 ID 重新获取生成 lease。
 
 `done` 事件同步保证 `messageId`、`sessionId`、`mode`、`mood`（如可解析）、`balanceAfter` 和 `clientMessageId`（如请求提供）。还可能包含 `fallback`、`blocked`、`outOfScope`、`replayed`、`bondLevel`、`bondExp`、`bondDelta`、`leveledUp`、`unlockedAchievements`、`unlockedTitles`。当落库 `finalContent` 与已下发增量不一致时（**blocked** 输出过滤命中、**outOfScope** 越界兜底、**JSON 块剥离**等文本修正场景）`done` 携带可选 `content`：等于落库 `finalContent`（修正后全文，不含修正提示句），客户端 `onDone` 收到后以 `content` 为准覆盖气泡。点数不足返回 `error.code="insufficient_points"` 或 `402`。输入安全拦截不会预扣点数。模型失败、输出过滤、越界兜底会退款。模型原始回复进入输出审核前会先移除 `<think>`、`analysis` 等内部语言；泛化"作为 AI 模型"式拒答会被替换为角色内兜底回复。输出审核剥离/删除 JSON 块时（`output_sanitizer_hit` / `output_sanitizer_parse_fail`），该轮 `model_usage_logs` 额外记录 `errorCode=output_json_block`（success/filtered 均适用），用于按模型/角色聚合观测。
 
@@ -388,7 +403,9 @@ unknown
 
 ### `GET /api/models`
 
-（无需认证）响应字段包含 `tier`、`displayName`、`pointsPerCall`、`description`、`modelName`（底层模型标识，如 `DeepSeek-V4-Flash`）和 `provider`（模型供应商，如 `siliconflow`）。
+（无需认证）响应字段包含 `tier`、`displayName`、`pointsPerCall`、`description`、`modelName` 和 `provider`。后两者是历史兼容的计费配置展示字段，不是 FastClaw 实际运行模型。实际运行模型由 FastClaw Agent 的 runtime-spec 决定，并写入 `model_usage_logs.modelName`；生产唯一允许值为 `siliconflow/deepseek-ai/DeepSeek-V4-Flash`。
+
+聊天回合在生成期间收到客户端断线时，服务端不会把已提交回合改成失败。恢复 worker 仅在当前 attempt 的租约过期、turn failed 或旧 attempt 时对账；活动租约不处理。assistant 已存在时先归一化 turn completed，不退款。未提交的失败和“已扣费但尚未登记退款”都按同一 refund key 幂等退款。FastClaw fallback 回复不计作成功模型调用，不扣用户点数。上游失败且没有实际 `model` 时，usage 明确记录 `modelName="unknown"`，不会回退到计费配置字段；首个合法 model 确认前内容不会下发为 delta。
 
 ### `GET /api/chat/messages/by-client-id`
 
@@ -504,9 +521,9 @@ Authorization: Bearer <jwt>
 | 模块 | 方法 | 路径 | 说明 |
 | --- | --- | --- | --- |
 | Health | GET | `/api/health` | 进程存活检查，返回 `status: "ok"` |
-| Readiness | GET | `/api/ready` | 检查 Postgres、FastClaw 配置/`readyz`/runtime spec，以及当前版本化清单中的完整角色 Agent 集合；缺少/空/重复/未知 Agent 均未 ready，返回 `503` |
+| Readiness | GET | `/api/ready` | 检查 Postgres、FastClaw 配置/`readyz`/runtime-spec 实际模型，以及版本化角色 Agent 映射；合法 inactive 角色不影响 ready，缺失/空/重复/未知映射和错误模型返回 `503` |
 
-roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foundCount` 及失败时的 `missingAgentIds`、`duplicateAgentIds`、`unknownAgentIds`、`emptyAgentIdCount`。Agent 集合按 `agentId` 比较，匹配顺序不影响结果。
+roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foundCount` 及失败时的 `missingAgentIds`、`duplicateAgentIds`、`unknownAgentIds`、`emptyAgentIdCount`。映射按全部角色行校验，不要求所有角色都必须 active；下架角色保留稳定 `agent_id`。`checks.fastclaw` 同时返回 runtime-spec `model`，非 `siliconflow/deepseek-ai/DeepSeek-V4-Flash` 时 fail closed。`USE_ROLEPLAY_AGENTS=false` 时默认 Agent 也必须是非 roleplay。
 
 ## 支付回调 API
 
@@ -514,17 +531,19 @@ roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foun
 | --- | --- | --- | --- |
 | Aggregate Notify | POST | `/api/payments/aggregate/notify` | 第三方聚合支付服务端回调，不走用户 JWT，必须 provider 验签 |
 
-回调处理必须保持验签、订单状态机、订单行锁、订单级幂等 key 和钱包事务入账。
+回调处理必须保持验签、订单行锁、订单级幂等 key 和钱包事务入账。渠道 `out_trade_no` 只按 `orders.merchant_order_no` 查询，不得与 UUID `orders.id` 混入同一 SQL；通知还必须匹配本地 provider/payment。失败通知后收到同订单的已签名成功通知可继续入账，`credited` 或 `refunded` 不重复入账。
 
 ## Admin API
 
-所有 admin API 必须使用 `verifyAdminAuth`，且 `/api/admin/**` 请求须先通过 Basic Auth middleware 校验。
+所有 admin API 必须使用 `verifyAdminAuth`，且 `/api/admin/**` 请求须先通过 Basic Auth middleware 校验。`/admin/**` 页面除 Basic 外还必须持有可验证的 `admin_session` cookie；共享 Basic 凭据在没有任何管理员身份时返回 `401`，不会执行页面数据查询。
 
 | 模块 | 方法 | 路径 | 说明 |
 | --- | --- | --- | --- |
 | Stats | GET | `/api/admin/stats` | 基础统计：用户、会话、消息、订单、支付金额、钱包余额、模型调用、过滤次数 |
+| Session | POST | `/api/admin/session` | 使用白名单用户 JWT 建立 8 小时 HttpOnly 管理会话 cookie |
+| Session | GET/DELETE | `/api/admin/session` | 查询或撤销当前管理会话 |
 | Sessions | GET | `/api/admin/sessions` | 会话列表，可按 `userId`、`status` 筛选 |
-| Sessions | GET | `/api/admin/sessions/:id` | 会话详情，包含消息和 review logs |
+| Sessions | GET | `/api/admin/sessions/:id` | 聊天详情；返回正文前写入访问审计，审计失败返回 `503 admin_audit_unavailable` |
 | Messages | GET | `/api/admin/messages` | 消息列表，按 `sessionId` 分页 |
 | Review | POST | `/api/admin/review` | 创建审核记录 |
 | Review Logs | GET | `/api/admin/review-logs` | 审核记录列表 |
@@ -538,10 +557,14 @@ roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foun
 | Quota Packages | POST | `/api/admin/quota-packages` | 创建额度包配置 |
 | Quota Packages | PATCH | `/api/admin/quota-packages/:id` | 更新额度包价格、点数、上下架等 |
 | Model Usage | GET | `/api/admin/model-usage-logs` | 模型调用日志 |
-| Models | GET/PATCH | `/api/admin/models` | 三档模型配置查询与启停、单价、展示信息调整；聊天入口读取启用档位的真实 provider/modelName/pointsPerCall |
+| Models | GET/PATCH | `/api/admin/models` | 三档计费配置查询与发布；PATCH 需 `idempotencyKey`、`expectedUpdatedAt`，写配置版本和可恢复审计；实际运行模型仍由 FastClaw Agent 决定 |
 | Memories | GET/PATCH | `/api/admin/memories[/:id]` | 已退场；直接请求返回 `410 admin_memories_removed` 且无副作用 |
 | Payments | POST | `/api/admin/orders/:id/verify` | 向真实支付渠道查单；渠道不可用、金额不符或结果未知均不会伪造成功 |
-| Wallet | POST | `/api/admin/wallet/adjustments` | 管理员人工调账；同 key 同参数幂等重放，参数冲突 `409`，原因必填 |
+| Wallet | POST | `/api/admin/wallet/adjustments` | 管理员人工调账；同 key 同参数幂等重放，参数冲突 `409`，原因必填，事务内写审计意图 |
+| Wallet | GET | `/api/admin/wallet/adjustments/:idempotencyKey` | 查询调账流水与审计完成状态 |
+| Publish Tasks | GET | `/api/admin/publish-tasks/:id` | 查询发布任务、激活结果和关联审计 |
+| Chat Recovery | GET/POST | `/api/admin/chat-recovery` | 查询 unknown/pending 扣退 attempt，或手动执行幂等对账 |
+| Audit Logs | GET | `/api/admin/audit-logs` | 按 `dedupeKey` / `result` 查询审计和恢复状态 |
 | Blocked Keywords | GET | `/api/admin/blocked-keywords` | 敏感词列表 |
 | Blocked Keywords | POST | `/api/admin/blocked-keywords` | 新增敏感词 |
 | Return Messages | POST | `/api/admin/return-messages/sweep` | 触发回访留言补发清扫（需 admin） |
@@ -566,13 +589,52 @@ roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foun
 
 旧 Memories 页面和接口已退场。任何直接 `PATCH /api/admin/memories/:id` 请求均返回 `410`，不会修改记忆。
 
+### `POST /api/admin/session`
+
+请求需同时通过 Basic 外层门禁和 `Authorization: Bearer <jwt>`。JWT 用户必须在 `ADMIN_USER_IDS` 中。服务端创建或续期 `admin_sessions` 记录并设置 HttpOnly、SameSite=Strict 的 `admin_session` cookie，默认有效期 8 小时。共享 Basic 凭据不能单独建立管理员身份。
+
+```http
+POST /api/admin/session
+Authorization: Bearer <jwt>
+```
+
+响应：
+
+```json
+{ "authenticated": true, "userId": "uuid", "expiresAt": "2026-11-04T12:00:00.000Z" }
+```
+
 ### `POST /api/admin/orders/:id/verify`
 
 服务端使用订单记录的支付 provider 和 merchant order 查询真实渠道。渠道明确返回已支付且金额匹配时才推进订单；渠道不可用返回 `503`，金额不符返回 `409`，未完成或结果未知保持可恢复状态，不显示完整成功。
 
 ### `POST /api/admin/wallet/adjustments`
 
-请求体：`{ "userId": "uuid", "delta": 10, "reason": "补偿", "idempotencyKey": "case-1" }`。`delta` 为非零整数，原因必填；重复 key 且参数一致返回原流水，参数不同返回 `409`。事务内按 key 串行化并拒绝负余额，流水记录管理员和原因。
+请求体：`{ "userId": "uuid", "delta": 10, "reason": "补偿", "idempotencyKey": "case-1" }`。`delta` 为非零整数，原因必填；重复 key 且参数一致返回原流水，参数不同返回 `409`。事务内按 key 串行化、拒绝负余额，并写入 `audit_pending` 审计意图，流水记录管理员和原因。若审计完成后写失败，返回 `503 admin_audit_pending` 和 `transactionId`；调用 `GET /api/admin/wallet/adjustments/:idempotencyKey` 查询，重放同一 POST 可幂等完成审计。
+
+### `POST /api/admin/scripts/:id`
+
+发布请求体为 `{ "action": "publish", "idempotencyKey": "release-1" }`。服务端锁定脚本和草稿版本，创建 `publish_tasks`、激活版本并关联审计。同 key 同脚本重放返回首次 `taskId` / `versionId`；同 key 不同脚本返回 `409 publish_idempotency_conflict`。审计尚未完成时返回 `202`，任务 `recoveryState=audit_pending`，可通过 `GET /api/admin/publish-tasks/:id` 查询并用同 key 重试。
+
+### `PATCH /api/admin/models`
+
+请求体：
+
+```json
+{
+  "id": "uuid",
+  "idempotencyKey": "model-release-1",
+  "expectedUpdatedAt": "2026-11-04T10:00:00.000Z",
+  "pointsPerCall": 3,
+  "displayName": "标准"
+}
+```
+
+服务端按 `expectedUpdatedAt` 检测并发修改，写入 `model_profile_versions` 和审计。同 key 重放返回同一版本。该接口修改的是计费/展示配置，不直接修改 FastClaw 实际运行模型。
+
+### `GET/POST /api/admin/chat-recovery`
+
+`GET` 列出 `chargeStatus=unknown` 或 `refundStatus=pending|unknown` 的 attempt；`POST` 立即执行幂等对账并返回 `{ scanned, recovered, failed }`。worker 也会在 Node runtime 启动后每 5 分钟执行一次。
 
 ### `POST /api/admin/return-messages/sweep`
 

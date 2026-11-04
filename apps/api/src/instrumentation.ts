@@ -10,5 +10,9 @@ export async function register(): Promise<void> {
   const { startReturnMessageScheduler } = await import(
     './server/modules/return-messages/scheduler.js'
   );
+  const { startGenerationRecoveryScheduler } = await import(
+    './server/modules/chat/generation-recovery-scheduler.js'
+  );
   startReturnMessageScheduler();
+  startGenerationRecoveryScheduler();
 }

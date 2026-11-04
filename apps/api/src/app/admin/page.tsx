@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getAdminStats } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 type MetricKey = 'sessions' | 'orders' | 'payments' | 'wallet' | 'modelUsage';
 type DashboardSection = {
@@ -22,6 +23,7 @@ const sections: DashboardSection[] = [
 ];
 
 export default async function AdminDashboard() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   const stats = await getAdminStats();
   const metricLabels: Record<MetricKey, string> = {
     sessions: `${stats.sessions.total} sessions`,

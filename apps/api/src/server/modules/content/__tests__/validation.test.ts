@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HttpError, jsonError } from '../../../http/errors.js';
 import {
   ContentValidationError,
   validateCharacterDraft,
@@ -28,6 +29,29 @@ describe('content draft validation', () => {
         { path: 'slug', message: 'must contain lowercase letters, digits and hyphens only' },
       ]));
     }
+  });
+
+  it('maps service-level validation to a stable 400 response with field paths', async () => {
+    let thrown: unknown;
+    try {
+      validateScriptDraft({
+        title: '   ',
+        description: 'x',
+        worldSetting: 'x',
+        slug: 'bad slug',
+        genre: 'x',
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(ContentValidationError);
+    expect(thrown).toBeInstanceOf(HttpError);
+    const response = jsonError(thrown);
+    expect(response.status).toBe(400);
+    const body = await response.json() as { error: string };
+    expect(body.error).toContain('title');
+    expect(body.error).toContain('slug');
   });
 
   it('requires every runtime prompt field and stable agent id', () => {

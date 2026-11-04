@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { PaymentProviderUnavailableError, type PaymentProvider, type PaymentQueryResult } from './provider.interface.js';
 import type { CreatePrepayInput, CreatePrepayResult, VerifiedPaymentNotify } from '@juben-sha/shared';
 import type { PaymentStatus } from '@juben-sha/shared';
@@ -37,8 +37,8 @@ export class AggregatePaymentProvider implements PaymentProvider {
   async createPrepay(input: CreatePrepayInput): Promise<CreatePrepayResult> {
     this.assertConfigured();
 
-    const nonceStr = randomUUID().replace(/-/g, '').slice(0, 32);
-    const timeStamp = String(Math.floor(Date.now() / 1000));
+    const nonceStr = createHash('sha256').update(input.idempotencyKey).digest('hex').slice(0, 32);
+    const timeStamp = String(Math.floor(new Date(input.createdAt).getTime() / 1000));
 
     const params: Record<string, string> = {
       appid: this.config.appId,

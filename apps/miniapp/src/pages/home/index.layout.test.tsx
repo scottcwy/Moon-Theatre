@@ -42,6 +42,19 @@ describe('home hot scripts layout', () => {
     expect(source).toContain('onTap={() => chooseRole(script)}');
   });
 
+  it('keeps hero navigation to one action when the CTA stops propagation', () => {
+    const cardTag = source.match(
+      /<View\s+key=\{script\.id\}[\s\S]*?className="theater-home__hero-card"[\s\S]*?\n\s*>/,
+    )?.[0] ?? '';
+    const actionTag = source.match(
+      /<View\s+className="theater-home__primary-action"[\s\S]*?\n\s*>/,
+    )?.[0] ?? '';
+
+    expect(cardTag).toContain('onTap={() => chooseRole(script)}');
+    expect(actionTag).toContain('event.stopPropagation?.()');
+    expect(actionTag).toContain('chooseRole(script)');
+  });
+
   it('renders page dots only when more than one script exists', () => {
     expect(source).toContain('scripts.length > 1 &&');
     expect(source).toContain('theater-home__script-dot');
