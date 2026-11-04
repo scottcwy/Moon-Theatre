@@ -1,0 +1,72 @@
+{
+  "ok": true,
+  "startedAt": "2026-11-04T14:01:18.162Z",
+  "finishedAt": "2026-11-04T14:01:34.990Z",
+  "head": "f49f0cee954b4b51b2b0ae5ae03dfff85081d833",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "url": "http://127.0.0.1:10087/?h5run=1793800878195#/pages/profile/index",
+  "mockApi": "http://api.localhost:3002",
+  "buildCommand": "API_BASE_URL=http://api.localhost:3002 DEV_AUTH_BYPASS=true pnpm --filter @juben-sha/miniapp build:h5",
+  "sourceFingerprint": "sha256:b5d772e57ce28f74c72f1b637c59dffaae20eb579add6253102320e3f13da0db",
+  "artifactFingerprint": "sha256:66cdb01c09b1ea7ab1e8f71ed7ac371b02076c275f625f09b6d8ed347a3c9f17",
+  "firstProfileLoading": true,
+  "scrollRoot": "taro_page",
+  "scrollBeforeSwitch": 360,
+  "scrollAfterReturn": 360,
+  "scrollContentHeight": 1336,
+  "scrollClientHeight": 844,
+  "shows": [
+    {
+      "round": 0,
+      "marker": "from-home",
+      "loadingSkeleton": false,
+      "footerCount": 1,
+      "selected": "我的",
+      "apiMeRequests": 1
+    },
+    {
+      "round": 0,
+      "marker": "from-community",
+      "loadingSkeleton": false,
+      "footerCount": 1,
+      "selected": "我的",
+      "apiMeRequests": 1
+    },
+    {
+      "round": 1,
+      "marker": "from-home",
+      "loadingSkeleton": false,
+      "footerCount": 1,
+      "selected": "我的",
+      "apiMeRequests": 1
+    },
+    {
+      "round": 1,
+      "marker": "from-community",
+      "loadingSkeleton": false,
+      "footerCount": 1,
+      "selected": "我的",
+      "apiMeRequests": 1
+    },
+    {
+      "round": 2,
+      "marker": "from-home",
+      "loadingSkeleton": false,
+      "footerCount": 1,
+      "selected": "我的",
+      "apiMeRequests": 1
+    },
+    {
+      "round": 2,
+      "marker": "from-community",
+      "loadingSkeleton": false,
+      "footerCount": 1,
+      "selected": "我的",
+      "apiMeRequests": 1
+    }
+  ],
+  "consoleExceptions": []
+}

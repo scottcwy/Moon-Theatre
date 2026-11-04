@@ -1,6 +1,6 @@
 # 文档索引与权威地图
 
-> 最后更新：2026-10-20 · 基线提交 `1047c5b`
+> 最后更新：2026-11-04 · 基线提交 `f49f0ce`
 > 原则：代码现实优先；同一主题只保留一个权威来源；历史快照必须明确标注。
 
 ## 1. 按主题查文档
@@ -13,7 +13,8 @@
 | V1 历史技术基线 | `docs/technical-spec-v1.md` | 仅供追溯 V1 方案；当前实现以代码和当前架构文档为准 |
 | API 契约 | `docs/api-v1.md` | 45 个 API 路径的请求/响应说明；路径覆盖与代码对齐 |
 | Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PLANNED`；已确认需求及验收，不代表现有 API 已实现 |
-| Miniapp 个人页组件复用 | [个人页设计系统与组件复用 Spec](./specs/2026-10-31-个人页设计系统与组件复用Spec.md) | `FROZEN / PLANNED`；冻结个人页的组件复用边界、footer 一致性和 E2E 验收 |
+| Miniapp 个人页组件复用 | [个人页设计系统与组件复用 Spec](./specs/2026-10-31-个人页设计系统与组件复用Spec.md) | `FROZEN / IMPLEMENTED / SUPERSEDED_IN_PART`；组件复用与视觉约束继续有效，footer 挂载位置以新 Spec 为准 |
+| Miniapp Tab 生命周期与导航 | [Tab 页面生命周期与底部导航统一重构 Spec](./specs/2026-11-04-Miniapp-Tab页面生命周期与底部导航统一重构Spec.md) | `FROZEN / IMPLEMENTED / PARTIAL`；H5 与微信四 Tab 切换通过；完整认证 UI 仍有 3 个既有/环境失败 |
 | 部署与回滚 | `docs/deployment.md` | Docker Compose、镜像、域名、迁移、回滚 |
 | 当前视觉系统 | `DESIGN.md` | 视觉摘要与实现状态；不定义逐帧验收 |
 | H5 13 帧契约 | `docs/specs/2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md` | 未被第二份合同取代的帧仍是权威；被取代状态见 `docs/specs/README.md` §2.1 |
@@ -45,7 +46,7 @@
 
 - `test:e2e:smoke`：通过。
 - `test:e2e:ui`：10/10 通过。
-- `test:e2e:ui:auth`：22/22 通过。
+- `test:e2e:ui:auth`：当前 Tab 重构工作树为 20/22；2 个失败均集中在未修改的角色详情页自动化 spread 错误，仓库级认证 UI 门禁未全绿。
 - `test:e2e:visual-frames`：`BLOCKED`，开发者工具固定 `390×844`，要求 `375×812`。
 - `test:e2e:visual-frames:second-contract`：已实现；整屏视觉门禁受开发者工具 `390×844` 阻塞，证据见 `apps/miniapp/e2e/artifacts/visual-frames-second-contract/`。
 - 未完成：真机、真实登录、CDN、3x 资源复验。

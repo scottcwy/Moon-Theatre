@@ -485,7 +485,12 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
   }
 
   if (req.method === 'GET' && pathname === '/api/me') {
-    json(res, 200, user);
+    const snapshot = { ...user };
+    if (options.meResponseDelayMs > 0) {
+      setTimeout(() => json(res, 200, snapshot), options.meResponseDelayMs);
+      return;
+    }
+    json(res, 200, snapshot);
     return;
   }
 
@@ -577,6 +582,26 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
     return;
   }
 
+  if (req.method === 'POST' && pathname === '/api/debug/set-user') {
+    if (body && typeof body === 'object') {
+      if (typeof body.id === 'string') user.id = body.id;
+      if ('nickname' in body) user.nickname = typeof body.nickname === 'string' ? body.nickname : null;
+      if ('preferredName' in body) {
+        user.preferredName = typeof body.preferredName === 'string' ? body.preferredName : null;
+      }
+    }
+    json(res, 200, user);
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/debug/set-options') {
+    if (body && typeof body === 'object' && 'meResponseDelayMs' in body) {
+      options.meResponseDelayMs = Math.max(0, Number(body.meResponseDelayMs));
+    }
+    json(res, 200, { meResponseDelayMs: options.meResponseDelayMs });
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/chat/characters') {
     const page = Number(url.searchParams.get('page') ?? 1);
     const limit = Number(url.searchParams.get('limit') ?? 20);
@@ -655,15 +680,32 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
         updatedAt: now,
         canSend: true,
       },
-    ].filter((entry) => !keyword
+    ];
+
+    if (user.id === 'account-b') {
+      entries.splice(0, entries.length, {
+        characterId: 'account-b-only',
+        characterName: '账号B专属角色',
+        characterAvatarUrl: '',
+        identity: '仅账号 B 可见',
+        successfulTurnCount: 1,
+        latestSessionId: 'session-account-b',
+        lastUsedMode: 'free',
+        lastMessage: '这是账号 B 的专属会话',
+        updatedAt: now,
+        canSend: true,
+      });
+    }
+
+    const filteredEntries = entries.filter((entry) => !keyword
       || entry.characterName.toLowerCase().includes(keyword)
       || (characterChatCorpus[entry.characterId] ?? []).some((message) => message.content.toLowerCase().includes(keyword)));
 
     // 常聊聚合（home 页）走 sort=turn_count：保留 identity 与 successfulTurnCount 并按成功轮数倒序；
     // 默认聊天列表不带这两个字段，与真实接口语义一致；limit 生效，与真实接口分页语义一致。
     const sortedEntries = sort === 'turn_count'
-      ? [...entries].sort((a, b) => b.successfulTurnCount - a.successfulTurnCount)
-      : entries;
+      ? [...filteredEntries].sort((a, b) => b.successfulTurnCount - a.successfulTurnCount)
+      : filteredEntries;
     const pagedEntries = sortedEntries.slice((page - 1) * limit, page * limit);
     const characters = sort === 'turn_count'
       ? pagedEntries
@@ -825,17 +867,16 @@ async function routeRequest({ req, res, url, body, options, orders, readReturnMe
   }
 
   if (req.method === 'GET' && pathname === '/api/achievements') {
+    const achievementCount = Math.max(0, Number(options.achievementCount ?? 1));
     json(res, 200, {
-      achievements: [
-        {
-          id: 'achievement-first-chat',
-          name: '初次相逢',
-          description: '完成第一轮角色对话',
-          code: 'first_chat',
-          iconUrl: null,
-          unlockedAt: now,
-        },
-      ],
+      achievements: Array.from({ length: achievementCount }, (_, index) => ({
+        id: `achievement-${index + 1}`,
+        name: index === 0 ? '初次相逢' : `旅程印记 ${index + 1}`,
+        description: index === 0 ? '完成第一轮角色对话' : `完成第 ${index + 1} 段角色经历`,
+        code: index === 0 ? 'first_chat' : `journey_${index + 1}`,
+        iconUrl: null,
+        unlockedAt: now,
+      })),
       titles: [
         {
           id: 'title-moon-walker',
@@ -955,14 +996,18 @@ export async function startMockApiServer(config = {}) {
   const options = {
     port: DEFAULT_MOCK_API_PORT,
     balancePoints: 0,
+    achievementCount: 1,
+    meResponseDelayMs: 0,
     chatMode: 'stream-error',
     streamDelayMs: 0,
     deltaDelayMs: 0,
     byClientIdMode: 'miss',
+    responseDelayMs: 0,
     ...config,
   };
   const requests = [];
   const orders = new Map();
+  const faults = [];
   // Module 7 已读状态按 server 实例隔离（每个测试/用例互不污染，模拟多用户名单环境）。
   const readReturnMessageCharacters = new Set();
 
@@ -977,6 +1022,32 @@ export async function startMockApiServer(config = {}) {
     });
 
     try {
+      if (req.method === 'POST' && url.pathname === '/api/debug/fail-next') {
+        const fault = {
+          method: typeof body?.method === 'string' ? body.method : 'GET',
+          pathname: typeof body?.pathname === 'string' ? body.pathname : '/api/scripts',
+          count: Math.max(1, Number(body?.count ?? 1)),
+          status: Number(body?.status ?? 500),
+        };
+        faults.push(fault);
+        json(res, 200, fault);
+        return;
+      }
+
+      const faultIndex = faults.findIndex((fault) => (
+        fault.method === req.method && fault.pathname === url.pathname && fault.count > 0
+      ));
+      if (faultIndex >= 0) {
+        const fault = faults[faultIndex];
+        fault.count -= 1;
+        if (fault.count === 0) faults.splice(faultIndex, 1);
+        json(res, fault.status, { error: 'mock_fault' });
+        return;
+      }
+
+      if (options.responseDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, options.responseDelayMs));
+      }
       await routeRequest({ req, res, url, body, options, orders, readReturnMessageCharacters });
     } catch (error) {
       json(res, 500, {

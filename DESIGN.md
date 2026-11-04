@@ -140,7 +140,7 @@
 
 - `test:e2e:smoke`：通过。
 - `test:e2e:ui`：10/10 页面通过。
-- `test:e2e:ui:auth`：22/22 页面通过。
+- `test:e2e:ui:auth`：当前 Tab 重构工作树为 20/22；2 个失败均集中在未修改的角色详情页自动化 spread 错误，仓库级认证 UI 门禁未全绿。
 - `test:e2e:visual-frames`：阻塞于开发者工具 `390×844`，要求 `375×812`；不得宣称 13 帧视觉完全通过。
 - `test:e2e:visual-frames:second-contract`：尚未实现；8/9 整屏视觉 `BLOCKED`，组件基线在 `docs/specs/evidence/2026-10-19-second-contract/component-375x812/`。
 - 证据：`apps/miniapp/e2e/artifacts/`、`docs/specs/evidence/`、`docs/reports/2026-10-01-h5-visual-migration-acceptance.md`（快照 + 2026-10-19 更新）。

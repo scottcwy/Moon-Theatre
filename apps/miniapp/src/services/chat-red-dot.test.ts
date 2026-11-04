@@ -120,6 +120,17 @@ describe('chat tab red dot', () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
+  it('clears the red dot immediately when the auth session changes', async () => {
+    await login();
+    const { syncChatTabRedDot } = await import('./chat-red-dot');
+    const { clearAuth } = await import('./api');
+
+    syncChatTabRedDot({ 'char-1': 1 });
+    clearAuth();
+
+    expect(hideTabBarRedDotMock).toHaveBeenCalledWith({ index: 1 });
+  });
+
   it('polls immediately and on each interval until stopped', async () => {
     vi.useFakeTimers();
     await login();

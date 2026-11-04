@@ -1,0 +1,1206 @@
+{
+  "ok": false,
+  "startedAt": "2026-11-04T14:11:43.253Z",
+  "finishedAt": "2026-11-04T14:15:03.786Z",
+  "cliPath": "/Applications/wechatwebdevtools.app/Contents/MacOS/cli",
+  "projectRoot": "/Users/macbookpro/.codex/worktrees/tab-navigation-lifecycle/剧本杀角色扮演小程序/apps/miniapp",
+  "artifactRoot": "e2e/artifacts/runtime-ui-authenticated",
+  "mockApiBaseUrl": "http://127.0.0.1:3002",
+  "toolInfo": {
+    "version": "2.01.2510260",
+    "SDKVersion": "3.15.2"
+  },
+  "pages": [
+    {
+      "name": "auth-home",
+      "route": "pages/home/index",
+      "path": "pages/home/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-home.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "assertion passed: multiple script cards with matching page dots",
+        "assertion passed: gallery cards show title, description and CTA, and script mode sits above the search bar",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-home-script-mode-switch",
+      "route": "pages/home/index",
+      "path": "pages/home/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-home-script-mode-switch.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction completed",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-script-catalog",
+      "route": "pages/script/catalog",
+      "path": "pages/script/catalog",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-script-catalog.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-script-select",
+      "route": "pages/script/select?scriptId=script-moon-garden",
+      "path": "pages/script/select",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-script-select.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-character-detail",
+      "route": "pages/character/detail?characterId=hakuzo",
+      "path": "pages/character/detail",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-character-detail.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "scroll reset"
+      ],
+      "failures": [
+        {
+          "label": "page inspection",
+          "selector": "pages/character/detail?characterId=hakuzo",
+          "reason": "Spread syntax requires ...iterable[Symbol.iterator] to be a function"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "auth-moon-tower-script-select",
+      "route": "pages/script/select?scriptId=script-moon-tower",
+      "path": "pages/script/select",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-moon-tower-script-select.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "assertion passed: moon-tower script select shows the script title and all character posters (gender variants expanded)",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-moon-tower-character-detail",
+      "route": "pages/character/detail?characterId=chengyuhuai",
+      "path": "pages/character/detail",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-moon-tower-character-detail.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "scroll reset"
+      ],
+      "failures": [
+        {
+          "label": "page inspection",
+          "selector": "pages/character/detail?characterId=chengyuhuai",
+          "reason": "Spread syntax requires ...iterable[Symbol.iterator] to be a function"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "auth-moon-tower-chat",
+      "route": "pages/chat/index?sessionId=session-chengyuhuai",
+      "path": "pages/chat/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-moon-tower-chat.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "assertion passed: chat header content starts below the WeChat capsule",
+        "assertion passed: moon-tower script chat shows script scope and a moon-tower line",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "chat-mode-switch-scroll-reset",
+      "route": "pages/chat/index?characterId=chengyuhuai&mode=script&scriptId=script-moon-tower",
+      "path": "pages/chat/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/chat-mode-switch-scroll-reset.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction completed",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-chat-history-pagination",
+      "route": "pages/chat/index?sessionId=session-chengyuhuai",
+      "path": "pages/chat/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-chat-history-pagination.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction completed",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-chat-list",
+      "route": "pages/chat/list",
+      "path": "pages/chat/list",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-chat-list.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-return-message-flow",
+      "route": "pages/chat/list",
+      "path": "pages/chat/list",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-return-message-flow.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction completed",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "chat-search-full-text",
+      "route": "pages/chat/list",
+      "path": "pages/chat/list",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/chat-search-full-text.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction completed",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-chat-free-mode",
+      "route": "pages/chat/index?sessionId=session-hakuzo-free",
+      "path": "pages/chat/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-chat-free-mode.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "assertion passed: scope label shows 自由模式 and history includes the return message once",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-profile",
+      "route": "pages/profile/index",
+      "path": "pages/profile/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-profile.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-memory",
+      "route": "pages/memory/index",
+      "path": "pages/memory/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-memory.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-chat-insufficient-points",
+      "route": "pages/chat/index?characterId=hakuzo",
+      "path": "pages/chat/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-chat-insufficient-points.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction completed",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-chat-stream-error",
+      "route": "pages/chat/index?characterId=hakuzo",
+      "path": "pages/chat/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-chat-stream-error.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction state prepared",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-quota-buy",
+      "route": "pages/quota/buy",
+      "path": "pages/quota/buy",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-quota-buy.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-quota-result",
+      "route": "pages/quota/result?orderId=order-seeded",
+      "path": "pages/quota/result",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-quota-result.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-chat-free-to-empty-script",
+      "route": "pages/chat/index?sessionId=session-hakuzo-free-only",
+      "path": "pages/chat/index",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-chat-free-to-empty-script.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction completed",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    },
+    {
+      "name": "auth-quota-checkout",
+      "route": "pages/quota/buy",
+      "path": "pages/quota/result",
+      "screenshot": "e2e/artifacts/runtime-ui-authenticated/auth-quota-checkout.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        "interaction completed",
+        "screenshot saved"
+      ],
+      "failures": [],
+      "ok": true
+    }
+  ],
+  "mockRequests": [
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/check",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/scripts",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "sort": "turn_count",
+        "limit": "4"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/scripts",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/scripts",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "sort": "turn_count",
+        "limit": "4"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/scripts",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/scripts/script-moon-garden",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/hakuzo",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/scripts/script-moon-tower",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/scripts/script-moon-tower",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/chengyuhuai",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-chengyuhuai/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "chengyuhuai"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/chengyuhuai",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "chengyuhuai"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/chengyuhuai",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "chengyuhuai",
+        "mode": "script",
+        "page": "1",
+        "limit": "1",
+        "scriptId": "script-moon-tower"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-chengyuhuai/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "chengyuhuai",
+        "mode": "free",
+        "page": "1",
+        "limit": "1"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "chengyuhuai",
+        "mode": "script",
+        "page": "1",
+        "limit": "1",
+        "scriptId": "script-moon-tower"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-chengyuhuai/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-chengyuhuai/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "chengyuhuai"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/chengyuhuai",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-chengyuhuai/messages",
+      "query": {
+        "limit": "50",
+        "beforeCreatedAt": "2026-07-09T01:10:00.000Z",
+        "beforeId": "msg-chengyuhuai-2"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "page": "1",
+        "limit": "20"
+      },
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/check",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "hakuzo"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "hakuzo"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/hakuzo",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "hakuzo",
+        "mode": "free",
+        "page": "1",
+        "limit": "1"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-hakuzo-free/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "hakuzo",
+        "mode": "script",
+        "page": "1",
+        "limit": "1",
+        "scriptId": "script-moon-garden"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-hakuzo/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "hakuzo",
+        "mode": "free",
+        "page": "1",
+        "limit": "1"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-hakuzo-free/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "page": "1",
+        "limit": "20"
+      },
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/check",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "page": "1",
+        "limit": "20",
+        "q": "铜雀"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "page": "1",
+        "limit": "20"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "page": "1",
+        "limit": "20",
+        "q": "查无此词"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "page": "1",
+        "limit": "20"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "page": "1",
+        "limit": "20",
+        "q": "月"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/characters",
+      "query": {
+        "page": "1",
+        "limit": "20"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-hakuzo-free/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "hakuzo"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/hakuzo",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/check",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/achievements",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/memory",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "hakuzo"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/hakuzo",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "hakuzo",
+        "mode": "script",
+        "page": "1",
+        "limit": "1",
+        "scriptId": "script-moon-garden"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-hakuzo/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/debug/set-balance",
+      "query": {},
+      "body": {
+        "points": 0
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "hakuzo"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/hakuzo",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "hakuzo",
+        "mode": "script",
+        "page": "1",
+        "limit": "1",
+        "scriptId": "script-moon-garden"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-hakuzo/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/debug/set-balance",
+      "query": {},
+      "body": {
+        "points": 3
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "hakuzo"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/hakuzo",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "hakuzo",
+        "mode": "script",
+        "page": "1",
+        "limit": "1",
+        "scriptId": "script-moon-garden"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-hakuzo/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/chat/stream",
+      "query": {},
+      "body": {
+        "characterId": "hakuzo",
+        "sessionId": "session-hakuzo",
+        "message": "月下见",
+        "modelTier": "casual",
+        "clientMessageId": "chat_mw277ntp_1ikcvz6cvw7",
+        "mode": "script",
+        "scriptId": "script-moon-garden"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/messages/by-client-id",
+      "query": {
+        "clientMessageId": "chat_mw277ntp_1ikcvz6cvw7"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/hakuzo",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/packages",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/orders/order-seeded",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions/session-hakuzo-free-only/messages",
+      "query": {
+        "limit": "50"
+      },
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/return-messages/read",
+      "query": {},
+      "body": {
+        "characterId": "hakuzo-free-only"
+      }
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/characters/hakuzo-free-only",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/chat/sessions",
+      "query": {
+        "characterId": "hakuzo-free-only",
+        "mode": "script",
+        "page": "1",
+        "limit": "1",
+        "scriptId": "script-moon-garden"
+      },
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/packages",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/orders",
+      "query": {},
+      "body": {
+        "quotaPackageId": "pkg-small"
+      }
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/orders/order-2/prepay",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "POST",
+      "pathname": "/api/orders/order-2/mock-confirm",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/me",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/orders/order-2",
+      "query": {},
+      "body": null
+    },
+    {
+      "method": "GET",
+      "pathname": "/api/quota/balance",
+      "query": {},
+      "body": null
+    }
+  ]
+}

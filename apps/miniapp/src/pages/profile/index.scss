@@ -180,6 +180,19 @@
   margin-bottom: $space-5;
 }
 
+.profile__error--terminal {
+  margin: 190rpx 16rpx 0;
+
+  .status-state-card {
+    min-height: 360rpx;
+    padding: 88rpx 30rpx;
+    border: 1rpx solid #b98965;
+    border-radius: 10rpx;
+    background: rgba(49, 18, 28, 0.82);
+    box-shadow: 0 16rpx 30rpx rgba(39, 20, 25, 0.3);
+  }
+}
+
 .profile__growth-card {
   margin-bottom: $space-5;
   padding: 26rpx;

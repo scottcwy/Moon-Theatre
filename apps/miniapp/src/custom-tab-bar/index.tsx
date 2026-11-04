@@ -1,7 +1,22 @@
 import { View } from '@tarojs/components';
+import { useDidShow } from '@tarojs/taro';
+import { useEffect } from 'react';
+import { StageTabBar } from '../components/StageTabBar';
+import { syncTabBarFromRoute } from '../components/tab-bar-state';
 import './index.scss';
 
-// The visible stage navigation is rendered by each tab page so it can float over its content.
 export default function CustomTabBar() {
-  return <View className="stage-tab-bar-host" />;
+  useEffect(() => {
+    syncTabBarFromRoute();
+  }, []);
+
+  useDidShow(() => {
+    syncTabBarFromRoute();
+  });
+
+  return (
+    <View className="stage-tab-bar-host">
+      <StageTabBar />
+    </View>
+  );
 }

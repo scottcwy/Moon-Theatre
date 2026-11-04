@@ -1,6 +1,6 @@
 import { Image, ScrollView, Text, View } from '@tarojs/components';
 import type { BaseEventOrig, ScrollViewProps } from '@tarojs/components';
-import Taro, { useDidHide, useDidShow } from '@tarojs/taro';
+import Taro, { useDidHide } from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -12,8 +12,8 @@ import {
   TopBar,
 } from '@juben-sha/miniapp-ui';
 import { api, isLoggedIn } from '../../services/api';
-import { StageTabBar } from '../../components/StageTabBar';
 import { getCharacterGender } from '../../services/character-gender';
+import { useTabPageLifecycle } from '../../hooks/useTabPageLifecycle';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 import {
   buildFrequentCharactersUrl,
@@ -32,6 +32,7 @@ import {
   localHomeCharacters,
   localHomeScripts,
   shouldApplyScriptResponse,
+  shouldFallbackToPublicCharacters,
 } from './index.model';
 import './index.scss';
 
@@ -82,47 +83,81 @@ export default function Home() {
   const [selectedCharacterId, setSelectedCharacterId] = useState('');
   const [scriptModeOn, setScriptModeOn] = useState(false);
   const scriptModeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 首个 onShow 与首挂载加载重叠，跳过；之后每次回到首页都刷新角色列表。
-  const skipFirstShowRef = useRef(true);
+  const scriptSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [topBarStyle, setTopBarStyle] = useState<Record<string, string>>(
     getTopBarStyle(calculateTopBarMetrics()),
   );
   const scriptRequestIdRef = useRef(0);
+  const characterRequestIdRef = useRef(0);
   const [activeScriptIndex, setActiveScriptIndex] = useState(0);
   const [scriptScrollEpoch, setScriptScrollEpoch] = useState(0);
   const [scriptScrollTarget, setScriptScrollTarget] = useState('');
 
-  const loadScripts = useCallback(async (query: string) => {
+  const resetSessionData = useCallback(() => {
+    scriptRequestIdRef.current += 1;
+    characterRequestIdRef.current += 1;
+    if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
+    if (scriptSearchTimerRef.current) clearTimeout(scriptSearchTimerRef.current);
+    setCharacters([]);
+    setHasFrequentCharacters(false);
+    setCharacterError('');
+    setSelectedCharacterId('');
+    setScriptQuery('');
+    setScriptsError('');
+    setScriptsLoading(false);
+  }, []);
+
+  const loadScripts = useCallback(async (
+    query: string,
+    { silent = false, showLoading = !silent }: { silent?: boolean; showLoading?: boolean } = {},
+  ): Promise<boolean> => {
     const requestId = scriptRequestIdRef.current + 1;
     scriptRequestIdRef.current = requestId;
-    setScriptsLoading(true);
+    let applied = false;
+    if (showLoading) setScriptsLoading(true);
     setScriptsError('');
     try {
       const data = await api.get<{ scripts: ScriptCard[] }>(buildScriptsUrl(query));
-      if (!shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) return;
+      if (!shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) return false;
       setScripts(data.scripts.length > 0 || query.trim() ? data.scripts : [...localHomeScripts]);
+      applied = true;
     } catch {
-      if (!shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) return;
-      if (query.trim()) {
-        setScripts([]);
-        setScriptsError('');
-      } else {
-        setScripts([...localHomeScripts]);
-        setScriptsError('');
+      if (!shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) return false;
+      if (!silent) {
+        if (query.trim()) {
+          setScripts([]);
+          setScriptsError('剧本目录暂时不可用');
+        } else {
+          setScripts([...localHomeScripts]);
+          setScriptsError('');
+        }
       }
+      if (silent) Taro.showToast({ title: '剧本同步失败，已保留当前内容', icon: 'none' });
+      applied = true;
     } finally {
       if (shouldApplyScriptResponse(requestId, scriptRequestIdRef.current)) {
         setScriptsLoading(false);
       }
     }
+    return applied;
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadScripts(scriptQuery);
+  const scheduleScriptSearch = useCallback((query: string) => {
+    if (scriptSearchTimerRef.current) clearTimeout(scriptSearchTimerRef.current);
+    scriptSearchTimerRef.current = setTimeout(() => {
+      void loadScripts(query, { showLoading: true });
     }, SCRIPT_SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [loadScripts, scriptQuery]);
+  }, [loadScripts]);
+
+  const handleScriptQueryChange = (value: string) => {
+    setScriptQuery(value);
+    scheduleScriptSearch(value);
+  };
+
+  const handleScriptQueryClear = () => {
+    setScriptQuery('');
+    scheduleScriptSearch('');
+  };
 
   const handleScriptScroll = (event: BaseEventOrig<ScrollViewProps.onScrollDetail>) => {
     setActiveScriptIndex(getActiveScriptIndex(event.detail.scrollLeft, event.detail.scrollWidth, scripts.length));
@@ -141,53 +176,72 @@ export default function Home() {
     const nextEpoch = scriptScrollEpoch + 1;
     setScriptScrollEpoch(nextEpoch);
     setScriptScrollTarget(`hero-0-${nextEpoch}`);
-  }, [scripts]);
+  }, [scriptQuery]);
 
-  // 首页是常驻 tab 页，不做卸载取消；首挂载与返回首页（useDidShow）共用此入口。
-  const loadCharacters = useCallback(() => {
-    const loadRecommendedCharacters = () => {
-      api
-        .get<{ characters: CharacterCard[] }>('/api/characters')
-        .then((data) => {
-          setCharacters(data.characters.length > 0 ? data.characters : [...localHomeCharacters]);
-          setHasFrequentCharacters(false);
-        })
-        .catch(() => {
-          setCharacters([...localHomeCharacters]);
-          setCharacterError('');
-        });
+  const loadCharacters = useCallback(async (silent = false): Promise<boolean> => {
+    const requestId = characterRequestIdRef.current + 1;
+    characterRequestIdRef.current = requestId;
+    const loadRecommendedCharacters = async (): Promise<boolean> => {
+      try {
+        const data = await api.get<{ characters: CharacterCard[] }>('/api/characters');
+        if (characterRequestIdRef.current !== requestId) return false;
+        setCharacters(data.characters.length > 0 ? data.characters : [...localHomeCharacters]);
+        setHasFrequentCharacters(false);
+        setCharacterError('');
+        return true;
+      } catch {
+        if (characterRequestIdRef.current !== requestId) return false;
+        if (!silent) setCharacters([...localHomeCharacters]);
+        setCharacterError('角色同步失败');
+        if (silent) Taro.showToast({ title: '角色同步失败，已保留当前内容', icon: 'none' });
+        return true;
+      }
     };
 
     // 未登录：不发起必然 401 的常聊聚合请求，直接用公共推荐。
     if (!isLoggedIn()) {
-      loadRecommendedCharacters();
-      return;
+      return loadRecommendedCharacters();
     }
 
-    api
-      .get<{ characters: FrequentCharacterEntry[] }>(buildFrequentCharactersUrl())
-      .then((data) => {
-        if (data.characters.length === 0) {
-          // 已登录但无历史：回退公共推荐角色。
-          loadRecommendedCharacters();
-          return;
-        }
-        setCharacters(data.characters.map((entry) => ({
-          id: entry.characterId,
-          name: entry.characterName,
-          identity: entry.identity,
-          avatarUrl: entry.characterAvatarUrl,
-        })));
-        setHasFrequentCharacters(true);
-      })
-      .catch(() => {
-        loadRecommendedCharacters();
-      });
-  }, []);
+    try {
+      const data = await api.get<{ characters: FrequentCharacterEntry[] }>(buildFrequentCharactersUrl());
+      if (characterRequestIdRef.current !== requestId) return false;
+      if (data.characters.length === 0) {
+        // 已登录但无历史：回退公共推荐角色。
+        return loadRecommendedCharacters();
+      }
+      setCharacters(data.characters.map((entry) => ({
+        id: entry.characterId,
+        name: entry.characterName,
+        identity: entry.identity,
+        avatarUrl: entry.characterAvatarUrl,
+      })));
+      setHasFrequentCharacters(true);
+      setCharacterError('');
+      return true;
+    } catch {
+      if (characterRequestIdRef.current !== requestId) return false;
+      if (!shouldFallbackToPublicCharacters(silent, characters.length)) {
+        setCharacterError('');
+        Taro.showToast({ title: '常聊角色同步失败，已保留当前内容', icon: 'none' });
+        return true;
+      }
+      return loadRecommendedCharacters();
+    }
+  }, [characters.length]);
 
-  useEffect(() => {
-    loadCharacters();
-  }, [loadCharacters]);
+  const loadHome = useCallback(async (mode: 'initial' | 'refresh') => {
+    if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
+    setScriptModeOn(false);
+    const silent = mode === 'refresh';
+    const [scriptsLoaded, charactersLoaded] = await Promise.all([
+      loadScripts(scriptQuery, { silent, showLoading: mode === 'initial' && scripts.length === 0 }),
+      loadCharacters(silent),
+    ]);
+    return scriptsLoaded && charactersLoaded;
+  }, [loadCharacters, loadScripts, scriptQuery, scripts.length]);
+
+  useTabPageLifecycle(loadHome, { onSessionReset: resetSessionData });
 
   useEffect(() => {
     try {
@@ -227,23 +281,18 @@ export default function Home() {
     }, SCRIPT_MODE_ENTRY_DELAY_MS);
   };
 
-  useDidShow(() => {
-    if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
-    setScriptModeOn(false);
-    if (skipFirstShowRef.current) {
-      skipFirstShowRef.current = false;
-      return;
-    }
-    loadCharacters();
-  });
-
   // 离开首页即取消未触发的跳转定时器，避免用户在 260ms 内点了其它入口后仍被 push 到剧本目录。
   useDidHide(() => {
     if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
+    if (scriptSearchTimerRef.current) clearTimeout(scriptSearchTimerRef.current);
+    scriptRequestIdRef.current += 1;
+    characterRequestIdRef.current += 1;
+    setScriptsLoading(false);
   });
 
   useEffect(() => () => {
     if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
+    if (scriptSearchTimerRef.current) clearTimeout(scriptSearchTimerRef.current);
   }, []);
 
   const hasScriptQuery = scriptQuery.trim().length > 0;
@@ -280,8 +329,8 @@ export default function Home() {
             value={scriptQuery}
             placeholder="搜索剧本名称、类型或关键词"
             className="theater-home__script-search"
-            onInput={setScriptQuery}
-            onClear={() => setScriptQuery('')}
+            onInput={handleScriptQueryChange}
+            onClear={handleScriptQueryClear}
           />
 
           {scriptsLoading ? (
@@ -438,7 +487,6 @@ export default function Home() {
         </View>
         )}
       </View>
-      <StageTabBar selected="/pages/home/index" />
     </PageShell>
   );
 }

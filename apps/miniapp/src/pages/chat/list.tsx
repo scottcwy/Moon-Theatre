@@ -1,11 +1,11 @@
 import { Image, Text, View } from '@tarojs/components';
-import Taro, { useDidShow } from '@tarojs/taro';
+import Taro, { useDidHide } from '@tarojs/taro';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatSessionRow, EmptyState, PageShell, SearchBar, StatusStateCard } from '@juben-sha/miniapp-ui';
-import { StageTabBar } from '../../components/StageTabBar';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
-import { api } from '../../services/api';
+import { useTabPageLifecycle } from '../../hooks/useTabPageLifecycle';
+import { api, isLoggedIn } from '../../services/api';
 import { syncChatTabRedDot } from '../../services/chat-red-dot';
 import { getCharacterGender } from '../../services/character-gender';
 import type { ChatMode } from '../../types';
@@ -67,15 +67,33 @@ export default function ChatList() {
   const [topBarStyle, setTopBarStyle] = useState<Record<string, string>>(
     getTopBarStyle(calculateTopBarMetrics()),
   );
-  const { needsLogin, verifyAuth, handleAuthError, goLogin } = useAuthGuard();
+  const { needsLogin, setNeedsLogin, handleAuthError, goLogin } = useAuthGuard();
   const loadIdRef = useRef(0);
+  const unreadRequestIdRef = useRef(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 按 searchQuery 键控的内存缓存：命中时先渲染缓存再静默刷新，避免切 tab 返回的 loading 抖动。
   const chatListCacheRef = useRef<Map<string, CharacterChatEntry[]>>(new Map());
 
-  const loadCharacterChats = useCallback(async (query: string, { silent = false }: { silent?: boolean } = {}) => {
+  const resetSessionData = useCallback(() => {
+    loadIdRef.current += 1;
+    unreadRequestIdRef.current += 1;
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    chatListCacheRef.current.clear();
+    setCharacterChats([]);
+    setCharacterUnread({});
+    setSearchQuery('');
+    setError('');
+    setLoading(false);
+    setNeedsLogin(!isLoggedIn());
+  }, [setNeedsLogin]);
+
+  const loadCharacterChats = useCallback(async (
+    query: string,
+    { silent = false }: { silent?: boolean } = {},
+  ): Promise<boolean> => {
     const loadId = loadIdRef.current + 1;
     loadIdRef.current = loadId;
+    let applied = false;
     setError('');
 
     const cached = chatListCacheRef.current.get(query);
@@ -87,51 +105,85 @@ export default function ChatList() {
       setLoading(true);
     }
 
+    if (!isLoggedIn()) {
+      setNeedsLogin(true);
+      chatListCacheRef.current.set(query, []);
+      setCharacterChats([]);
+      setCharacterUnread({});
+      setLoading(false);
+      return true;
+    }
+
     try {
-      const authenticated = await verifyAuth();
-      if (loadIdRef.current !== loadId) return;
-      if (!authenticated) {
-        chatListCacheRef.current.set(query, []);
-        setCharacterChats([]);
-        return;
-      }
       const data = await api.get<CharacterChatsResponse>(buildCharacterChatsUrl(query));
-      if (loadIdRef.current !== loadId) return;
+      if (loadIdRef.current !== loadId) return false;
       chatListCacheRef.current.set(query, data.characters);
       setCharacterChats(data.characters);
+      setNeedsLogin(false);
+      applied = true;
     } catch (err) {
-      if (loadIdRef.current !== loadId) return;
+      if (loadIdRef.current !== loadId) return false;
       // 静默刷新失败时保留缓存视图，不打断当前展示；未读数走 loadCharacterUnread 兜底登录态。
-      if (!cached && !handleAuthError(err)) {
+      if (handleAuthError(err)) {
+        chatListCacheRef.current.set(query, []);
+        setCharacterChats([]);
+        setCharacterUnread({});
+        applied = false;
+      } else if (cached) {
+        Taro.showToast({ title: '聊天列表同步失败，已保留当前内容', icon: 'none' });
+        applied = true;
+      } else {
         setError(err instanceof Error ? err.message : '加载失败');
+        applied = false;
       }
     } finally {
       if (loadIdRef.current === loadId) {
         setLoading(false);
       }
     }
-  }, [handleAuthError, verifyAuth]);
+    return applied;
+  }, [handleAuthError, setNeedsLogin]);
 
-  const loadCharacterUnread = useCallback(async () => {
+  const loadCharacterUnread = useCallback(async (): Promise<boolean> => {
+    const requestId = unreadRequestIdRef.current + 1;
+    unreadRequestIdRef.current = requestId;
+    if (!isLoggedIn()) {
+      setCharacterUnread({});
+      return true;
+    }
     try {
-      const authenticated = await verifyAuth();
-      if (!authenticated) {
-        setCharacterUnread({});
-        return;
-      }
       const data = await api.post<ReturnMessagesCheckResponse>(RETURN_MESSAGES_CHECK_PATH);
+      if (unreadRequestIdRef.current !== requestId) return false;
       setCharacterUnread(data.characterUnread);
+      return true;
     } catch (err) {
+      if (unreadRequestIdRef.current !== requestId) return false;
       // 未读拉取失败不能阻断聊天列表，只保留登录过期处理。
       handleAuthError(err);
+      return true;
     }
-  }, [handleAuthError, verifyAuth]);
+  }, [handleAuthError]);
 
-  useDidShow(() => {
+  const loadChatPage = useCallback(async (mode: 'initial' | 'refresh') => {
+    if (!isLoggedIn()) {
+      setNeedsLogin(true);
+      setLoading(false);
+      setError('');
+      setCharacterChats([]);
+      setCharacterUnread({});
+      return true;
+    }
+    setNeedsLogin(false);
     // 命中缓存时静默刷新；未读数每次拉取，驱动底部 tab 红点，与聊天列表缓存解耦。
-    void loadCharacterChats(searchQuery, { silent: chatListCacheRef.current.has(searchQuery) });
-    void loadCharacterUnread();
-  });
+    const silent = mode === 'refresh' || chatListCacheRef.current.has(searchQuery);
+    const [chatsLoaded] = await Promise.all([
+      loadCharacterChats(searchQuery, { silent }),
+      loadCharacterUnread(),
+    ]);
+    return chatsLoaded;
+  }, [loadCharacterChats, loadCharacterUnread, searchQuery, setNeedsLogin]);
+
+  useTabPageLifecycle(loadChatPage, { onSessionReset: resetSessionData });
 
   // 未读数变化即同步底部「聊天」tab 红点：check 拉回与点开已读共用这一处。
   useEffect(() => {
@@ -154,6 +206,13 @@ export default function ChatList() {
       setTopBarStyle(getTopBarStyle(calculateTopBarMetrics()));
     }
   }, []);
+
+  useDidHide(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    loadIdRef.current += 1;
+    unreadRequestIdRef.current += 1;
+    setLoading(false);
+  });
 
   useEffect(() => () => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -194,87 +253,81 @@ export default function ChatList() {
 
   const hasSearchQuery = searchQuery.trim().length > 0;
 
-  if (loading || error || needsLogin) {
-    return (
-      <PageShell variant="scroll" noPadding>
-        <View className="chat-list" style={topBarStyle as CSSProperties}>
-          <ChatListTopBackdrop />
-          <View className="chat-list__body">
-            <ChatListHeader />
-            {loading ? (
-              <StatusStateCard className="chat-list__state" title="正在拉取聊天..." message="正在同步你的角色会话。" icon="…" />
-            ) : error ? (
-              <StatusStateCard
-                className="chat-list__state"
-                title="聊天列表暂时不可用"
-                message="稍后重试，已保存的会话不会丢失。"
-                tone="error"
-                icon="!"
-                primaryText="重新加载"
-                onPrimary={() => { void loadCharacterChats(searchQuery); }}
-              />
-            ) : (
-              <EmptyState
-                className="chat-list__state"
-                title="登录后查看聊天"
-                message="登录后会同步你的角色会话和关系进度。"
-                primaryText="去登录"
-                onPrimary={handleLogin}
-              />
-            )}
-          </View>
-          <StageTabBar selected="/pages/chat/list" />
-        </View>
-      </PageShell>
-    );
-  }
+  const showSignedOut = needsLogin || !isLoggedIn();
 
   return (
     <PageShell variant="scroll" noPadding>
-      <View className={`chat-list${hasSearchQuery ? ' chat-list--search' : ''}`} style={topBarStyle as CSSProperties}>
+      <View className={`chat-list${hasSearchQuery && !loading && !error && !showSignedOut ? ' chat-list--search' : ''}`} style={topBarStyle as CSSProperties}>
         <ChatListTopBackdrop />
         <View className="chat-list__body">
           <ChatListHeader />
-          <View className="chat-list__search-row">
-            <SearchBar
-              value={searchQuery}
-              placeholder="搜索角色或聊天内容"
-              className="chat-list__search-control"
-              onInput={handleSearchInput}
-              onClear={handleSearchClear}
-            />
-          </View>
-          {characterChats.length > 0 ? (
-            <View className="chat-list__list">
-              {characterChats.map((entry) => (
-                <ChatSessionRow
-                  key={entry.characterId}
-                  className="chat-list__item"
-                  characterName={entry.characterName}
-                  avatarUrl={getCharacterAvatarUrl(entry.characterName, entry.characterAvatarUrl, getCharacterGender(entry.characterName))}
-                  readOnly={!entry.canSend}
-                  timeLabel={getSessionTimeLabel(entry.updatedAt)}
-                  preview={getChatPreviewText(entry.lastMessage)}
-                  unreadCount={characterUnread[entry.characterId] ?? 0}
-                  onTap={() => handleCharacterTap(entry)}
+          {loading || error || showSignedOut ? (
+            <>
+              {loading ? (
+              <StatusStateCard className="chat-list__state" title="正在拉取聊天..." message="正在同步你的角色会话。" icon="…" />
+              ) : error ? (
+                <StatusStateCard
+                  className="chat-list__state"
+                  title="聊天列表暂时不可用"
+                  message="稍后重试，已保存的会话不会丢失。"
+                  tone="error"
+                  icon="!"
+                  primaryText="重新加载"
+                  onPrimary={() => { void loadCharacterChats(searchQuery); }}
                 />
-              ))}
-            </View>
+              ) : (
+                <EmptyState
+                  className="chat-list__state"
+                  title="登录后查看聊天"
+                  message="登录后会同步你的角色会话和关系进度。"
+                  primaryText="去登录"
+                  onPrimary={handleLogin}
+                />
+              )}
+            </>
           ) : (
-            <View className="chat-list__state chat-list__state--search">
-              <Image
-                className="chat-list__state-art"
-                src="/assets/second-contract/chat-empty.webp"
-                mode="aspectFit"
-              />
-              <Text className="chat-list__state-title">{hasSearchQuery ? '没有找到相关聊天' : '还没有聊天记录'}</Text>
-              <Text className="chat-list__state-message">
-                {hasSearchQuery ? '换个角色名或关键词试试' : '去首页选择一个角色开始对话吧'}
-              </Text>
-            </View>
+            <>
+              <View className="chat-list__search-row">
+                <SearchBar
+                  value={searchQuery}
+                  placeholder="搜索角色或聊天内容"
+                  className="chat-list__search-control"
+                  onInput={handleSearchInput}
+                  onClear={handleSearchClear}
+                />
+              </View>
+              {characterChats.length > 0 ? (
+                <View className="chat-list__list">
+                  {characterChats.map((entry) => (
+                    <ChatSessionRow
+                      key={entry.characterId}
+                      className="chat-list__item"
+                      characterName={entry.characterName}
+                      avatarUrl={getCharacterAvatarUrl(entry.characterName, entry.characterAvatarUrl, getCharacterGender(entry.characterName))}
+                      readOnly={!entry.canSend}
+                      timeLabel={getSessionTimeLabel(entry.updatedAt)}
+                      preview={getChatPreviewText(entry.lastMessage)}
+                      unreadCount={characterUnread[entry.characterId] ?? 0}
+                      onTap={() => handleCharacterTap(entry)}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <View className="chat-list__state chat-list__state--search">
+                  <Image
+                    className="chat-list__state-art"
+                    src="/assets/second-contract/chat-empty.webp"
+                    mode="aspectFit"
+                  />
+                  <Text className="chat-list__state-title">{hasSearchQuery ? '没有找到相关聊天' : '还没有聊天记录'}</Text>
+                  <Text className="chat-list__state-message">
+                    {hasSearchQuery ? '换个角色名或关键词试试' : '去首页选择一个角色开始对话吧'}
+                  </Text>
+                </View>
+              )}
+            </>
           )}
         </View>
-        <StageTabBar selected="/pages/chat/list" />
       </View>
     </PageShell>
   );

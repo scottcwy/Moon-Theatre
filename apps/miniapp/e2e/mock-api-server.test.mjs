@@ -110,6 +110,73 @@ describe('authenticated miniapp mock API server', () => {
     }
   });
 
+  it('injects a bounded failure for stale-content E2E checks', async () => {
+    const server = await startMockApiServer({ port: 0 });
+    try {
+      await fetch(`${server.baseUrl}/api/debug/fail-next`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method: 'GET', pathname: '/api/scripts', count: 1, status: 503 }),
+      });
+
+      const failed = await fetch(`${server.baseUrl}/api/scripts`);
+      const recovered = await fetch(`${server.baseUrl}/api/scripts`);
+
+      expect(failed.status).toBe(503);
+      expect(recovered.status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('can hold an old /api/me snapshot to reproduce PATCH/refresh races', async () => {
+    const server = await startMockApiServer({ port: 0, meResponseDelayMs: 50 });
+    try {
+      const staleResponse = fetch(`${server.baseUrl}/api/me`).then((response) => response.json());
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await fetch(`${server.baseUrl}/api/me`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferredName: '新称呼' }),
+      });
+
+      await expect(staleResponse).resolves.not.toMatchObject({ preferredName: '新称呼' });
+      await expect(fetch(`${server.baseUrl}/api/me`).then((response) => response.json()))
+        .resolves.toMatchObject({ preferredName: '新称呼' });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('can switch mocked account data for isolation checks', async () => {
+    const server = await startMockApiServer({ port: 0 });
+    try {
+      await fetch(`${server.baseUrl}/api/debug/set-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'account-b', nickname: '账号B用户', preferredName: null }),
+      });
+
+      const chats = await fetch(`${server.baseUrl}/api/chat/characters`).then((response) => response.json());
+      const me = await fetch(`${server.baseUrl}/api/me`).then((response) => response.json());
+      expect(chats.characters).toEqual([
+        expect.objectContaining({ characterId: 'account-b-only', characterName: '账号B专属角色' }),
+      ]);
+      expect(me).toMatchObject({ id: 'account-b', nickname: '账号B用户', preferredName: null });
+    } finally {
+      await fetch(`${server.baseUrl}/api/debug/set-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'dev-user',
+          nickname: '开发调试用户',
+          preferredName: null,
+        }),
+      }).catch(() => {});
+      await server.close();
+    }
+  });
+
   it('emits a deterministic chat stream error and records request bodies', async () => {
     const server = await startMockApiServer({ port: 0, chatMode: 'stream-error' });
 

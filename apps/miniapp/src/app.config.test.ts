@@ -11,6 +11,7 @@ describe('V1 tab bar configuration', () => {
 
   it('exposes community as the third tab', async () => {
     const { default: appConfig } = await import('./app.config');
+    const { TAB_BAR_ITEMS } = await import('./components/tab-bar.model');
     const tabPaths = appConfig.tabBar?.list.map((item) => item.pagePath);
     const tabTexts = appConfig.tabBar?.list.map((item) => item.text);
 
@@ -21,6 +22,8 @@ describe('V1 tab bar configuration', () => {
       'pages/profile/index',
     ]);
     expect(tabTexts).toEqual(['首页', '聊天', '社区', '我的']);
+    expect(tabPaths).toEqual(TAB_BAR_ITEMS.map((tab) => tab.path.slice(1)));
+    expect(tabTexts).toEqual(TAB_BAR_ITEMS.map((tab) => tab.text));
     expect((appConfig.tabBar as { custom?: boolean } | undefined)?.custom).toBe(true);
   });
 

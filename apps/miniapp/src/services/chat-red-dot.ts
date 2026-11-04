@@ -1,5 +1,6 @@
 import Taro from '@tarojs/taro';
 import { api, isLoggedIn } from './api';
+import { subscribeAuthSessionChanged } from './auth-session';
 import {
   RETURN_MESSAGES_CHECK_PATH,
 } from './return-messages';
@@ -63,3 +64,7 @@ export function startChatUnreadPolling(
   }, intervalMs);
   return () => clearInterval(timer);
 }
+
+subscribeAuthSessionChanged(() => {
+  syncChatTabRedDot({});
+});

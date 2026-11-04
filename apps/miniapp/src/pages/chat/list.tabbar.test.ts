@@ -6,12 +6,16 @@ const source = readFileSync(resolve(__dirname, 'list.tsx'), 'utf8');
 const modelSource = readFileSync(resolve(__dirname, 'list.model.ts'), 'utf8');
 const styleSource = readFileSync(resolve(__dirname, 'list.scss'), 'utf8');
 const appConfigSource = readFileSync(resolve(__dirname, '../../app.config.ts'), 'utf8');
+const tabModelSource = readFileSync(resolve(__dirname, '../../components/tab-bar.model.ts'), 'utf8');
 
 describe('chat list tab bar integration', () => {
-  it('keeps chat as a switchTab route with one floating stage navigation', () => {
-    expect(appConfigSource).toContain("pagePath: 'pages/chat/list', text: '聊天'");
+  it('keeps chat as a switchTab route without mounting a page-level footer', () => {
+    expect(appConfigSource).toContain('list: getAppTabBarItems()');
+    expect(tabModelSource).toContain("path: '/pages/chat/list'");
+    expect(tabModelSource).toContain("text: '聊天'");
     expect(appConfigSource).toContain('custom: true');
-    expect(source).toContain('<StageTabBar selected="/pages/chat/list" />');
+    expect(source).not.toContain('<StageTabBar');
+    expect(source).not.toContain('<TabBarHost');
     expect(source).not.toContain('hideTabBar');
     expect(source).not.toContain('chat-list-tabbar');
   });
@@ -21,7 +25,10 @@ describe('chat list tab bar integration', () => {
     expect(source).toContain('loadCharacterChats');
     // 命中缓存时先渲染再静默刷新，避免切 tab 返回的 loading 抖动；未读数仍每次拉取。
     expect(source).toContain('chatListCacheRef');
-    expect(source).toContain('silent: chatListCacheRef.current.has(searchQuery)');
+    expect(source).toContain('useTabPageLifecycle(loadChatPage');
+    expect(source).toContain('onSessionReset: resetSessionData');
+    expect(source).toContain('const silent = mode === \'refresh\' || chatListCacheRef.current.has(searchQuery)');
+    expect(source).not.toContain('verifyAuth');
     expect(source).toContain('loadCharacterUnread');
   });
 
@@ -38,7 +45,7 @@ describe('chat list tab bar integration', () => {
   it('drives the chat header from measured topbar metrics instead of fixed capsule guesses', () => {
     expect(source).toContain('calculateTopBarMetrics');
     expect(source).toContain('getMenuButtonBoundingClientRect');
-    expect(source).toContain('className="chat-list"');
+    expect(source).toContain('className={`chat-list${');
     expect(source).toContain('style={topBarStyle as CSSProperties}');
     expect(source).toContain('chat-list__topbar-backdrop');
     expect(source).not.toContain('<TopBar');

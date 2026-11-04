@@ -1,5 +1,10 @@
 import Taro from '@tarojs/taro';
 import type { ChatMode } from '../types';
+import {
+  getAuthSessionVersion,
+  notifyAuthSessionChanged,
+  subscribeAuthSessionChanged,
+} from './auth-session';
 
 const BASE_URL = API_BASE_URL;
 const DEV_TOKEN = 'dev-auth-bypass-token';
@@ -42,6 +47,17 @@ export class ApiError extends Error {
   }
 }
 
+export class AuthSessionChangedError extends Error {
+  constructor() {
+    super('登录会话已切换');
+    this.name = 'AuthSessionChangedError';
+  }
+}
+
+export function isAuthSessionChangedError(error: unknown): error is AuthSessionChangedError {
+  return error instanceof AuthSessionChangedError;
+}
+
 export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
@@ -57,6 +73,16 @@ export interface StoredUser {
   preferredName: string | null;
 }
 
+export interface CurrentUser extends StoredUser {
+  status?: string;
+}
+
+let currentUserRequest: {
+  token: string;
+  sessionVersion: number;
+  promise: Promise<CurrentUser>;
+} | null = null;
+
 export function getToken(): string {
   const token = Taro.getStorageSync(TOKEN_KEY) || '';
   if (!token && DEV_AUTH_BYPASS) {
@@ -67,6 +93,7 @@ export function getToken(): string {
 
 export function setToken(token: string): void {
   Taro.setStorageSync(TOKEN_KEY, token);
+  notifyAuthSessionChanged();
 }
 
 export function getUser(): StoredUser | null {
@@ -101,31 +128,66 @@ export function applyDevAuthBypass(): boolean {
 }
 
 export function clearAuth(): void {
+  const hadAuth = Boolean(Taro.getStorageSync(TOKEN_KEY) || Taro.getStorageSync(USER_KEY));
   Taro.removeStorageSync(TOKEN_KEY);
   Taro.removeStorageSync(USER_KEY);
+  if (hadAuth) notifyAuthSessionChanged();
 }
 
 export function isLoggedIn(): boolean {
   return !!getToken();
 }
 
+/**
+ * 会话用户请求的唯一网络入口。并发调用共享同一个 token 的 /api/me 请求，
+ * 请求完成后立即释放，下一次 Tab 显示仍可静默刷新资料。
+ */
+export function loadCurrentUser(): Promise<CurrentUser> {
+  const token = getToken();
+  const sessionVersion = getAuthSessionVersion();
+  if (!token) {
+    return Promise.reject(new ApiError('AUTH_EXPIRED', 401, '登录已过期，请重新登录'));
+  }
+  if (currentUserRequest?.token === token && currentUserRequest.sessionVersion === sessionVersion) {
+    return currentUserRequest.promise;
+  }
+
+  const promise = api.get<CurrentUser>('/api/me')
+    .then((user) => {
+      if (getToken() !== token || getAuthSessionVersion() !== sessionVersion) {
+        throw new AuthSessionChangedError();
+      }
+      setUser({
+        id: user.id,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        preferredName: user.preferredName,
+      });
+      return user;
+    })
+    .finally(() => {
+      if (currentUserRequest?.promise === promise) {
+        currentUserRequest = null;
+      }
+    });
+  currentUserRequest = { token, sessionVersion, promise };
+  return promise;
+}
+
 export async function verifyStoredAuth(): Promise<boolean> {
   if (!getToken()) return false;
 
   try {
-    const user = await api.get<StoredUser & { status?: string }>('/api/me');
+    const user = await loadCurrentUser();
     if (user.status && user.status !== 'active') {
       clearAuth();
       return false;
     }
-    setUser({
-      id: user.id,
-      nickname: user.nickname,
-      avatarUrl: user.avatarUrl,
-      preferredName: user.preferredName,
-    });
     return true;
   } catch (error) {
+    if (isAuthSessionChangedError(error)) {
+      return false;
+    }
     if (isAuthExpiredError(error)) {
       return false;
     }
@@ -139,6 +201,7 @@ export async function verifyStoredAuth(): Promise<boolean> {
 
 async function request<T>(options: RequestOptions): Promise<T> {
   const { url, method = 'GET', data, header = {} } = options;
+  const sessionVersion = getAuthSessionVersion();
   const requestUrl = `${BASE_URL}${url}`;
 
   const token = getToken();
@@ -170,6 +233,9 @@ async function request<T>(options: RequestOptions): Promise<T> {
     } catch (err) {
       lastNetworkError = err;
       logApiRequestFailure(method, requestUrl, attempt, startedAt, err);
+      if (getAuthSessionVersion() !== sessionVersion) {
+        throw new AuthSessionChangedError();
+      }
       if (attempt >= maxAttempts || !isTransientNetworkError(err)) {
         break;
       }
@@ -178,8 +244,15 @@ async function request<T>(options: RequestOptions): Promise<T> {
   }
 
   if (!response) {
+    if (getAuthSessionVersion() !== sessionVersion) {
+      throw new AuthSessionChangedError();
+    }
     const reason = getNetworkErrorMessage(lastNetworkError);
     throw new ApiError('API_ERROR', 0, `网络请求失败: ${method} ${requestUrl} (${reason})`, lastNetworkError);
+  }
+
+  if (getAuthSessionVersion() !== sessionVersion) {
+    throw new AuthSessionChangedError();
   }
 
   if (response.statusCode === 401) {
@@ -424,11 +497,29 @@ export function streamChat(
   callbacks: StreamCallbacks
 ): { abort: () => void } {
   const token = getToken() || '';
+  const sessionVersion = getAuthSessionVersion();
   let buffer = '';
   let receivedChunk = false;
   let finished = false;
   let stalled = false;
+  let requestTask: ReturnType<typeof Taro.request> | null = null;
+  let unsubscribeSession: (() => void) | null = null;
+  let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
   const chunkDecoder = createChunkDecoder();
+
+  const clearHeartbeat = () => {
+    if (heartbeatTimer !== null) {
+      clearTimeout(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  };
+
+  const finishStream = () => {
+    finished = true;
+    clearHeartbeat();
+    unsubscribeSession?.();
+    unsubscribeSession = null;
+  };
 
   const processStreamText = (text: string) => {
     if (finished) return;
@@ -447,8 +538,7 @@ export function streamChat(
         if (parsed.type === 'delta' && parsed.content) {
           callbacks.onDelta(parsed.content);
         } else if (parsed.type === 'done') {
-          clearHeartbeat();
-          finished = true;
+          finishStream();
           callbacks.onDone({
             messageId: parsed.messageId,
             sessionId: parsed.sessionId,
@@ -469,8 +559,7 @@ export function streamChat(
             balanceAfter: parsed.balanceAfter,
           });
         } else if (parsed.type === 'error') {
-          clearHeartbeat();
-          finished = true;
+          finishStream();
           callbacks.onError(parsed.code || parsed.message || 'unknown');
         }
       } catch {
@@ -479,7 +568,7 @@ export function streamChat(
     }
   };
 
-  const requestTask = Taro.request({
+  requestTask = Taro.request({
     url: `${BASE_URL}/api/chat/stream`,
     method: 'POST',
     data: payload,
@@ -492,23 +581,24 @@ export function streamChat(
     timeout: CHAT_STREAM_REQUEST_TIMEOUT_MS,
     success(res) {
       if (stalled || finished) return;
+      if (getAuthSessionVersion() !== sessionVersion) {
+        finishStream();
+        return;
+      }
       if (res.statusCode === 401) {
-        clearHeartbeat();
-        finished = true;
+        finishStream();
         clearAuth();
         if (callbacks.onAuthExpired) callbacks.onAuthExpired();
         else callbacks.onError('auth_expired');
         return;
       }
       if (res.statusCode === 402) {
-        clearHeartbeat();
-        finished = true;
+        finishStream();
         callbacks.onError(getStreamErrorCode(res.data, 'insufficient_points'));
         return;
       }
       if (res.statusCode >= 400) {
-        clearHeartbeat();
-        finished = true;
+        finishStream();
         callbacks.onError(getStreamErrorCode(res.data, 'unknown'));
         return;
       }
@@ -517,41 +607,56 @@ export function streamChat(
       if (data) {
         processStreamText(data.endsWith('\n') ? data : `${data}\n`);
       }
-      clearHeartbeat();
-      finished = true;
+      finishStream();
     },
     fail(err) {
       if (stalled) return;
-      clearHeartbeat();
-      finished = true;
+      if (getAuthSessionVersion() !== sessionVersion) {
+        finishStream();
+        return;
+      }
+      finishStream();
       const message = err.errMsg || 'Stream request failed';
       callbacks.onError(message);
     },
   });
 
+  unsubscribeSession = subscribeAuthSessionChanged(() => {
+    if (finished) return;
+    stalled = true;
+    finishStream();
+    requestTask?.abort();
+  });
+
   requestTask.onChunkReceived((res) => {
     if (stalled || finished) return;
+    if (getAuthSessionVersion() !== sessionVersion) {
+      stalled = true;
+      finishStream();
+      requestTask?.abort();
+      return;
+    }
     receivedChunk = true;
     const chunk = decodeChunk(res.data, chunkDecoder);
     processStreamText(chunk);
   });
 
-  let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
-  const clearHeartbeat = () => {
-    if (heartbeatTimer !== null) {
-      clearTimeout(heartbeatTimer);
-      heartbeatTimer = null;
-    }
-  };
   const restartHeartbeat = () => {
     clearHeartbeat();
     heartbeatTimer = setTimeout(() => {
+      if (getAuthSessionVersion() !== sessionVersion) {
+        stalled = true;
+        finishStream();
+        requestTask?.abort();
+        return;
+      }
+      if (finished) return;
       // 契约（chat-audit rev3 §4 P1-1）：30s 无任何数据且未 done → onError('stream_stalled') 并 abort；
       // stall 后不再送达 delta/done，客户端对迟到回调做忽略。
       stalled = true;
-      finished = true;
+      finishStream();
       callbacks.onError('stream_stalled');
-      requestTask.abort();
+      requestTask?.abort();
     }, STREAM_STALLED_TIMEOUT_MS);
   };
 
@@ -559,9 +664,8 @@ export function streamChat(
 
   return {
     abort: () => {
-      clearHeartbeat();
-      finished = true;
-      requestTask.abort();
+      finishStream();
+      requestTask?.abort();
     },
   };
 }

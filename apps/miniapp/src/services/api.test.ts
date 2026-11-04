@@ -99,6 +99,123 @@ describe('miniapp api client', () => {
     expect(getUser()).toEqual({ id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: '小岚' });
   });
 
+  it('deduplicates concurrent session profile requests for the same token', async () => {
+    const { loadCurrentUser, setToken, verifyStoredAuth } = await import('./api');
+    setToken('auth-token');
+    requestMock.mockResolvedValue({
+      statusCode: 200,
+      data: { id: 'user-id', nickname: '旅人', avatarUrl: null, preferredName: '小岚', status: 'active' },
+    });
+
+    const [profile, authenticated] = await Promise.all([
+      loadCurrentUser(),
+      verifyStoredAuth(),
+    ]);
+
+    expect(profile.id).toBe('user-id');
+    expect(authenticated).toBe(true);
+    expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not commit an old /api/me response after the token changes', async () => {
+    const {
+      getToken,
+      getUser,
+      isAuthSessionChangedError,
+      loadCurrentUser,
+      setToken,
+      setUser,
+    } = await import('./api');
+    let resolveRequest: ((value: unknown) => void) | undefined;
+    requestMock.mockImplementation(() => new Promise((resolve) => {
+      resolveRequest = resolve;
+    }));
+    setToken('account-a-token');
+    setUser({ id: 'account-a', nickname: 'A', avatarUrl: null, preferredName: null });
+
+    const pending = loadCurrentUser();
+    setToken('account-b-token');
+    setUser({ id: 'account-b', nickname: 'B', avatarUrl: null, preferredName: null });
+    resolveRequest?.({
+      statusCode: 200,
+      data: { id: 'account-a', nickname: 'A', avatarUrl: null, preferredName: null, status: 'active' },
+    });
+
+    await expect(pending).rejects.toSatisfy(isAuthSessionChangedError);
+    expect(getToken()).toBe('account-b-token');
+    expect(getUser()?.id).toBe('account-b');
+  });
+
+  it('does not clear a newly logged-in session when an old verification finishes', async () => {
+    const { getToken, setToken, verifyStoredAuth } = await import('./api');
+    let resolveRequest: ((value: unknown) => void) | undefined;
+    requestMock.mockImplementation(() => new Promise((resolve) => {
+      resolveRequest = resolve;
+    }));
+    setToken('account-a-token');
+
+    const pending = verifyStoredAuth();
+    setToken('account-b-token');
+    resolveRequest?.({
+      statusCode: 200,
+      data: { id: 'account-a', nickname: 'A', avatarUrl: null, preferredName: null, status: 'active' },
+    });
+
+    await expect(pending).resolves.toBe(false);
+    expect(getToken()).toBe('account-b-token');
+  });
+
+  it('lets a new account request finish after the old account request', async () => {
+    const { getUser, setToken, loadCurrentUser } = await import('./api');
+    const resolvers: Array<(value: unknown) => void> = [];
+    requestMock.mockImplementation(() => new Promise((resolve) => {
+      resolvers.push(resolve);
+    }));
+    setToken('account-a-token');
+    const pendingA = loadCurrentUser();
+    setToken('account-b-token');
+    const pendingB = loadCurrentUser();
+
+    resolvers[1]?.({
+      statusCode: 200,
+      data: { id: 'account-b', nickname: 'B', avatarUrl: null, preferredName: null, status: 'active' },
+    });
+    await expect(pendingB).resolves.toMatchObject({ id: 'account-b' });
+    resolvers[0]?.({
+      statusCode: 200,
+      data: { id: 'account-a', nickname: 'A', avatarUrl: null, preferredName: null, status: 'active' },
+    });
+    await expect(pendingA).rejects.toBeInstanceOf(Error);
+
+    expect(requestMock).toHaveBeenCalledTimes(2);
+    expect(getUser()?.id).toBe('account-b');
+  });
+
+  it('does not reuse an in-flight session request after a same-token relogin', async () => {
+    const { clearAuth, setToken, loadCurrentUser } = await import('./api');
+    const resolvers: Array<(value: unknown) => void> = [];
+    requestMock.mockImplementation(() => new Promise((resolve) => {
+      resolvers.push(resolve);
+    }));
+    setToken('same-token');
+    const pendingA = loadCurrentUser();
+    clearAuth();
+    setToken('same-token');
+    const pendingB = loadCurrentUser();
+
+    expect(requestMock).toHaveBeenCalledTimes(2);
+    resolvers[1]?.({
+      statusCode: 200,
+      data: { id: 'account-b', nickname: 'B', avatarUrl: null, preferredName: null, status: 'active' },
+    });
+    await expect(pendingB).resolves.toMatchObject({ id: 'account-b' });
+    resolvers[0]?.({
+      statusCode: 200,
+      data: { id: 'account-a', nickname: 'A', avatarUrl: null, preferredName: null, status: 'active' },
+    });
+    await expect(pendingA).rejects.toBeInstanceOf(Error);
+  });
+
   it('keeps the stored user session when verification hits a transient network failure', async () => {
     const { getToken, getUser, setToken, setUser, verifyStoredAuth } = await import('./api');
     setToken('auth-token');
@@ -215,6 +332,37 @@ describe('miniapp api client', () => {
       unlockedTitles: [{ code: 'moon_walker', name: '月下行者' }],
       balanceAfter: 7,
     }));
+  });
+
+  it('aborts a chat stream without emitting stall errors after account change', async () => {
+    vi.useFakeTimers();
+    try {
+      const { setToken, streamChat } = await import('./api');
+      setToken('account-a-token');
+      const abort = vi.fn();
+      requestMock.mockReturnValue({
+        onChunkReceived: vi.fn(),
+        abort,
+      });
+      const onError = vi.fn();
+
+      streamChat(
+        {
+          characterId: 'character-id',
+          message: '账号 A 的消息',
+          modelTier: 'standard',
+          mode: 'free',
+        },
+        { onDelta: vi.fn(), onDone: vi.fn(), onError },
+      );
+      setToken('account-b-token');
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect(abort).toHaveBeenCalledTimes(1);
+      expect(onError).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('sends clientMessageId with chat stream requests and returns error codes before raw messages', async () => {

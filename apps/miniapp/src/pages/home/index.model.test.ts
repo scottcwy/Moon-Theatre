@@ -12,6 +12,7 @@ import {
   getScriptRoleSelectUrl,
   homeSections,
   shouldApplyScriptResponse,
+  shouldFallbackToPublicCharacters,
 } from './index.model';
 import { calculateTopBarMetrics, getTopBarStyle } from '../../utils/topbar';
 
@@ -39,6 +40,12 @@ describe('home navigation helpers', () => {
   it('builds the frequent characters url with turn_count sorting and a fixed limit', () => {
     expect(buildFrequentCharactersUrl()).toBe('/api/chat/characters?sort=turn_count&limit=4');
     expect(buildFrequentCharactersUrl(8)).toBe('/api/chat/characters?sort=turn_count&limit=8');
+  });
+
+  it('keeps existing frequent characters on silent failures', () => {
+    expect(shouldFallbackToPublicCharacters(true, 3)).toBe(false);
+    expect(shouldFallbackToPublicCharacters(true, 0)).toBe(true);
+    expect(shouldFallbackToPublicCharacters(false, 3)).toBe(true);
   });
 
   it('routes every API script id to the generic role selection page', () => {

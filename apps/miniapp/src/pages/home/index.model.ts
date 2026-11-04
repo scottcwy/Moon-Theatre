@@ -133,6 +133,10 @@ export function shouldApplyScriptResponse(requestId: number, latestRequestId: nu
   return requestId === latestRequestId;
 }
 
+export function shouldFallbackToPublicCharacters(silent: boolean, characterCount: number): boolean {
+  return !silent || characterCount === 0;
+}
+
 export function getScriptCoverUrl(script: ScriptCoverInput): string {
   const explicitUrl = script.coverUrl?.trim();
   if (explicitUrl) return explicitUrl;

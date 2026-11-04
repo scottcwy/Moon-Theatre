@@ -1,5 +1,6 @@
-import { PropsWithChildren, useEffect, useRef } from 'react';
+import { createElement, Fragment, PropsWithChildren, useEffect, useRef } from 'react';
 import { useDidHide, useDidShow } from '@tarojs/taro';
+import { TabBarHost } from './components/TabBarHost';
 import { startChatUnreadPolling } from './services/chat-red-dot';
 import './app.scss';
 
@@ -23,7 +24,7 @@ function App({ children }: PropsWithChildren) {
     stopPollingRef.current = null;
   }, []);
 
-  return children;
+  return createElement(Fragment, null, children, createElement(TabBarHost));
 }
 
 export default App;

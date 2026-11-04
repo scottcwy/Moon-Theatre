@@ -1,0 +1,113 @@
+{
+  "ok": true,
+  "baseline": false,
+  "projectRoot": "/Users/macbookpro/.codex/worktrees/tab-navigation-lifecycle/剧本杀角色扮演小程序/apps/miniapp",
+  "mockApi": "http://127.0.0.1:3002",
+  "startedAt": "2026-11-04T14:06:45.976Z",
+  "finishedAt": "2026-11-04T14:07:44.001Z",
+  "head": "f49f0cee954b4b51b2b0ae5ae03dfff85081d833",
+  "sourceFingerprint": "sha256:6bbf507fae6cfacc787607507cb0778dc1ab54c17a3b53409ce6d9acbe2da1f5",
+  "appJsonFingerprint": "sha256:a14b4149c91c5d312eb0450c855d2ca06e99fd4855387748ff108546ff731b1a",
+  "observed": {
+    "firstProfileLoading": true,
+    "chatFooter": {
+      "count": 1,
+      "selectedIndex": 1,
+      "selectedLabel": "聊天",
+      "source": "custom-tab-bar"
+    },
+    "footerCounts": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "selectedLabels": [
+      "首页",
+      "社区",
+      "首页",
+      "社区",
+      "首页",
+      "社区"
+    ],
+    "profileShows": [
+      {
+        "round": 0,
+        "loadingSkeleton": false,
+        "footerCount": 1,
+        "selectedLabel": "我的",
+        "apiMeRequests": 1
+      },
+      {
+        "round": 0,
+        "loadingSkeleton": false,
+        "footerCount": 1,
+        "selectedLabel": "我的",
+        "apiMeRequests": 1
+      },
+      {
+        "round": 1,
+        "loadingSkeleton": false,
+        "footerCount": 1,
+        "selectedLabel": "我的",
+        "apiMeRequests": 1
+      },
+      {
+        "round": 1,
+        "loadingSkeleton": false,
+        "footerCount": 1,
+        "selectedLabel": "我的",
+        "apiMeRequests": 1
+      },
+      {
+        "round": 2,
+        "loadingSkeleton": false,
+        "footerCount": 1,
+        "selectedLabel": "我的",
+        "apiMeRequests": 1
+      },
+      {
+        "round": 2,
+        "loadingSkeleton": false,
+        "footerCount": 1,
+        "selectedLabel": "我的",
+        "apiMeRequests": 1
+      }
+    ],
+    "footerSource": "custom-tab-bar",
+    "scrollBeforeSwitch": 360,
+    "scrollAfterReturn": 360,
+    "staleErrorEvidence": {
+      "homeScriptsRetained": true,
+      "profileGrowthRetained": true
+    },
+    "profileMutationRaceEvidence": {
+      "savedPreferredName": "复核称呼",
+      "staleGetDelayMs": 900
+    },
+    "accountSwitchEvidence": {
+      "chatLoadingBeforeRefresh": true,
+      "accountBChatVisible": true,
+      "accountACharacterVisible": false,
+      "accountBProfileName": "账号B用户"
+    },
+    "scrollDiagnostics": {
+      "pageScrollTop": null,
+      "scrollNames": [
+        "onPageScroll"
+      ],
+      "scrollValues": {
+        "onPageScroll": "function"
+      }
+    }
+  },
+  "failures": [],
+  "screenshot": "e2e/artifacts/tab-lifecycle/profile-after-three-rounds.png",
+  "requestSummary": {
+    "me": 7,
+    "chats": 7,
+    "scripts": 6
+  }
+}

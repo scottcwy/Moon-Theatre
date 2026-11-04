@@ -45,7 +45,7 @@ describe('production pages use shared miniapp ui', () => {
     expect(profilePage).toContain('profile__stat-grid');
     expect(profilePage).toContain('profile__empty-panel');
     expect(profilePage).toContain('CharacterAvatar');
-    expect(profilePage).toContain('PointsBadge');
+    expect(profilePage).toContain('BalancePanel');
     expect(profilePage).toContain('AchievementIcon');
     expect(profilePage).toContain('preferredName');
     expect(profilePage).toContain('getProfileDisplayName');

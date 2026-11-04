@@ -71,6 +71,17 @@ The smoke test uses `@weapp-vite/miniprogram-automator` and launches the built T
 The runtime UI test visits the primary miniapp pages, saves screenshots, and fails on hard runtime layout problems.
 The authenticated runtime UI test starts a local mock API, drives logged-in page states, and covers chat failure, insufficient points, quota buy/result, and checkout navigation.
 
+## Tab 生命周期与 footer 切换
+
+先用独立空闲端口构建，再运行切换 runner：
+
+```bash
+NODE_ENV=development DEV_AUTH_BYPASS=true API_BASE_URL=http://127.0.0.1:3002 pnpm --filter @juben-sha/miniapp build:weapp
+MOCK_API_PORT=3002 pnpm --filter @juben-sha/miniapp test:e2e:tab-lifecycle
+```
+
+runner 先检查首页、聊天、我的、社区四个 Tab 的 footer，再覆盖“我的 → 首页 → 我的 → 社区 → 我的”三轮。每次 Profile 显示单独统计新增 GET `/api/me`，首轮必须出现 `.profile__loading-stage`，后续显示不得重新出现。微信 `custom-tab-bar` 不在 Page DOM 查询域时，runner 从当前页面 `getTabBar()` 的组件查询域读取 footer 和选中项；组件查询不到 footer 会失败，不会用 `switchTab` 兜底冒充成功。截图保存为 `weapp-home.png`、`weapp-chat.png`、`weapp-community.png`、`weapp-profile.png`。若 automator 未就绪，`TAB_LIFECYCLE_WATCHDOG_MS` 会写入带 `BLOCKED` 原因的 `report.json`。
+
 CLI resolution order:
 
 1. `WECHAT_DEVTOOLS_CLI`

@@ -1,3 +1,5 @@
+import { getAppTabBarItems } from './components/tab-bar.model';
+
 const visualFixturePages = process.env.VISUAL_FIXTURES === 'true'
   ? ['pages/quota/visual-fixture/index']
   : [];
@@ -25,12 +27,7 @@ export default defineAppConfig({
     selectedColor: '#8B4258',
     backgroundColor: '#FFFBF8',
     borderStyle: 'white',
-    list: [
-      { pagePath: 'pages/home/index', text: '首页', iconPath: 'assets/icons/home.png', selectedIconPath: 'assets/icons/home-active.png' },
-      { pagePath: 'pages/chat/list', text: '聊天', iconPath: 'assets/icons/chat.png', selectedIconPath: 'assets/icons/chat-active.png' },
-      { pagePath: 'pages/community/index', text: '社区', iconPath: 'assets/icons/community.png', selectedIconPath: 'assets/icons/community-active.png' },
-      { pagePath: 'pages/profile/index', text: '我的', iconPath: 'assets/icons/profile.png', selectedIconPath: 'assets/icons/profile-active.png' },
-    ],
+    list: getAppTabBarItems(),
   } as any,
   window: {
     backgroundColor: '#FFFBF8',

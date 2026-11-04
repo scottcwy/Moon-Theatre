@@ -1,4 +1,5 @@
 import { View } from '@tarojs/components';
+import { useTabBarSelection } from '../../components/tab-bar-state';
 import { PilotFrame } from './design-pilot/PilotFrame';
 import { getPilotFrame } from './design-pilot/frame-registry';
 import './design-pilot/PilotFrame.scss';
@@ -10,6 +11,7 @@ function getRequestedFrameKey(): string | null {
 }
 
 export default function HomePilot() {
+  useTabBarSelection();
   const frame = getPilotFrame(getRequestedFrameKey());
   const misans = (globalThis as { location?: { search?: string } }).location?.search?.includes('font=misans');
   return (
