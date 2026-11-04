@@ -423,10 +423,11 @@ export default function Home() {
               const coverUrl = getScriptCoverUrl(script);
               return (
                 <View key={script.id} className="theater-home__script-row" onTap={() => chooseRole(script)}>
-                  <View className="theater-home__script-spine">
-                    <Text className="theater-home__script-spine-text">{display?.title ?? script.title.slice(0, 6)}</Text>
-                  </View>
                   {coverUrl ? <Image className="theater-home__script-art" src={coverUrl} mode="aspectFill" /> : null}
+                  <View className="theater-home__script-title-scrim" />
+                  <View className="theater-home__script-title-wrap">
+                    <Text className="theater-home__script-title">{display?.title ?? script.title}</Text>
+                  </View>
                   <View className="theater-home__script-copy">
                     <Text className="theater-home__script-badge">{display?.badge ?? (script.genre || '剧本')}</Text>
                     <Text className="theater-home__script-desc">{display?.description ?? (script.description || '这一段故事，等你入场。')}</Text>

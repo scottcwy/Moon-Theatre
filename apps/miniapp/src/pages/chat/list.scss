@@ -8,12 +8,13 @@ $search-gold: #c9a25e;
   min-height: 100vh;
   color: #f3dfca;
   background:
-    linear-gradient(180deg, rgba(16, 11, 13, 0.06) 0 10%, rgba(224, 210, 196, 0.9) 16%, #decdbd 22%, #decdbd 100%),
+    /* 照片延续到标题与搜索区，米纸底在首条会话前完成过渡。 */
+    linear-gradient(180deg, rgba(16, 11, 13, 0.06) 0 14%, rgba(224, 210, 196, 0.2) 18%, rgba(224, 210, 196, 0.84) 24%, rgba(224, 210, 196, 0.97) 28%, #decdbd 32%, #decdbd 100%),
     url('../../assets/backgrounds/courtyard.jpg') center top / 100% auto no-repeat;
 }
 
 .chat-list__body {
-  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-3}) $page-padding-h calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
+  padding: calc(var(--topbar-total-height, #{$topbar-height}) + #{$space-1}) $page-padding-h calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
 }
 
 .chat-list__topbar-backdrop {
@@ -31,7 +32,7 @@ $search-gold: #c9a25e;
 .chat-list__header {
   display: flex;
   align-items: center;
-  min-height: 88rpx;
+  min-height: 64rpx;
   justify-content: center;
   padding: 0 $space-2;
   box-sizing: border-box;
