@@ -1,4 +1,5 @@
 import { listPayments } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 type PaymentRow = Record<string, unknown> & {
   id: string; provider: string; providerTransactionId: string | null;
@@ -6,6 +7,7 @@ type PaymentRow = Record<string, unknown> & {
 };
 
 export default async function PaymentsPage() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   let result: Awaited<ReturnType<typeof listPayments>>;
   try {
     result = await listPayments({ page: 1, pageSize: 50 });

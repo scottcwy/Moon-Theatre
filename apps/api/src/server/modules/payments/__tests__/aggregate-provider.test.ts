@@ -26,6 +26,8 @@ describe('AggregatePaymentProvider', () => {
       const provider = makeProvider('test_secret_123');
       const result = await provider.createPrepay({
         orderId: 'order-abc',
+        idempotencyKey: 'payment-attempt-abc',
+        createdAt: '2026-11-04T10:00:00.000Z',
         userId: 'user-1',
         amountCents: 1000,
         description: 'Test package',
@@ -41,6 +43,28 @@ describe('AggregatePaymentProvider', () => {
       expect(result.prepayParams.appId).toBe('test_app');
       expect(result.prepayParams.merchantId).toBe('test_mch');
       expect(result.prepayParams.paySign?.length).toBe(64);
+    });
+
+    it('derives stable provider idempotency fields from the persisted key', async () => {
+      const provider = makeProvider('test_secret_123');
+      const input = {
+        orderId: 'order-stable',
+        idempotencyKey: 'payment-stable-1',
+        createdAt: '2026-11-04T10:00:00.000Z',
+        userId: 'user-1',
+        amountCents: 1000,
+        description: 'Test package',
+      };
+      const first = await provider.createPrepay(input);
+      const replay = await provider.createPrepay(input);
+      const differentKey = await provider.createPrepay({
+        ...input,
+        idempotencyKey: 'payment-stable-2',
+      });
+
+      expect(replay).toEqual(first);
+      expect(differentKey.prepayParams.nonceStr).not.toBe(first.prepayParams.nonceStr);
+      expect(differentKey.prepayParams.paySign).not.toBe(first.prepayParams.paySign);
     });
   });
 

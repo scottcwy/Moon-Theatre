@@ -47,9 +47,10 @@ describe('payment notify service', () => {
         paidAt: '2026-06-14T00:00:00.000Z',
       },
       'success',
+      'aggregate',
     );
 
-    expect(tx.forUpdate).toHaveBeenCalledTimes(1);
+    expect(tx.forUpdate).toHaveBeenCalledTimes(2);
     expect(creditWalletInTransaction).toHaveBeenCalledWith(
       tx,
       'user-id',
@@ -61,13 +62,21 @@ describe('payment notify service', () => {
 });
 
 function makeTransactionClient(order: Record<string, unknown>) {
-  const forUpdate = vi.fn().mockResolvedValue([order]);
+  const payment = {
+    id: 'payment-id',
+    orderId: 'order-id',
+    provider: 'aggregate',
+  };
+  const forUpdate = vi
+    .fn()
+    .mockResolvedValueOnce([order])
+    .mockResolvedValueOnce([payment]);
   const orderLimit = vi.fn().mockReturnValue({ for: forUpdate });
-  const paymentLimit = vi.fn().mockResolvedValue([]);
+  const paymentLimit = vi.fn().mockReturnValue({ for: forUpdate });
   const where = vi
     .fn()
     .mockReturnValueOnce({ limit: orderLimit })
-    .mockReturnValueOnce({ limit: paymentLimit });
+    .mockReturnValueOnce({ orderBy: vi.fn().mockReturnValue({ limit: paymentLimit }) });
   const from = vi.fn().mockReturnValue({ where });
   const select = vi.fn().mockReturnValue({ from });
   const set = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) });

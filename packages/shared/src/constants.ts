@@ -21,6 +21,9 @@ export const MODEL_TIER_COSTS: Record<ModelTier, number> = {
   immersive: 6,
 };
 
+/** The only model permitted for the production roleplay runtime. */
+export const CHAT_RUNTIME_MODEL = 'siliconflow/deepseek-ai/DeepSeek-V4-Flash';
+
 export const MOOD_TYPES = {
   NEUTRAL: 'neutral',
   HAPPY: 'happy',

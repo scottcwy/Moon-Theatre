@@ -1,6 +1,8 @@
 import { listModelUsageLogs } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 export default async function ModelUsagePage() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   let result: Awaited<ReturnType<typeof listModelUsageLogs>>;
   try {
     result = await listModelUsageLogs({ page: 1, pageSize: 50 });

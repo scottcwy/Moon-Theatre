@@ -108,15 +108,32 @@ describe('middleware Basic Auth path coverage', () => {
     expect(response.status).toBe(401);
   });
 
-  it('allows correct Basic credentials on admin page and admin API', async () => {
+  it('does not treat Basic credentials as an administrator page identity', async () => {
     stubAdminEnv();
     const { middleware } = await loadMiddleware();
-    for (const path of ['/admin/stats', '/api/admin/stats']) {
-      const response = await middleware(
-        makeRequest(path, { headers: { authorization: basicAuth(BASIC_USER, BASIC_PASSWORD) } }),
-      );
-      expect(response.status, path).toBe(200);
-    }
+    const page = await middleware(
+      makeRequest('/admin/stats', { headers: { authorization: basicAuth(BASIC_USER, BASIC_PASSWORD) } }),
+    );
+    expect(page.status).toBe(401);
+    await expect(page.text()).resolves.toBe('Administrator identity required');
+
+    const api = await middleware(
+      makeRequest('/api/admin/stats', { headers: { authorization: basicAuth(BASIC_USER, BASIC_PASSWORD) } }),
+    );
+    expect(api.status).toBe(200);
+  });
+
+  it('requires both Basic and a verifiable admin session cookie for page entry', async () => {
+    stubAdminEnv();
+    const { middleware } = await loadMiddleware();
+    const response = await middleware(makeRequest('/admin/stats', {
+      headers: {
+        authorization: basicAuth(BASIC_USER, BASIC_PASSWORD),
+        cookie: 'admin_session=opaque-session-id',
+      },
+    }));
+
+    expect(response.status).toBe(200);
   });
 
   it('returns JSON error for admin API 401 and plain text for admin page 401', async () => {

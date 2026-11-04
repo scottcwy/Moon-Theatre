@@ -6,10 +6,10 @@ import { randomUUID } from 'crypto';
 export class MockPaymentProvider implements PaymentProvider {
   async createPrepay(input: CreatePrepayInput): Promise<CreatePrepayResult> {
     return {
-      providerOrderId: `mock_${randomUUID()}`,
+      providerOrderId: `mock_${input.idempotencyKey}`,
       prepayParams: {
-        timeStamp: String(Math.floor(Date.now() / 1000)),
-        nonceStr: randomUUID(),
+        timeStamp: String(Math.floor(new Date(input.createdAt).getTime() / 1000)),
+        nonceStr: input.idempotencyKey,
         package: `prepay_id=mock_${input.orderId}`,
         signType: 'RSA',
         paySign: 'mock_sign',

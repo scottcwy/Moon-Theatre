@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   if (processStatus === 'success') {
     try {
-      const result = await processPaymentNotify(notify, processStatus);
+      const result = await processPaymentNotify(notify, processStatus, config.paymentProvider);
       if (result.alreadyCredited) {
         return successResponse({ code: 'SUCCESS', message: 'Already credited' });
       }
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
   } else {
     try {
-      await processPaymentNotify(notify, processStatus);
+      await processPaymentNotify(notify, processStatus, config.paymentProvider);
     } catch (err) {
       if (err instanceof PaymentNotifyError) {
         return errorResponse(err.message, err.status);

@@ -4,6 +4,8 @@
 >
 > **修订标注（2026-10-29）**：§7.3 请求头契约描述已按代码现实更新——角色 Agent 架构（`USE_ROLEPLAY_AGENTS=true`）下 adapter 已补齐完整 6 头契约（`adapter.ts` L61-76），旧「文档漂移」标注不再适用。
 >
+> **修订标注（2026-11-04）**：运行时与支付可靠性加固后，业务 `model_profiles.modelName/provider` 只表示计费配置展示，实际运行模型来自 FastClaw runtime-spec/SSE；普通 seed 仅允许空库 bootstrap；admin Basic 不再是管理员身份。
+>
 > **修订标注（2026-10-19）**：本文档为 V1 历史基线。当前视觉与生产端实现以 `docs/specs/2026-10-01-H5视觉到Taro生产前端-多Agent实施冻结Spec.md` 和 `docs/specs/2026-10-19-月满楼小程序UI细节打磨Spec.md` 为准；`DESIGN.md` 已重构为当前 H5 剧场视觉契约，旧 Material 暖白体系不再是视觉依据。
 
 ## 1. 文档目的
@@ -295,7 +297,7 @@ Taro
 
 点数不足时不得调用 FastClaw。接口返回可恢复的业务错误，由小程序展示点数不足状态并引导进入额度包购买页。
 
-当前实现已返回 `X-Stream-Mode: incremental-buffered`（原 `moderated-buffered` 已被 2026-08-12 `chat-streaming-incremental-output-spec` 冻结修订）。`done` 事件同步保证 `messageId`、`sessionId`、`mood`（如可解析）和 `balanceAfter`；还可能包含 `fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 等字段。`CHAT_EFFECTS_ASYNC_ENABLED=true` 时，`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 允许缺省。当前代码尚未在 FastClaw 错误路径写入 `model_usage_logs(status=failed)`，这是后续可观测性补强项。
+当前实现已返回 `X-Stream-Mode: incremental-buffered`（原 `moderated-buffered` 已被 2026-08-12 `chat-streaming-incremental-output-spec` 冻结修订）。`done` 事件同步保证 `messageId`、`sessionId`、`mood`（如可解析）和 `balanceAfter`；还可能包含 `fallback`、`blocked`、`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 等字段。`CHAT_EFFECTS_ASYNC_ENABLED=true` 时，`bondLevel`、`bondExp`、`unlockedAchievements`、`unlockedTitles` 允许缺省。FastClaw 错误路径会写入 `model_usage_logs(status=failed)`；若未取得实际模型则显式记录 `modelName=unknown`，不回退到计费配置字段。
 
 ### 7.3 FastClaw 集成
 
@@ -336,11 +338,11 @@ FastClaw adapter 是业务后端和 Agent 服务之间的唯一边界。V1 产�
 - fallback 只能作为开发或受控降级能力。生产环境不得在 FastClaw 不可用时静默 fallback 后继续按正常成功扣点。当前生产不配置降级（Spec 5：`FASTCLAW_FALLBACK_ENABLED=false`）。
 - 当前 adapter 调用 `${FASTCLAW_BASE_URL}/v1/chat/completions`，使用 `Authorization: Bearer ${FASTCLAW_API_KEY}`，解析 OpenAI SSE 兼容的 `data: ...` 和 `[DONE]`。
 - 当前 adapter 发送 `messages: [{ role: "system" }, { role: "user" }]`；FastClaw OpenAI-compatible API 会把 `system` 消息作为 request-scoped system prompt override 注入 Agent。
-- adapter 请求体不得携带 `model`；模型、temperature、maxTokens 与 thinking 均以 FastClaw 配置的 Agent 为唯一来源。`modelTier` 只用于计费和展示，不参与请求级模型选择。
+- adapter 请求体不得携带 `model`；模型、temperature、maxTokens 与 thinking 均以 FastClaw 配置的 Agent 为唯一来源。`modelTier` 只用于计费和展示，不参与请求级模型选择。FastClaw SSE 返回的实际 `model` 必须为 `siliconflow/deepseek-ai/DeepSeek-V4-Flash` 并写入 usage；缺失或非允许模型 fail closed。
 - 角色 Agent 架构（`USE_ROLEPLAY_AGENTS=true`）下，adapter 已补齐完整请求头契约：`x-fastclaw-agent-id` / `x-fastclaw-user-id` / `x-fastclaw-session-key` / `x-fastclaw-scope` / `x-fastclaw-message-id` / `x-fastclaw-no-persist`（`adapter.ts` L61-76，2026-08-14 架构 Spec §8 实现）。关闭开关时（`USE_ROLEPLAY_AGENTS=false`）保持旧链路：仅发送 `x-fastclaw-agent-id`。
 - 当前 FastClaw API 暴露 `GET /v1/agents/{id}/runtime-spec`，只返回 `id`、`model`、`maxTokens`、`temperature`、`maxToolIterations`、`thinking` 等非敏感运行参数。
-- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、Postgres 连接与 `${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations = 0`、`thinking = "off"`（缺失或非 off 不通过）；`/api/health` 只表示 API 进程存活。
-- roleplay readiness 以 `packages/shared/src/roleplay-agents.json` 为唯一期望集合，当前为 19 个；必须与 `characters.agent_id` 精确对应。缺少/空 ID、重复、未知 ID、数量不足或多出均 fail closed，输出对应的 `missingAgentIds`、`duplicateAgentIds`、`unknownAgentIds` 或 `emptyAgentIdCount`。后续新增 Agent 通过发布新清单与 provisioning 完成，不接受任意动态集合。
+- 当前 `/api/ready` 会检查 `FASTCLAW_BASE_URL`、`FASTCLAW_API_KEY`、`FASTCLAW_AGENT_ID`、Postgres 连接与 `${FASTCLAW_BASE_URL}/readyz`，并通过 runtime spec 确认业务聊天 Agent 满足 `maxTokens <= 768`、`maxToolIterations = 0`、`thinking = "off"` 和允许的实际模型；`USE_ROLEPLAY_AGENTS=false` 时默认 Agent 也必须非 roleplay。
+- roleplay readiness 以 `packages/shared/src/roleplay-agents.json` 为唯一期望集合，当前为 19 个；必须与全部角色行 `agent_id` 精确对应。合法 inactive 角色保留映射且不导致全局失败；缺少/空 ID、重复、未知 ID、数量不足或多出均 fail closed。
 
 ### 7.4 长期记忆
 
@@ -389,7 +391,7 @@ V1 先采用对话完成后的简单规则服务，不引入复杂事件总线�
 
 ### 7.6 模型档位与点数扣减
 
-V1 用户端提供三个模型档位：轻松、标准、沉浸。模型档位映射由后端 `model_profiles` 配置，包含模型标识、供应商、启用状态、每次调用消耗点数、展示文案和成本估算字段。
+V1 用户端提供三个模型档位：轻松、标准、沉浸。`model_profiles` 保存启用状态、每次调用消耗点数、展示文案、成本估算和兼容用计费标识；其中 `modelName/provider` 不是实际运行模型。实际运行模型只来自 FastClaw Agent runtime-spec，并由 SSE 结果写入 usage。
 
 扣减规则：
 
@@ -467,6 +469,8 @@ V1 不按真实人民币逐 token 扣费；人民币只用于购买额度包，�
 - 余额流水记录
 - 支付记录查询
 
+支付通知使用渠道 `out_trade_no` 只匹配 `merchant_order_no`；同一订单只允许一个 active payment，失败后成功仍复用订单级幂等入账。管理员和 seed 不得用重放回调或删除流水方式修正账务。
+
 订单状态机：
 
 ```text
@@ -509,6 +513,8 @@ interface PaymentProvider {
 - 发票
 - 多支付渠道管理后台
 - 复杂营销优惠
+
+普通 `api-seed` 仅用于空库 bootstrap。数据库已有剧本、角色、内容版本或发布任务时拒绝覆盖；模型价格、套餐状态、推荐状态和用户数据不会被 seed 重置。历史数据清理只能通过一次性 migration 或显式危险运维操作完成。
 
 ## 8. 数据模型正式范围
 
@@ -618,7 +624,7 @@ V1 数据库必须包含支付和点数闭环需要的 6 张核心表：`quota_p
 | Model Usage | `GET /api/admin/model-usage-logs` |
 | Blocked Keywords | `GET /api/admin/blocked-keywords`, `POST /api/admin/blocked-keywords` |
 
-当前代码已经具备 admin stats、订单/支付/会话详情、memory admin、blocked keywords 和 `docs/api-v1.md` 初版。所有 admin API 当前要求用户 JWT 通过 `verifyAdminAuth`，并要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面与 `/api/admin/**` API 均由 Next.js middleware 做 Basic Auth（admin API 需 Basic Auth 与 JWT 白名单双层校验都通过）；生产环境要求设置 `ADMIN_BASIC_AUTH_USER` 和 `ADMIN_BASIC_AUTH_PASSWORD`。仍需持续验收和补强的后端范围包括：achievement/title 最小闭环的产品验收、模型调用日志可观测字段、FastClaw 真实服务联调、生产部署验收文档，以及后续是否补充机器可读 OpenAPI。角色、剧本等配置 API 可后续按 admin 实际需要补充。订单、支付记录、余额流水、额度包配置、关键词配置和模型调用日志属于 V1 admin 必做范围。
+所有 admin API 要求用户 JWT 或可验证 `admin_session` 通过 `verifyAdminAuth`，并要求用户 ID 在 `ADMIN_USER_IDS` 白名单内。`/admin/**` 页面与 `/api/admin/**` API 均由 Next.js middleware 做 Basic Auth；页面还必须有管理员会话，Basic 本身不能读取订单、支付、钱包或聊天数据。生产要求强 `ADMIN_BASIC_AUTH_PASSWORD`。
 
 ### 9.3 内网 FastClaw API
 

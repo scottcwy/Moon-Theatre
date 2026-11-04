@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ROLEPLAY_AGENTS } from '@juben-sha/shared';
 import { legacyScriptTitle, seedCharacters, seedScripts } from '../story-data.js';
 
 const moonGarden = seedScripts.find((script) => script.slug === 'moon-garden')!;
@@ -57,6 +58,11 @@ describe('seed story data', () => {
     for (const character of seedCharacters) {
       expect(character.agentId).toMatch(/^role-[a-z0-9-]+$/);
     }
+  });
+
+  it('matches every frozen shared contract name and agentId in seed order', () => {
+    expect(seedCharacters.map(({ name, agentId }) => ({ name, agentId })))
+      .toEqual(ROLEPLAY_AGENTS.map(({ name, agentId }) => ({ name, agentId })));
   });
 
   it('keeps the Moon Garden script fields', () => {

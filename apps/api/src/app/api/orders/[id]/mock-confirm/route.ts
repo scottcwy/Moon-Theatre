@@ -48,6 +48,7 @@ export async function POST(
         rawDigest: 'mock_confirm',
       },
       'success',
+      config.paymentProvider,
     );
 
     return successResponse({

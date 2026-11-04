@@ -1,6 +1,8 @@
 import { listQuotaPackages } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 export default async function QuotaPackagesPage() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   let packages: Awaited<ReturnType<typeof listQuotaPackages>>;
   try {
     packages = await listQuotaPackages();

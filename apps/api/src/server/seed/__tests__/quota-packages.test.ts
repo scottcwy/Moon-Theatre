@@ -54,7 +54,7 @@ describe('quota package seed', () => {
     updateSetMock.mockReturnValue({ where: updateWhereMock });
   });
 
-  it('updates an existing quota package instead of inserting a duplicate', async () => {
+  it('leaves an existing quota package untouched', async () => {
     const { upsertQuotaPackage } = await import('../quota-packages.js');
     const quotaPackage = {
       name: '体验包',
@@ -69,12 +69,7 @@ describe('quota package seed', () => {
 
     await upsertQuotaPackage(quotaPackage);
 
-    expect(updateSetMock).toHaveBeenCalledWith(quotaPackage);
-    expect(updateWhereMock).toHaveBeenCalledWith({
-      left: 'quota_packages.id',
-      right: 'existing-package-id',
-      type: 'eq',
-    });
+    expect(updateMock).not.toHaveBeenCalled();
     expect(insertMock).not.toHaveBeenCalled();
   });
 
