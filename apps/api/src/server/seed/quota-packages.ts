@@ -33,24 +33,27 @@ export const initialQuotaPackages = [
 ];
 
 export type SeedQuotaPackage = (typeof initialQuotaPackages)[number];
+type QuotaSeedClient = Pick<typeof db, 'select' | 'insert'>;
 
-export async function upsertQuotaPackage(quotaPackage: SeedQuotaPackage) {
-  const [existing] = await db
+export async function upsertQuotaPackage(
+  quotaPackage: SeedQuotaPackage,
+  client: QuotaSeedClient = db,
+) {
+  const [existing] = await client
     .select({ id: quotaPackages.id })
     .from(quotaPackages)
     .where(eq(quotaPackages.name, quotaPackage.name))
     .limit(1);
 
   if (existing) {
-    await db.update(quotaPackages).set(quotaPackage).where(eq(quotaPackages.id, existing.id));
     return;
   }
 
-  await db.insert(quotaPackages).values(quotaPackage);
+  await client.insert(quotaPackages).values(quotaPackage);
 }
 
-export async function seedQuotaPackages() {
+export async function seedQuotaPackages(client: QuotaSeedClient = db) {
   for (const quotaPackage of initialQuotaPackages) {
-    await upsertQuotaPackage(quotaPackage);
+    await upsertQuotaPackage(quotaPackage, client);
   }
 }

@@ -678,6 +678,26 @@ function createStreamErrorResponse(code: ChatStreamErrorCode, message?: string):
   return new Response(stream, { headers: STREAM_HEADERS });
 }
 
+function safeEnqueue(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  value: Uint8Array,
+): boolean {
+  try {
+    controller.enqueue(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeClose(controller: ReadableStreamDefaultController<Uint8Array>): void {
+  try {
+    controller.close();
+  } catch {
+    // The client may already have cancelled the downstream stream.
+  }
+}
+
 type ChatStreamErrorCode =
   | 'timeout'
   | 'upstream_error'
@@ -759,8 +779,10 @@ function createGenerationResponse(input: {
     async start(controller) {
       let fullContent = '';
       let sentContent = '';
+      let turnCommitted = false;
       const streamingCleaner = createStreamingOutputCleaner();
       let usedFallback = !isFastClawConfigured();
+      let actualModel: string | null = null;
       let balanceAfter = input.initialBalanceAfter;
       let generationMs = 0;
       let moderationMs = 0;
@@ -768,7 +790,7 @@ function createGenerationResponse(input: {
       let effectsScheduledMs = 0;
 
       try {
-        controller.enqueue(encoder.encode(JSON.stringify({ type: 'status', mode: 'incremental_buffered', stage: 'generating' }) + '\n'));
+        safeEnqueue(controller, encoder.encode(JSON.stringify({ type: 'status', mode: 'incremental_buffered', stage: 'generating' }) + '\n'));
 
         // 分类与主生成并行：生成前用「用户消息 + 角色 + 剧本」发起（无草稿），生成结束后只等宽限期。
         const scopeClassificationPromise = input.mode === 'script'
@@ -799,10 +821,11 @@ function createGenerationResponse(input: {
             const cleanedChunk = streamingCleaner.push(event.content);
             if (cleanedChunk) {
               sentContent += cleanedChunk;
-              controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: cleanedChunk }) + '\n'));
+              safeEnqueue(controller, encoder.encode(JSON.stringify({ type: 'delta', content: cleanedChunk }) + '\n'));
             }
           } else if (event.type === 'done') {
             usedFallback = event.fallback;
+            actualModel = event.actualModel;
             break;
           } else if (event.type === 'error') {
             const code = event.code ?? 'unknown';
@@ -811,7 +834,7 @@ function createGenerationResponse(input: {
               balanceAfter = refundResult.balanceAfter;
             }
             await failTurn(input.userMessageId);
-            await insertModelUsage(input, 'failed', 0, code);
+            await insertModelUsage(input, 'failed', 0, code, actualModel);
             generationMs = Date.now() - generationStartedAt;
             logChatLatency({
               sessionId: input.sessionId,
@@ -827,8 +850,8 @@ function createGenerationResponse(input: {
               error: event.message,
               errorCode: code,
             });
-            controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code }) + '\n'));
-            controller.close();
+            safeEnqueue(controller, encoder.encode(JSON.stringify({ type: 'error', code }) + '\n'));
+            safeClose(controller);
             return;
           }
         }
@@ -837,7 +860,7 @@ function createGenerationResponse(input: {
         const moderationStartedAt = Date.now();
         const sanitizerResult = sanitizeAssistantOutput(fullContent, {
           characterId: input.characterId,
-          modelName: input.modelName,
+          modelName: actualModel ?? 'unknown',
           sessionId: input.sessionId,
           userMessageId: input.userMessageId,
         });
@@ -882,12 +905,13 @@ function createGenerationResponse(input: {
               userId: input.userId,
               characterId: input.characterId,
               modelTier: input.modelTier,
-              modelName: input.modelName,
+              modelName: actualModel ?? 'unknown',
               walletTransactionId: null,
               status: 'out_of_scope',
               pointsConsumed: 0,
             },
           });
+          turnCommitted = true;
           saveMs = Date.now() - saveStartedAt;
           moderationMs = Date.now() - moderationStartedAt;
 
@@ -911,8 +935,8 @@ function createGenerationResponse(input: {
             effectsAsync: false,
             blocked: false,
           });
-          controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: OUT_OF_SCOPE_FALLBACK }) + '\n'));
-          controller.enqueue(encoder.encode(JSON.stringify({
+          safeEnqueue(controller, encoder.encode(JSON.stringify({ type: 'delta', content: OUT_OF_SCOPE_FALLBACK }) + '\n'));
+          safeEnqueue(controller, encoder.encode(JSON.stringify({
             type: 'done',
             messageId: saved.id,
             sessionId: input.sessionId,
@@ -925,7 +949,7 @@ function createGenerationResponse(input: {
             ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
             balanceAfter,
           }) + '\n'));
-          controller.close();
+          safeClose(controller);
           return;
         }
 
@@ -936,7 +960,7 @@ function createGenerationResponse(input: {
         moderationMs = Date.now() - moderationStartedAt;
 
         const saveStartedAt = Date.now();
-        if (blocked || isOutOfScope) {
+        if (blocked || isOutOfScope || usedFallback) {
           const refundResult = await refundGenerationAttempt(input);
           if (!refundResult) {
             throw new Error('refund_pending');
@@ -955,13 +979,15 @@ function createGenerationResponse(input: {
             userId: input.userId,
             characterId: input.characterId,
             modelTier: input.modelTier,
-            modelName: input.modelName,
-            walletTransactionId: blocked ? null : (isOutOfScope ? null : input.walletTransactionId),
-            status: blocked ? 'filtered' : isOutOfScope ? 'out_of_scope' : 'success',
-            pointsConsumed: blocked || isOutOfScope ? 0 : input.pointsPerCall,
+            modelName: usedFallback ? 'fallback' : (actualModel ?? 'unknown'),
+            walletTransactionId: blocked || isOutOfScope || usedFallback ? null : input.walletTransactionId,
+            status: usedFallback ? 'failed' : blocked ? 'filtered' : isOutOfScope ? 'out_of_scope' : 'success',
+            pointsConsumed: blocked || isOutOfScope || usedFallback ? 0 : input.pointsPerCall,
             ...(sanitizerResult.jsonBlockStripped ? { errorCode: 'output_json_block' } : {}),
+            ...(usedFallback ? { errorCode: 'fastclaw_fallback' } : {}),
           },
         });
+        turnCommitted = true;
         saveMs = Date.now() - saveStartedAt;
 
         const effectsStartedAt = Date.now();
@@ -976,7 +1002,7 @@ function createGenerationResponse(input: {
           mode: input.mode,
           scriptId: input.scriptId,
         };
-        const effects = blocked || isOutOfScope
+        const effects = blocked || isOutOfScope || usedFallback
           ? { bond: null, unlockedAchievements: [], unlockedTitles: [] }
           : config.chatEffectsAsyncEnabled
             ? scheduleChatCompletionEffects(effectContext)
@@ -1012,9 +1038,9 @@ function createGenerationResponse(input: {
 
         if (blocked) {
           // 已展示内容在复核后命中过滤：追加修正提示，done.content 携带落库 finalContent 供客户端覆盖
-          controller.enqueue(encoder.encode(JSON.stringify({ type: 'delta', content: '（内容已按安全规则调整）' }) + '\n'));
+          safeEnqueue(controller, encoder.encode(JSON.stringify({ type: 'delta', content: '（内容已按安全规则调整）' }) + '\n'));
         }
-        controller.enqueue(encoder.encode(JSON.stringify({
+        safeEnqueue(controller, encoder.encode(JSON.stringify({
           type: 'done',
           messageId: saved.id,
           sessionId: input.sessionId,
@@ -1031,12 +1057,30 @@ function createGenerationResponse(input: {
           ...(!config.chatEffectsAsyncEnabled && safeEffects.unlockedTitles.length > 0 ? { unlockedTitles: safeEffects.unlockedTitles } : {}),
           balanceAfter,
         }) + '\n'));
-        controller.close();
+        safeClose(controller);
       } catch (err) {
+        if (turnCommitted) {
+          logChatLatency({
+            sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+            prepareMs: input.prepareMs,
+            generationMs,
+            moderationMs,
+            saveMs,
+            effectsScheduledMs,
+            totalUntilDoneMs: Date.now() - input.requestStartedAt,
+            effectsAsync: config.chatEffectsAsyncEnabled,
+            blocked: false,
+            error: err instanceof Error ? err.message : 'post-commit stream delivery failed',
+            errorCode: 'post_commit_delivery_error',
+          });
+          safeClose(controller);
+          return;
+        }
         await refundGenerationAttempt(input);
         const errorMessage = err instanceof Error ? err.message : 'Stream error';
         await failTurn(input.userMessageId).catch(() => undefined);
-        await insertModelUsage(input, 'failed', 0, 'unknown').catch(() => undefined);
+        await insertModelUsage(input, 'failed', 0, 'unknown', actualModel).catch(() => undefined);
         logChatLatency({
           sessionId: input.sessionId,
           userMessageId: input.userMessageId,
@@ -1051,8 +1095,8 @@ function createGenerationResponse(input: {
           error: errorMessage,
           errorCode: 'unknown',
         });
-        controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', code: 'unknown' }) + '\n'));
-        controller.close();
+        safeEnqueue(controller, encoder.encode(JSON.stringify({ type: 'error', code: 'unknown' }) + '\n'));
+        safeClose(controller);
       }
     },
   });
@@ -1121,13 +1165,14 @@ async function insertModelUsage(
   status: 'success' | 'failed' | 'filtered' | 'out_of_scope',
   pointsConsumed: number,
   errorCode?: string,
+  actualModel?: string | null,
 ): Promise<void> {
   await db.insert(modelUsageLogs).values({
     userId: input.userId,
     characterId: input.characterId,
     sessionId: input.sessionId,
     modelTier: input.modelTier,
-    modelName: input.modelName,
+    modelName: actualModel ?? 'unknown',
     pointsConsumed,
     walletTransactionId: status === 'success' ? input.walletTransactionId : null,
     clientMessageId: input.clientMessageId ?? null,

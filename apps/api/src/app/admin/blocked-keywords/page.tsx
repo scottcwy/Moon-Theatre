@@ -1,6 +1,8 @@
 import { listBlockedKeywords } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 export default async function BlockedKeywordsPage() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   let keywords: Awaited<ReturnType<typeof listBlockedKeywords>>;
   try {
     keywords = await listBlockedKeywords();

@@ -1,6 +1,6 @@
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import { ROLEPLAY_AGENT_IDS } from '@juben-sha/shared';
+import { CHAT_RUNTIME_MODEL, ROLEPLAY_AGENT_IDS } from '@juben-sha/shared';
 import { config } from '@/server/config/index.js';
 import { db } from '@/server/db/index.js';
 import { characters } from '@/server/db/schema.js';
@@ -26,6 +26,7 @@ interface DatabaseCheckResult {
 }
 
 interface FastClawAgentSpec {
+  model?: string;
   maxTokens: number;
   maxToolIterations: number;
   thinking?: string;
@@ -35,6 +36,7 @@ interface FastClawAgentSpec {
 interface RoleplayAgentCheck {
   ok: boolean;
   agentId: string;
+  model?: string;
   maxTokens?: number;
   maxToolIterations?: number;
   thinking?: string;
@@ -46,6 +48,7 @@ interface FastClawCheckResult {
   ok: boolean;
   configured: boolean;
   agentId?: string;
+  model?: string;
   maxTokens?: number;
   maxToolIterations?: number;
   thinking?: string;
@@ -92,11 +95,10 @@ async function checkDatabase(requireRoleplayAgents: boolean): Promise<DatabaseCh
       return { ok: true };
     }
 
-    // Roleplay sentinel (Spec §9.2): the characters table must map all 19
-    // active roles to the frozen agent slugs; a missing/duplicate/unknown
-    // agent_id would silently fall back to the default agent in chat.
+    // Roleplay sentinel: all 19 character rows keep a stable frozen mapping,
+    // while status only controls whether the character is chat-visible.
     const rows = await Promise.race([
-      db.select({ agentId: characters.agentId }).from(characters).where(eq(characters.status, 'active')),
+      db.select({ agentId: characters.agentId, status: characters.status }).from(characters),
       timeout,
     ]);
     const roleplayAgents = validateRoleplayAgentIds(rows);
@@ -112,7 +114,9 @@ async function checkDatabase(requireRoleplayAgents: boolean): Promise<DatabaseCh
   }
 }
 
-function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): RoleplayAgentsCheck {
+function validateRoleplayAgentIds(
+  rows: Array<{ agentId: string | null; status: 'active' | 'inactive' }>,
+): RoleplayAgentsCheck {
   const expectedCount = ROLEPLAY_AGENT_IDS.length;
   const expected = new Set(ROLEPLAY_AGENT_IDS);
   const found = new Set<string>();
@@ -133,13 +137,20 @@ function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): Role
     .filter(([, count]) => count > 1)
     .map(([agentId]) => agentId);
   const unknownAgentIds = [...found].filter((agentId) => !expected.has(agentId)).sort();
+  const activeRows = rows.filter((row) => row.status === 'active');
+  const activeUnknown = activeRows
+    .map((row) => row.agentId)
+    .filter((agentId): agentId is string => Boolean(agentId) && !expected.has(agentId as string));
+  const activeEmptyCount = activeRows.filter((row) => !row.agentId || row.agentId.trim() === '').length;
 
   const ok =
     rows.length === expectedCount &&
     nullCount === 0 &&
     missingAgentIds.length === 0 &&
     duplicateAgentIds.length === 0 &&
-    unknownAgentIds.length === 0;
+    unknownAgentIds.length === 0 &&
+    activeUnknown.length === 0 &&
+    activeEmptyCount === 0;
 
   return {
     ok,
@@ -155,7 +166,7 @@ function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): Role
 function describeRoleplayAgentsFailure(check: RoleplayAgentsCheck): string {
   const parts: string[] = [];
   if (check.foundCount !== check.expectedCount) {
-    parts.push(`expected exactly ${check.expectedCount} active characters, found ${check.foundCount}`);
+    parts.push(`expected exactly ${check.expectedCount} character rows, found ${check.foundCount}`);
   }
   if (check.emptyAgentIdCount) parts.push(`emptyAgentIdCount=${check.emptyAgentIdCount}`);
   if (check.missingAgentIds) parts.push(`missingAgentIds=${JSON.stringify(check.missingAgentIds)}`);
@@ -167,13 +178,14 @@ function describeRoleplayAgentsFailure(check: RoleplayAgentsCheck): string {
 function validateAgentSpec(
   spec: FastClawAgentSpec,
   options: { requireRoleplay: boolean; requireNonRoleplay: boolean },
-): { ok: true; maxTokens: number; maxToolIterations: number; thinking?: string; roleplay?: boolean }
-  | { ok: false; maxTokens?: number; maxToolIterations?: number; thinking?: string; roleplay?: boolean; error: string } {
-  const { maxTokens, maxToolIterations, thinking, roleplay } = spec;
+): { ok: true; model?: string; maxTokens: number; maxToolIterations: number; thinking?: string; roleplay?: boolean }
+  | { ok: false; model?: string; maxTokens?: number; maxToolIterations?: number; thinking?: string; roleplay?: boolean; error: string } {
+  const { model, maxTokens, maxToolIterations, thinking, roleplay } = spec;
 
   if (maxTokens > CHAT_AGENT_MAX_TOKENS || maxToolIterations !== CHAT_AGENT_MAX_TOOL_ITERATIONS) {
     return {
       ok: false,
+      model,
       maxTokens,
       maxToolIterations,
       thinking,
@@ -187,6 +199,7 @@ function validateAgentSpec(
   if (thinking !== 'off') {
     return {
       ok: false,
+      model,
       maxTokens,
       maxToolIterations,
       thinking,
@@ -198,6 +211,7 @@ function validateAgentSpec(
   if (options.requireRoleplay && roleplay !== true) {
     return {
       ok: false,
+      model,
       maxTokens,
       maxToolIterations,
       thinking,
@@ -209,6 +223,7 @@ function validateAgentSpec(
   if (options.requireNonRoleplay && roleplay === true) {
     return {
       ok: false,
+      model,
       maxTokens,
       maxToolIterations,
       thinking,
@@ -217,7 +232,19 @@ function validateAgentSpec(
     };
   }
 
-  return { ok: true, maxTokens, maxToolIterations, thinking, roleplay };
+  if (model !== CHAT_RUNTIME_MODEL) {
+    return {
+      ok: false,
+      model,
+      maxTokens,
+      maxToolIterations,
+      thinking,
+      roleplay,
+      error: `FastClaw runtime model is not allowed: model=${model ?? 'missing'}; required "${CHAT_RUNTIME_MODEL}"`,
+    };
+  }
+
+  return { ok: true, model, maxTokens, maxToolIterations, thinking, roleplay };
 }
 
 async function checkFastClaw(): Promise<FastClawCheckResult> {
@@ -303,13 +330,14 @@ async function checkLegacyFastClaw(signal: AbortSignal): Promise<FastClawCheckRe
 
   const result = validateAgentSpec(agentSpec.spec, {
     requireRoleplay: false,
-    requireNonRoleplay: false,
+    requireNonRoleplay: true,
   });
   if (!result.ok) {
     return {
       ok: false,
       configured: true,
       agentId: config.fastclawAgentId,
+      model: result.model,
       maxTokens: result.maxTokens,
       maxToolIterations: result.maxToolIterations,
       thinking: result.thinking,
@@ -321,6 +349,7 @@ async function checkLegacyFastClaw(signal: AbortSignal): Promise<FastClawCheckRe
     ok: true,
     configured: true,
     agentId: config.fastclawAgentId,
+    model: result.model,
     maxTokens: result.maxTokens,
     maxToolIterations: result.maxToolIterations,
     thinking: result.thinking,
@@ -341,6 +370,7 @@ async function checkSingleAgent(
     return {
       ok: false,
       agentId,
+      model: result.model,
       maxTokens: result.maxTokens,
       maxToolIterations: result.maxToolIterations,
       thinking: result.thinking,
@@ -351,6 +381,7 @@ async function checkSingleAgent(
   return {
     ok: true,
     agentId,
+    model: result.model,
     maxTokens: result.maxTokens,
     maxToolIterations: result.maxToolIterations,
     thinking: result.thinking,
@@ -391,18 +422,24 @@ async function fetchFastClawAgentRuntimeSpec(
   }
 
   const spec = await response.json() as {
+    model?: unknown;
     maxTokens?: unknown;
     maxToolIterations?: unknown;
     thinking?: unknown;
     roleplay?: unknown;
   };
-  if (typeof spec.maxTokens !== 'number' || typeof spec.maxToolIterations !== 'number') {
+  if (
+    typeof spec.model !== 'string' ||
+    typeof spec.maxTokens !== 'number' ||
+    typeof spec.maxToolIterations !== 'number'
+  ) {
     return { ok: false, error: 'FastClaw runtime spec is missing maxTokens or maxToolIterations' };
   }
 
   return {
     ok: true,
     spec: {
+      model: spec.model,
       maxTokens: spec.maxTokens,
       maxToolIterations: spec.maxToolIterations,
       thinking: typeof spec.thinking === 'string' ? spec.thinking : undefined,

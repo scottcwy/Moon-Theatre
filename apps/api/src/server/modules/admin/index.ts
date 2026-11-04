@@ -11,6 +11,7 @@ export {
   listWalletAccounts,
   listQuotaPackages,
   updateQuotaPackage,
+  getWalletAdjustmentStatus,
   listModelUsageLogs,
   listBlockedKeywords,
   createBlockedKeyword,
@@ -21,9 +22,14 @@ export { getAdminStats } from './stats.js';
 export type { AdminStats } from './stats.js';
 export {
   recordAdminAudit,
+  recordAdminAuditInTransaction,
+  finalizeAdminAudit,
+  finalizeAdminAuditInTransaction,
+  findAdminAuditByDedupeKey,
+  listAdminAuditLogs,
   createAdminSession,
   revokeAdminSession,
   resolveAdminSession,
 } from './audit.js';
 export type { AdminAuditInput } from './audit.js';
-export { listAdminScripts, createScriptDraft, updateScriptDraft, publishScript, listAdminCharacters } from './content.js';
+export { listAdminScripts, createScriptDraft, updateScriptDraft, publishScript, getPublishTask, listAdminCharacters } from './content.js';

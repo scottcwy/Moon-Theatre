@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { adjustWalletPoints, WalletAdjustmentConflictError } from '@/server/modules/wallet/index.js';
+import { finalizeAdminAudit } from '@/server/modules/admin/index.js';
 import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
 import { corsPreflightResponse } from '@/server/middleware/cors.js';
 import { formatZodIssues, jsonError, readJsonBody, ValidationError } from '@/server/http/errors.js';
@@ -25,13 +26,34 @@ export async function POST(request: NextRequest): Promise<Response> {
     const parsed = adjustmentSchema.safeParse(body);
     if (!parsed.success) throw new ValidationError(formatZodIssues(parsed.error.issues));
 
+    const dedupeKey = `wallet_adjustment:${parsed.data.idempotencyKey}`;
     const result = await adjustWalletPoints(
       parsed.data.userId,
       parsed.data.delta,
       parsed.data.idempotencyKey,
       parsed.data.reason,
       admin.auth.userId,
+      {
+        dedupeKey,
+        requestId: request.headers.get('x-request-id') ?? undefined,
+      },
     );
+    try {
+      await finalizeAdminAudit(dedupeKey);
+    } catch (error) {
+      console.error({
+        event: 'admin_audit_pending',
+        action: 'admin.wallet.adjust',
+        dedupeKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return Response.json({
+        error: 'admin_audit_pending',
+        dedupeKey,
+        transactionId: result.transactionId,
+        balanceAfter: result.balanceAfter,
+      }, { status: 503 });
+    }
     return successResponse(result, result.alreadyAdjusted ? 200 : 201);
   } catch (error) {
     if (error instanceof WalletAdjustmentConflictError) {

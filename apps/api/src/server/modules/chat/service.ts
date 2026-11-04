@@ -14,6 +14,12 @@ import {
 } from '../../db/schema';
 import type { ChatGenerationSnapshot } from '../../db/schema';
 
+type ChatQueryClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+function queryClient(client?: ChatQueryClient): ChatQueryClient {
+  return client ?? (db as unknown as ChatQueryClient);
+}
+
 export type ChatGenerationStatus = 'generating' | 'completed' | 'failed';
 export type ChatPromptMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 export type ChatModelTier = 'casual' | 'standard' | 'immersive';
@@ -122,7 +128,7 @@ export type SaveAssistantForTurnInput = {
   excludedFromContext?: boolean;
 };
 
-export type GenerationAttemptStatus = 'pending' | 'succeeded' | 'failed' | 'unknown';
+export type GenerationAttemptStatus = 'pending' | 'succeeded' | 'failed' | 'unknown' | 'not_required';
 
 export type FinalizeAssistantTurnInput = SaveAssistantForTurnInput & {
   userMessageId: string;
@@ -132,7 +138,7 @@ export type FinalizeAssistantTurnInput = SaveAssistantForTurnInput & {
     modelTier: ChatModelTier;
     modelName: string;
     walletTransactionId?: string | null;
-    status: 'success' | 'filtered' | 'out_of_scope';
+    status: 'success' | 'failed' | 'filtered' | 'out_of_scope';
     pointsConsumed: number;
     errorCode?: string | null;
   };
@@ -237,7 +243,9 @@ export async function findOrCreateSession(
   sessionId: string | undefined,
   mode: ChatMode,
   scriptId?: string | null,
+  client?: ChatQueryClient,
 ): Promise<{ id: string; mode: ChatMode; scriptId: string | null }> {
+  const executor = queryClient(client);
   const requestedScriptId = scriptId ?? null;
   if (mode === 'script' && !requestedScriptId) {
     throw new ScriptUnavailableError();
@@ -247,7 +255,7 @@ export async function findOrCreateSession(
   }
 
   if (sessionId) {
-    const [existing] = await db
+    const [existing] = await executor
       .select({
         id: chatSessions.id,
         userId: chatSessions.userId,
@@ -299,7 +307,7 @@ export async function findOrCreateSession(
     activeConditions.push(eq(chatSessions.mode, 'free'));
   }
 
-  const [existing] = await db
+  const [existing] = await executor
     .select({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId })
     .from(chatSessions)
     .where(and(...activeConditions))
@@ -309,17 +317,35 @@ export async function findOrCreateSession(
     return { id: existing.id, mode: existing.mode as ChatMode, scriptId: existing.scriptId };
   }
 
-  const [created] = await db
-    .insert(chatSessions)
-    .values({
-      userId,
-      characterId,
-      modelTier: modelTier as 'casual' | 'standard' | 'immersive',
-      status: 'active',
-      mode,
-      scriptId: scriptIdValue,
-    })
-    .returning({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId });
+  let created: { id: string; mode: ChatMode; scriptId: string | null } | undefined;
+  try {
+    [created] = await executor
+      .insert(chatSessions)
+      .values({
+        userId,
+        characterId,
+        modelTier: modelTier as 'casual' | 'standard' | 'immersive',
+        status: 'active',
+        mode,
+        scriptId: scriptIdValue,
+      })
+      .returning({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId });
+  } catch (error: unknown) {
+    const constraint = mode === 'script'
+      ? 'chat_sessions_active_script_unique'
+      : 'chat_sessions_active_free_unique';
+    if (isUniqueConstraintError(error, constraint)) {
+      const [winner] = await executor
+        .select({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId })
+        .from(chatSessions)
+        .where(and(...activeConditions))
+        .limit(1);
+      if (winner) {
+        return { id: winner.id, mode: winner.mode as ChatMode, scriptId: winner.scriptId };
+      }
+    }
+    throw error;
+  }
 
   if (!created) {
     throw new Error('Failed to create chat session');
@@ -343,8 +369,8 @@ export class SessionScopeMismatchError extends Error {
   }
 }
 
-async function touchSession(sessionId: string): Promise<void> {
-  await db
+async function touchSession(sessionId: string, client?: ChatQueryClient): Promise<void> {
+  await queryClient(client)
     .update(chatSessions)
     .set({ updatedAt: new Date() })
     .where(eq(chatSessions.id, sessionId));
@@ -362,8 +388,9 @@ export async function saveUserMessage(
     excludedFromContext?: boolean;
     generationSnapshot?: ChatGenerationSnapshot | null;
   } = {},
+  client?: ChatQueryClient,
 ): Promise<{ id: string; generationAttempt: number }> {
-  const [msg] = await db
+  const [msg] = await queryClient(client)
     .insert(messages)
     .values({
       sessionId,
@@ -382,7 +409,7 @@ export async function saveUserMessage(
   if (!msg) {
     throw new Error('Failed to save user message');
   }
-  await touchSession(sessionId);
+  await touchSession(sessionId, client);
   return { id: msg.id, generationAttempt: msg.generationAttempt };
 }
 
@@ -455,9 +482,10 @@ export async function saveAssistantMessage(
     outOfScope?: boolean;
     excludedFromContext?: boolean;
   } = {},
+  client?: ChatQueryClient,
 ): Promise<{ id: string }> {
   const moodValue = (mood as 'neutral' | 'happy' | 'sad' | 'angry' | 'thinking') ?? null;
-  const [msg] = await db
+  const [msg] = await queryClient(client)
     .insert(messages)
     .values({
       sessionId,
@@ -473,7 +501,7 @@ export async function saveAssistantMessage(
   if (!msg) {
     throw new Error('Failed to save assistant message');
   }
-  await touchSession(sessionId);
+  await touchSession(sessionId, client);
   return { id: msg.id };
 }
 
@@ -508,9 +536,10 @@ export async function markUserMessageOutOfScope(userMessageId: string): Promise<
 export async function reacquireGenerationLease(
   userMessageId: string,
   leaseExpiresAt = createGenerationLeaseExpiresAt(),
+  client?: ChatQueryClient,
 ): Promise<{ id: string; generationAttempt: number } | null> {
   const now = new Date();
-  const [updated] = await db
+  const [updated] = await queryClient(client)
     .update(messages)
     .set({
       generationStatus: 'generating',
@@ -537,8 +566,9 @@ export async function findTurnByClientMessageId(
   userId: string,
   clientMessageId: string,
   sessionId?: string,
+  client?: ChatQueryClient,
 ): Promise<ChatTurnByClientMessageId | { collision: true } | null> {
-  const rows = await db
+  const rows = await queryClient(client)
     .select({
       sessionId: messages.sessionId,
       id: messages.id,
@@ -608,6 +638,7 @@ function isUniqueConstraintError(error: unknown, constraintName: string): boolea
 async function resolveExistingClientTurn(
   existing: ChatTurnByClientMessageId,
   clientMessageId: string,
+  client?: ChatQueryClient,
 ): Promise<Exclude<ResolveClientTurnResult, { status: 'created' | 'collision' }>> {
   const userMessage = existing.userMessage;
   if (existing.assistantMessage) {
@@ -628,7 +659,7 @@ async function resolveExistingClientTurn(
       return { status: 'in_progress', sessionId: existing.sessionId, userMessage };
     }
 
-    await completeTurn(userMessage.id);
+    await completeTurn(userMessage.id, client);
     return {
       status: 'replay',
       sessionId: existing.sessionId,
@@ -647,7 +678,7 @@ async function resolveExistingClientTurn(
       clientMessageId,
       content: BLOCKED_INPUT_FALLBACK,
       mood: null,
-    });
+    }, client);
     return {
       status: 'replay',
       sessionId: existing.sessionId,
@@ -677,7 +708,7 @@ async function resolveExistingClientTurn(
       userMessage.generationLeaseExpiresAt &&
       new Date(userMessage.generationLeaseExpiresAt) <= new Date())
   ) {
-    const reacquired = await reacquireGenerationLease(userMessage.id);
+    const reacquired = await reacquireGenerationLease(userMessage.id, undefined, client);
     if (reacquired) {
       return {
         status: 'acquired_existing',
@@ -695,6 +726,21 @@ async function resolveExistingClientTurn(
 export async function resolveClientTurn(
   input: ResolveClientTurnInput,
 ): Promise<ResolveClientTurnResult> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      select pg_advisory_xact_lock(
+        hashtext(${input.userId}),
+        hashtext(${input.clientMessageId})
+      )
+    `);
+    return resolveClientTurnLocked(input, tx);
+  });
+}
+
+async function resolveClientTurnLocked(
+  input: ResolveClientTurnInput,
+  client: ChatQueryClient,
+): Promise<ResolveClientTurnResult> {
   // --- Resolve mode / scriptId with legacy inference ---
   let resolvedMode: ChatMode;
   let resolvedScriptId: string | null;
@@ -705,7 +751,7 @@ export async function resolveClientTurn(
     resolvedScriptId = input.scriptId ?? null;
   } else if (input.sessionId) {
     // Legacy: no mode + sessionId → read from persisted session
-    const [session] = await db
+    const [session] = await client
       .select({ mode: chatSessions.mode, scriptId: chatSessions.scriptId })
       .from(chatSessions)
       .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.status, 'active')))
@@ -718,7 +764,7 @@ export async function resolveClientTurn(
     inferredLegacy = true;
   } else {
     // Legacy: no mode + no sessionId → infer Script + character.scriptId
-    const [character] = await db
+    const [character] = await client
       .select({ scriptId: characters.scriptId })
       .from(characters)
       .where(eq(characters.id, input.characterId))
@@ -743,7 +789,12 @@ export async function resolveClientTurn(
   }
 
   // --- Existing turn lookup ---
-  const existing = await findTurnByClientMessageId(input.userId, input.clientMessageId, input.sessionId);
+  const existing = await findTurnByClientMessageId(
+    input.userId,
+    input.clientMessageId,
+    input.sessionId,
+    client,
+  );
 
   // Collision: same clientMessageId in multiple sessions, or session mismatch
   if (existing && 'collision' in existing) {
@@ -751,7 +802,7 @@ export async function resolveClientTurn(
   }
 
   if (existing) {
-    return resolveExistingClientTurn(existing, input.clientMessageId);
+    return resolveExistingClientTurn(existing, input.clientMessageId, client);
   }
 
   // No existing turn → create
@@ -763,13 +814,14 @@ export async function resolveClientTurn(
       input.sessionId,
       resolvedMode,
       resolvedScriptId,
+      client,
     );
     const userMessage = await saveUserMessage(session.id, input.message, {
       clientMessageId: input.clientMessageId,
       generationStatus: 'generating',
       generationLeaseExpiresAt: createGenerationLeaseExpiresAt(),
       generationAttempt: 1,
-    });
+    }, client);
 
     return {
       status: 'created',
@@ -804,18 +856,22 @@ export async function resolveClientTurn(
         input.userId,
         input.clientMessageId,
         input.sessionId,
+        client,
       );
       if (!reRead || 'collision' in reRead) {
         return { status: 'collision' };
       }
-      return resolveExistingClientTurn(reRead, input.clientMessageId);
+      return resolveExistingClientTurn(reRead, input.clientMessageId, client);
     }
     throw error;
   }
 }
 
-export async function completeTurn(userMessageId: string): Promise<void> {
-  await markUserMessageGenerationStatus(userMessageId, 'completed');
+export async function completeTurn(userMessageId: string, client?: ChatQueryClient): Promise<void> {
+  await queryClient(client)
+    .update(messages)
+    .set({ generationStatus: 'completed', generationLeaseExpiresAt: null })
+    .where(and(eq(messages.id, userMessageId), eq(messages.role, 'user')));
 }
 
 export async function failTurn(userMessageId: string): Promise<void> {
@@ -826,12 +882,15 @@ export async function markTurnOutOfScope(userMessageId: string): Promise<void> {
   await markUserMessageOutOfScope(userMessageId);
 }
 
-export async function saveAssistantForTurn(input: SaveAssistantForTurnInput): Promise<{ id: string }> {
+export async function saveAssistantForTurn(
+  input: SaveAssistantForTurnInput,
+  client?: ChatQueryClient,
+): Promise<{ id: string }> {
   return saveAssistantMessage(input.sessionId, input.content, input.mood, {
     ...(input.clientMessageId ? { clientMessageId: input.clientMessageId } : {}),
     ...(input.outOfScope !== undefined ? { outOfScope: input.outOfScope } : {}),
     ...(input.excludedFromContext !== undefined ? { excludedFromContext: input.excludedFromContext } : {}),
-  });
+  }, client);
 }
 
 export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): Promise<FinalizeAssistantTurnResult> {

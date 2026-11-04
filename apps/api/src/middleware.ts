@@ -50,6 +50,13 @@ export function middleware(request: NextRequest) {
     return new NextResponse('Authentication required', { status: 401, headers });
   }
 
+  if (!isApi && !request.cookies.get('admin_session')?.value) {
+    return new NextResponse('Administrator identity required', {
+      status: 401,
+      headers: { 'WWW-Authenticate': 'Basic realm="Admin"' },
+    });
+  }
+
   return NextResponse.next();
 }
 

@@ -3,6 +3,7 @@ import { db } from '../../db/index.js';
 import { orders, payments, walletAccounts, walletTransactions, quotaPackages, users } from '../../db/schema.js';
 import { NotFoundError } from '../../http/errors.js';
 import { normalizePagination, type PaginatedResult, type PaginationParams } from './pagination.js';
+import { findAdminAuditByDedupeKey, recordAdminAuditInTransaction } from './audit.js';
 
 type OrderStatus = 'created' | 'prepay_created' | 'paid' | 'credited' | 'closed' | 'failed' | 'refunded';
 type PaymentStatus = 'pending' | 'success' | 'failed' | 'cancelled';
@@ -84,6 +85,7 @@ export async function getOrderDetail(id: string) {
       providerTransactionId: payments.providerTransactionId,
       verifyResult: payments.verifyResult,
       status: payments.status,
+      active: payments.active,
       createdAt: payments.createdAt,
       updatedAt: payments.updatedAt,
     })
@@ -131,6 +133,7 @@ export async function listPayments(params: PaginationParams & { orderId?: string
         prepayParams: payments.prepayParams,
         verifyResult: payments.verifyResult,
         status: payments.status,
+        active: payments.active,
         createdAt: payments.createdAt,
         updatedAt: payments.updatedAt,
       })
@@ -159,6 +162,7 @@ export async function getPaymentDetail(id: string) {
       callbackRawDigest: payments.callbackRawDigest,
       verifyResult: payments.verifyResult,
       status: payments.status,
+      active: payments.active,
       createdAt: payments.createdAt,
       updatedAt: payments.updatedAt,
       orderMerchantOrderNo: orders.merchantOrderNo,
@@ -268,15 +272,45 @@ export async function updateQuotaPackage(id: string, updates: {
   recommended?: boolean;
   active?: boolean;
   sortOrder?: number;
-}) {
-  const [row] = await db
-    .update(quotaPackages)
-    .set({ ...updates, updatedAt: new Date() })
-    .where(eq(quotaPackages.id, id))
-    .returning();
+}, audit?: { actorUserId: string; requestId?: string }) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(quotaPackages)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(quotaPackages.id, id))
+      .returning();
 
-  if (!row) {
-    throw new NotFoundError('Quota package');
+    if (!row) {
+      throw new NotFoundError('Quota package');
+    }
+    if (audit) {
+      await recordAdminAuditInTransaction(tx, {
+        actorUserId: audit.actorUserId,
+        action: 'admin.quota_package.update',
+        objectType: 'quota_package',
+        objectId: id,
+        requestId: audit.requestId,
+        result: 'committed',
+        summary: { changedFields: Object.keys(updates) },
+      });
+    }
+    return row;
+  });
+}
+
+export async function getWalletAdjustmentStatus(idempotencyKey: string) {
+  const [transaction] = await db
+    .select()
+    .from(walletTransactions)
+    .where(eq(walletTransactions.idempotencyKey, idempotencyKey))
+    .limit(1);
+  if (!transaction) {
+    throw new NotFoundError('Wallet adjustment');
   }
-  return row;
+  const audit = await findAdminAuditByDedupeKey(`wallet_adjustment:${idempotencyKey}`);
+  return {
+    transaction,
+    audit,
+    complete: audit?.result === 'committed',
+  };
 }

@@ -344,9 +344,14 @@ export const payments = pgTable('payments', {
   callbackRawDigest: text('callback_raw_digest'),
   verifyResult: varchar('verify_result', { length: 32 }).default('pending').notNull(),
   status: paymentStatusEnum('status').default('pending').notNull(),
+  active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  activeOrderUnique: uniqueIndex('payments_order_active_unique')
+    .on(table.orderId)
+    .where(sql`${table.active} = true`),
+}));
 
 export const walletAccounts = pgTable('wallet_accounts', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -422,7 +427,7 @@ export const adminSessions = pgTable('admin_sessions', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
-  subjectIdx: index('admin_sessions_subject_idx').on(table.provider, table.externalSubject),
+  subjectUnique: uniqueIndex('admin_sessions_subject_unique').on(table.provider, table.externalSubject),
   activeIdx: index('admin_sessions_active_idx').on(table.userId, table.expiresAt),
 }));
 
@@ -434,10 +439,12 @@ export const adminAuditLogs = pgTable('admin_audit_logs', {
   objectId: varchar('object_id', { length: 128 }),
   requestId: varchar('request_id', { length: 128 }),
   taskId: varchar('task_id', { length: 128 }),
+  dedupeKey: varchar('dedupe_key', { length: 160 }),
   result: varchar('result', { length: 32 }).notNull(),
   summary: jsonb('summary'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
+  dedupeKeyUnique: uniqueIndex('admin_audit_logs_dedupe_key_unique').on(table.dedupeKey),
   requestIdx: index('admin_audit_logs_request_idx').on(table.requestId, table.createdAt),
   objectIdx: index('admin_audit_logs_object_idx').on(table.objectType, table.objectId, table.createdAt),
 }));

@@ -14,6 +14,8 @@ describe('PaymentProvider contract', () => {
     it('should create a prepay order and return provider order id and prepay params', async () => {
       const result = await provider.createPrepay({
         orderId: 'order-123',
+        idempotencyKey: 'payment-attempt-123',
+        createdAt: '2026-11-04T10:00:00.000Z',
         userId: 'user-123',
         amountCents: 1000,
         description: 'Test package',

@@ -591,6 +591,12 @@ describe('resolveClientTurn', () => {
     setMock.mockReturnValue({ where: updateWhereMock });
     updateWhereMock.mockReturnValue({ returning: returningMock });
     returningMock.mockResolvedValue([]);
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
+      select: selectMock,
+      insert: insertMock,
+      update: updateMock,
+      execute: vi.fn().mockResolvedValue(undefined),
+    }));
   });
 
   /** Base input with explicit mode/scriptId (new client behavior) */
@@ -660,6 +666,25 @@ describe('resolveClientTurn', () => {
     expect(
       selectWhereMock.mock.calls.filter(([conditions]) => JSON.stringify(conditions).includes('characters.id')),
     ).toHaveLength(0);
+  });
+
+  it('converges a first-turn session unique race instead of throwing', async () => {
+    orderByMock.mockResolvedValueOnce([]);
+    selectLimitMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sessionRow()]);
+    insertReturningMock
+      .mockRejectedValueOnce(pgUniqueError('chat_sessions_active_script_unique'))
+      .mockResolvedValueOnce([{ id: 'msg-created', generationAttempt: 1 }]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn({ ...baseInput, sessionId: undefined });
+
+    expect(result.status).toBe('created');
+    if (result.status === 'created') {
+      expect(result.sessionId).toBe('session-1');
+      expect(result.userMessageId).toBe('msg-created');
+    }
   });
 
   it('unique constraint (23505) on insert -> re-read with assistant -> replay', async () => {

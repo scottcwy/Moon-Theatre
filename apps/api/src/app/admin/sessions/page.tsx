@@ -1,4 +1,5 @@
 import { listSessions } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 interface SessionRow {
   id: string;
@@ -14,6 +15,7 @@ interface SessionRow {
 }
 
 export default async function SessionsPage() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   let sessions: Awaited<ReturnType<typeof listSessions>>;
   try {
     sessions = await listSessions({ page: 1, pageSize: 50 });

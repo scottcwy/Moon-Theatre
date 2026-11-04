@@ -171,7 +171,7 @@ function deferred<T>() {
 
 async function* successStream() {
   yield { type: 'delta' as const, content: '你好，今晚月色很好。[情绪: Happy]' };
-  yield { type: 'done' as const, fallback: false };
+  yield { type: 'done' as const, fallback: false, actualModel: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash' };
 }
 
 async function* errorStream() {
@@ -181,7 +181,7 @@ async function* errorStream() {
 function streamWith(content: string) {
   return async function* () {
     yield { type: 'delta' as const, content };
-    yield { type: 'done' as const, fallback: false };
+    yield { type: 'done' as const, fallback: false, actualModel: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash' };
   };
 }
 
@@ -510,7 +510,7 @@ describe('runChatStream', () => {
         userId: 'user-1',
         characterId: 'character-1',
         modelTier: 'standard',
-        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+        modelName: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
         walletTransactionId: 'wallet-tx-1',
         status: 'success',
         pointsConsumed: 3,
@@ -584,7 +584,7 @@ describe('runChatStream', () => {
       characterId: 'character-1',
       sessionId: 'session-1',
       modelTier: 'standard',
-      modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+      modelName: 'unknown',
       pointsConsumed: 0,
       walletTransactionId: null,
       status: 'failed',
@@ -803,7 +803,7 @@ describe('runChatStream', () => {
         userId: 'user-1',
         characterId: 'character-1',
         modelTier: 'standard',
-        modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+        modelName: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
         walletTransactionId: null,
         status: 'out_of_scope',
         pointsConsumed: 0,
@@ -876,7 +876,7 @@ describe('runChatStream', () => {
     streamChatMock.mockImplementation(async function* () {
       yield { type: 'delta' as const, content: '你好，' };
       yield { type: 'delta' as const, content: '今晚月色很好。[情绪: Happy]' };
-      yield { type: 'done' as const, fallback: false };
+      yield { type: 'done' as const, fallback: false, actualModel: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash' };
     });
 
     const { runChatStream } = await import('../stream-runner.js');
@@ -904,6 +904,43 @@ describe('runChatStream', () => {
       content: '你好，今晚月色很好。',
       mood: 'happy',
     }));
+  });
+
+  it('does not bill a fallback completion as a normal model success', async () => {
+    streamChatMock.mockImplementation(async function* () {
+      yield { type: 'delta' as const, content: '开发兜底回复。[情绪: Neutral]' };
+      yield { type: 'done' as const, fallback: true, actualModel: null };
+    });
+
+    const { runChatStream } = await import('../stream-runner.js');
+    const response = await runChatStream({
+      userId: 'user-1',
+      characterId: 'character-1',
+      message: '你好',
+      modelTier: 'standard',
+    });
+    const events = await readEvents(response);
+
+    expect(events.find((event) => event.type === 'done')).toMatchObject({
+      type: 'done',
+      fallback: true,
+      balanceAfter: 10,
+    });
+    expect(refundConsumedPointsMock).toHaveBeenCalledWith(
+      'user-1',
+      3,
+      'refund_user-message-1_1',
+    );
+    expect(finalizeAssistantTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      usage: expect.objectContaining({
+        modelName: 'fallback',
+        walletTransactionId: null,
+        status: 'failed',
+        pointsConsumed: 0,
+        errorCode: 'fastclaw_fallback',
+      }),
+    }));
+    expect(runChatCompletionEffectsMock).not.toHaveBeenCalled();
   });
 
   it('appends a correction delta and done.content when streamed output is blocked', async () => {
@@ -1092,7 +1129,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+          modelName: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,
@@ -1125,7 +1162,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+          modelName: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,
@@ -1157,7 +1194,7 @@ describe('runChatStream', () => {
           userId: 'user-1',
           characterId: 'character-1',
           modelTier: 'standard',
-          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+          modelName: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
           walletTransactionId: 'wallet-tx-1',
           status: 'success',
           pointsConsumed: 3,
@@ -1491,7 +1528,7 @@ describe('runChatStream', () => {
       streamChatMock.mockImplementation(async function* () {
         yield { type: 'delta' as const, content: '{"mood": "平静", "content": "我不会用这种格式说话。"}' };
         yield { type: 'delta' as const, content: ' 若你想要规整的记录，不如自己去写。' };
-        yield { type: 'done' as const, fallback: false };
+        yield { type: 'done' as const, fallback: false, actualModel: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash' };
       });
 
       const { runChatStream } = await import('../stream-runner.js');

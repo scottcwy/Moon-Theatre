@@ -7,6 +7,8 @@ import {
   RETURN_MESSAGE_TIMEOUT_MS,
 } from '../generator.js';
 
+const runtimeModel = 'siliconflow/deepseek-ai/DeepSeek-V4-Flash';
+
 const { mockStreamChat } = vi.hoisted(() => ({ mockStreamChat: vi.fn() }));
 
 vi.mock('../../fastclaw/adapter.js', () => ({
@@ -42,7 +44,7 @@ describe('generateReturnMessageContent', () => {
     mockStream([
       { type: 'delta', content: '小新娘，' },
       { type: 'delta', content: '月色已满。' },
-      { type: 'done', fallback: false },
+      { type: 'done', fallback: false, actualModel: runtimeModel },
     ]);
 
     const content = await generateReturnMessageContent(character);
@@ -51,7 +53,7 @@ describe('generateReturnMessageContent', () => {
   });
 
   it('prompt 包含角色 systemPrompt/personalityPrompt 与固定指令关键词，并传短超时', async () => {
-    mockStream([{ type: 'done', fallback: false }]);
+    mockStream([{ type: 'done', fallback: false, actualModel: runtimeModel }]);
 
     await generateReturnMessageContent(character);
 
@@ -67,7 +69,7 @@ describe('generateReturnMessageContent', () => {
   it('角色 Agent 架构（USE_ROLEPLAY_AGENTS=true）不再直拼角色 prompt，并传 agentId/userId/scope=free/noPersist', async () => {
     vi.resetModules();
     vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
-    mockStream([{ type: 'done', fallback: false }]);
+    mockStream([{ type: 'done', fallback: false, actualModel: runtimeModel }]);
 
     const { generateReturnMessageContent: roleplayGenerate } = await import('../generator.js');
     await roleplayGenerate(character);
@@ -100,7 +102,7 @@ describe('generateReturnMessageContent', () => {
   it('非开关模式下 agentId 缺失不影响旧路径（仍直拼角色 prompt 生成）', async () => {
     mockStream([
       { type: 'delta', content: '回来吧。' },
-      { type: 'done', fallback: false },
+      { type: 'done', fallback: false, actualModel: runtimeModel },
     ]);
 
     const content = await generateReturnMessageContent({ ...character, agentId: null });
@@ -113,7 +115,7 @@ describe('generateReturnMessageContent', () => {
     const longText = '😀'.repeat(250);
     mockStream([
       { type: 'delta', content: longText },
-      { type: 'done', fallback: false },
+      { type: 'done', fallback: false, actualModel: runtimeModel },
     ]);
 
     const content = await generateReturnMessageContent(character);
@@ -134,7 +136,7 @@ describe('generateReturnMessageContent', () => {
   it('adapter 兜底流（done fallback: true）视为失败并返回该角色模板，而非收集文本', async () => {
     mockStream([
       { type: 'delta', content: '[情绪: 平静] 最近过得怎么样？' },
-      { type: 'done', fallback: true },
+      { type: 'done', fallback: true, actualModel: null },
     ]);
 
     const content = await generateReturnMessageContent(character);
@@ -144,7 +146,7 @@ describe('generateReturnMessageContent', () => {
   });
 
   it('只产出 done 无 delta 时返回该角色模板', async () => {
-    mockStream([{ type: 'done', fallback: false }]);
+    mockStream([{ type: 'done', fallback: false, actualModel: runtimeModel }]);
 
     const content = await generateReturnMessageContent(character);
 
@@ -175,7 +177,7 @@ describe('generateReturnMessageContent', () => {
     mockStream([
       { type: 'delta', content: '  ' },
       { type: 'delta', content: '回来吧。  ' },
-      { type: 'done', fallback: false },
+      { type: 'done', fallback: false, actualModel: runtimeModel },
     ]);
 
     const content = await generateReturnMessageContent(character);

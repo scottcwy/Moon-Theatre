@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { orders, payments } from '../../db/schema.js';
 import { creditWalletInTransaction } from '../wallet/index.js';
@@ -11,18 +11,22 @@ export type PaymentNotifyStatus = 'success' | 'failed' | 'cancelled';
 export async function processPaymentNotify(
   notify: VerifiedPaymentNotify,
   normalizedStatus: PaymentNotifyStatus,
+  providerName: string,
 ): Promise<{ alreadyCredited?: boolean }> {
   if (normalizedStatus === 'success') {
-    return processSuccessfulNotify(notify);
+    return processSuccessfulNotify(notify, providerName);
   }
 
-  await processUnsuccessfulNotify(notify, normalizedStatus);
+  await processUnsuccessfulNotify(notify, normalizedStatus, providerName);
   return {};
 }
 
-async function processSuccessfulNotify(notify: VerifiedPaymentNotify): Promise<{ alreadyCredited: boolean }> {
+async function processSuccessfulNotify(
+  notify: VerifiedPaymentNotify,
+  providerName: string,
+): Promise<{ alreadyCredited: boolean }> {
   return db.transaction(async (tx) => {
-    const order = await findOrderForUpdate(tx, notify.orderId);
+    const order = await findOrderByMerchantOrderNoForUpdate(tx, notify.orderId);
 
     if (!order) {
       throw new PaymentNotifyError('Order not found', 404);
@@ -36,8 +40,13 @@ async function processSuccessfulNotify(notify: VerifiedPaymentNotify): Promise<{
       return { alreadyCredited: true };
     }
 
-    if (!['prepay_created', 'paid'].includes(order.status)) {
+    if (order.status === 'refunded') {
       throw new PaymentNotifyError(`Order cannot be credited in status: ${order.status}`, 400);
+    }
+
+    const payment = await findPaymentForUpdate(tx, order.id, providerName);
+    if (!payment) {
+      throw new PaymentNotifyError('Payment record not found for provider', 409);
     }
 
     const now = new Date();
@@ -60,7 +69,7 @@ async function processSuccessfulNotify(notify: VerifiedPaymentNotify): Promise<{
       })
       .where(eq(orders.id, order.id));
 
-    await markPendingPayment(tx, order.id, {
+    await markPayment(tx, payment.id, {
       providerTransactionId: notify.providerTransactionId,
       status: 'success',
       callbackRawDigest: notify.rawDigest ?? null,
@@ -74,16 +83,26 @@ async function processSuccessfulNotify(notify: VerifiedPaymentNotify): Promise<{
 async function processUnsuccessfulNotify(
   notify: VerifiedPaymentNotify,
   normalizedStatus: Exclude<PaymentNotifyStatus, 'success'>,
+  providerName: string,
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    const order = await findOrderForUpdate(tx, notify.orderId);
+    const order = await findOrderByMerchantOrderNoForUpdate(tx, notify.orderId);
 
     if (!order) {
       throw new PaymentNotifyError('Order not found', 404);
     }
 
-    if (order.status === 'credited') {
+    if (order.status === 'credited' || order.status === 'refunded') {
       return;
+    }
+
+    if (notify.amountCents > 0 && notify.amountCents !== order.amountCents) {
+      throw new PaymentNotifyError('Payment amount mismatch', 400);
+    }
+
+    const payment = await findPaymentForUpdate(tx, order.id, providerName);
+    if (!payment) {
+      throw new PaymentNotifyError('Payment record not found for provider', 409);
     }
 
     const now = new Date();
@@ -96,7 +115,7 @@ async function processUnsuccessfulNotify(
       })
       .where(eq(orders.id, order.id));
 
-    await markPendingPayment(tx, order.id, {
+    await markPayment(tx, payment.id, {
       providerTransactionId: notify.providerTransactionId,
       status: normalizedStatus,
       callbackRawDigest: notify.rawDigest ?? null,
@@ -105,20 +124,39 @@ async function processUnsuccessfulNotify(
   });
 }
 
-async function findOrderForUpdate(tx: PaymentTransactionClient, orderId: string) {
+async function findOrderByMerchantOrderNoForUpdate(
+  tx: PaymentTransactionClient,
+  merchantOrderNo: string,
+) {
   const [order] = await tx
     .select()
     .from(orders)
-    .where(or(eq(orders.id, orderId), eq(orders.merchantOrderNo, orderId)))
+    .where(eq(orders.merchantOrderNo, merchantOrderNo))
     .limit(1)
     .for('update');
 
   return order;
 }
 
-async function markPendingPayment(
+async function findPaymentForUpdate(
   tx: PaymentTransactionClient,
   orderId: string,
+  providerName: string,
+) {
+  const [payment] = await tx
+    .select()
+    .from(payments)
+    .where(and(eq(payments.orderId, orderId), eq(payments.provider, providerName)))
+    .orderBy(desc(payments.createdAt))
+    .limit(1)
+    .for('update');
+
+  return payment;
+}
+
+async function markPayment(
+  tx: PaymentTransactionClient,
+  paymentId: string,
   input: {
     providerTransactionId: string;
     status: 'success' | 'failed' | 'cancelled';
@@ -126,21 +164,6 @@ async function markPendingPayment(
     now: Date;
   },
 ): Promise<void> {
-  const [payment] = await tx
-    .select()
-    .from(payments)
-    .where(
-      and(
-        eq(payments.orderId, orderId),
-        eq(payments.status, 'pending'),
-      ),
-    )
-    .limit(1);
-
-  if (!payment) {
-    return;
-  }
-
   await tx
     .update(payments)
     .set({
@@ -148,9 +171,10 @@ async function markPendingPayment(
       status: input.status,
       verifyResult: 'passed',
       callbackRawDigest: input.callbackRawDigest,
+      active: false,
       updatedAt: input.now,
     })
-    .where(eq(payments.id, payment.id));
+    .where(eq(payments.id, paymentId));
 }
 
 export class PaymentNotifyError extends Error {

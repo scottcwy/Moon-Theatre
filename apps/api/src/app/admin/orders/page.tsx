@@ -1,4 +1,5 @@
 import { listOrders } from '@/server/modules/admin/index.js';
+import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 
 type OrderRow = Record<string, unknown> & {
   id: string; userId: string; merchantOrderNo: string; amountCents: number;
@@ -7,6 +8,7 @@ type OrderRow = Record<string, unknown> & {
 };
 
 export default async function OrdersPage() {
+  if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
   let result: Awaited<ReturnType<typeof listOrders>>;
   try {
     result = await listOrders({ page: 1, pageSize: 50 });

@@ -192,7 +192,7 @@ describe('dev auth bypass', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('DEV_AUTH_BYPASS', 'true');
     vi.stubEnv('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/juben_sha');
-    vi.stubEnv('JWT_SECRET', 'production-secret');
+    vi.stubEnv('JWT_SECRET', 'production-secret-0123456789abcdef');
     vi.stubEnv('PAYMENT_PROVIDER', 'aggregate');
     vi.stubEnv('PAYMENT_MERCHANT_ID', 'merchant');
     vi.stubEnv('PAYMENT_APP_ID', 'app');
@@ -202,7 +202,7 @@ describe('dev auth bypass', () => {
     vi.stubEnv('WECHAT_APP_SECRET', 'wx-secret');
     vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
     vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
-    vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'password');
+    vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'strong-admin-password');
 
     const { verifyAuth } = await loadAuth();
     const request = new Request('https://api.example.com/api/me', {

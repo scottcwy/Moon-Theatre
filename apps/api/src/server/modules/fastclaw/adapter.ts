@@ -1,4 +1,5 @@
 import { config } from '../../config/index.js';
+import { CHAT_RUNTIME_MODEL } from '@juben-sha/shared';
 
 export interface StreamDelta {
   type: 'delta';
@@ -8,6 +9,7 @@ export interface StreamDelta {
 export interface StreamDone {
   type: 'done';
   fallback: boolean;
+  actualModel: string | null;
 }
 
 export interface StreamError {
@@ -94,6 +96,9 @@ export async function* streamChat(
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let actualModel: string | null = null;
+        let bufferedContent = '';
+        let modelValidated = false;
 
         let sawDone = false;
         while (true) {
@@ -111,18 +116,59 @@ export async function* streamChat(
             const data = trimmed.slice(6);
             if (data === '[DONE]') {
               sawDone = true;
-              yield { type: 'done', fallback: false };
+              if (!actualModel) {
+                throw new FastClawStreamError('upstream_error', 'FastClaw stream omitted runtime model');
+              }
+              if (!modelValidated || actualModel !== CHAT_RUNTIME_MODEL) {
+                throw new FastClawStreamError(
+                  'upstream_error',
+                  `FastClaw runtime model is not allowed: ${actualModel}`,
+                );
+              }
+              yield { type: 'done', fallback: false, actualModel };
               return;
             }
 
+            let parsed: {
+              model?: unknown;
+              choices?: Array<{ delta?: { content?: unknown } }>;
+            };
             try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                yield { type: 'delta', content };
-              }
+              parsed = JSON.parse(data);
             } catch {
               continue;
+            }
+
+            if (typeof parsed.model === 'string' && parsed.model.trim()) {
+              if (actualModel && parsed.model !== actualModel) {
+                throw new FastClawStreamError(
+                  'upstream_error',
+                  `FastClaw runtime model changed during stream: ${actualModel} -> ${parsed.model}`,
+                );
+              }
+              actualModel = parsed.model;
+            }
+            if (!modelValidated && actualModel) {
+              if (actualModel !== CHAT_RUNTIME_MODEL) {
+                throw new FastClawStreamError(
+                  'upstream_error',
+                  `FastClaw runtime model is not allowed: ${actualModel}`,
+                );
+              }
+              modelValidated = true;
+              if (bufferedContent) {
+                yield { type: 'delta', content: bufferedContent };
+                bufferedContent = '';
+              }
+            }
+
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (typeof content === 'string' && content) {
+              if (modelValidated) {
+                yield { type: 'delta', content };
+              } else {
+                bufferedContent += content;
+              }
             }
           }
         }
@@ -227,7 +273,7 @@ async function* fallbackStream(userMessage: string): AsyncGenerator<StreamEvent>
     await sleep(50);
   }
 
-  yield { type: 'done', fallback: true };
+  yield { type: 'done', fallback: true, actualModel: null };
 }
 
 function buildFallbackResponse(userMessage: string): string {

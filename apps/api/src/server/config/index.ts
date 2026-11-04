@@ -1,5 +1,10 @@
 const DEFAULT_JWT_SECRET = 'dev-secret-change-in-production';
 const isProduction = process.env.NODE_ENV === 'production';
+const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
+const MIN_ADMIN_BASIC_PASSWORD_LENGTH = 12;
+const SUPPORTED_PAYMENT_PROVIDERS = new Set(['mock', 'aggregate']);
+const WEAK_ADMIN_PASSWORDS = new Set(['password', 'admin', 'changeme', 'change-me']);
+const WEAK_ADMIN_PASSWORD_PREFIXES = ['password', 'admin', 'changeme', 'qwerty', 'letmein', '123456'];
 
 const rawConfig = {
   port: parseInt(process.env.PORT || '3000', 10),
@@ -64,7 +69,13 @@ function validateProductionConfig(cfg: typeof rawConfig): void {
   if (!process.env.JWT_SECRET || cfg.jwtSecret === DEFAULT_JWT_SECRET) {
     throw new Error('JWT_SECRET must be set to a non-default value in production');
   }
+  if (cfg.jwtSecret.length < MIN_PRODUCTION_JWT_SECRET_LENGTH) {
+    throw new Error(`JWT_SECRET must be at least ${MIN_PRODUCTION_JWT_SECRET_LENGTH} characters in production`);
+  }
 
+  if (!SUPPORTED_PAYMENT_PROVIDERS.has(cfg.paymentProvider)) {
+    throw new Error(`PAYMENT_PROVIDER is not supported: ${cfg.paymentProvider}`);
+  }
   if (cfg.paymentProvider === 'mock') {
     throw new Error('PAYMENT_PROVIDER must not be mock in production');
   }
@@ -86,7 +97,33 @@ function validateProductionConfig(cfg: typeof rawConfig): void {
     throw new Error('ADMIN_USER_IDS must contain at least one user id in production');
   }
 
-  if (!cfg.adminBasicAuthUser || !cfg.adminBasicAuthPassword) {
-    throw new Error('ADMIN_BASIC_AUTH_USER and ADMIN_BASIC_AUTH_PASSWORD must be set in production');
+  if (!cfg.adminBasicAuthUser) {
+    throw new Error('ADMIN_BASIC_AUTH_USER must be set in production');
   }
+  if (!cfg.adminBasicAuthPassword) {
+    throw new Error('ADMIN_BASIC_AUTH_PASSWORD must be set in production');
+  }
+  if (
+    cfg.adminBasicAuthPassword.length < MIN_ADMIN_BASIC_PASSWORD_LENGTH ||
+    isWeakAdminPassword(cfg.adminBasicAuthPassword)
+  ) {
+    throw new Error(
+      `ADMIN_BASIC_AUTH_PASSWORD must be at least ${MIN_ADMIN_BASIC_PASSWORD_LENGTH} characters and not a common weak password`,
+    );
+  }
+  if (cfg.fastclawFallbackEnabled) {
+    throw new Error('FASTCLAW_FALLBACK_ENABLED must be false in production');
+  }
+  if (!Number.isInteger(cfg.testUserInitialPoints) || cfg.testUserInitialPoints !== 0) {
+    throw new Error('TEST_USER_INITIAL_POINTS must be 0 in production');
+  }
+}
+
+function isWeakAdminPassword(password: string): boolean {
+  const normalized = password.toLowerCase();
+  if (WEAK_ADMIN_PASSWORDS.has(normalized)) return true;
+  if (WEAK_ADMIN_PASSWORD_PREFIXES.some((prefix) => normalized.startsWith(prefix))) return true;
+  if (/^\d+$/.test(normalized)) return true;
+  if (new Set(normalized).size < 5) return true;
+  return false;
 }
