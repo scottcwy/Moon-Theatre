@@ -341,7 +341,13 @@ export default function Home() {
                           </View>
                           <Text className="theater-home__hero-card-title" userSelect>{script.title}</Text>
                           {script.description ? <Text className="theater-home__hero-desc">{script.description}</Text> : null}
-                          <View className="theater-home__primary-action" onTap={() => chooseRole(script)}>
+                          <View
+                            className="theater-home__primary-action"
+                            onTap={(event) => {
+                              event.stopPropagation?.();
+                              chooseRole(script);
+                            }}
+                          >
                             <Text>选择角色</Text>
                           </View>
                         </View>
