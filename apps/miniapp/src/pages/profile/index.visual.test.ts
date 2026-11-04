@@ -17,7 +17,10 @@ describe('auth/profile visual frame contract', () => {
   it('将状态栏占位和庭院渐变限制在 loading 分支，保留三点月相及真实文字', () => {
     expect(profile).toContain('Taro.getWindowInfo().statusBarHeight');
     expect(profile).toContain('className="profile__loading-stage" style={loadingStageStyle}');
+    expect(profile).toContain('backgroundImageTop="72rpx"');
     expect(style).toContain('.profile.profile--loading');
+    expect(style).toContain('> .page-shell__backdrop-overlay');
+    expect(style).not.toContain("url('../../assets/backgrounds/courtyard.jpg')");
     expect(style).toContain('margin-top: 444rpx');
     expect(loadingCard.match(/className="profile__loading-dot/g)).toHaveLength(3);
     expect(loadingCard).toContain('<Text className="profile__loading-text">');

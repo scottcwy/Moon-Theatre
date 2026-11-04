@@ -79,7 +79,7 @@ export default function Login() {
             ) : (
               <Image
                 className="login-page__title-image"
-                src="/assets/login/title-calligraphy.png"
+                src="/pages/login/assets/login/title-calligraphy.png"
                 mode="widthFix"
                 onError={() => setTitleImageFailed(true)}
               />

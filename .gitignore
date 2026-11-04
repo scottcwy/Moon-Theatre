@@ -35,6 +35,7 @@ apps/miniapp/e2e/artifacts/
 
 # One-off diagnostics and generated load-test data
 /apps/miniapp/e2e/.switch-check.tmp.mjs
+/apps/miniapp/.build-provenance.json
 /scripts/load-test/stress.ts
 /scripts/load-test/results/
 

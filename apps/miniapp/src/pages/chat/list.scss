@@ -7,9 +7,7 @@ $search-gold: #c9a25e;
 .chat-list {
   min-height: 100vh;
   color: #f3dfca;
-  background:
-    linear-gradient(180deg, rgba(16, 11, 13, 0.06) 0 10%, rgba(224, 210, 196, 0.9) 16%, #decdbd 22%, #decdbd 100%),
-    url('../../assets/backgrounds/courtyard.jpg') center top / 100% auto no-repeat;
+  background: linear-gradient(180deg, rgba(16, 11, 13, 0.06) 0 10%, rgba(224, 210, 196, 0.9) 16%, #decdbd 22%, #decdbd 100%);
 }
 
 .chat-list__body {

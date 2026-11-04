@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildElementFailures,
+  createFatalE2EReport,
   isRectBelow,
   mergeOffsetAndSize,
+  missingRequiredElementFailure,
   rectanglesOverlap,
+  summarizeCheckStatuses,
 } from './runtime-ui-checks.mjs';
 
 describe('runtime UI E2E layout checks', () => {
@@ -78,5 +81,49 @@ describe('runtime UI E2E layout checks', () => {
 
     expect(isRectBelow({ top: 103 }, capsule, 8)).toBe(true);
     expect(isRectBelow({ top: 95 }, capsule, 8)).toBe(false);
+  });
+
+  it('returns a failure array when a required selector is missing', () => {
+    expect(missingRequiredElementFailure('character world', ['.missing-world', '.fallback-world'])).toEqual([
+      {
+        label: 'character world',
+        selector: '.missing-world, .fallback-world',
+        reason: 'required selector missing',
+      },
+    ]);
+  });
+
+  it('treats skipped required checks as partial instead of success', () => {
+    expect(summarizeCheckStatuses([
+      { status: 'passed' },
+      { status: 'skipped' },
+    ])).toBe('partial');
+    expect(summarizeCheckStatuses([
+      { status: 'passed' },
+      { status: 'failed' },
+      { status: 'skipped' },
+    ])).toBe('failed');
+    expect(summarizeCheckStatuses([
+      { status: 'passed' },
+      { status: 'passed' },
+    ])).toBe('passed');
+  });
+
+  it('builds a non-green report for a fatal pre-check failure', () => {
+    const report = createFatalE2EReport({
+      startedAt: '2026-11-04T00:00:00.000Z',
+      finishedAt: '2026-11-04T00:00:01.000Z',
+      context: { api: 'http://127.0.0.1:3000' },
+      error: new Error('database unavailable'),
+    });
+
+    expect(report).toMatchObject({
+      status: 'failed',
+      ok: false,
+      checks: [],
+      unverified: [],
+      api: 'http://127.0.0.1:3000',
+      fatalError: 'database unavailable',
+    });
   });
 });

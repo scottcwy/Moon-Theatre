@@ -1,5 +1,5 @@
-import { ScrollView, Text, View } from '@tarojs/components';
-import type { ReactNode } from 'react';
+import { Image, ScrollView, Text, View } from '@tarojs/components';
+import type { CSSProperties, ReactNode } from 'react';
 import './PageContainer.scss';
 
 export interface PageShellProps {
@@ -14,6 +14,8 @@ export interface PageShellProps {
   tabBarReserve?: boolean;
   bottomReserve?: boolean;
   className?: string;
+  backgroundImage?: string;
+  backgroundImageTop?: string;
 }
 
 interface PageSectionProps {
@@ -63,6 +65,8 @@ export function PageShell({
   tabBarReserve = false,
   bottomReserve = false,
   className = '',
+  backgroundImage,
+  backgroundImageTop,
 }: PageShellProps) {
   const classes = [
     'page-shell',
@@ -73,22 +77,37 @@ export function PageShell({
     noPadding && 'page-shell--no-padding',
     (tabBarReserve || tabBarMode !== 'none') && 'page-shell--tabbar',
     (bottomReserve || bottomInset !== 'none') && 'page-shell--bottom-reserve',
+    backgroundImage && 'page-shell--has-backdrop',
     className,
   ]
     .filter(Boolean)
     .join(' ');
 
   const main = variant === 'full' ? (
-    <ScrollView className="page-shell__scroll" scrollY enhanced showScrollbar={false}>
+    <ScrollView key="main" className="page-shell__scroll" scrollY enhanced showScrollbar={false}>
       {children}
     </ScrollView>
-  ) : <View className="page-shell__content">{children}</View>;
+  ) : <View key="main" className="page-shell__content">{children}</View>;
+  const shellChildren: ReactNode[] = [];
+  if (backgroundImage) {
+    shellChildren.push(
+      <Image
+        key="backdrop"
+        className="page-shell__backdrop"
+        src={backgroundImage}
+        mode="widthFix"
+        style={backgroundImageTop ? { top: backgroundImageTop } as CSSProperties : undefined}
+      />,
+      <View key="backdrop-overlay" className="page-shell__backdrop-overlay" />,
+    );
+  }
+  if (header) shellChildren.push(<View key="header" className="page-shell__header">{header}</View>);
+  shellChildren.push(main);
+  if (footer) shellChildren.push(<View key="footer" className="page-shell__footer">{footer}</View>);
 
   return (
     <View className={classes}>
-      {header ? <View className="page-shell__header">{header}</View> : null}
-      {main}
-      {footer ? <View className="page-shell__footer">{footer}</View> : null}
+      {shellChildren}
     </View>
   );
 }

@@ -45,7 +45,7 @@ describe('visual fixture payment boundary', () => {
   it('production app config registers the fixture page only behind VISUAL_FIXTURES', () => {
     const config = fs.readFileSync(path.join(repoRoot, 'apps/miniapp/src/app.config.ts'), 'utf8');
     expect(config).toMatch(/VISUAL_FIXTURES/);
-    expect(config).toMatch(/pages\/quota\/visual-fixture\/index/);
+    expect(config).toMatch(/visual-fixture\/index/);
   });
 
   it('12 帧 fixture 路由、查询与矩阵一致', () => {
@@ -134,7 +134,13 @@ describe('visual fixture payment boundary', () => {
   it.runIf(process.env.VISUAL_VERIFY_PRODUCTION === 'true')('生产构建不含 fixture 路由、数据或 QR', () => {
     const dist = path.resolve(e2eDir, '../dist');
     const app = JSON.parse(fs.readFileSync(path.join(dist, 'app.json'), 'utf8'));
-    expect(app.pages).not.toContain('pages/quota/visual-fixture/index');
+    const registeredPages = [
+      ...(app.pages ?? []),
+      ...(app.subPackages ?? app.subpackages ?? []).flatMap((subpackage) => (
+        subpackage.pages.map((page) => `${subpackage.root.replace(/\/+$/, '')}/${page.replace(/^\/+/, '')}`)
+      )),
+    ];
+    expect(registeredPages).not.toContain('pages/quota/visual-fixture/index');
     expect(fs.existsSync(path.join(dist, 'visual-fixtures/share-qr.png'))).toBe(false);
     expect(fs.existsSync(path.join(dist, 'pages/quota/visual-fixture/index.js'))).toBe(false);
     const literals = [fixture('home-default').scriptRow.title, fixture('home-default').scriptRow.description, 'VISUAL-20261019-0001'];

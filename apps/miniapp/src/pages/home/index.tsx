@@ -35,11 +35,17 @@ import {
 } from './index.model';
 import './index.scss';
 
+declare const getCurrentPages: () => Array<Record<string, unknown>>;
+
 interface CharacterCard {
   id: string;
   name: string;
   identity: string;
   avatarUrl: string | null;
+}
+
+interface HomeE2EPage {
+  __jubenE2ETriggerScriptModeSwitch?: () => void;
 }
 
 interface ScriptCard {
@@ -227,6 +233,19 @@ export default function Home() {
     }, SCRIPT_MODE_ENTRY_DELAY_MS);
   };
 
+  useEffect(() => {
+    if (!DEV_AUTH_BYPASS) return undefined;
+    const pages = getCurrentPages();
+    const page = pages[pages.length - 1] as HomeE2EPage | undefined;
+    if (!page) return undefined;
+    page.__jubenE2ETriggerScriptModeSwitch = handleScriptModeToggle;
+    return () => {
+      if (page.__jubenE2ETriggerScriptModeSwitch === handleScriptModeToggle) {
+        delete page.__jubenE2ETriggerScriptModeSwitch;
+      }
+    };
+  }, [handleScriptModeToggle]);
+
   useDidShow(() => {
     if (scriptModeTimerRef.current) clearTimeout(scriptModeTimerRef.current);
     setScriptModeOn(false);
@@ -390,6 +409,7 @@ export default function Home() {
               {characters.map((character) => (
                 <CharacterPosterCard
                   key={character.id}
+                  characterId={character.id}
                   className="theater-home__poster-card"
                   title={character.name}
                   subtitle={character.identity}

@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type AppConfig = typeof import('./app.config').default;
+type AppConfigWithSubpackages = AppConfig & {
+  subpackages?: Array<{ root: string; name?: string; pages: string[] }>;
+};
+
+function getSubpackages(appConfig: AppConfig) {
+  return (appConfig as AppConfigWithSubpackages).subpackages ?? [];
+}
 
 describe('V1 tab bar configuration', () => {
   beforeEach(() => {
@@ -35,7 +42,8 @@ describe('V1 tab bar configuration', () => {
   it('registers the API-driven generic script role selection page', async () => {
     const { default: appConfig } = await import('./app.config');
 
-    expect(appConfig.pages).toContain('pages/script/select');
+    const scriptPackage = getSubpackages(appConfig).find((entry) => entry.root === 'pages/script');
+    expect(scriptPackage?.pages).toContain('select');
   });
 
   it('keeps rubber-band overscroll on the app background instead of black or white edges', async () => {
@@ -49,11 +57,13 @@ describe('V1 tab bar configuration', () => {
   it('registers the visual fixture page only when VISUAL_FIXTURES is enabled', async () => {
     vi.stubEnv('VISUAL_FIXTURES', 'true');
     const { default: appConfig } = await import('./app.config');
-    expect(appConfig.pages).toContain('pages/quota/visual-fixture/index');
+    const quotaPackage = getSubpackages(appConfig).find((entry) => entry.root === 'pages/quota');
+    expect(quotaPackage?.pages).toContain('visual-fixture/index');
   });
 
   it('keeps the visual fixture page out of the production route list', async () => {
     const { default: appConfig } = await import('./app.config');
-    expect(appConfig.pages).not.toContain('pages/quota/visual-fixture/index');
+    const quotaPackage = getSubpackages(appConfig).find((entry) => entry.root === 'pages/quota');
+    expect(quotaPackage?.pages).not.toContain('visual-fixture/index');
   });
 });

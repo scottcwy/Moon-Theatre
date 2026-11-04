@@ -205,7 +205,13 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <PageShell variant="scroll" tabBarReserve className="profile profile--loading">
+      <PageShell
+        variant="scroll"
+        tabBarReserve
+        className="profile profile--loading"
+        backgroundImage="/assets/backgrounds/courtyard.jpg"
+        backgroundImageTop="72rpx"
+      >
         <View className="profile__loading-stage" style={loadingStageStyle}>
           <View className="profile__topbar"><Text>我的</Text></View>
           <ProfileLoadingCard />
@@ -217,7 +223,7 @@ export default function Profile() {
 
   if (needsLogin || !isLoggedIn()) {
     return (
-      <PageShell variant="scroll" tabBarReserve className="profile">
+      <PageShell variant="scroll" tabBarReserve className="profile" backgroundImage="/assets/backgrounds/courtyard.jpg">
         <View className="profile__topbar"><Text>我的</Text></View>
         <View className="profile__hero profile__hero--signed-out">
           <View className="profile__hero-main">
@@ -239,7 +245,7 @@ export default function Profile() {
   }
 
   return (
-    <PageShell variant="scroll" tabBarReserve className="profile profile--redesigned">
+    <PageShell variant="scroll" tabBarReserve className="profile profile--redesigned" backgroundImage="/assets/backgrounds/courtyard.jpg">
       <View className="profile__stage" style={loadingStageStyle}>
         <View className="profile__topbar"><Text>我的</Text></View>
         <View className="profile__hero">

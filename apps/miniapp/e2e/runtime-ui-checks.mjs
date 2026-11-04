@@ -84,3 +84,36 @@ export function buildElementFailures({
 
   return failures;
 }
+
+export function missingRequiredElementFailure(label, selectors) {
+  return [{
+    label,
+    selector: selectors.join(', '),
+    reason: 'required selector missing',
+  }];
+}
+
+export function summarizeCheckStatuses(checks) {
+  if (!Array.isArray(checks) || checks.length === 0) return 'failed';
+  if (checks.some((check) => check.status === 'failed')) return 'failed';
+  if (checks.some((check) => check.status === 'skipped')) return 'partial';
+  return checks.every((check) => check.status === 'passed') ? 'passed' : 'failed';
+}
+
+export function createFatalE2EReport({
+  startedAt,
+  finishedAt = new Date().toISOString(),
+  context = {},
+  error,
+}) {
+  return {
+    ...context,
+    startedAt,
+    finishedAt,
+    status: 'failed',
+    ok: false,
+    checks: [],
+    unverified: [],
+    fatalError: error instanceof Error ? error.message : String(error),
+  };
+}

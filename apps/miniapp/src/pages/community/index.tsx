@@ -35,7 +35,7 @@ export default function Community() {
   };
 
   return (
-    <PageShell variant="scroll" noPadding>
+    <PageShell variant="scroll" noPadding backgroundImage="/assets/backgrounds/courtyard.jpg">
       <View className="community" style={topBarStyle as CSSProperties}>
         <TopBar
           className="community__topbar"

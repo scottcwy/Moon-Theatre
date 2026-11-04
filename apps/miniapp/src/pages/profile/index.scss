@@ -3,10 +3,12 @@
 .profile {
   position: relative;
   padding: 0 18rpx calc($tabbar-reserve + env(safe-area-inset-bottom, $safe-bottom));
-  background:
-    var(--profile-backdrop, linear-gradient(180deg, rgba(15, 12, 14, 0.18) 0 30%, rgba(232, 218, 204, 0.96) 48%, #dfcfbf 100%)),
-    url('../../assets/backgrounds/courtyard.jpg') center var(--profile-image-top, 0px) / 100% auto no-repeat;
   color: #f7ecdd;
+
+  > .page-shell__backdrop-overlay {
+    min-height: 100vh;
+    background: var(--profile-backdrop, linear-gradient(180deg, rgba(15, 12, 14, 0.18) 0 30%, rgba(232, 218, 204, 0.96) 48%, #dfcfbf 100%));
+  }
 }
 
 .profile__topbar {
@@ -26,8 +28,11 @@
   padding-left: 0;
   padding-right: 0;
   --profile-backdrop: linear-gradient(180deg, transparent 0 420rpx, rgba(44, 25, 12, 0.34) 780rpx, rgba(44, 25, 12, 0.24) 960rpx, transparent 1160rpx), linear-gradient(180deg, transparent 0 540rpx, rgba(215, 200, 183, 0.12) 690rpx, #d8c9b9 1120rpx);
-  --profile-image-top: 72rpx;
   background-color: #d8c9b9;
+
+  > .page-shell__backdrop-overlay {
+    background-color: #d8c9b9;
+  }
 }
 
 .profile--loading .profile__topbar {
@@ -394,13 +399,14 @@
   max-width: 100%;
   box-sizing: border-box;
   padding: 0 38rpx calc(160rpx + env(safe-area-inset-bottom, 0px));
-  background:
-    linear-gradient(180deg, rgba(20, 13, 19, 0.15) 0 390rpx, rgba(32, 20, 22, 0.3) 510rpx, #e9ddcd 630rpx),
-    url('../../assets/backgrounds/courtyard.jpg') center top / 100% auto no-repeat;
-  background-color: #e9ddcd;
-  background-size: 100% 100%, 100% auto;
-  background-repeat: no-repeat;
   color: #412b30;
+
+  > .page-shell__backdrop-overlay {
+    background: linear-gradient(180deg, rgba(20, 13, 19, 0.15) 0 390rpx, rgba(32, 20, 22, 0.3) 510rpx, #e9ddcd 630rpx);
+    background-color: #e9ddcd;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+  }
 
   .profile__topbar {
     height: calc(var(--profile-status-height, 47px) + 84rpx);

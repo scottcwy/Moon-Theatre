@@ -216,8 +216,9 @@ describe('playbook component functional behavior', () => {
     expect(textContent(poster)).toContain('Lv.1');
     expect(textContent(poster)).toContain('负责守住庭院契约边界。');
 
-    const imagePoster = renderElement(<CharacterPosterCard title="白藏" subtitle="庭院狐神" imageUrl="/assets/characters/hakuzo.jpg" />);
+    const imagePoster = renderElement(<CharacterPosterCard characterId="hakuzo" title="白藏" subtitle="庭院狐神" imageUrl="/assets/characters/hakuzo.jpg" />);
     expect(findByType(imagePoster, 'image').props.src).toBe('/assets/characters/hakuzo.jpg');
+    expect(imagePoster.props.id).toBe('character-card-hakuzo');
     expect(findAll(imagePoster, (node) => String(node.props.className ?? '').includes('character-poster-card__placeholder'))).toHaveLength(0);
 
     const onPackageTap = vi.fn();
@@ -248,6 +249,13 @@ describe('playbook component functional behavior', () => {
     expect(findAll(assistantBubble, (node) => String(node.props.className ?? '').includes('chat-bubble__typing-dot'))).toHaveLength(3);
     expect(textContent(assistantBubble)).not.toContain('正在输入');
     expect(textContent(assistantBubble)).toContain('本地模式');
+
+    const rejectedReply = renderElement(<ChatBubble role="assistant" content="不在范围内" blocked outOfScope />);
+    expect(rejectedReply.props.className).toContain('chat-bubble-row--blocked');
+    expect(rejectedReply.props.className).toContain('chat-bubble-row--out-of-scope');
+
+    const completedReply = renderElement(<ChatBubble role="assistant" content="完整回复" complete />);
+    expect(completedReply.props.className).toContain('chat-bubble-row--complete');
   });
 
   it('keeps layout components stable across host miniapp background surfaces', () => {
@@ -285,6 +293,21 @@ describe('playbook component functional behavior', () => {
     expect(renderElement(<BottomAction variant="default">操作</BottomAction>).props.className).toContain('bottom-action--default');
     expect(renderElement(<BottomAction variant="dark">操作</BottomAction>).props.className).toContain('bottom-action--dark');
     expect(renderElement(<BottomAction variant="transparent">操作</BottomAction>).props.className).toContain('bottom-action--transparent');
+  });
+
+  it('renders an optional image backdrop once for pages that share a local background', () => {
+    const shell = renderElement(
+      <PageShell backgroundImage="/assets/backgrounds/courtyard.jpg" backgroundImageTop="72rpx">
+        内容
+      </PageShell>,
+    );
+    const backdrops = findAll(shell, (node) => String(node.props.className ?? '').split(' ').includes('page-shell__backdrop'));
+
+    expect(shell.props.className).toContain('page-shell--has-backdrop');
+    expect(backdrops).toHaveLength(1);
+    expect(backdrops[0].props.src).toBe('/assets/backgrounds/courtyard.jpg');
+    expect(backdrops[0].props.style).toEqual({ top: '72rpx' });
+    expect(findAll(shell, (node) => String(node.props.className ?? '').includes('page-shell__backdrop-overlay'))).toHaveLength(1);
   });
 
   it('renders migrated production components and keeps their callbacks explicit', () => {

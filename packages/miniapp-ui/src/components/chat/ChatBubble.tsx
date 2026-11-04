@@ -6,12 +6,25 @@ interface ChatBubbleProps {
   role: 'user' | 'assistant' | 'system';
   content: string;
   fallback?: boolean;
+  blocked?: boolean;
+  outOfScope?: boolean;
+  complete?: boolean;
   avatarUrl?: string;
   characterName?: string;
   typing?: boolean;
 }
 
-export function ChatBubble({ role, content, fallback, avatarUrl, characterName = '角色', typing = false }: ChatBubbleProps) {
+export function ChatBubble({
+  role,
+  content,
+  fallback,
+  blocked,
+  outOfScope,
+  complete,
+  avatarUrl,
+  characterName = '角色',
+  typing = false,
+}: ChatBubbleProps) {
   const isUser = role === 'user';
   const isSystem = role === 'system';
   const showTyping = typing && !content;
@@ -20,6 +33,10 @@ export function ChatBubble({ role, content, fallback, avatarUrl, characterName =
     'chat-bubble-row',
     isUser ? 'chat-bubble-row--user' : '',
     isSystem ? 'chat-bubble-row--system' : 'chat-bubble-row--assistant',
+    fallback ? 'chat-bubble-row--fallback' : '',
+    blocked ? 'chat-bubble-row--blocked' : '',
+    outOfScope ? 'chat-bubble-row--out-of-scope' : '',
+    complete ? 'chat-bubble-row--complete' : '',
   ].filter(Boolean).join(' ');
 
   return (

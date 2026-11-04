@@ -6,6 +6,12 @@ const source = readFileSync(resolve(__dirname, 'index.tsx'), 'utf8');
 const styleSource = readFileSync(resolve(__dirname, 'index.scss'), 'utf8');
 
 describe('home hot scripts layout', () => {
+  it('routes through the script-mode handler and resets the switch when home is shown again', () => {
+    expect(source).toContain('Taro.navigateTo({ url: getScriptCatalogUrl() })');
+    expect(source).toMatch(/theater-home__mode-switch[\s\S]*onTap=\{handleScriptModeToggle\}/);
+    expect(source).toMatch(/useDidShow\(\(\) => \{[\s\S]*setScriptModeOn\(false\)/);
+  });
+
   it('replaces the CSS overflow strip with a Taro horizontal ScrollView without a scrollbar', () => {
     expect(source).toContain('ScrollView');
     expect(source).toContain('scrollX');

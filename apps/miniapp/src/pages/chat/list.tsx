@@ -196,7 +196,7 @@ export default function ChatList() {
 
   if (loading || error || needsLogin) {
     return (
-      <PageShell variant="scroll" noPadding>
+      <PageShell variant="scroll" noPadding backgroundImage="/assets/backgrounds/courtyard.jpg">
         <View className="chat-list" style={topBarStyle as CSSProperties}>
           <ChatListTopBackdrop />
           <View className="chat-list__body">
@@ -230,7 +230,7 @@ export default function ChatList() {
   }
 
   return (
-    <PageShell variant="scroll" noPadding>
+    <PageShell variant="scroll" noPadding backgroundImage="/assets/backgrounds/courtyard.jpg">
       <View className={`chat-list${hasSearchQuery ? ' chat-list--search' : ''}`} style={topBarStyle as CSSProperties}>
         <ChatListTopBackdrop />
         <View className="chat-list__body">
