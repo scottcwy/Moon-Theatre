@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
 import { getCharacterById } from '@/server/modules/characters/index.js';
 import { getRelationship } from '@/server/modules/relationships/index.js';
 import { verifyAuth, errorResponse, successResponse, unauthorizedResponse } from '@/server/middleware/auth.js';
@@ -19,6 +20,9 @@ export async function GET(
   }
 
   const { id } = await params;
+  if (!z.string().uuid().safeParse(id).success) {
+    return errorResponse('Invalid character ID', 400);
+  }
 
   try {
     const [character, relationship] = await Promise.all([

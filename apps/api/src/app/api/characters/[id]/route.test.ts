@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const CHARACTER_ID = '11111111-1111-4111-8111-111111111111';
+const MISSING_CHARACTER_ID = '22222222-2222-4222-8222-222222222222';
+
 function makeReq(authHeader?: string) {
   const headers: Record<string, string> = {};
   if (authHeader) headers['Authorization'] = authHeader;
@@ -66,7 +69,7 @@ describe('GET /api/characters/[id]', () => {
     mockRelationshipService(null);
 
     const { GET } = await import('./route.js');
-    const response = await GET(makeReq('Bearer token'), { params: makeParams('nonexistent') });
+    const response = await GET(makeReq('Bearer token'), { params: makeParams(MISSING_CHARACTER_ID) });
     const body = await response.json() as { error: string };
 
     expect(response.status).toBe(404);
@@ -94,7 +97,7 @@ describe('GET /api/characters/[id]', () => {
     mockRelationshipService({ bondLevel: 3, bondExp: 250 });
 
     const { GET } = await import('./route.js');
-    const response = await GET(makeReq('Bearer token'), { params: makeParams('c1') });
+    const response = await GET(makeReq('Bearer token'), { params: makeParams(CHARACTER_ID) });
     const body = await response.json() as Record<string, unknown>;
 
     expect(response.status).toBe(200);
@@ -115,7 +118,7 @@ describe('GET /api/characters/[id]', () => {
     mockRelationshipService(null);
 
     const { GET } = await import('./route.js');
-    const response = await GET(makeReq('Bearer token'), { params: makeParams('c2') });
+    const response = await GET(makeReq('Bearer token'), { params: makeParams(MISSING_CHARACTER_ID) });
     const body = await response.json() as { error: string };
 
     expect(response.status).toBe(404);
@@ -131,10 +134,35 @@ describe('GET /api/characters/[id]', () => {
     mockRelationshipService(null);
 
     const { GET } = await import('./route.js');
-    const response = await GET(makeReq('Bearer token'), { params: makeParams('c3') });
+    const response = await GET(makeReq('Bearer token'), { params: makeParams(CHARACTER_ID) });
     const body = await response.json() as { error: string };
 
     expect(response.status).toBe(500);
     expect(body.error).toBe('internal_error');
+  });
+
+  it('returns 400 before querying services for a non-UUID character id', async () => {
+    const getCharacterById = vi.fn(async () => null);
+    const getRelationship = vi.fn(async () => null);
+    mockAuth({ userId: 'u1' });
+    vi.doMock('@/server/modules/characters/index.js', () => ({
+      listCharacters: vi.fn(),
+      getCharacterById,
+    }));
+    vi.doMock('@/server/modules/relationships/index.js', () => ({
+      getRelationship,
+      incrementBondExp: vi.fn(),
+      calculateBondLevel: vi.fn(),
+      calculateBondExpForNextLevel: vi.fn(),
+    }));
+
+    const { GET } = await import('./route.js');
+    const response = await GET(makeReq('Bearer token'), { params: makeParams('hakuzo') });
+    const body = await response.json() as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe('Invalid character ID');
+    expect(getCharacterById).not.toHaveBeenCalled();
+    expect(getRelationship).not.toHaveBeenCalled();
   });
 });

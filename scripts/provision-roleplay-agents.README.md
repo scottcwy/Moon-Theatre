@@ -1,12 +1,12 @@
 # provision-roleplay-agents.mjs
 
 按 `docs/specs/2026-08-14-fastclaw-roleplay-agent-architecture-spec.md` §6/§7/§8/§9.1
-把 19 个角色 agent 与角色卡（SOUL.md / IDENTITY.md / USER.md）幂等同步进 FastClaw。
+把当前版本清单中的角色 agent 与角色卡（SOUL.md / IDENTITY.md / USER.md）幂等同步进 FastClaw。
 
 ## 契约要点
 
-- 19 个稳定 slug 为冻结名单（与轨道 C 共用，一字不差）：见脚本内
-  `ROLE_AGENT_BY_NAME` / `ROLE_AGENT_SLUGS`（`role-baizang` … `role-yeshangqiu`）。
+- 当前版本为 19 个稳定 slug；唯一编辑源是
+  `packages/shared/src/roleplay-agents.json`，provisioning 与 `/api/ready` 均读取该清单。
 - 编辑源：`apps/api/src/server/seed/story-data.ts` 的 19 个 `seedCharacters`
   （`character_prompts` 5 字段：system/personality/scenario/safety/outputFormat）。
 - 渲染（Spec §7）：
@@ -22,6 +22,9 @@
   `no changes (diff is empty)`）。
 - 旧默认 agent（`FASTCLAW_AGENT_ID`，当前 `agt_7c8acb3dde163e04bb`）保留且
   保持非 roleplay；脚本对默认 agent 做守卫（roleplay=true 时拒绝执行）。
+
+新增角色时先成对追加共享清单项与 `seedCharacters`，再运行本脚本同步 FastClaw；
+API 发布后 `/api/ready` 会按新清单校验完整集合。禁止只改数据库或改为动态接受任意集合。
 
 ## 用法
 

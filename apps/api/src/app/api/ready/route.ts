@@ -1,5 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
+import { ROLEPLAY_AGENT_IDS } from '@juben-sha/shared';
 import { config } from '@/server/config/index.js';
 import { db } from '@/server/db/index.js';
 import { characters } from '@/server/db/schema.js';
@@ -8,35 +9,11 @@ const CHAT_AGENT_MAX_TOKENS = 768;
 const CHAT_AGENT_MAX_TOOL_ITERATIONS = 0;
 const DB_CHECK_TIMEOUT_MS = 5000;
 
-// Frozen 19 role agent slugs (Spec §6/§8/§9.2 sentinel; shared with track C
-// and scripts/provision-roleplay-agents.mjs — cross-checked by
-// scripts/provision-roleplay-agents.test.mjs).
-const ROLE_AGENT_SLUGS = [
-  'role-baizang',
-  'role-hemaoqingxuan',
-  'role-yuedaoling',
-  'role-jiuyuan',
-  'role-chengyuhuai',
-  'role-jiangbojia',
-  'role-chengzouliu',
-  'role-miaohongmo',
-  'role-dailila',
-  'role-yisa',
-  'role-qiangqingci',
-  'role-aoding',
-  'role-aqi',
-  'role-nanchuang',
-  'role-fuxiao',
-  'role-cenyilan',
-  'role-jicanghai',
-  'role-zhihe',
-  'role-yeshangqiu',
-];
-
 interface RoleplayAgentsCheck {
   ok: boolean;
   expectedCount: number;
   foundCount?: number;
+  emptyAgentIdCount?: number;
   missingAgentIds?: string[];
   duplicateAgentIds?: string[];
   unknownAgentIds?: string[];
@@ -136,14 +113,14 @@ async function checkDatabase(requireRoleplayAgents: boolean): Promise<DatabaseCh
 }
 
 function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): RoleplayAgentsCheck {
-  const expectedCount = ROLE_AGENT_SLUGS.length;
-  const expected = new Set(ROLE_AGENT_SLUGS);
+  const expectedCount = ROLEPLAY_AGENT_IDS.length;
+  const expected = new Set(ROLEPLAY_AGENT_IDS);
   const found = new Set<string>();
   const counts = new Map<string, number>();
   let nullCount = 0;
 
   for (const row of rows) {
-    if (!row.agentId) {
+    if (!row.agentId || row.agentId.trim() === '') {
       nullCount += 1;
       continue;
     }
@@ -151,7 +128,7 @@ function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): Role
     found.add(row.agentId);
   }
 
-  const missingAgentIds = ROLE_AGENT_SLUGS.filter((slug) => !found.has(slug));
+  const missingAgentIds = ROLEPLAY_AGENT_IDS.filter((slug) => !found.has(slug));
   const duplicateAgentIds = [...counts.entries()]
     .filter(([, count]) => count > 1)
     .map(([agentId]) => agentId);
@@ -168,6 +145,7 @@ function validateRoleplayAgentIds(rows: Array<{ agentId: string | null }>): Role
     ok,
     expectedCount,
     foundCount: rows.length,
+    ...(nullCount > 0 ? { emptyAgentIdCount: nullCount } : {}),
     ...(missingAgentIds.length > 0 ? { missingAgentIds } : {}),
     ...(duplicateAgentIds.length > 0 ? { duplicateAgentIds } : {}),
     ...(unknownAgentIds.length > 0 ? { unknownAgentIds } : {}),
@@ -179,6 +157,7 @@ function describeRoleplayAgentsFailure(check: RoleplayAgentsCheck): string {
   if (check.foundCount !== check.expectedCount) {
     parts.push(`expected exactly ${check.expectedCount} active characters, found ${check.foundCount}`);
   }
+  if (check.emptyAgentIdCount) parts.push(`emptyAgentIdCount=${check.emptyAgentIdCount}`);
   if (check.missingAgentIds) parts.push(`missingAgentIds=${JSON.stringify(check.missingAgentIds)}`);
   if (check.duplicateAgentIds) parts.push(`duplicateAgentIds=${JSON.stringify(check.duplicateAgentIds)}`);
   if (check.unknownAgentIds) parts.push(`unknownAgentIds=${JSON.stringify(check.unknownAgentIds)}`);
@@ -277,7 +256,7 @@ async function checkFastClaw(): Promise<FastClawCheckResult> {
         requireNonRoleplay: true,
       }),
       Promise.all(
-        ROLE_AGENT_SLUGS.map(async (slug) => {
+        ROLEPLAY_AGENT_IDS.map(async (slug) => {
           const check = await checkSingleAgent(slug, controller.signal, {
             requireRoleplay: true,
             requireNonRoleplay: false,
@@ -298,7 +277,7 @@ async function checkFastClaw(): Promise<FastClawCheckResult> {
       configured: true,
       agentId: config.fastclawAgentId,
       roleplayMode: true,
-      roleplayAgentsChecked: ROLE_AGENT_SLUGS.length,
+      roleplayAgentsChecked: ROLEPLAY_AGENT_IDS.length,
       agents,
       defaultAgent,
       error: failed.length > 0 ? summarizeRoleplayFailures(agents, defaultAgent, failed.length) : undefined,
