@@ -41,7 +41,6 @@ export { PaymentResultCard } from './components/status/PaymentResultCard';
 export { EmptyState, StatusStateCard } from './components/status/StatusStateCard';
 export { AchievementIcon } from './components/achievement/AchievementIcon';
 export { LORDICON_ATTRIBUTION, getAchievementIconMeta } from './components/achievement/AchievementIcon.model';
-export { MemoryCard } from './components/lists/MemoryCard';
 export { QuotaPackageCard } from './components/commerce/QuotaPackageCard';
 export { SearchBar } from './components/inputs/SearchBar';
 export { SharePreviewCard } from './components/share/SharePreviewCard';

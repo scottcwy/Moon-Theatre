@@ -18,14 +18,25 @@ automator 使用 `cli auto` 启动自己的自动化会话。手动开着的 IDE
 
 若 CLI 的终端进度条抛 `Cannot read properties of undefined (reading 'close')`，使用 `CI=1 TERM=dumb` 前缀重试 `cli quit` 和 E2E 命令；这只关闭交互式终端输出，不改变截图/阈值。
 
-## Smoke / 普通 UI
+## Smoke / 主页面真实数据 UI
 
 ```bash
 NODE_ENV=development API_BASE_URL=http://127.0.0.1:3000 pnpm --filter @juben-sha/miniapp build:weapp
-pnpm --filter @juben-sha/miniapp verify:weapp
 pnpm test:e2e:miniapp
 pnpm test:e2e:miniapp:ui
 ```
+
+开发构建不压缩，不执行 2 MiB 主包预算断言；生产包体只以 `build:weapp:prod` 内置的 `verify:weapp` 结果为准。
+
+`test:e2e:ui` 只接受 `development + http://127.0.0.1:3000 + devAuthBypass=true + visualFixtures=false` 的构建 sidecar。runner 从真实 `/api/scripts` 与 `/api/characters` 解析剧本和角色 UUID，覆盖登录、首页、剧本目录、选角、角色详情、聊天列表、聊天、社区、我的、额度购买和分享预览；聊天页必须出现 header、消息区和输入栏，错误状态卡或流式错误会直接失败。分享预览必须渲染真实角色图。
+
+需要交付支付结果页时，先通过本地 mock 支付链路取得开发账号的已到账订单，再传入真实订单 ID：
+
+```bash
+E2E_ORDER_ID=<local-credited-order-id> pnpm test:e2e:miniapp:ui
+```
+
+报告写入 `e2e/artifacts/runtime-ui/report.json`，截图写入同一目录。禁止用 mock 角色 ID（例如 `hakuzo`）请求真实 API 后把错误卡片记作页面通过。
 
 ## 认证 / Mock API UI
 
@@ -33,11 +44,10 @@ pnpm test:e2e:miniapp:ui
 
 ```bash
 NODE_ENV=development DEV_AUTH_BYPASS=true API_BASE_URL=http://127.0.0.1:3001 pnpm --filter @juben-sha/miniapp build:weapp
-pnpm --filter @juben-sha/miniapp verify:weapp
 MOCK_API_PORT=3001 pnpm --filter @juben-sha/miniapp test:e2e:ui:auth
 ```
 
-当前非 tab 页面使用分包：`pages/script`、`pages/memory`、`pages/character`、`pages/quota`、`pages/share`、`pages/login`。页面 URL 不变；tab 页面和 `pages/chat/index` 保留在主包。
+当前非 tab 页面使用分包：`pages/script`、`pages/character`、`pages/quota`、`pages/share`、`pages/login`。页面 URL 不变；tab 页面和 `pages/chat/index` 保留在主包。记忆前端页面已退役，后端 `/api/memory` 数据能力保留。
 
 ## 构建 provenance
 
@@ -95,7 +105,7 @@ VISUAL_VERIFY_PRODUCTION=true pnpm --filter @juben-sha/miniapp exec vitest run e
 第二条检查生产路由、fixture 数据与 QR 文件均不存在；普通单测会明确跳过这项产物检查，不等于已验证生产隔离。
 
 The smoke test uses `@weapp-vite/miniprogram-automator` and launches the built Taro project through WeChat DevTools.
-The runtime UI test visits the primary miniapp pages, saves screenshots, and fails on hard runtime layout problems.
+The runtime UI test visits the primary miniapp pages with real API IDs, saves screenshots, and fails on hard runtime layout or error-state problems.
 The authenticated runtime UI test starts a local mock API, drives logged-in page states, and covers chat failure, insufficient points, quota buy/result, and checkout navigation.
 
 ## Tab 生命周期与 footer 切换
@@ -128,15 +138,17 @@ pnpm test:e2e:miniapp:ui:real
 脚本 `runtime-ui-real-data.mjs` 自动完成：
 
 1. 数据库：探测根 `.env` 的 `DATABASE_URL`（gitignored）；不可达时 `docker compose up -d postgres`。
-2. `pnpm --filter @juben-sha/api db:migrate` + `seed`（均幂等，真实库数据不丢）。
+2. `pnpm --filter @juben-sha/api db:migrate`；`seed` 仅在空库执行。已有受管内容时，seed 的安全拒绝会被记录为 `skipped-existing-content` 并继续执行，不清库、不覆盖真实数据。其他 seed 错误仍为 fatal。
 3. 启动真实 API（:3000，`DEV_AUTH_BYPASS=true`）与 FastClaw 网关（:18953）。
    FastClaw 二进制默认取 `./fastclaw/bin/fastclaw`（gitignored），可用 `FASTCLAW_BIN` 覆盖。
 4. miniapp 的 provenance 不是真实数据开发构建时打印 mismatch 并自动 `build:weapp` + `verify:weapp`。
-5. 微信开发者工具驱动真实数据断言：默认首页剧本卡片集合 = 真实 `/api/scripts`（禁止 mock 幽灵剧本）、搜索命中角色海报和搜索空态分别截图、真实长会话（>50 条）首屏 = 最近 50 条 + 上拉加载更早直至全量、真实对话一轮（必须新增合规助手气泡）、记忆页渲染。
+5. 微信开发者工具驱动真实数据断言：默认首页剧本卡片集合 = 真实 `/api/scripts`（禁止 mock 幽灵剧本）、搜索命中角色海报和搜索空态分别截图、真实长会话（>50 条）首屏 = 最近 50 条 + 上拉加载更早直至全量、真实对话一轮（必须新增合规助手气泡）。
    分页会话优先选「流氓叙事」剧本角色（当前为以撒），真实对话轮同样用流氓叙事角色。
 6. 收尾仅停掉本脚本启动的 API/FastClaw，Postgres 保持运行。
 
 说明：真实库没有 >50 条消息的会话时，分页断言记为 `skipped`，整体为 `partial` 且进程非零退出；终端和 `report.json` 都会列出未验证分页断言。不伪造数据、不写库造数。
+
+`report.json.database.seedStatus` 明确记录本次是 `seeded` 还是 `skipped-existing-content`。前者只表示空库完成初始化，后者只表示现有数据被保留；两者都不能替代后续 UI 业务断言。
 
 真实对话只接受新增 `.chat-bubble-row--assistant.chat-bubble-row--complete` 且文本非空、非用户回显的最终回复。首个 delta 不能提前判成功；fallback、本地模式、stream error、blocked、outOfScope 或 90 秒内未观察到 done 均失败。
 
@@ -153,3 +165,11 @@ pnpm test:e2e:miniapp:ui:real
 `verify-visual-assets` 继续校验 manifest、单图、单帧和 assets 目录预算；其字段与错误文案明确标注 assets，不代表主包大小。主包硬上限保持 `2,097,152 B`。
 
 Mock 版 `test:e2e:ui:auth` 保留用于确定性错误路径（积分不足、流式错误、配额购买）等无法用真实 API 稳定复现的场景。
+
+## 真实上下文连续对话
+
+```bash
+pnpm test:e2e:miniapp:ui:real-chat
+```
+
+该 runner 使用真实 API、真实角色 UUID 和真实 LLM，验证当前首页剧本集合以及两轮聊天上下文延续。首页断言不得再要求已移除的角色海报网格。

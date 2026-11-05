@@ -137,32 +137,34 @@ export default function QuotaResult() {
     <View className="result">
       {nav}
       <ScrollView className="result__scroll" scrollY enhanced showScrollbar={false}>
-        <QuotaBalanceHero
-          balancePoints={balancePoints}
-          kicker=""
-          title={heroTitle}
-          subtitle="添一缕灯火，让未完的故事继续。"
-        />
-        <PaymentResultPanel
-          tone={success ? 'success' : 'pending'}
-          title={success ? '灯火已续，故事待启' : '支付尚未完成'}
-          message={success
-            ? `${order.pointsAmount} 点已到账`
-            : '点数暂未到账。若已扣款，请先核实支付结果，避免重复付款。'}
-          points={order.pointsAmount}
-          packageName={order.packageName}
-          amountLabel={formatPrice(order.amountCents)}
-          balancePoints={balancePoints}
-          orderNo={order.merchantOrderNo}
-          primaryText={success ? '继续对话' : '返回订单'}
-          secondaryText={success ? '返回我的' : '返回选购'}
-          onPrimary={success
-            ? () => Taro.switchTab({ url: '/pages/chat/list' })
-            : navigateBackOrHome}
-          onSecondary={success
-            ? () => Taro.switchTab({ url: '/pages/profile/index' })
-            : () => Taro.navigateTo({ url: '/pages/quota/buy' })}
-        />
+        <View className="result__content">
+          <QuotaBalanceHero
+            balancePoints={balancePoints}
+            kicker=""
+            title={heroTitle}
+            subtitle="添一缕灯火，让未完的故事继续。"
+          />
+          <PaymentResultPanel
+            tone={success ? 'success' : 'pending'}
+            title={success ? '灯火已续，故事待启' : '支付尚未完成'}
+            message={success
+              ? `${order.pointsAmount} 点已到账`
+              : '点数暂未到账。若已扣款，请先核实支付结果，避免重复付款。'}
+            points={order.pointsAmount}
+            packageName={order.packageName}
+            amountLabel={formatPrice(order.amountCents)}
+            balancePoints={balancePoints}
+            orderNo={order.merchantOrderNo}
+            primaryText={success ? '继续对话' : '返回订单'}
+            secondaryText={success ? '返回我的' : '返回选购'}
+            onPrimary={success
+              ? () => Taro.switchTab({ url: '/pages/chat/list' })
+              : navigateBackOrHome}
+            onSecondary={success
+              ? () => Taro.switchTab({ url: '/pages/profile/index' })
+              : () => Taro.navigateTo({ url: '/pages/quota/buy' })}
+          />
+        </View>
       </ScrollView>
     </View>
   );

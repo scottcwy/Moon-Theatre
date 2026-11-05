@@ -49,6 +49,12 @@ describe('V1 tab bar configuration', () => {
     expect(scriptPackage?.pages).toContain('select');
   });
 
+  it('does not register the retired memory page', async () => {
+    const { default: appConfig } = await import('./app.config');
+
+    expect(getSubpackages(appConfig).some((entry) => entry.root === 'pages/memory')).toBe(false);
+  });
+
   it('keeps rubber-band overscroll on the app background instead of black or white edges', async () => {
     const { default: appConfig } = await import('./app.config');
 

@@ -17,6 +17,7 @@
     "test:e2e:smoke": "node e2e/smoke.mjs",
     "test:e2e:ui": "node e2e/runtime-ui.mjs",
     "test:e2e:ui:auth": "node e2e/runtime-ui-authenticated.mjs",
+    "test:e2e:ui:real-chat": "node e2e/runtime-ui-real-backend.mjs",
     "test:e2e:tab-lifecycle": "node e2e/tab-lifecycle.mjs",
     "test:e2e:hero-navigation": "node e2e/hero-navigation.mjs",
     "build:weapp:visual-fixture": "VISUAL_FIXTURES=true NODE_ENV=development DEV_AUTH_BYPASS=false API_BASE_URL=${VISUAL_FIXTURE_API_BASE_URL:-http://127.0.0.1:3000} taro build --type weapp",

@@ -1,9 +1,13 @@
 @use '../../styles/tokens.scss' as *;
 
-$result-paper: #e4d7c5;
+$result-paper: #f5ebdc;
 
 .result {
   min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background-color: $result-paper;
 }
 
@@ -17,7 +21,16 @@ $result-paper: #e4d7c5;
 }
 
 .result__scroll {
-  height: 100vh;
+  flex: 1 1 auto;
+  height: 0;
+  min-height: 0;
+}
+
+.result__content {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: $result-paper;
 }
 
 .result__state {
@@ -25,8 +38,10 @@ $result-paper: #e4d7c5;
 }
 
 .result .payment-result-panel {
-  min-height: 480rpx;
+  flex: 1 0 auto;
+  min-height: calc(100vh - 500rpx);
   margin-top: -40rpx;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
   border-radius: 40rpx 40rpx 0 0;
+  box-sizing: border-box;
 }

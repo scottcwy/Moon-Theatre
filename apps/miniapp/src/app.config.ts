@@ -11,11 +11,6 @@ const subpackageConfig = {
       pages: ['select', 'catalog'],
     },
     {
-      root: 'pages/memory',
-      name: 'memory',
-      pages: ['index'],
-    },
-    {
       root: 'pages/character',
       name: 'character',
       pages: ['detail'],

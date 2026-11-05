@@ -36,7 +36,7 @@
 | 登录 / 个人页 / 分享预览 custom navigation | 已实现 | 深色页不再出现浅色原生导航栏；个人页无双标题 |
 | 触控与可读性收口 | 已实现 | 关键按钮/返回/搜索清理命中区补足；聊天列表深底文字已修正 |
 | 点数空态、未读点、分享关闭、发送图标 | 已实现 | 点数 null 显示“点数 —”；未读点 16rpx 珊瑚色；图标改为 CSS 形状 |
-| 配额、记忆等非 13 帧页面 | 已实现 | 第二份合同的 quota/分享新视觉已落地；记忆页保持旧视觉 |
+| 配额等非 13 帧页面 | 已实现 | 第二份合同的 quota/分享新视觉已落地；记忆前端页面已退役，后端 `/api/memory` 保留 |
 | 第二份合同 12 帧新视觉 | 已实现 / 视觉 `BLOCKED` | Spec revision 3；8 非支付 + 4 支付 UI-only；整屏门禁受 `390×844` 阻塞 |
 | 首页剧本列表区块 | 已实现 | `1030:2153` 新增区块；复用已有首页路由 |
 | 聊天灵感对话面板 | 已实现 | `1030:1731` 替换现有 starters 面板 |
@@ -94,7 +94,7 @@
 - `CharacterDetailHero`：使用角色动态 hero；返回键使用 `--topbar-status-height`；信息面板按 `1:1657` 左右内缩 18px、左上切角；不写死角色图、在线 badge 或 neutral 情绪胶囊；世界观卡位于面板内。
 - `ChatInputBar`：安全区使用 `$safe-bottom` fallback；placeholder 用深色主题类；发送按钮用 CSS 图标。
 - `SearchBar`：清除按钮用 CSS 标记；清空后恢复全量列表。
-- `SharePreviewCard`：关闭按钮用 CSS 标记；“立即分享”走分享菜单，失败/不支持时降级保存；QR 只进 fixture，生产在真实 QR 契约前不显示“扫码加入故事”。
+- `SharePreviewCard`：使用 `imageUrl` 展示真实角色卡照片；关闭按钮用 CSS 标记；“立即分享”走分享菜单，失败/不支持时降级保存；QR 只进 fixture，生产在真实 QR 契约前不显示“扫码加入故事”。
 - `Badge` / `PointsBadge`：可点 badge 命中区补足；`points=null` 显示 `点数 —`，不显示假 0。
 - `PaymentConfirmSheet` / `PaymentResultPanel` / `QuotaPackageList`：presentational；不 import 支付服务，不自己发请求。
 - `QuotaBalanceHero`：买点与结果页共用；真实余额缺失显示 `—`，不写死 `999`。
@@ -112,7 +112,7 @@
 | `1-2080` | `pages/chat/list` | 已实现 |
 | `1-2180` | `pages/community/index` | 已实现 |
 
-配额、记忆、分享预览等已有业务路由保持功能；除第二份合同明确覆盖的状态外，没有对应 H5 帧的页面不自行扩展视觉范围。
+配额、分享预览等已有业务路由保持功能；记忆前端页面已退役。除第二份合同明确覆盖的状态外，没有对应 H5 帧的页面不自行扩展视觉范围。
 
 第二份合同新增/更新的视觉状态：
 
@@ -139,8 +139,8 @@
 ## 7. 验证
 
 - `test:e2e:smoke`：通过。
-- `test:e2e:ui`：10/10 页面通过。
-- `test:e2e:ui:auth`：当前 Tab 重构工作树为 20/22；2 个失败均集中在未修改的角色详情页自动化 spread 错误，仓库级认证 UI 门禁未全绿。
+- `test:e2e:ui`：记忆页退役后的 12/12 主页面通过；个人页与社区/聊天列表共享庭院背景，分享预览显示真实角色图。
+- `test:e2e:ui:auth`：21/21 通过。
 - `test:e2e:visual-frames`：阻塞于开发者工具 `390×844`，要求 `375×812`；不得宣称 13 帧视觉完全通过。
 - `test:e2e:visual-frames:second-contract`：尚未实现；8/9 整屏视觉 `BLOCKED`，组件基线在 `docs/specs/evidence/2026-10-19-second-contract/component-375x812/`。
 - 证据：`apps/miniapp/e2e/artifacts/`、`docs/specs/evidence/`、`docs/reports/2026-10-01-h5-visual-migration-acceptance.md`（快照 + 2026-10-19 更新）。

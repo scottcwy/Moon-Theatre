@@ -558,18 +558,6 @@ const PAGE_CHECKS = [
     ],
   },
   {
-    name: 'auth-memory',
-    route: 'pages/memory/index',
-    open: 'reLaunch',
-    ready: ['.page-shell'],
-    settleMs: 1200,
-    required: [
-      { label: 'memory shell', selectors: ['.page-shell'] },
-      { label: 'memory list', selectors: ['.memory__list'] },
-      { label: 'memory card', selectors: ['.memory__card'] },
-    ],
-  },
-  {
     name: 'auth-chat-insufficient-points',
     route: 'pages/chat/index?characterId=hakuzo',
     expectedPath: 'pages/chat/index',
@@ -641,7 +629,7 @@ const PAGE_CHECKS = [
     settleMs: 1000,
     required: [
       { label: 'quota result shell', selectors: ['.result'] },
-      { label: 'payment result panel', selectors: ['.payment-result-panel'] },
+      { label: 'payment result panel', selectors: ['.payment-result-panel'], mustReachViewportBottom: true },
     ],
   },
 ];
@@ -671,7 +659,7 @@ const INTERACTION_CHECKS = [
     settleMs: 1200,
     run: completeMockCheckout,
     required: [
-      { label: 'checkout result panel', selectors: ['.payment-result-panel'] },
+      { label: 'checkout result panel', selectors: ['.payment-result-panel'], mustReachViewportBottom: true },
     ],
   },
 ];
@@ -989,16 +977,29 @@ async function getViewport(miniProgram, page) {
 
 async function openPage(miniProgram, check) {
   const routeUrl = `/${check.route}`;
-  if (check.open === 'switchTab') {
-    await miniProgram.switchTab(routeUrl);
-  } else {
-    await miniProgram.reLaunch(routeUrl);
+  const expectedPath = check.expectedPath ?? check.route.split('?')[0];
+  const navigate = check.open === 'switchTab'
+    ? () => miniProgram.switchTab(routeUrl)
+    : () => miniProgram.reLaunch(routeUrl);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await navigate();
+    } catch (error) {
+      const current = await miniProgram.currentPage({ retries: 5, timeout: 10000 }).catch(() => null);
+      if (current?.path === expectedPath) return current;
+      const retryable = error instanceof Error && /Timed out waiting route .* after reLaunch/.test(error.message);
+      if (!retryable || attempt === 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      continue;
+    }
+
+    const page = await miniProgram.currentPage({ retries: 30, timeout: 60000 });
+    assert(page.path === expectedPath, `Expected current page to be ${expectedPath}, got ${page.path}`);
+    return page;
   }
 
-  const page = await miniProgram.currentPage({ retries: 30, timeout: 60000 });
-  const expectedPath = check.expectedPath ?? check.route.split('?')[0];
-  assert(page.path === expectedPath, `Expected current page to be ${expectedPath}, got ${page.path}`);
-  return page;
+  throw new Error(`Unable to open ${check.route}`);
 }
 
 async function checkRequiredElement(page, viewport, requirement) {
@@ -1039,6 +1040,13 @@ async function checkRequiredElement(page, viewport, requirement) {
       label: requirement.label,
       selector: box.selector,
       reason: 'required text is empty',
+    });
+  }
+  if (requirement.mustReachViewportBottom && box.rect.bottom < viewport.height) {
+    failures.push({
+      label: requirement.label,
+      selector: box.selector,
+      reason: `element must reach viewport bottom (${box.rect.bottom} < ${viewport.height})`,
     });
   }
 

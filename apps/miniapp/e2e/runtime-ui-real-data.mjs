@@ -9,7 +9,6 @@
 //    - 聊天历史：真实长会话（>50 条）首屏 = 最近 50 条，上拉加载更早直至全量，
 //      消息数 = API 全量、含最早一条、无 mock 消息 id、prepend 锚点仍在。
 //    - 真实对话：发送一条消息 → 真实 LLM 回复上屏。
-//    - 记忆页：真实渲染。
 // 6) 收尾：仅停掉本脚本启动的 API/FastClaw；Postgres 保持运行（共享本地服务）。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -164,6 +163,23 @@ function runPnpm(args, env, label) {
   }
 }
 
+function seedDatabaseWhenEmpty(env) {
+  const res = spawnSync('pnpm', ['--filter', '@juben-sha/api', 'seed'], {
+    cwd: repoRoot,
+    env,
+    encoding: 'utf8',
+    timeout: 600000,
+    stdio: 'pipe',
+  });
+  const output = `${res.stdout || ''}\n${res.stderr || ''}`;
+  if (res.status === 0) return 'seeded';
+  if (output.includes('api-seed refused: database already contains managed content')) {
+    process.stderr.write('[db] seed skipped: existing managed content is preserved\n');
+    return 'skipped-existing-content';
+  }
+  throw new Error(`seed failed (exit ${res.status}): ${output.slice(-2000)}`);
+}
+
 async function ensureDatabase(env) {
   const migrate = () => runPnpm(['--filter', '@juben-sha/api', 'db:migrate'], env, 'db:migrate');
   try {
@@ -177,7 +193,8 @@ async function ensureDatabase(env) {
     await sleep(5000);
     migrate();
   }
-  runPnpm(['--filter', '@juben-sha/api', 'seed'], env, 'seed');
+  const seedStatus = seedDatabaseWhenEmpty(env);
+  return { seedStatus };
 }
 
 function readBuildProvenance() {
@@ -560,22 +577,6 @@ async function checkRealChatTurn(miniProgram, report) {
   }
 }
 
-async function checkRealMemory(miniProgram, report) {
-  const failures = [];
-  const name = 'real-data-memory';
-  try {
-    const page = await miniProgram.reLaunch('/pages/memory/index');
-    await waitForSelector(page, '.memory__list, .memory-page', 20000);
-    await sleep(1200);
-    const shot = path.join(artifactRoot, 'memory.png');
-    await miniProgram.screenshot({ path: shot, timeout: 30000 });
-    report.checks.push({ name, status: 'passed', ok: true, failures: [], screenshot: shot });
-  } catch (error) {
-    failures.push({ label: 'real memory', reason: error?.message || String(error) });
-    report.checks.push({ name, status: 'failed', ok: false, failures });
-  }
-}
-
 // ---- 主流程 ----
 
 async function main() {
@@ -595,7 +596,7 @@ async function main() {
 
   // 1) 数据库 + schema + 种子（幂等）
   process.stderr.write('[db] ensuring database schema and seed\n');
-  await ensureDatabase(env);
+  report.database = await ensureDatabase(env);
 
   // 2) 服务
   const apiChild = apiWasUp ? null : await (async () => {
@@ -640,7 +641,6 @@ async function main() {
     await checkRealHome(miniProgram, report);
     await checkRealChatHistory(miniProgram, longSession, report);
     await checkRealChatTurn(miniProgram, report);
-    await checkRealMemory(miniProgram, report);
   } finally {
     try {
       if (miniProgram) await miniProgram.close();

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { BottomAction, createBondViewModel, PrimaryButton, SHARE_IDENTITY_FALLBACK, SharePreviewCard, TonalButton, TopBar } from '@juben-sha/miniapp-ui';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { api } from '../../services/api';
+import { getCharacterGender } from '../../services/character-gender';
+import { getCharacterAvatarUrl } from '../home/index.model';
 import { FALLBACK_SHARE_EXCERPT, getShareExcerpt } from './preview.model';
 import { navigateBackOrHome } from '../../utils/navigation';
 import './preview.scss';
@@ -20,6 +22,7 @@ const IDENTITY_BADGE_HEIGHT = 56;
 
 interface ShareCharacter {
   name: string;
+  avatarUrl?: string | null;
   identity?: string | null;
   description?: string | null;
   script?: {
@@ -68,17 +71,32 @@ export default function SharePreview() {
   const displayName = character?.name?.trim() || '月满楼';
   const displayIdentity = character?.identity?.trim() || SHARE_IDENTITY_FALLBACK;
   const bondViewModel = createBondViewModel(character?.relationship);
+  const portraitUrl = character
+    ? getCharacterAvatarUrl(character.name, character.avatarUrl, getCharacterGender(character.name))
+    : '';
 
-  const drawPoster = () => {
+  const drawPoster = async () => {
     const ctx = Taro.createCanvasContext(CANVAS_ID);
     ctx.setFillStyle('#1d1218');
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    ctx.setFillStyle('#5f423d');
-    ctx.fillRect(0, 0, CANVAS_WIDTH, 430);
+    if (portraitUrl) {
+      try {
+        const image = await Taro.getImageInfo({ src: portraitUrl });
+        ctx.drawImage(image.path, 0, 0, CANVAS_WIDTH, 600);
+      } catch {
+        ctx.setFillStyle('#5f423d');
+        ctx.fillRect(0, 0, CANVAS_WIDTH, 600);
+      }
+    } else {
+      ctx.setFillStyle('#5f423d');
+      ctx.fillRect(0, 0, CANVAS_WIDTH, 600);
+    }
 
-    ctx.setFillStyle('rgba(0,0,0,0.52)');
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.setFillStyle('rgba(0,0,0,0.16)');
+    ctx.fillRect(0, 0, CANVAS_WIDTH, 600);
+    ctx.setFillStyle('rgba(12,7,10,0.82)');
+    ctx.fillRect(0, 300, CANVAS_WIDTH, CANVAS_HEIGHT - 300);
 
     ctx.setFillStyle('rgba(255,255,255,0.24)');
     ctx.setFontSize(64);
@@ -111,12 +129,12 @@ export default function SharePreview() {
     return ctx;
   };
 
-  const generatePoster = (onSuccess: (filePath: string) => void) => {
+  const generatePoster = async (onSuccess: (filePath: string) => void) => {
     if (saving) return;
     setSaving(true);
     Taro.showLoading({ title: '生成中' });
 
-    const ctx = drawPoster();
+    const ctx = await drawPoster();
     ctx.draw(false, () => {
       Taro.canvasToTempFilePath({
         canvasId: CANVAS_ID,
@@ -160,33 +178,37 @@ export default function SharePreview() {
     });
   };
 
-  const handleSave = () => generatePoster(saveTempFile);
+  const handleSave = () => {
+    void generatePoster(saveTempFile);
+  };
 
-  const handleShare = () => generatePoster((filePath) => {
-    const shareImage = (Taro as typeof Taro & {
-      showShareImageMenu?: (options: {
-        path: string;
-        fail?: () => void;
-        complete?: () => void;
-      }) => void;
-    }).showShareImageMenu;
-    if (typeof shareImage !== 'function') {
-      Taro.hideLoading();
-      setSaving(false);
-      Taro.showToast({ title: '当前微信版本不支持分享，请先保存图片', icon: 'none' });
-      return;
-    }
-    shareImage({
-      path: filePath,
-      fail() {
-        Taro.showToast({ title: '分享未完成，可先保存图片', icon: 'none' });
-      },
-      complete() {
+  const handleShare = () => {
+    void generatePoster((filePath) => {
+      const shareImage = (Taro as typeof Taro & {
+        showShareImageMenu?: (options: {
+          path: string;
+          fail?: () => void;
+          complete?: () => void;
+        }) => void;
+      }).showShareImageMenu;
+      if (typeof shareImage !== 'function') {
         Taro.hideLoading();
         setSaving(false);
-      },
+        Taro.showToast({ title: '当前微信版本不支持分享，请先保存图片', icon: 'none' });
+        return;
+      }
+      shareImage({
+        path: filePath,
+        fail() {
+          Taro.showToast({ title: '分享未完成，可先保存图片', icon: 'none' });
+        },
+        complete() {
+          Taro.hideLoading();
+          setSaving(false);
+        },
+      });
     });
-  });
+  };
 
   const canShareImage = typeof (Taro as typeof Taro & { showShareImageMenu?: unknown }).showShareImageMenu === 'function';
 
@@ -202,6 +224,7 @@ export default function SharePreview() {
         <SharePreviewCard
           characterName={displayName}
           excerpt={excerpt}
+          imageUrl={portraitUrl || undefined}
           identity={displayIdentity}
           onClose={navigateBackOrHome}
           showQr={typeof VISUAL_FIXTURES !== 'undefined' && VISUAL_FIXTURES}

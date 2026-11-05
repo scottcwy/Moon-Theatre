@@ -69,8 +69,32 @@ describe('UI detail polish contract', () => {
     }
   });
 
-  it('removes the dead home settings affordance and the memory tabbar reserve', () => {
+  it('removes dead navigation affordances and the retired memory route', () => {
     expect(readPage('home/index.tsx')).not.toContain('theater-home__settings');
-    expect(readPage('memory/index.tsx')).not.toContain('tabBarReserve');
+    expect(fs.existsSync(path.join(pagesDir, 'memory/index.tsx'))).toBe(false);
+  });
+
+  it('uses the shared stage background on profile, community and chat list', () => {
+    for (const page of [
+      readPage('profile/index.scss'),
+      readPage('community/index.scss'),
+      readPage('chat/list.scss'),
+    ]) {
+      expect(page).toContain('$stage-scene-overlay');
+    }
+  });
+
+  it('renders the real character portrait in the share preview', () => {
+    expect(readPage('share/preview.tsx')).toContain('imageUrl={portraitUrl || undefined}');
+    expect(readUi('components/share/SharePreviewCard.tsx')).toContain('share-preview-card__portrait');
+    expect(readUi('components/share/SharePreviewCard.scss')).toContain('height: 720rpx');
+  });
+
+  it('lets the payment result panel fill the remaining viewport', () => {
+    const resultPage = readPage('quota/result.tsx');
+    const resultStyles = readPage('quota/result.scss');
+    expect(resultPage).toContain('className="result__content"');
+    expect(resultStyles).toContain('min-height: calc(100vh - 500rpx)');
+    expect(resultStyles).toContain('flex: 1 0 auto');
   });
 });

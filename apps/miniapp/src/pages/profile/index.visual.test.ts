@@ -18,13 +18,14 @@ describe('auth/profile visual frame contract', () => {
     expect(profile).not.toContain('<StageTabBar');
   });
 
-  it('将状态栏占位和庭院渐变限制在 loading 分支，保留三点月相及真实文字', () => {
+  it('所有个人页状态共用社区/聊天列表的庭院背景，保留三点月相及真实文字', () => {
     expect(profile).toContain('Taro.getWindowInfo().statusBarHeight');
     expect(profile).toContain("className={loading ? 'profile__loading-stage' : 'profile__stage'} style={loadingStageStyle}");
     expect(profile).toContain('backgroundImage="/assets/backgrounds/courtyard.jpg"');
-    expect(profile).toContain("backgroundImageTop={loading ? '72rpx' : undefined}");
+    expect(profile).not.toContain('backgroundImageTop=');
     expect(style).toContain('.profile.profile--loading');
     expect(style).toContain('> .page-shell__backdrop-overlay');
+    expect(style).toContain('background: $stage-scene-overlay');
     expect(style).not.toContain("url('../../assets/backgrounds/courtyard.jpg')");
     expect(style).toContain('margin-top: 444rpx');
     expect(loadingCard.match(/className="profile__loading-dot/g)).toHaveLength(3);

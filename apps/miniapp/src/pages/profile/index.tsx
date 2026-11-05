@@ -262,7 +262,6 @@ export default function Profile() {
       tabBarReserve
       className={pageClass}
       backgroundImage="/assets/backgrounds/courtyard.jpg"
-      backgroundImageTop={loading ? '72rpx' : undefined}
     >
       <View className={loading ? 'profile__loading-stage' : 'profile__stage'} style={loadingStageStyle}>
         <View className="profile__topbar"><Text>我的</Text></View>

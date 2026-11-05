@@ -1,5 +1,5 @@
 // 前后端整体 E2E（真实后端 + FastClaw + 真实 LLM）：
-// 主页真实数据渲染 -> 真实聊天两轮（输入->流式->assistant 上屏->上下文连续）-> 记忆页空态(roleplay)
+// 主页真实数据渲染 -> 真实聊天两轮（输入->流式->assistant 上屏->上下文连续）
 // 运行前：真实 API 在 :3000（USE_ROLEPLAY_AGENTS=true + DEV_AUTH_BYPASS=true），miniapp 需以
 //   NODE_ENV=development DEV_AUTH_BYPASS=true API_BASE_URL=http://127.0.0.1:3000 构建。
 import fs from 'node:fs';
@@ -11,12 +11,12 @@ import { resolveWechatDevtoolsCli } from './wechat-devtools.mjs';
 const currentFile = fileURLToPath(import.meta.url);
 const e2eDir = path.dirname(currentFile);
 const projectRoot = path.resolve(e2eDir, '..');
-const distDir = path.join(projectRoot, 'dist');
 const API = 'http://127.0.0.1:3000';
 const AUTH = 'Bearer dev-auth-bypass-token';
 const artifactRoot = path.join(e2eDir, 'artifacts', 'runtime-ui-real');
 const reportPath = path.join(artifactRoot, 'report.json');
 fs.mkdirSync(artifactRoot, { recursive: true });
+fs.rmSync(reportPath, { force: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
@@ -59,14 +59,28 @@ async function main() {
       const page = await miniProgram.reLaunch('/pages/home/index');
       await waitForSelector(page, '.theater-home__content', 20000);
       await sleep(1500);
-      const grid = await page.$$('.theater-home__grid');
-      const cards = await page.$$('.theater-home__poster-card');
       const failures = [];
-      try { assert(grid.length >= 1, `character grid missing (grid=${grid.length})`); assert(cards.length >= 2, `expected >=2 character posters from real API, got ${cards.length}`); } catch (e) { failures.push({ label: 'real home data', reason: e.message }); }
+      let scriptTitles = [];
+      try {
+        const response = await fetch(`${API}/api/scripts`, { headers: { Authorization: AUTH } });
+        assert(response.ok, `GET /api/scripts -> ${response.status}`);
+        const { scripts } = await response.json();
+        const expectedTitles = scripts.map((script) => script.title).sort();
+        const cards = await page.$$('.theater-home__hero-card');
+        assert(cards.length === expectedTitles.length, `expected ${expectedTitles.length} script cards, got ${cards.length}`);
+        scriptTitles = await Promise.all(cards.map(async (card) => {
+          const title = await card.$('.theater-home__hero-card-title');
+          return title ? String(await title.text().catch(() => '')).trim() : '';
+        }));
+        assert(JSON.stringify(scriptTitles.sort()) === JSON.stringify(expectedTitles), `home script titles drifted: ${scriptTitles.join(' | ')}`);
+        assert((await page.$$('.theater-home__script-row')).length > 0, 'default home script list is empty');
+      } catch (e) {
+        failures.push({ label: 'real home data', reason: e.message });
+      }
       const shot = path.join(artifactRoot, 'home.png');
       await miniProgram.screenshot({ path: shot, timeout: 30000 });
-      report.pages.push({ name, ok: failures.length === 0, failures, screenshot: shot, posters: cards.length });
-      console.log(`[${name}] posters=${cards.length} ok=${failures.length === 0}`);
+      report.pages.push({ name, ok: failures.length === 0, failures, screenshot: shot, scriptTitles });
+      console.log(`[${name}] scripts=${scriptTitles.length} ok=${failures.length === 0}`);
     }
 
     // 2) 真实聊天两轮
@@ -113,27 +127,6 @@ async function main() {
       await miniProgram.screenshot({ path: shot, timeout: 30000 });
       report.pages.push({ name, ok: failures.length === 0, failures, screenshot: shot, chatContents });
       console.log(`[${name}] ok=${failures.length === 0} turns=${chatContents.length}`);
-    }
-
-    // 3) 记忆页（roleplay 下应为空态）
-    {
-      const name = 'real-memory';
-      const failures = [];
-      const page = await miniProgram.reLaunch('/pages/memory/index');
-      await waitForSelector(page, '.memory__list, .memory-page', 20000);
-      await sleep(1500);
-      const emptyTexts = await page.$$('.status-state-card--empty, .empty-state');
-      let bodyText = '';
-      try {
-        const t = await page.$('.page-subtitle');
-        if (t) bodyText = (await t.text().catch(() => '')) || '';
-      } catch {}
-      const hasEmpty = (await page.$$('.status-state-card--empty')).length > 0 || (await page.$$('.empty-state')).length > 0;
-      try { assert(hasEmpty, `expected empty state under roleplay, emptyNodes=${emptyTexts.length}`); } catch (e) { failures.push({ label: 'memory empty state', reason: e.message }); }
-      const shot = path.join(artifactRoot, 'memory.png');
-      await miniProgram.screenshot({ path: shot, timeout: 30000 });
-      report.pages.push({ name, ok: failures.length === 0, failures, screenshot: shot, hasEmpty });
-      console.log(`[${name}] ok=${failures.length === 0} empty=${hasEmpty}`);
     }
   } finally {
     try { await miniProgram.close(); } catch {}

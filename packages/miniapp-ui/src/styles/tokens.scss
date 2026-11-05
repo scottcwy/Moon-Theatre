@@ -75,6 +75,12 @@ $z-bottom-action: 100;
 $z-input-bar: 100;
 
 $color-bottom-action-dark: #120D10;
+$stage-scene-overlay: linear-gradient(
+  180deg,
+  rgba(16, 11, 13, 0.04) 0 38%,
+  rgba(226, 212, 198, 0.84) 72%,
+  #decdbd 100%
+);
 
 // New visual foundation aliases. Components consume semantic tokens so app
 // pages can evolve without scattering palette values through their styles.

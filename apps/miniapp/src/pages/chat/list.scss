@@ -7,9 +7,7 @@ $search-gold: #c9a25e;
 .chat-list {
   min-height: 100vh;
   color: #f3dfca;
-  background:
-    /* 照片延续到标题与搜索区，米纸底在首条会话前完成过渡。 */
-    linear-gradient(180deg, rgba(16, 11, 13, 0.06) 0 14%, rgba(224, 210, 196, 0.2) 18%, rgba(224, 210, 196, 0.84) 24%, rgba(224, 210, 196, 0.97) 28%, #decdbd 32%, #decdbd 100%);
+  background: $stage-scene-overlay;
 }
 
 .chat-list__body {

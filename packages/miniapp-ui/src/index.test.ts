@@ -11,7 +11,6 @@ describe('@juben-sha/miniapp-ui exports', () => {
       CharacterPosterCard: expect.any(Function),
       ChatSessionRow: expect.any(Function),
       IconButton: expect.any(Function),
-      MemoryCard: expect.any(Function),
       MoodChip: expect.any(Function),
       NoticeBlock: expect.any(Function),
       PageSection: expect.any(Function),

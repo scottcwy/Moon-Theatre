@@ -1,10 +1,12 @@
-import { Text, View } from '@tarojs/components';
+import { Image, Text, View } from '@tarojs/components';
 import { SHARE_IDENTITY_FALLBACK } from '../../design/figma-system';
 import './SharePreviewCard.scss';
 
 interface SharePreviewCardProps {
   characterName: string;
   excerpt: string;
+  /** 角色卡照片；分享预览必须以真实角色图为主体，而不是只有背景和文字。 */
+  imageUrl?: string;
   bondLevel?: number;
   /** 数据驱动身份标签；缺省时回退到通用文案。 */
   identity?: string;
@@ -31,12 +33,18 @@ const QR_PATTERN = [
 export function SharePreviewCard({
   characterName,
   excerpt,
+  imageUrl,
   identity,
   onClose,
   showQr = false,
 }: SharePreviewCardProps) {
   return (
-    <View className="share-preview-card">
+    <View className={`share-preview-card${imageUrl ? ' share-preview-card--has-portrait' : ''}`}>
+      {imageUrl ? (
+        <Image className="share-preview-card__portrait" src={imageUrl} mode="aspectFill" />
+      ) : (
+        <View className="share-preview-card__portrait share-preview-card__portrait--empty" />
+      )}
       <View className="share-preview-card__overlay" />
       {onClose && (
         <View className="share-preview-card__close" onTap={onClose}>
