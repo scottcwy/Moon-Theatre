@@ -12,7 +12,7 @@
 | 当前技术架构 | `docs/技术开发架构与前后端文档.md` | 仓库结构、页面、模块、部署总览；不定义视觉权威 |
 | V1 历史技术基线 | `docs/technical-spec-v1.md` | 仅供追溯 V1 方案；当前实现以代码和当前架构文档为准 |
 | API 契约 | `docs/api-v1.md` | 45 个 API 路径的请求/响应说明；路径覆盖与代码对齐 |
-| Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PLANNED`；已确认需求及验收，不代表现有 API 已实现 |
+| Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PLANNED` revision 3；优先角色卡与玩家聊天历史；独立邮箱管理员，同域同服务器部署；整体未验收 |
 | Miniapp 个人页组件复用 | [个人页设计系统与组件复用 Spec](./specs/2026-10-31-个人页设计系统与组件复用Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED / SUPERSEDED_IN_PART`；组件复用、社区/聊天共享庭院背景与 E2E 已通过，footer 挂载位置以新 Spec 为准 |
 | Miniapp Tab 生命周期与导航 | [Tab 页面生命周期与底部导航统一重构 Spec](./specs/2026-11-04-Miniapp-Tab页面生命周期与底部导航统一重构Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED`；H5 与微信四 Tab 切换、请求去重、静默刷新和认证生命周期通过；仓库级认证 UI 21/21 |
 | Miniapp 首页剧本横幅导航 | [首页剧本横幅重复导航修复 Spec](./specs/2026-11-04-首页剧本横幅重复导航修复Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED`；CTA 阻止冒泡后单次导航，两类点击均只增加一层页面栈 |
