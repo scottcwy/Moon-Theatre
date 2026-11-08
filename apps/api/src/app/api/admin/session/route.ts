@@ -1,58 +1,30 @@
 import { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { verifyAdminAuth, verifyAuth, successResponse, unauthorizedResponse, forbiddenResponse } from '@/server/middleware/auth.js';
-import { createAdminSession, revokeAdminSession } from '@/server/modules/admin/index.js';
-import { ADMIN_SESSION_COOKIE } from '@/server/modules/admin/page-auth.js';
-import { config } from '@/server/config/index.js';
-import { jsonError } from '@/server/http/errors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
+import { readJsonBody } from '@/server/http/errors.js';
+import { adminLoginSchema, loginAdmin, logoutAdmin } from '@/server/modules/admin/authentication.js';
+import { adminClientIp, adminJsonError, adminSuccessResponse, expireAdminCookie, setAdminCookie, validateAdminWrite } from '@/server/modules/admin/security.js';
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  if (!auth) return unauthorizedResponse();
-  if (!config.adminUserIds.includes(auth.userId)) return forbiddenResponse();
-
   try {
-    const session = await createAdminSession({
-      userId: auth.userId,
-      provider: 'jwt',
-      externalSubject: auth.userId,
-      expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000),
-    });
-    const response = NextResponse.json({
-      authenticated: true,
-      userId: auth.userId,
-      expiresAt: session.expiresAt,
-    });
-    response.cookies.set(ADMIN_SESSION_COOKIE, session.id, {
-      httpOnly: true,
-      sameSite: 'strict',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      expires: session.expiresAt,
-    });
+    validateAdminWrite(request);
+    const data = adminLoginSchema.parse(await readJsonBody(request));
+    const { token, identity } = await loginAdmin({ ...data, clientIp: adminClientIp(request.headers) });
+    const response = adminSuccessResponse({ authenticated: true, account: identity.account, mustChangePassword: identity.account.mustChangePassword, expiresAt: identity.expiresAt });
+    setAdminCookie(response, token, identity.expiresAt);
     return response;
-  } catch (error) {
-    return jsonError(error);
-  }
+  } catch (error) { return adminJsonError(error); }
 }
-
 export async function GET(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (!auth.ok) return auth.response;
-  return successResponse({ userId: auth.auth.userId, authenticated: true });
+  const result = await verifyAdminAuth(request, { allowRestricted: true });
+  if (!result.ok) return result.response;
+  const { account, expiresAt } = result.auth;
+  return adminSuccessResponse({ authenticated: true, account, mustChangePassword: account.mustChangePassword, expiresAt });
 }
-
 export async function DELETE(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (!auth.ok) return auth.response;
-  const sessionId = request.cookies.get('admin_session')?.value ?? request.headers.get('x-admin-session');
-  if (!sessionId) return successResponse({ authenticated: false });
+  const result = await verifyAdminAuth(request, { allowRestricted: true });
+  if (!result.ok) return result.response;
   try {
-    await revokeAdminSession(sessionId);
-    const response = NextResponse.json({ authenticated: false });
-    response.cookies.delete(ADMIN_SESSION_COOKIE);
-    return response;
-  } catch (error) {
-    return jsonError(error);
-  }
+    await logoutAdmin(result.auth);
+    return expireAdminCookie(adminSuccessResponse({ authenticated: false }));
+  } catch (error) { return adminJsonError(error); }
 }

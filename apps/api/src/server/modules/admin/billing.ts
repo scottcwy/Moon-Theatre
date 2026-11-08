@@ -1,9 +1,9 @@
 import { eq, desc, asc, and, count } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { orders, payments, walletAccounts, walletTransactions, quotaPackages, users } from '../../db/schema.js';
-import { NotFoundError } from '../../http/errors.js';
+import { ConflictError, NotFoundError } from '../../http/errors.js';
 import { normalizePagination, type PaginatedResult, type PaginationParams } from './pagination.js';
-import { findAdminAuditByDedupeKey, recordAdminAuditInTransaction } from './audit.js';
+import { findAdminAuditByDedupeKey, finalizePendingAdminAudit, recordAdminAuditInTransaction, matchesIdentityActor, type IdentityAdminActor } from './audit.js';
 
 type OrderStatus = 'created' | 'prepay_created' | 'paid' | 'credited' | 'closed' | 'failed' | 'refunded';
 type PaymentStatus = 'pending' | 'success' | 'failed' | 'cancelled';
@@ -206,6 +206,7 @@ export async function listWalletTransactions(params: PaginationParams & { userId
         idempotencyKey: walletTransactions.idempotencyKey,
         description: walletTransactions.description,
         adminUserId: walletTransactions.adminUserId,
+        adminAccountId: walletTransactions.adminAccountId,
         adjustmentReason: walletTransactions.adjustmentReason,
         createdAt: walletTransactions.createdAt,
         userName: users.nickname,
@@ -272,7 +273,7 @@ export async function updateQuotaPackage(id: string, updates: {
   recommended?: boolean;
   active?: boolean;
   sortOrder?: number;
-}, audit?: { actorUserId: string; requestId?: string }) {
+}, audit?: { actor: IdentityAdminActor; requestId?: string }) {
   return db.transaction(async (tx) => {
     const [row] = await tx
       .update(quotaPackages)
@@ -285,7 +286,7 @@ export async function updateQuotaPackage(id: string, updates: {
     }
     if (audit) {
       await recordAdminAuditInTransaction(tx, {
-        actorUserId: audit.actorUserId,
+        actor: audit.actor,
         action: 'admin.quota_package.update',
         objectType: 'quota_package',
         objectId: id,
@@ -313,4 +314,45 @@ export async function getWalletAdjustmentStatus(idempotencyKey: string) {
     audit,
     complete: audit?.result === 'committed',
   };
+}
+
+/** Finalizes an existing administrator intent only. Never changes wallet state. */
+export async function finalizeWalletAdjustmentAudit(
+  idempotencyKey: string,
+  actor: IdentityAdminActor,
+  requestId?: string,
+): Promise<{ transactionId: string; balanceAfter: number; alreadyFinalized: boolean }> {
+  let result: { transactionId: string; balanceAfter: number } | undefined;
+  const outcome = await finalizePendingAdminAudit(actor, {
+    dedupeKey: `wallet_adjustment:${idempotencyKey}`,
+    action: 'admin.wallet.adjust',
+    objectType: 'wallet_transaction',
+    requestId,
+    recovery: {
+      action: 'admin.wallet.adjust.finalize_audit',
+      objectType: 'wallet_transaction',
+      dedupeKeyPrefix: 'wallet_adjustment_recovery',
+    },
+    verify: async (tx, audit) => {
+      const conflict = () => new ConflictError('wallet_adjustment_audit_conflict');
+      const [transaction] = await tx.select().from(walletTransactions)
+        .where(eq(walletTransactions.idempotencyKey, idempotencyKey)).limit(1).for('update');
+      if (!transaction || transaction.type !== 'adjust' ||
+          (!transaction.adminUserId && !transaction.adminAccountId)) throw conflict();
+      const originalActor: IdentityAdminActor = transaction.adminAccountId
+        ? { kind: 'admin_account', adminAccountId: transaction.adminAccountId }
+        : { kind: 'legacy_user', userId: transaction.adminUserId! };
+      const summary = audit.summary as Record<string, unknown> | null;
+      if (audit.actorSource !== originalActor.kind ||
+          !matchesIdentityActor(originalActor, audit.actorUserId, audit.actorAdminAccountId) ||
+          !summary || summary.idempotencyKey !== idempotencyKey || summary.userId !== transaction.userId ||
+          summary.delta !== transaction.amount || transaction.amount === 0 ||
+          !transaction.adjustmentReason || summary.reason !== transaction.adjustmentReason ||
+          summary.balanceAfter !== transaction.balanceAfter) throw conflict();
+      result = { transactionId: transaction.id, balanceAfter: transaction.balanceAfter };
+      return { objectId: transaction.id, summary: { originalAuditId: audit.id, transactionId: transaction.id } };
+    },
+  });
+  if (!result) throw new ConflictError('wallet_adjustment_audit_conflict');
+  return { ...result, alreadyFinalized: outcome.alreadyFinalized };
 }

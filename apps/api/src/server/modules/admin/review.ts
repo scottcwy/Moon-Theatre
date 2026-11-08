@@ -1,3 +1,4 @@
+import type { IdentityAdminActor } from './audit.js';
 import { eq, desc, and, count } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { reviewLogs } from '../../db/schema.js';
@@ -8,7 +9,7 @@ type ReviewStatus = 'normal' | 'flagged' | 'resolved';
 export async function createReview(input: {
   sessionId: string;
   messageId?: string;
-  reviewerId?: string;
+  actor: IdentityAdminActor;
   status: 'normal' | 'flagged' | 'resolved';
   note?: string;
 }) {
@@ -17,7 +18,8 @@ export async function createReview(input: {
     .values({
       sessionId: input.sessionId,
       messageId: input.messageId ?? null,
-      reviewerId: input.reviewerId ?? 'admin',
+      reviewerId: input.actor.kind === 'legacy_user' ? input.actor.userId : null,
+      reviewerAdminAccountId: input.actor.kind === 'admin_account' ? input.actor.adminAccountId : null,
       status: input.status,
       note: input.note ?? null,
     })

@@ -16,9 +16,7 @@ function stubValidProductionEnv() {
   vi.stubEnv('PAYMENT_APP_ID', 'app');
   vi.stubEnv('PAYMENT_SECRET', 'payment-secret');
   vi.stubEnv('PAYMENT_NOTIFY_URL', 'https://api.example.com/notify');
-  vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
-  vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
-  vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'strong-admin-password');
+  vi.stubEnv('ADMIN_ORIGIN', 'https://api.yuemanlou.xyz');
   vi.stubEnv('FASTCLAW_FALLBACK_ENABLED', 'false');
   vi.stubEnv('TEST_USER_INITIAL_POINTS', '0');
 }
@@ -40,9 +38,6 @@ describe('server config production validation', () => {
     vi.stubEnv('PAYMENT_APP_ID', 'app');
     vi.stubEnv('PAYMENT_SECRET', 'secret');
     vi.stubEnv('PAYMENT_NOTIFY_URL', 'https://api.example.com/notify');
-    vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
-    vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
-    vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'strong-admin-password');
 
     await expect(loadConfig()).rejects.toThrow('JWT_SECRET must be set to a non-default value in production');
   });
@@ -54,9 +49,6 @@ describe('server config production validation', () => {
     vi.stubEnv('WECHAT_APP_ID', 'wx-app');
     vi.stubEnv('WECHAT_APP_SECRET', 'wx-secret');
     vi.stubEnv('PAYMENT_PROVIDER', 'mock');
-    vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
-    vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
-    vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'strong-admin-password');
 
     await expect(loadConfig()).rejects.toThrow('PAYMENT_PROVIDER must not be mock in production');
   });
@@ -86,15 +78,20 @@ describe('server config production validation', () => {
     await expect(loadConfig()).rejects.toThrow('TEST_USER_INITIAL_POINTS must be 0 in production');
   });
 
-  it('rejects weak administrator Basic passwords in production', async () => {
-    for (const password of ['short', 'password', 'password1234', '123456789012', 'aaaaaaaaaaaa']) {
-      vi.unstubAllEnvs();
-      stubValidProductionEnv();
-      vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', password);
-
-      await expect(loadConfig()).rejects.toThrow(
-        'ADMIN_BASIC_AUTH_PASSWORD must be at least 12 characters',
-      );
+  it('requires explicit production canonical origin, not obsolete Basic/whitelist settings', async () => {
+    stubValidProductionEnv();
+    vi.stubEnv('ADMIN_ORIGIN', '');
+    await expect(loadConfig()).rejects.toThrow('ADMIN_ORIGIN');
+    vi.stubEnv('ADMIN_ORIGIN', 'https://api.yuemanlou.xyz');
+    const { config } = await loadConfig();
+    expect(config.adminOrigin).toBe('https://api.yuemanlou.xyz');
+    expect(config).not.toHaveProperty('adminUserIds');
+    expect(config).not.toHaveProperty('adminBasicAuthPassword');
+  });
+  it('rejects noncanonical origins in every environment', async () => {
+    for (const origin of ['https://api.test/', 'https://a:b@api.test', 'https://api.test/path', 'https://api.test?x', 'https://api.test#x', 'https://a.test https://b.test', 'file:///tmp', 'HTTPS://api.test', 'https://api.test:443']) {
+      vi.stubEnv('ADMIN_ORIGIN', origin);
+      await expect(loadConfig()).rejects.toThrow('ADMIN_ORIGIN');
     }
   });
 
@@ -107,9 +104,6 @@ describe('server config production validation', () => {
     vi.stubEnv('PAYMENT_APP_ID', 'app');
     vi.stubEnv('PAYMENT_SECRET', 'secret');
     vi.stubEnv('PAYMENT_NOTIFY_URL', 'https://api.example.com/notify');
-    vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
-    vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
-    vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'strong-admin-password');
 
     await expect(loadConfig()).rejects.toThrow('WECHAT_APP_ID and WECHAT_APP_SECRET must be set in production');
   });
@@ -119,6 +113,7 @@ describe('server config production validation', () => {
     vi.stubEnv('npm_lifecycle_event', 'build');
     // 与外部环境解耦：build 阶段应回退默认配置，不受外层 DATABASE_URL 影响。
     vi.stubEnv('DATABASE_URL', '');
+    vi.stubEnv('JWT_SECRET', '');
 
     const { config } = await loadConfig();
 

@@ -35,7 +35,7 @@ describeRealPg('admin financial audit real PostgreSQL', () => {
         5,
         idempotencyKey,
         'integration compensation',
-        adminUserId,
+        { kind: 'legacy_user', userId: adminUserId },
         { dedupeKey, requestId: `request-${randomUUID()}` },
       );
       await finalizeAdminAudit(dedupeKey);
@@ -44,7 +44,7 @@ describeRealPg('admin financial audit real PostgreSQL', () => {
         5,
         idempotencyKey,
         'integration compensation',
-        adminUserId,
+        { kind: 'legacy_user', userId: adminUserId },
         { dedupeKey, requestId: `request-${randomUUID()}` },
       );
       await finalizeAdminAudit(dedupeKey);
@@ -99,14 +99,14 @@ describeRealPg('admin financial audit real PostgreSQL', () => {
 
     try {
       const first = await updateAdminModel(
-        adminUserId,
+        { kind: 'legacy_user', userId: adminUserId },
         profile!.id,
         idempotencyKey,
         profile!.updatedAt.toISOString(),
         { pointsPerCall: 2 },
       );
       const replay = await updateAdminModel(
-        adminUserId,
+        { kind: 'legacy_user', userId: adminUserId },
         profile!.id,
         idempotencyKey,
         profile!.updatedAt.toISOString(),
@@ -167,14 +167,14 @@ describeRealPg('admin financial audit real PostgreSQL', () => {
     try {
       const results = await Promise.allSettled([
         updateAdminModel(
-          adminUserId,
+          { kind: 'legacy_user', userId: adminUserId },
           firstProfile.id,
           idempotencyKey,
           firstProfile.updatedAt.toISOString(),
           { pointsPerCall: 2 },
         ),
         updateAdminModel(
-          adminUserId,
+          { kind: 'legacy_user', userId: adminUserId },
           secondProfile.id,
           idempotencyKey,
           secondProfile.updatedAt.toISOString(),

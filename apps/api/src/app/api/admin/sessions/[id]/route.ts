@@ -1,8 +1,10 @@
+import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
+import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
-import { corsPreflightResponse } from '@/server/middleware/cors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
+import { adminPreflightResponse as corsPreflightResponse } from '@/server/modules/admin/security.js';
 import { getSessionDetail, recordAdminAudit } from '@/server/modules/admin/index.js';
-import { HttpError, jsonError } from '@/server/http/errors.js';
+import { HttpError } from '@/server/http/errors.js';
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
@@ -22,7 +24,7 @@ export async function GET(
     const detail = await getSessionDetail(id);
     try {
       await recordAdminAudit({
-        actorUserId: admin.auth.userId,
+        actor: { kind: 'admin_account', adminAccountId: admin.auth.adminAccountId },
         action: 'admin.chat_session.read',
         objectType: 'chat_session',
         objectId: id,

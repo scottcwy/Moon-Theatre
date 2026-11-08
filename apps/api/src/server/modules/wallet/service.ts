@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { walletAccounts, walletTransactions } from '../../db/schema.js';
-import { recordAdminAuditInTransaction } from '../admin/audit.js';
+import { recordAdminAuditInTransaction, matchesIdentityActor, type IdentityAdminActor } from '../admin/audit.js';
 
 type WalletTransactionClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -172,7 +172,7 @@ export async function adjustWalletPoints(
   delta: number,
   idempotencyKey: string,
   reason: string,
-  adminUserId: string,
+  actor: IdentityAdminActor,
   audit?: {
     requestId?: string;
     dedupeKey: string;
@@ -193,7 +193,7 @@ export async function adjustWalletPoints(
     const recordIntent = async (result: AdjustmentResult) => {
       if (!audit) return;
       await recordAdminAuditInTransaction(tx, {
-        actorUserId: adminUserId,
+        actor,
         action: 'admin.wallet.adjust',
         objectType: 'wallet_transaction',
         objectId: result.transactionId,
@@ -223,6 +223,7 @@ export async function adjustWalletPoints(
           amount: walletTransactions.amount,
           balanceAfter: walletTransactions.balanceAfter,
           adminUserId: walletTransactions.adminUserId,
+          adminAccountId: walletTransactions.adminAccountId,
           adjustmentReason: walletTransactions.adjustmentReason,
         })
         .from(walletTransactions)
@@ -236,7 +237,7 @@ export async function adjustWalletPoints(
       if (
         existing.userId !== userId ||
         existing.amount !== delta ||
-        existing.adminUserId !== adminUserId ||
+        !matchesIdentityActor(actor, existing.adminUserId, existing.adminAccountId) ||
         existing.adjustmentReason !== normalizedReason
       ) {
         throw new WalletAdjustmentConflictError();
@@ -290,7 +291,7 @@ export async function adjustWalletPoints(
       if (
         concurrent.userId !== userId ||
         concurrent.amount !== delta ||
-        concurrent.adminUserId !== adminUserId ||
+        !matchesIdentityActor(actor, concurrent.adminUserId, concurrent.adminAccountId) ||
         concurrent.adjustmentReason !== normalizedReason
       ) {
         throw new WalletAdjustmentConflictError();
@@ -324,7 +325,8 @@ export async function adjustWalletPoints(
         balanceAfter: newBalance,
         idempotencyKey,
         description: normalizedReason,
-        adminUserId,
+        adminUserId: actor.kind === 'legacy_user' ? actor.userId : null,
+        adminAccountId: actor.kind === 'admin_account' ? actor.adminAccountId : null,
         adjustmentReason: normalizedReason,
       })
       .returning({ id: walletTransactions.id });

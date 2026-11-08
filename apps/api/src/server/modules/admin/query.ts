@@ -9,9 +9,32 @@ const paginationSchema = z.object({
 const optionalUuid = z.string().uuid().optional();
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
 
+/**
+ * UTC calendar day (`YYYY-MM-DD`), the unit the session list filter offers. A well-shaped but
+ * impossible day (2026-02-31) is rejected too, so a typo cannot silently widen or empty the range.
+ */
+/** `Date.parse` rolls an impossible day over (2026-02-31 → 2026-03-03), so round-trip the parts. */
+export function isAdminCalendarDay(value: string): boolean {
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+const isoDay = z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, '创建日期需为 YYYY-MM-DD 格式')
+  .refine(isAdminCalendarDay, '创建日期不是有效日期');
+
 export const listSessionsQuerySchema = paginationSchema.extend({
   userId: optionalUuid,
+  characterId: optionalUuid,
+  mode: z.enum(['script', 'free']).optional(),
   status: z.enum(['active', 'archived']).optional(),
+  from: isoDay.optional(),
+  to: isoDay.optional(),
+}).superRefine((value, ctx) => {
+  if (value.from && value.to && value.from > value.to) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['from'], message: '开始日期不能晚于结束日期' });
+  }
 });
 
 export const listWalletTransactionsQuerySchema = paginationSchema.extend({

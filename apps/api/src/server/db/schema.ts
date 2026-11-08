@@ -76,6 +76,7 @@ export const characters = pgTable('characters', {
     .default({ script: [], free: [] }),
   sortOrder: integer('sort_order').default(0).notNull(),
   status: characterStatusEnum('status').default('active').notNull(),
+  publishedVersionId: uuid('published_version_id').references(() => contentVersions.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -374,20 +375,26 @@ export const walletTransactions = pgTable('wallet_transactions', {
   idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull().unique(),
   description: varchar('description', { length: 256 }),
   adminUserId: uuid('admin_user_id').references(() => users.id),
+  adminAccountId: uuid('admin_account_id').references(() => adminAccounts.id),
   adjustmentReason: varchar('adjustment_reason', { length: 256 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  adminCheck: check('wallet_transactions_admin_check', sql`${table.adminUserId} IS NULL OR ${table.adminAccountId} IS NULL`),
+}));
 
 export const reviewLogs = pgTable('review_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
   sessionId: uuid('session_id').references(() => chatSessions.id).notNull(),
   messageId: uuid('message_id').references(() => messages.id),
   reviewerId: varchar('reviewer_id', { length: 128 }),
+  reviewerAdminAccountId: uuid('reviewer_admin_account_id').references(() => adminAccounts.id),
   status: reviewStatusEnum('status').default('normal').notNull(),
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  reviewerCheck: check('review_logs_reviewer_check', sql`${table.reviewerId} IS NULL OR ${table.reviewerAdminAccountId} IS NULL`),
+}));
 
 export const blockedKeywords = pgTable('blocked_keywords', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -416,9 +423,39 @@ export const characterReturnMessages = pgTable('character_return_messages', {
 
 // Web admin control-plane state. Status fields remain strings so recovery can
 // represent partial/unknown cross-system outcomes without enum migrations.
+export const adminAccounts = pgTable('admin_accounts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  active: boolean('active').default(true).notNull(),
+  mustChangePassword: boolean('must_change_password').default(true).notNull(),
+  credentialVersion: integer('credential_version').default(1).notNull(),
+  isProtected: boolean('is_protected').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  normalizedEmail: check('admin_accounts_normalized_email', sql`${table.email} = lower(btrim(${table.email})) AND length(${table.email}) > 0`),
+  positiveVersion: check('admin_accounts_positive_version', sql`${table.credentialVersion} > 0`),
+  protectedUnique: uniqueIndex('admin_accounts_protected_unique').on(table.isProtected).where(sql`${table.isProtected} = true`),
+}));
+
+// Fixed-window budgets are consumed atomically by the password login service.
+export const adminLoginLimits = pgTable('admin_login_limits', {
+  key: text('key').primaryKey(),
+  windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+}, (table) => ({
+  attemptsNonnegative: check('admin_login_limits_attempts_nonnegative', sql`${table.attempts} >= 0`),
+  expiryIdx: index('admin_login_limits_expiry_idx').on(table.expiresAt),
+}));
+
 export const adminSessions = pgTable('admin_sessions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').references(() => users.id).notNull(),
+  userId: uuid('user_id').references(() => users.id),
+  adminAccountId: uuid('admin_account_id').references(() => adminAccounts.id),
+  tokenHash: text('token_hash').unique(),
+  credentialVersion: integer('credential_version'),
   provider: varchar('provider', { length: 32 }).notNull(),
   externalSubject: varchar('external_subject', { length: 256 }).notNull(),
   stateHash: varchar('state_hash', { length: 128 }),
@@ -427,13 +464,16 @@ export const adminSessions = pgTable('admin_sessions', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
+  identityCheck: check('admin_sessions_identity_check', sql`(${table.userId} IS NOT NULL AND ${table.adminAccountId} IS NULL AND ${table.tokenHash} IS NULL AND ${table.credentialVersion} IS NULL) OR (${table.userId} IS NULL AND ${table.adminAccountId} IS NOT NULL AND ${table.provider} = 'password' AND ${table.tokenHash} IS NOT NULL AND ${table.credentialVersion} IS NOT NULL AND ${table.credentialVersion} > 0)`),
   subjectUnique: uniqueIndex('admin_sessions_subject_unique').on(table.provider, table.externalSubject),
   activeIdx: index('admin_sessions_active_idx').on(table.userId, table.expiresAt),
 }));
 
 export const adminAuditLogs = pgTable('admin_audit_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
-  actorUserId: uuid('actor_user_id').references(() => users.id).notNull(),
+  actorUserId: uuid('actor_user_id').references(() => users.id),
+  actorAdminAccountId: uuid('actor_admin_account_id').references(() => adminAccounts.id),
+  actorSource: varchar('actor_source', { length: 32 }).default('legacy_user').notNull(),
   action: varchar('action', { length: 96 }).notNull(),
   objectType: varchar('object_type', { length: 64 }).notNull(),
   objectId: varchar('object_id', { length: 128 }),
@@ -444,6 +484,7 @@ export const adminAuditLogs = pgTable('admin_audit_logs', {
   summary: jsonb('summary'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
+  actorCheck: check('admin_audit_logs_actor_check', sql`(${table.actorSource} = 'legacy_user' AND ${table.actorUserId} IS NOT NULL AND ${table.actorAdminAccountId} IS NULL) OR (${table.actorSource} = 'admin_account' AND ${table.actorUserId} IS NULL AND ${table.actorAdminAccountId} IS NOT NULL) OR (${table.actorSource} IN ('server_command', 'unauthenticated_request') AND ${table.actorUserId} IS NULL AND ${table.actorAdminAccountId} IS NULL)`),
   dedupeKeyUnique: uniqueIndex('admin_audit_logs_dedupe_key_unique').on(table.dedupeKey),
   requestIdx: index('admin_audit_logs_request_idx').on(table.requestId, table.createdAt),
   objectIdx: index('admin_audit_logs_object_idx').on(table.objectType, table.objectId, table.createdAt),
@@ -457,11 +498,14 @@ export const contentVersions = pgTable('content_versions', {
   status: varchar('status', { length: 32 }).notNull(),
   contentHash: varchar('content_hash', { length: 128 }).notNull(),
   payload: jsonb('payload').notNull(),
-  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdByAdminAccountId: uuid('created_by_admin_account_id').references(() => adminAccounts.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   publishedAt: timestamp('published_at', { withTimezone: true }),
 }, (table) => ({
+  creatorCheck: check('content_versions_creator_check', sql`NOT (${table.createdBy} IS NOT NULL AND ${table.createdByAdminAccountId} IS NOT NULL)`),
   entityVersionUnique: uniqueIndex('content_versions_entity_version_unique').on(table.entityType, table.entityId, table.versionNo),
+  entityPublishedUnique: uniqueIndex('content_versions_entity_published_unique').on(table.entityType, table.entityId).where(sql`${table.status} = 'published'`),
   entityStatusIdx: index('content_versions_entity_status_idx').on(table.entityType, table.entityId, table.status),
 }));
 
@@ -476,10 +520,13 @@ export const publishTasks = pgTable('publish_tasks', {
   appliedHash: varchar('applied_hash', { length: 128 }),
   lastError: text('last_error'),
   recoveryState: varchar('recovery_state', { length: 32 }),
-  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdByAdminAccountId: uuid('created_by_admin_account_id').references(() => adminAccounts.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  creatorCheck: check('publish_tasks_creator_check', sql`(${table.createdBy} IS NOT NULL) <> (${table.createdByAdminAccountId} IS NOT NULL)`),
+}));
 
 export const modelProfileVersions = pgTable('model_profile_versions', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -492,17 +539,45 @@ export const modelProfileVersions = pgTable('model_profile_versions', {
   runtimeParams: jsonb('runtime_params').notNull().default({}),
   credentialRef: varchar('credential_ref', { length: 128 }),
   configHash: varchar('config_hash', { length: 128 }).notNull(),
-  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdByAdminAccountId: uuid('created_by_admin_account_id').references(() => adminAccounts.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   publishedAt: timestamp('published_at', { withTimezone: true }),
 }, (table) => ({
+  creatorCheck: check('model_profile_versions_creator_check', sql`NOT (${table.createdBy} IS NOT NULL AND ${table.createdByAdminAccountId} IS NOT NULL)`),
   profileVersionUnique: uniqueIndex('model_profile_versions_profile_version_unique').on(table.profileId, table.versionNo),
+}));
+
+// Batch 3 step 1 (plan W): one immutable record of the derived FastClaw base context (SOUL.md /
+// IDENTITY.md / USER.md) rendered from a published character version. Identical content is one row
+// (`agent_hash_unique`), so a repeat sync adds nothing and an existing capture is never rewritten.
+export const agentContextVersions = pgTable('agent_context_versions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  // The roleplay agent id (`role-*`): the FastClaw agent whose three system files this records.
+  agentId: text('agent_id').notNull(),
+  contentHash: varchar('content_hash', { length: 128 }).notNull(),
+  // The three rendered files + per-file hashes + character counts, exactly as written.
+  snapshot: jsonb('snapshot').notNull(),
+  source: varchar('source', { length: 16 }).notNull(),
+  capturedByAdminAccountId: uuid('captured_by_admin_account_id').references(() => adminAccounts.id),
+  // The published version this context was derived from (NULL for a legacy capture without one).
+  contentVersionId: uuid('content_version_id').references(() => contentVersions.id),
+  contentVersionNo: integer('content_version_no'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  agentHashUnique: uniqueIndex('agent_context_versions_agent_hash_unique').on(table.agentId, table.contentHash),
+  latestIdx: index('agent_context_versions_agent_latest_idx').on(table.agentId, table.createdAt, table.id),
+  agentIdNonEmpty: check('agent_context_versions_agent_id_nonempty', sql`length(btrim(${table.agentId})) > 0`),
+  contentHashNonEmpty: check('agent_context_versions_content_hash_nonempty', sql`length(btrim(${table.contentHash})) > 0`),
+  sourceCheck: check('agent_context_versions_source_check', sql`${table.source} IN ('publish', 'manual', 'startup')`),
+  contentVersionNoPositive: check('agent_context_versions_content_version_no_positive', sql`${table.contentVersionNo} IS NULL OR ${table.contentVersionNo} > 0`),
 }));
 
 export const chatTurnSnapshots = pgTable('chat_turn_snapshots', {
   id: uuid('id').defaultRandom().primaryKey(),
   userMessageId: uuid('user_message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull().unique(),
-  clientMessageId: varchar('client_message_id', { length: 128 }).notNull(),
+  // Optional: legacy clients accept a turn without a client id; user_message_id is the unique key.
+  clientMessageId: varchar('client_message_id', { length: 128 }),
   characterId: uuid('character_id').references(() => characters.id).notNull(),
   contentVersionId: uuid('content_version_id').references(() => contentVersions.id).notNull(),
   modelProfileVersionId: uuid('model_profile_version_id').references(() => modelProfileVersions.id).notNull(),
@@ -510,8 +585,13 @@ export const chatTurnSnapshots = pgTable('chat_turn_snapshots', {
   provider: varchar('provider', { length: 64 }).notNull(),
   modelName: varchar('model_name', { length: 128 }).notNull(),
   pointsPerCall: integer('points_per_call').notNull(),
+  // The base-context record that was current when this turn was accepted; NULL means "not recorded",
+  // never "the latest one" (a legacy turn is not backfilled).
+  agentContextVersionId: uuid('agent_context_version_id').references(() => agentContextVersions.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  characterVersionIdx: index('chat_turn_snapshots_character_version_idx').on(table.characterId, table.contentVersionId),
+}));
 
 export const chatGenerationAttempts = pgTable('chat_generation_attempts', {
   id: uuid('id').defaultRandom().primaryKey(),

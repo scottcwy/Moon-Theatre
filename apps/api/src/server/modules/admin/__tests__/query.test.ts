@@ -31,6 +31,29 @@ describe('admin query parsing', () => {
     expect(() => parseAdminQuery(listSessionsQuerySchema, new URLSearchParams('status=deleted'))).toThrow(ValidationError);
   });
 
+  it('accepts a session created-date range and keeps both bounds', () => {
+    const query = parseAdminQuery(
+      listSessionsQuerySchema,
+      new URLSearchParams('from=2026-11-01&to=2026-11-07'),
+    );
+    expect(query).toEqual({ page: 1, pageSize: 20, from: '2026-11-01', to: '2026-11-07' });
+    expect(parseAdminQuery(listSessionsQuerySchema, new URLSearchParams('from=2026-11-01'))).toMatchObject({ from: '2026-11-01' });
+    expect(parseAdminQuery(listSessionsQuerySchema, new URLSearchParams('to=2026-11-07'))).toMatchObject({ to: '2026-11-07' });
+  });
+
+  it('rejects a malformed session date and an impossible calendar day with a Chinese message', () => {
+    expect(() => parseAdminQuery(listSessionsQuerySchema, new URLSearchParams('from=2026/11/01'))).toThrow(/日期/);
+    expect(() => parseAdminQuery(listSessionsQuerySchema, new URLSearchParams('to=2026-02-31'))).toThrow(/日期/);
+  });
+
+  it('rejects a session date range whose start is after its end', () => {
+    expect(() => parseAdminQuery(listSessionsQuerySchema, new URLSearchParams('from=2026-11-07&to=2026-11-01')))
+      .toThrow(/开始日期不能晚于结束日期/);
+    // Equal bounds are one day, not an inverted range.
+    expect(parseAdminQuery(listSessionsQuerySchema, new URLSearchParams('from=2026-11-07&to=2026-11-07')))
+      .toMatchObject({ from: '2026-11-07', to: '2026-11-07' });
+  });
+
   it('rejects invalid wallet transaction types', () => {
     expect(() => parseAdminQuery(listWalletTransactionsQuerySchema, new URLSearchParams('type=refund'))).toThrow(ValidationError);
   });

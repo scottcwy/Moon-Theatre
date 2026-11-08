@@ -1,10 +1,15 @@
 const DEFAULT_JWT_SECRET = 'dev-secret-change-in-production';
 const isProduction = process.env.NODE_ENV === 'production';
 const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
-const MIN_ADMIN_BASIC_PASSWORD_LENGTH = 12;
 const SUPPORTED_PAYMENT_PROVIDERS = new Set(['mock', 'aggregate']);
-const WEAK_ADMIN_PASSWORDS = new Set(['password', 'admin', 'changeme', 'change-me']);
-const WEAK_ADMIN_PASSWORD_PREFIXES = ['password', 'admin', 'changeme', 'qwerty', 'letmein', '123456'];
+export function validateAdminOrigin(value: string): string {
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol) || url.origin !== value || url.username || url.password)
+      throw new Error();
+    return value;
+  } catch { throw new Error('ADMIN_ORIGIN must be a canonical http(s) origin'); }
+}
 
 const rawConfig = {
   port: parseInt(process.env.PORT || '3000', 10),
@@ -28,9 +33,7 @@ const rawConfig = {
   paymentPrivateKey: process.env.PAYMENT_PRIVATE_KEY || '',
   paymentNotifyUrl: process.env.PAYMENT_NOTIFY_URL || '',
   paymentReturnUrl: process.env.PAYMENT_RETURN_URL || '',
-  adminUserIds: parseCsv(process.env.ADMIN_USER_IDS || ''),
-  adminBasicAuthUser: process.env.ADMIN_BASIC_AUTH_USER || '',
-  adminBasicAuthPassword: process.env.ADMIN_BASIC_AUTH_PASSWORD || '',
+  adminOrigin: validateAdminOrigin(process.env.ADMIN_ORIGIN || 'http://localhost:3000'),
   devAuthBypass: !isProduction && process.env.DEV_AUTH_BYPASS === 'true',
   testUserInitialPoints: parseInt(process.env.TEST_USER_INITIAL_POINTS || '0', 10),
 } as const;
@@ -38,13 +41,6 @@ const rawConfig = {
 validateProductionConfig(rawConfig);
 
 export const config = rawConfig;
-
-function parseCsv(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
 
 function validateProductionConfig(cfg: typeof rawConfig): void {
   if (process.env.NODE_ENV !== 'production') {
@@ -93,23 +89,8 @@ function validateProductionConfig(cfg: typeof rawConfig): void {
     }
   }
 
-  if (cfg.adminUserIds.length === 0) {
-    throw new Error('ADMIN_USER_IDS must contain at least one user id in production');
-  }
-
-  if (!cfg.adminBasicAuthUser) {
-    throw new Error('ADMIN_BASIC_AUTH_USER must be set in production');
-  }
-  if (!cfg.adminBasicAuthPassword) {
-    throw new Error('ADMIN_BASIC_AUTH_PASSWORD must be set in production');
-  }
-  if (
-    cfg.adminBasicAuthPassword.length < MIN_ADMIN_BASIC_PASSWORD_LENGTH ||
-    isWeakAdminPassword(cfg.adminBasicAuthPassword)
-  ) {
-    throw new Error(
-      `ADMIN_BASIC_AUTH_PASSWORD must be at least ${MIN_ADMIN_BASIC_PASSWORD_LENGTH} characters and not a common weak password`,
-    );
+  if (!process.env.ADMIN_ORIGIN || cfg.adminOrigin !== 'https://api.yuemanlou.xyz') {
+    throw new Error('ADMIN_ORIGIN must be explicitly set to https://api.yuemanlou.xyz in production');
   }
   if (cfg.fastclawFallbackEnabled) {
     throw new Error('FASTCLAW_FALLBACK_ENABLED must be false in production');
@@ -117,13 +98,4 @@ function validateProductionConfig(cfg: typeof rawConfig): void {
   if (!Number.isInteger(cfg.testUserInitialPoints) || cfg.testUserInitialPoints !== 0) {
     throw new Error('TEST_USER_INITIAL_POINTS must be 0 in production');
   }
-}
-
-function isWeakAdminPassword(password: string): boolean {
-  const normalized = password.toLowerCase();
-  if (WEAK_ADMIN_PASSWORDS.has(normalized)) return true;
-  if (WEAK_ADMIN_PASSWORD_PREFIXES.some((prefix) => normalized.startsWith(prefix))) return true;
-  if (/^\d+$/.test(normalized)) return true;
-  if (new Set(normalized).size < 5) return true;
-  return false;
 }

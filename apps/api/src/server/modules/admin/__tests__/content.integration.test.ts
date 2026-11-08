@@ -67,7 +67,7 @@ describeRealPg('admin content hardening real PostgreSQL', () => {
     const fixture = await createAdminAndScript();
     const key = `publish-${randomUUID()}`;
 
-    const first = await publishScript(fixture.userId, fixture.scriptId, key);
+    const first = await publishScript({ kind: 'legacy_user', userId: fixture.userId }, fixture.scriptId, key);
     await db.update(adminAuditLogs).set({ result: 'audit_pending' }).where(eq(
       adminAuditLogs.dedupeKey,
       `publish_script:${key}`,
@@ -76,7 +76,7 @@ describeRealPg('admin content hardening real PostgreSQL', () => {
       recoveryState: 'audit_pending',
       lastError: 'injected finalize failure',
     }).where(eq(publishTasks.id, first.taskId));
-    const second = await publishScript(fixture.userId, fixture.scriptId, key);
+    const second = await publishScript({ kind: 'legacy_user', userId: fixture.userId }, fixture.scriptId, key);
 
     expect(first.status).toBe('committed');
     expect(first.auditStatus).toBe('committed');
@@ -107,8 +107,8 @@ describeRealPg('admin content hardening real PostgreSQL', () => {
     const expectedUpdatedAt = fixture.script.updatedAt.toISOString();
 
     const results = await Promise.allSettled([
-      updateScriptDraft(fixture.userId, fixture.scriptId, expectedUpdatedAt, { title: 'First edit' }),
-      updateScriptDraft(fixture.userId, fixture.scriptId, expectedUpdatedAt, { title: 'Second edit' }),
+      updateScriptDraft({ kind: 'legacy_user', userId: fixture.userId }, fixture.scriptId, expectedUpdatedAt, { title: 'First edit' }),
+      updateScriptDraft({ kind: 'legacy_user', userId: fixture.userId }, fixture.scriptId, expectedUpdatedAt, { title: 'Second edit' }),
     ]);
 
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
@@ -131,10 +131,10 @@ describeRealPg('admin content hardening real PostgreSQL', () => {
 
   it('keeps drafts private until the selected version is published', async () => {
     const fixture = await createAdminAndScript();
-    await publishScript(fixture.userId, fixture.scriptId, `publish-live-${randomUUID()}`);
+    await publishScript({ kind: 'legacy_user', userId: fixture.userId }, fixture.scriptId, `publish-live-${randomUUID()}`);
     const [live] = await db.select().from(scripts).where(eq(scripts.id, fixture.scriptId));
     const draft = await updateScriptDraft(
-      fixture.userId,
+      { kind: 'legacy_user', userId: fixture.userId },
       fixture.scriptId,
       live!.updatedAt.toISOString(),
       { title: 'unpublished draft title' },
@@ -143,21 +143,41 @@ describeRealPg('admin content hardening real PostgreSQL', () => {
     expect((await getScriptById(fixture.scriptId))?.title).toBe(fixture.script.title);
     expect(draft.title).toBe('unpublished draft title');
 
-    await publishScript(fixture.userId, fixture.scriptId, `publish-draft-${randomUUID()}`);
+    await publishScript({ kind: 'legacy_user', userId: fixture.userId }, fixture.scriptId, `publish-draft-${randomUUID()}`);
     expect((await getScriptById(fixture.scriptId))?.title).toBe('unpublished draft title');
   });
 
   it('allows only one of two concurrent publish keys to activate the draft', async () => {
     const fixture = await createAdminAndScript();
     const results = await Promise.allSettled([
-      publishScript(fixture.userId, fixture.scriptId, `publish-a-${randomUUID()}`),
-      publishScript(fixture.userId, fixture.scriptId, `publish-b-${randomUUID()}`),
+      publishScript({ kind: 'legacy_user', userId: fixture.userId }, fixture.scriptId, `publish-a-${randomUUID()}`),
+      publishScript({ kind: 'legacy_user', userId: fixture.userId }, fixture.scriptId, `publish-b-${randomUUID()}`),
     ]);
 
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
     const tasks = await db.select().from(publishTasks).where(eq(publishTasks.entityId, fixture.scriptId));
     expect(tasks).toHaveLength(1);
+  });
+
+  it('returns the audit evidence of a script publish task', async () => {
+    const fixture = await createAdminAndScript();
+    const published = await publishScript(
+      { kind: 'legacy_user', userId: fixture.userId },
+      fixture.scriptId,
+      `publish-${randomUUID()}`,
+    );
+    const { getPublishTask } = await import('../content.js');
+    const result = await getPublishTask(published.taskId);
+    expect(result.task).toMatchObject({ id: published.taskId, entityType: 'script', status: 'committed' });
+    expect(result.audit).toMatchObject({ action: 'admin.script.publish', objectType: 'script', result: 'committed' });
+  });
+
+  it('exposes a single character listing implementation', async () => {
+    // The deterministic `listAdminCharacters` lives in characters.ts; the leftover non-deterministic
+    // copy in content.ts must be gone so no caller can silently import the wrong ordering.
+    const content = await import('../content.js');
+    expect('listAdminCharacters' in content).toBe(false);
   });
 });
 

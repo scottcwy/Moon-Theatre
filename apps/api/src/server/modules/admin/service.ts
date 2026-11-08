@@ -1,4 +1,4 @@
-export { listSessions, listMessages, getSessionDetail } from './sessions.js';
+export { listSessions, listMessages, getSessionMetadata, getSessionDetail } from './sessions.js';
 export { createReview, listReviewLogs } from './review.js';
 export { listOrders, getOrderDetail, listPayments, getPaymentDetail, listWalletTransactions, listWalletAccounts, listQuotaPackages, updateQuotaPackage, getWalletAdjustmentStatus } from './billing.js';
 export { listModelUsageLogs } from './model-usage.js';

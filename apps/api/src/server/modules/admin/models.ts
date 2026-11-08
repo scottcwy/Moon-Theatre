@@ -4,7 +4,11 @@ import { db } from '../../db/index.js';
 import { adminAuditLogs, modelProfiles, modelProfileVersions } from '../../db/schema.js';
 import { ConflictError, NotFoundError } from '../../http/errors.js';
 import {
+  creatorColumns,
+  matchesIdentityActor,
+  type IdentityAdminActor,
   finalizeAdminAudit,
+  finalizePendingAdminAudit,
   recordAdminAuditInTransaction,
 } from './audit.js';
 
@@ -13,7 +17,7 @@ export async function listAdminModels() {
 }
 
 export async function updateAdminModel(
-  actorUserId: string,
+  actor: IdentityAdminActor,
   id: string,
   idempotencyKey: string,
   expectedUpdatedAt: string,
@@ -37,7 +41,8 @@ export async function updateAdminModel(
         && 'requestHash' in existingAudit.summary
         ? String(existingAudit.summary.requestHash)
         : null;
-      if (existingAudit.objectId !== id || storedRequestHash !== requestHash) {
+      if (existingAudit.objectId !== id || storedRequestHash !== requestHash ||
+          !matchesIdentityActor(actor, existingAudit.actorUserId, existingAudit.actorAdminAccountId)) {
         throw new ConflictError('model_publish_idempotency_conflict');
       }
       const versionId = typeof existingAudit.summary === 'object'
@@ -100,13 +105,13 @@ export async function updateAdminModel(
       pointsPerCall: model.pointsPerCall,
       runtimeParams: {},
       configHash,
-      createdBy: actorUserId,
+      ...creatorColumns(actor),
       publishedAt: new Date(),
     }).returning();
     if (!version) throw new Error('model_profile_version_create_failed');
 
     await recordAdminAuditInTransaction(tx, {
-      actorUserId,
+      actor,
       action: 'admin.model.publish',
       objectType: 'model_profile',
       objectId: id,
@@ -141,4 +146,50 @@ export async function updateAdminModel(
     auditStatus,
     dedupeKey: auditKey,
   };
+}
+
+/**
+ * Finalize-only recovery for a model publish audit left pending before the identity cutover.
+ * Validates the persisted version/profile against the original intent; never re-runs the publish.
+ */
+export async function finalizeModelPublishAudit(
+  actor: IdentityAdminActor,
+  idempotencyKey: string,
+  requestId?: string,
+): Promise<{ profileId: string; versionId: string; alreadyFinalized: boolean }> {
+  let bound: { profileId: string; versionId: string } | undefined;
+  const outcome = await finalizePendingAdminAudit(actor, {
+    dedupeKey: `model_profile_publish:${idempotencyKey}`,
+    action: 'admin.model.publish',
+    objectType: 'model_profile',
+    requestId,
+    recovery: {
+      action: 'admin.model.publish.finalize_audit',
+      objectType: 'model_profile',
+      dedupeKeyPrefix: 'model_profile_publish_audit_recovery',
+    },
+    verify: async (tx, audit) => {
+      const conflict = () => new ConflictError('model_publish_audit_conflict');
+      const summary = audit.summary as Record<string, unknown> | null;
+      const versionId = typeof summary?.versionId === 'string' ? summary.versionId : null;
+      if (!summary || !versionId) throw conflict();
+      const [version] = await tx
+        .select()
+        .from(modelProfileVersions)
+        .where(eq(modelProfileVersions.id, versionId))
+        .limit(1)
+        .for('update');
+      const [model] = await tx
+        .select()
+        .from(modelProfiles)
+        .where(eq(modelProfiles.id, audit.objectId ?? ''))
+        .limit(1);
+      if (!version || !model || version.profileId !== model.id || version.status !== 'published' ||
+          version.configHash !== summary.configHash) throw conflict();
+      bound = { profileId: model.id, versionId: version.id };
+      return { objectId: model.id, summary: { originalAuditId: audit.id, versionId: version.id, profileId: model.id } };
+    },
+  });
+  if (!bound) throw new ConflictError('model_publish_audit_conflict');
+  return { ...bound, alreadyFinalized: outcome.alreadyFinalized };
 }

@@ -65,29 +65,22 @@ export async function verifyAuth(request: NextRequest): Promise<{ userId: string
 }
 
 export type AdminAuthResult =
-  | { ok: true; auth: { userId: string } }
+  | { ok: true; auth: import('../modules/admin/authentication.js').AdminIdentity }
   | { ok: false; response: NextResponse };
 
-export async function verifyAdminAuth(request: NextRequest): Promise<AdminAuthResult> {
-  let auth = await verifyAuth(request);
-  // QR/cookie sessions are resolved server-side; JWT remains supported for
-  // existing clients and deployment-level Basic Auth still runs upstream.
-  if (!auth) {
-    const sessionId = request.cookies.get('admin_session')?.value ?? request.headers.get('x-admin-session');
-    if (sessionId) {
-      const { resolveAdminSession } = await import('../modules/admin/audit.js');
-      auth = await resolveAdminSession(sessionId);
+export async function verifyAdminAuth(request: NextRequest, options: { allowRestricted?: boolean } = {}): Promise<AdminAuthResult> {
+  const { validateAdminWrite, adminJsonError, ADMIN_SESSION_COOKIE } = await import('../modules/admin/security.js');
+  try {
+    validateAdminWrite(request);
+    const token = request.cookies?.get(ADMIN_SESSION_COOKIE)?.value;
+    const { resolveAdminToken } = await import('../modules/admin/authentication.js');
+    const auth = await resolveAdminToken(token, options);
+    if (!auth) {
+      const { HttpError } = await import('../http/errors.js');
+      throw new HttpError('admin_unauthenticated', 401);
     }
-  }
-  if (!auth) {
-    return { ok: false, response: unauthorizedResponse() };
-  }
-
-  if (!config.adminUserIds.includes(auth.userId)) {
-    return { ok: false, response: forbiddenResponse() };
-  }
-
-  return { ok: true, auth };
+    return { ok: true, auth };
+  } catch (error) { return { ok: false, response: adminJsonError(error) }; }
 }
 
 export function unauthorizedResponse(message = 'Unauthorized') {

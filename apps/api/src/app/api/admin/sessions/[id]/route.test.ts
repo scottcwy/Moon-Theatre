@@ -30,7 +30,7 @@ describe('GET /api/admin/sessions/:id audit boundary', () => {
     vi.clearAllMocks();
     verifyAdminAuthMock.mockResolvedValue({
       ok: true,
-      auth: { userId: 'admin-1' },
+      auth: { adminAccountId: 'admin-1' },
     });
     getSessionDetailMock.mockResolvedValue({
       id: 'session-1',
@@ -60,7 +60,7 @@ describe('GET /api/admin/sessions/:id audit boundary', () => {
 
     expect(response.status).toBe(200);
     expect(recordAdminAuditMock).toHaveBeenCalledWith(expect.objectContaining({
-      actorUserId: 'admin-1',
+      actor: { kind: 'admin_account', adminAccountId: 'admin-1' },
       action: 'admin.chat_session.read',
       objectId: 'session-1',
       result: 'committed',
