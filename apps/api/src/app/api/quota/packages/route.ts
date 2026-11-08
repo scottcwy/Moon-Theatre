@@ -16,7 +16,7 @@ export async function GET() {
       .select()
       .from(quotaPackages)
       .where(eq(quotaPackages.active, true))
-      .orderBy(asc(quotaPackages.sortOrder));
+      .orderBy(asc(quotaPackages.sortOrder), asc(quotaPackages.id));
 
     return successResponse({ packages: rows });
   } catch (err) {

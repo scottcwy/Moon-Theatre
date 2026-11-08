@@ -8,6 +8,8 @@ export class AdminRequestError extends Error {
     readonly code?: string,
     /** Response body, for surfaces that render field-level issues. Never a session or token value. */
     readonly details?: unknown,
+    /** HTTP status, so a caller can tell "no such row" (404) from an outage. */
+    readonly status?: number,
   ) { super(message); }
 }
 const errorCopy: Record<string, string> = {
@@ -21,17 +23,30 @@ const errorCopy: Record<string, string> = {
   admin_account_not_found: '账号已不存在，请刷新列表。',
   admin_csrf_failed: '请求未通过安全校验，请刷新页面后重试。',
 };
-export async function adminRequest<T = unknown>(path: string, method: 'POST' | 'PATCH' | 'DELETE', body: object): Promise<T> {
+export async function adminRequest<T = unknown>(
+  path: string,
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET',
+  body?: object,
+): Promise<T> {
+  // Writes carry the CSRF material the admin guard requires; reads use the same cookie-bound,
+  // no-store transport so the console never caches private figures.
+  const write = method !== 'GET';
   let response: Response;
   try {
-    response = await fetch(path, { method, credentials: 'same-origin', cache: 'no-store',
-      headers: { 'Content-Type': 'application/json', 'X-Admin-Request': '1' }, body: JSON.stringify(body) });
+    response = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      cache: 'no-store',
+      ...(write
+        ? { headers: { 'Content-Type': 'application/json', 'X-Admin-Request': '1' }, body: JSON.stringify(body) }
+        : {}),
+    });
   } catch { throw new AdminRequestError('网络连接失败，请检查连接后重试。'); }
   const data: unknown = await response.json().catch(() => ({}));
   if (response.ok) return data as T;
   const code = typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string' ? data.error : '';
   const fail = (message: string, redirectTo?: string, retryAfter?: number) =>
-    new AdminRequestError(message, redirectTo, retryAfter, code, data);
+    new AdminRequestError(message, redirectTo, retryAfter, code, data, response.status);
   if (response.status === 401) {
     if (path === '/api/admin/session' && method === 'POST') throw fail(errorCopy.admin_login_failed ?? '登录失败，请核对邮箱与密码。');
     throw fail('登录已失效，请重新登录。', '/admin/login?notice=expired');

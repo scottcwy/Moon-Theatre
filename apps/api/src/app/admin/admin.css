@@ -156,6 +156,15 @@ body:has(.admin-root) { margin: 0; background: #decdbd; }
 .admin-root .transcript-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .admin-root .transcript-meta .under { margin-top: 0; }
 .admin-root .transcript-content { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; }
+/* Wallet adjustments and quota package maintenance (batch 3). */
+.admin-root .package-form, .admin-root .adjustment-form, .admin-root .adjustment-query { display: grid; gap: 16px; }
+.admin-root .package-form { margin-top: 6px; }
+.admin-root .package-form h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 0; }
+.admin-root .package-form > fieldset, .admin-root .adjustment-form > fieldset { display: grid; gap: 18px; }
+.admin-root .adjustment-form, .admin-root .adjustment-query { max-width: 720px; }
+.admin-root .adjustment-query { border-top: 1px solid #bda88e; padding-top: 18px; margin-top: 8px; }
+.admin-root .adjustment-query > .notice dl, .admin-root section[aria-label='调账结果'] dl, .admin-root section[aria-label='审计待恢复'] dl { margin-top: 4px; }
+.admin-root section[aria-label='调账结果'], .admin-root section[aria-label='审计待恢复'] { margin-top: 16px; }
 @media (max-width: 1100px) {
   .admin-root .content { padding: 26px 24px 40px; }
   .admin-root .topbar { padding-inline: 24px; }
@@ -192,4 +201,7 @@ body:has(.admin-root) { margin: 0; background: #decdbd; }
   .admin-root .field-grid, .admin-root .preview-grid, .admin-root .publish-actions { grid-template-columns: minmax(0, 1fr); }
   .admin-root .filter-bar label { max-width: none; }
   .admin-root .filter-bar button, .admin-root .filter-bar .button { width: 100%; }
+  .admin-root .package-form .editor-actions button, .admin-root .adjustment-form .editor-actions button,
+  .admin-root .adjustment-query button { width: 100%; }
+  .admin-root .package-form .editor-actions, .admin-root .adjustment-form .editor-actions { flex-direction: column; align-items: stretch; }
 }

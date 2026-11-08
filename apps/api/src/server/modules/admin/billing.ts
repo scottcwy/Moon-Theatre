@@ -1,7 +1,9 @@
-import { eq, desc, asc, and, count } from 'drizzle-orm';
+import { eq, ne, desc, asc, and, count, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '../../db/index.js';
 import { orders, payments, walletAccounts, walletTransactions, quotaPackages, users } from '../../db/schema.js';
-import { ConflictError, NotFoundError } from '../../http/errors.js';
+import { ConflictError, NotFoundError, ValidationError, formatZodIssues } from '../../http/errors.js';
+import { QUOTA_PACKAGE_DESCRIPTION_MAX, QUOTA_PACKAGE_NAME_MAX } from './quota-package-limits.js';
 import { normalizePagination, type PaginatedResult, type PaginationParams } from './pagination.js';
 import { findAdminAuditByDedupeKey, finalizePendingAdminAudit, recordAdminAuditInTransaction, matchesIdentityActor, type IdentityAdminActor } from './audit.js';
 
@@ -258,44 +260,186 @@ export async function listWalletAccounts(params: PaginationParams & { userId?: s
   return { items, total: totalRow[0]?.total ?? 0, page, pageSize };
 }
 
-export async function listQuotaPackages(): Promise<unknown[]> {
+export const QUOTA_PACKAGE_NAME_CONFLICT = 'quota_package_name_conflict';
+export { QUOTA_PACKAGE_NAME_MAX, QUOTA_PACKAGE_DESCRIPTION_MAX } from './quota-package-limits.js';
+
+/**
+ * Package maintenance bodies (AC-13). The schema column is `price_cents`, so the API keeps the
+ * existing `priceCents` name: integer cents, never a yuan float. Points are positive integers and a
+ * zero price is allowed (a free package). Unknown keys are refused — a client `actor` or an
+ * order-shaped field is a 400 before any write. `description` is nullable because the console's
+ * "clear 说明" path sends `null`; `null` and `''` both clear the column. The DB has no unique index on
+ * `name`, so the naming rule is checked case-insensitively inside the mutation transaction, under an
+ * advisory lock, and reported as a conflict.
+ */
+export const quotaPackageInputSchema = z.object({
+  name: z.string().trim()
+    .min(1, '套餐名称不能为空')
+    .max(QUOTA_PACKAGE_NAME_MAX, `套餐名称最多 ${QUOTA_PACKAGE_NAME_MAX} 个字符`),
+  priceCents: z.number().int('价格须为整数分').min(0, '价格不能为负数'),
+  points: z.number().int('点数须为整数').min(1, '点数须为正整数'),
+  description: z.string().trim()
+    .max(QUOTA_PACKAGE_DESCRIPTION_MAX, `说明最多 ${QUOTA_PACKAGE_DESCRIPTION_MAX} 个字符`)
+    .nullable()
+    .optional(),
+  recommended: z.boolean().optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.number().int('排序须为整数').min(0, '排序不能为负数').optional(),
+}).strict();
+
+export const quotaPackageUpdateSchema = quotaPackageInputSchema.partial().strict();
+
+export type QuotaPackageInput = z.infer<typeof quotaPackageInputSchema>;
+export type QuotaPackageUpdate = z.infer<typeof quotaPackageUpdateSchema>;
+export type AdminQuotaPackage = typeof quotaPackages.$inferSelect;
+
+export interface QuotaPackageMutation {
+  package: AdminQuotaPackage;
+  /** False when the patch equalled the stored row: nothing was written and no audit row was added. */
+  changed: boolean;
+  auditId: string | null;
+}
+
+type BillingClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const QUOTA_PACKAGE_FIELDS = ['name', 'priceCents', 'points', 'description', 'recommended', 'active', 'sortOrder'] as const;
+type QuotaPackageField = typeof QUOTA_PACKAGE_FIELDS[number];
+
+function parseQuotaPackageInput<T>(schema: z.ZodType<T>, input: unknown): T {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) throw new ValidationError(formatZodIssues(parsed.error.issues));
+  return parsed.data;
+}
+
+function requireQuotaPackageId(id: string): string {
+  if (!z.string().uuid().safeParse(id).success) throw new ValidationError('admin_input_invalid');
+  return id;
+}
+
+async function assertQuotaPackageNameAvailable(tx: BillingClient, name: string, exceptId?: string): Promise<void> {
+  // The check is a read-then-write under READ COMMITTED, so without serialisation two concurrent
+  // creates (or renames) of the same free name both see nothing and both commit. The transaction-scoped
+  // advisory lock on the lower-cased name closes that window; the loser then sees the committed row.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(lower(${name})))`);
+  const [row] = await tx
+    .select({ id: quotaPackages.id })
+    .from(quotaPackages)
+    .where(and(
+      sql`lower(${quotaPackages.name}) = lower(${name})`,
+      exceptId ? ne(quotaPackages.id, exceptId) : undefined,
+    ))
+    .limit(1);
+  if (row) throw new ConflictError(QUOTA_PACKAGE_NAME_CONFLICT);
+}
+
+/** Deterministic order for the console and the public list: `sort_order`, then the row id. */
+export async function listQuotaPackages(): Promise<AdminQuotaPackage[]> {
   return db
     .select()
     .from(quotaPackages)
-    .orderBy(asc(quotaPackages.sortOrder));
+    .orderBy(asc(quotaPackages.sortOrder), asc(quotaPackages.id));
 }
 
-export async function updateQuotaPackage(id: string, updates: {
-  name?: string;
-  priceCents?: number;
-  points?: number;
-  description?: string;
-  recommended?: boolean;
-  active?: boolean;
-  sortOrder?: number;
-}, audit?: { actor: IdentityAdminActor; requestId?: string }) {
+/** Creates one package and appends its audit event in the same transaction. There is no hard delete. */
+export async function createQuotaPackage(
+  input: QuotaPackageInput,
+  audit: { actor: IdentityAdminActor; requestId?: string },
+): Promise<QuotaPackageMutation> {
+  const values = parseQuotaPackageInput(quotaPackageInputSchema, input);
   return db.transaction(async (tx) => {
+    await assertQuotaPackageNameAvailable(tx, values.name);
+    const [row] = await tx.insert(quotaPackages).values({
+      name: values.name,
+      priceCents: values.priceCents,
+      points: values.points,
+      description: values.description ? values.description : null,
+      recommended: values.recommended ?? false,
+      active: values.active ?? true,
+      sortOrder: values.sortOrder ?? 0,
+    }).returning();
+    if (!row) throw new Error('Failed to create quota package');
+
+    const auditId = await recordAdminAuditInTransaction(tx, {
+      actor: audit.actor,
+      action: 'admin.quota_package.create',
+      objectType: 'quota_package',
+      objectId: row.id,
+      requestId: audit.requestId,
+      result: 'committed',
+      summary: {
+        name: row.name, priceCents: row.priceCents, points: row.points,
+        recommended: row.recommended, active: row.active, sortOrder: row.sortOrder,
+      },
+    });
+    return { package: row, changed: true, auditId };
+  });
+}
+
+/**
+ * Updates the editable fields (availability included — "archive" is `active:false`, never a delete).
+ * A patch that equals the stored row writes nothing and adds no audit row. The audit summary records
+ * the changed field names plus their previous and new values, under the real authenticated actor.
+ */
+export async function updateQuotaPackage(
+  id: string,
+  updates: QuotaPackageUpdate,
+  audit?: { actor: IdentityAdminActor; requestId?: string },
+): Promise<QuotaPackageMutation> {
+  const packageId = requireQuotaPackageId(id);
+  const values = parseQuotaPackageInput(quotaPackageUpdateSchema, updates);
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(quotaPackages)
+      .where(eq(quotaPackages.id, packageId))
+      .limit(1)
+      .for('update');
+    if (!existing) throw new NotFoundError('Quota package');
+    if (values.name !== undefined) await assertQuotaPackageNameAvailable(tx, values.name, packageId);
+
+    const description = values.description === undefined ? undefined : (values.description || null);
+    const next: Record<QuotaPackageField, unknown> = {
+      name: values.name,
+      priceCents: values.priceCents,
+      points: values.points,
+      description,
+      recommended: values.recommended,
+      active: values.active,
+      sortOrder: values.sortOrder,
+    };
+    const changedFields = QUOTA_PACKAGE_FIELDS.filter((field) => next[field] !== undefined && next[field] !== existing[field]);
+    if (changedFields.length === 0) {
+      return { package: existing, changed: false, auditId: null };
+    }
+
+    const patch: Record<string, unknown> = {};
+    const from: Record<string, unknown> = {};
+    const to: Record<string, unknown> = {};
+    for (const field of changedFields) {
+      patch[field] = next[field];
+      from[field] = existing[field];
+      to[field] = next[field];
+    }
     const [row] = await tx
       .update(quotaPackages)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(quotaPackages.id, id))
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(quotaPackages.id, packageId))
       .returning();
+    if (!row) throw new NotFoundError('Quota package');
 
-    if (!row) {
-      throw new NotFoundError('Quota package');
-    }
+    let auditId: string | null = null;
     if (audit) {
-      await recordAdminAuditInTransaction(tx, {
+      auditId = await recordAdminAuditInTransaction(tx, {
         actor: audit.actor,
         action: 'admin.quota_package.update',
         objectType: 'quota_package',
-        objectId: id,
+        objectId: packageId,
         requestId: audit.requestId,
         result: 'committed',
-        summary: { changedFields: Object.keys(updates) },
+        summary: { changedFields, from, to },
       });
     }
-    return row;
+    return { package: row, changed: true, auditId };
   });
 }
 

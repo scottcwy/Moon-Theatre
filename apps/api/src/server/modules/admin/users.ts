@@ -190,6 +190,19 @@ export interface AdminUserProfile {
 }
 
 /** `openid` is a login identifier, so a page never prints all of it. */
+/**
+ * The adjustment route's target-user check. `wallet_accounts.user_id` is a FK, so an unknown UUID
+ * would otherwise surface as a dependency outage after the ledger already tried to create a wallet.
+ */
+export async function adminUserExists(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return Boolean(row);
+}
+
 export function maskOpenidPreview(openid: string): string {
   const keep = Math.min(8, Math.max(2, openid.length - 1));
   return `${openid.slice(0, keep)}…`;

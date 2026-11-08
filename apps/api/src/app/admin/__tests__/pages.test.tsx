@@ -115,7 +115,7 @@ const emptyTablePages = [
   [pages[2], ['暂无订单记录。玩家创建订单后可在此查看。']],
   [pages[3], ['暂无支付记录。产生支付后可在此查看。']],
   [pages[4], ['暂无钱包账户。玩家开通钱包后可在此查看。', '暂无钱包流水。产生点数变动后可在此查看。']],
-  [pages[5], ['暂无充值套餐，请联系配置维护人员。']],
+  [pages[5], ['暂无充值套餐。可用上方表单创建第一个套餐。']],
   [pages[6], ['暂无模型用量。产生模型调用后可在此查看。']],
   [pages[7], ['暂无屏蔽关键词。当前没有已配置的过滤条目。']],
   [pages[8], ['暂无审核记录。产生审核记录后可在此查看。']],
@@ -152,7 +152,7 @@ it.each(['accounts', 'transactions'])('wallet handles empty %s independently of 
   mocks.query.mockResolvedValueOnce(empty === 'accounts' ? emptyResult : populatedResult())
     .mockResolvedValueOnce(empty === 'transactions' ? emptyResult : populatedResult());
   const Page = (await import('../(console)/wallet/page.js')).default;
-  const html = renderToStaticMarkup(await Page());
+  const html = renderToStaticMarkup(await Page(pageProps));
   expect(html.match(/<table>/g)).toHaveLength(1);
   expect(html).toContain(`<p class="empty">${empty === 'accounts' ? '暂无钱包账户。玩家开通钱包后可在此查看。' : '暂无钱包流水。产生点数变动后可在此查看。'}</p>`);
 });

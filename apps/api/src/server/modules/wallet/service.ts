@@ -154,11 +154,24 @@ export interface AdjustmentResult {
 }
 
 export class WalletAdjustmentConflictError extends Error {
-  readonly code = 'idempotency_conflict';
+  readonly code = 'wallet_adjustment_idempotency_conflict';
 
   constructor() {
     super('Idempotency key was already used with different adjustment parameters');
     this.name = 'WalletAdjustmentConflictError';
+  }
+}
+
+/**
+ * A debit the wallet cannot cover. The message stays `Insufficient balance` because the chat charge
+ * path classifies failures by it; HTTP callers map the type to a precise, non-outage response.
+ */
+export class InsufficientBalanceError extends Error {
+  readonly code = 'insufficient_wallet_balance';
+
+  constructor() {
+    super('Insufficient balance');
+    this.name = 'InsufficientBalanceError';
   }
 }
 
@@ -307,7 +320,7 @@ export async function adjustWalletPoints(
 
     const newBalance = account.balancePoints + delta;
     if (newBalance < 0) {
-      throw new Error('Insufficient balance');
+      throw new InsufficientBalanceError();
     }
 
     const now = new Date();
@@ -380,7 +393,7 @@ export async function consumePoints(
     }
 
     if (account.balancePoints < amount) {
-      throw new Error('Insufficient balance');
+      throw new InsufficientBalanceError();
     }
 
     const newBalance = account.balancePoints - amount;

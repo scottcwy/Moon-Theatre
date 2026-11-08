@@ -11,7 +11,13 @@ export {
   listWalletTransactions,
   listWalletAccounts,
   listQuotaPackages,
+  createQuotaPackage,
   updateQuotaPackage,
+  quotaPackageInputSchema,
+  quotaPackageUpdateSchema,
+  QUOTA_PACKAGE_NAME_MAX,
+  QUOTA_PACKAGE_DESCRIPTION_MAX,
+  QUOTA_PACKAGE_NAME_CONFLICT,
   getWalletAdjustmentStatus,
   listModelUsageLogs,
   listBlockedKeywords,
@@ -19,6 +25,7 @@ export {
   listReviewLogs,
 } from './service.js';
 export type { PaginationParams, PaginatedResult } from './service.js';
+export type { AdminQuotaPackage, QuotaPackageInput, QuotaPackageUpdate, QuotaPackageMutation } from './service.js';
 export { getAdminStats } from './stats.js';
 export type { AdminStats } from './stats.js';
 export {
@@ -76,6 +83,7 @@ export {
   listAdminUsers,
   getAdminUser,
   setAdminUserStatus,
+  adminUserExists,
   maskOpenidPreview,
   ADMIN_USER_STATUSES,
   ADMIN_USER_RECENT_SESSION_LIMIT,
