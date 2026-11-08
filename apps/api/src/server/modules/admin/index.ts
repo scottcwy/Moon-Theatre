@@ -78,7 +78,17 @@ export type {
   CharacterPreview,
   CharacterPublishPreflight,
 } from './characters.js';
-export { finalizeModelPublishAudit } from './models.js';
+export { finalizeModelPublishAudit, listAdminModels, listAdminModelVersions, publishAdminModel, updateAdminModel } from './models.js';
+export type { AdminModelProfile, AdminModelProfileVersion, ModelProfileUpdate, ModelPublishResult, ModelUpdateResult } from './models.js';
+export type { ModelRuntimeParams } from './model-runtime-params.js';
+export { checkAdminModelConsistency } from './model-consistency.js';
+export type {
+  ModelConsistencyAgent,
+  ModelConsistencyCheck,
+  ModelConsistencyDifference,
+  ModelConsistencyReason,
+  ModelConsistencyStatus,
+} from './model-consistency.js';
 export {
   listAdminUsers,
   getAdminUser,

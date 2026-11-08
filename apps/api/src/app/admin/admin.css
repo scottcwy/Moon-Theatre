@@ -205,3 +205,14 @@ body:has(.admin-root) { margin: 0; background: #decdbd; }
   .admin-root .adjustment-query button { width: 100%; }
   .admin-root .package-form .editor-actions, .admin-root .adjustment-form .editor-actions { flex-direction: column; align-items: stretch; }
 }
+
+/* Model tier console (batch 3 step 4). Reuses the batch-3 form/table patterns above. */
+.admin-root .model-runtime-params { border: 1px solid #d8c8bd; border-radius: 6px; padding: 12px 16px 16px; background: #fff; }
+.admin-root .model-runtime-params legend { padding: 0 6px; color: var(--muted); font-size: 13px; }
+.admin-root .model-check, .admin-root .model-history { border-top: 1px solid #bda88e; margin-top: 20px; padding-top: 16px; }
+.admin-root .model-check h4, .admin-root .model-history h4 { font-size: 15px; margin: 0 0 8px; }
+.admin-root .model-check section[aria-label='配置一致性检查结果'] { margin-top: 12px; }
+.admin-root .check-agents { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.admin-root .check-agents > li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; border: 1px solid #e0d2c9; border-radius: 6px; padding: 10px 12px; overflow-wrap: anywhere; }
+.admin-root .check-agents > li > ul { flex-basis: 100%; margin: 4px 0 0; padding-left: 18px; color: var(--error); font-size: 13px; }
+.admin-root .model-history .table-wrap { margin-top: 8px; }

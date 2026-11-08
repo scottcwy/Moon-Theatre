@@ -1,43 +1,48 @@
-import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
-import { ValidationError } from '@/server/http/error-types.js';
-import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
+import { adminJsonError as jsonError, adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { verifyAdminAuth } from '@/server/middleware/auth.js';
-import { listAdminModels, updateAdminModel } from '@/server/modules/admin/models.js';
+import { listAdminModels, updateAdminModel } from '@/server/modules/admin/index.js';
+import { modelProfileUpdateSchema } from '@/server/modules/admin/model-schemas.js';
+import { actorOf, requestIdOf } from '../shared.js';
 
+/**
+ * Model tier console (AC-15 / AC-17).
+ *
+ * GET  — every tier with its live configuration. Registered agents can read this; nothing secret is in
+ *        it (no key, no `credentialRef`, no chat text).
+ * POST — not implemented: tiers are created by migration/seed, not by the console.
+ * PATCH — one accepted configuration change (`enabled`, `pointsPerCall`, `displayName`, `description`,
+ *        `provider`, `modelName`, declared `runtimeParams`). The body is strict: a credential field, a
+ *        `tier` change or an undeclared key is a 400 before any write; `expectedUpdatedAt` guards
+ *        against overwriting another operator's save (409 `model_edit_conflict`, never a silent write);
+ *        the change writes exactly one immutable version + one recoverable audit intent.
+ */
 export async function GET(request: NextRequest) {
-  const auth = await verifyAdminAuth(request); if (!auth.ok) return auth.response;
-  try { return successResponse({ models: await listAdminModels() }); } catch (e) { return jsonError(e); }
+  const admin = await verifyAdminAuth(request);
+  if (!admin.ok) return admin.response;
+  try {
+    return successResponse({ models: await listAdminModels() });
+  } catch (error) {
+    return jsonError(error);
+  }
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await verifyAdminAuth(request); if (!auth.ok) return auth.response;
+  const admin = await verifyAdminAuth(request);
+  if (!admin.ok) return admin.response;
   try {
-    const body = await request.json() as {
-      id?: string;
-      idempotencyKey?: string;
-      expectedUpdatedAt?: string;
-      enabled?: boolean;
-      pointsPerCall?: number;
-      displayName?: string;
-      description?: string | null;
-    };
-    if (
-      !body.id ||
-      !body.idempotencyKey ||
-      !body.expectedUpdatedAt ||
-      (body.pointsPerCall !== undefined && (!Number.isInteger(body.pointsPerCall) || body.pointsPerCall < 0))
-    ) {
-      return jsonError(new ValidationError('admin_input_invalid'));
-    }
+    const body = modelProfileUpdateSchema.parse(await request.json());
+    const { id, idempotencyKey, expectedUpdatedAt, ...update } = body;
     const result = await updateAdminModel(
-      { kind: 'admin_account', adminAccountId: auth.auth.adminAccountId },
-      body.id,
-      body.idempotencyKey,
-      body.expectedUpdatedAt,
-      body,
-      request.headers.get('x-request-id') ?? undefined,
+      actorOf(admin.auth),
+      id,
+      idempotencyKey,
+      expectedUpdatedAt,
+      update,
+      requestIdOf(request),
     );
     return successResponse(result, result.auditStatus === 'pending' ? 202 : 200);
-  } catch (e) { return jsonError(e); }
+  } catch (error) {
+    return jsonError(error);
+  }
 }

@@ -20,6 +20,7 @@ const items: NavigationItem[] = [
   { href: '/admin/payments', label: '支付记录' },
   { href: '/admin/wallet', label: '钱包与流水' },
   { href: '/admin/quota-packages', label: '充值套餐' },
+  { href: '/admin/models', label: '模型档位' },
   { href: '/admin/model-usage', label: '模型用量' },
   { href: '/admin/blocked-keywords', label: '屏蔽关键词' },
   { href: '/admin/review-logs', label: '审核记录' },
