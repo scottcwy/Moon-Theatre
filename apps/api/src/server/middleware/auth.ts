@@ -68,10 +68,18 @@ export type AdminAuthResult =
   | { ok: true; auth: import('../modules/admin/authentication.js').AdminIdentity }
   | { ok: false; response: NextResponse };
 
-export async function verifyAdminAuth(request: NextRequest, options: { allowRestricted?: boolean } = {}): Promise<AdminAuthResult> {
+export async function verifyAdminAuth(
+  request: NextRequest,
+  options: {
+    allowRestricted?: boolean;
+    // A named body kind, not a content-type list: `validateAdminWrite` binds `media_upload` to the
+    // upload path, so asking for it anywhere else is a 403 rather than a widened CSRF rule.
+    body?: import('../modules/admin/security.js').AdminWriteBody;
+  } = {},
+): Promise<AdminAuthResult> {
   const { validateAdminWrite, adminJsonError, ADMIN_SESSION_COOKIE } = await import('../modules/admin/security.js');
   try {
-    validateAdminWrite(request);
+    validateAdminWrite(request, options.body ? { body: options.body } : {});
     const token = request.cookies?.get(ADMIN_SESSION_COOKIE)?.value;
     const { resolveAdminToken } = await import('../modules/admin/authentication.js');
     const auth = await resolveAdminToken(token, options);

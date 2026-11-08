@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminRequest, AdminRequestError } from './request.js';
+import { MediaField } from './media-forms.js';
 import { characterFieldLabel, describeBaseContextSync, scriptPublishWarning, type BaseContextStatusLike } from './character-copy.js';
 import {
   buildCharacterEditPatch,
@@ -117,7 +118,15 @@ export function CharacterEditForm({
       <div className="field-grid">
         <label>姓名<input name="name" value={form.name} onChange={set('name')} disabled={pending} aria-describedby={describedBy('name')} required /></label>
         <label>身份<input name="identity" value={form.identity} onChange={set('identity')} disabled={pending} aria-describedby={describedBy('identity')} required /></label>
-        <label>头像地址<input name="avatarUrl" value={form.avatarUrl} onChange={set('avatarUrl')} disabled={pending} aria-describedby={describedBy('avatarUrl')} required spellCheck={false} /></label>
+        <MediaField
+          name="avatarUrl"
+          label="头像地址"
+          value={form.avatarUrl}
+          onValueChange={value => setForm(current => ({ ...current, avatarUrl: value }))}
+          disabled={pending}
+          describedBy={describedBy('avatarUrl')}
+          previewAlt="头像预览"
+        />
         <label>关系起点<input name="initialRelationship" value={form.initialRelationship} onChange={set('initialRelationship')} disabled={pending} aria-describedby={describedBy('initialRelationship')} required /></label>
         <label>排序<input name="sortOrder" type="number" min={0} max={100000} step={1} value={form.sortOrder} onChange={set('sortOrder')} disabled={pending} aria-describedby={describedBy('sortOrder')} /></label>
         {agentId === null
@@ -330,7 +339,15 @@ export function CharacterCreateForm({ agents, scripts }: { agents: AgentOption[]
       <div className="field-grid">
         <label>姓名<input name="name" value={form.name} onChange={set('name')} disabled={pending} aria-describedby={describedBy('name')} required /></label>
         <label>身份<input name="identity" value={form.identity} onChange={set('identity')} disabled={pending} aria-describedby={describedBy('identity')} required /></label>
-        <label>头像地址<input name="avatarUrl" value={form.avatarUrl} onChange={set('avatarUrl')} disabled={pending} aria-describedby={describedBy('avatarUrl')} required spellCheck={false} /></label>
+        <MediaField
+          name="avatarUrl"
+          label="头像地址"
+          value={form.avatarUrl}
+          onValueChange={value => setForm(current => ({ ...current, avatarUrl: value }))}
+          disabled={pending}
+          describedBy={describedBy('avatarUrl')}
+          previewAlt="头像预览"
+        />
         <label>关系起点<input name="initialRelationship" value={form.initialRelationship} onChange={set('initialRelationship')} disabled={pending} aria-describedby={describedBy('initialRelationship')} required /></label>
         <label>排序<input name="sortOrder" type="number" min={0} max={100000} step={1} value={form.sortOrder} onChange={set('sortOrder')} disabled={pending} aria-describedby={describedBy('sortOrder')} /></label>
         <label>Agent 标识（来自已发布清单）

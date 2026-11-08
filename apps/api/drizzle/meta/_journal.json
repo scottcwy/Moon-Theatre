@@ -127,6 +127,13 @@
       "when": 1793792000005,
       "tag": "0017_agent_current_context",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793792000006,
+      "tag": "0018_media_assets",
+      "breakpoints": true
     }
   ]
 }

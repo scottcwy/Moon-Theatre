@@ -41,6 +41,7 @@ export type { AdminAuditInput, AdminActor, IdentityAdminActor } from './audit.js
 export type { AdminPublishTaskItem } from './content.js';
 export {
   listAdminScripts,
+  getAdminScriptCoverState,
   createScriptDraft,
   updateScriptDraft,
   publishScript,
@@ -67,6 +68,7 @@ export {
   getPublishedCharacterVersion,
   MODEL_PROFILE_PREFLIGHT_WARNING,
 } from './characters.js';
+export type { AdminScriptCoverState } from './content.js';
 export type {
   AdminCharacterRecord,
   AdminCharacterListItem,

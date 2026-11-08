@@ -25,6 +25,46 @@ export function desiredPublishHash(entityType: 'script' | 'character', entityId:
   return hashContentPayload({ entityType, entityId, versionId, contentHash });
 }
 export async function listAdminScripts() { return db.select().from(scripts).orderBy(desc(scripts.updatedAt)); }
+
+/**
+ * The cover editor needs three facts the list does not carry: the row, the newest version's
+ * timestamp (the strict PATCH baseline is `max(latest version, row.updatedAt)` — the same rule
+ * `updateScriptDraft` enforces), and the cover the next save would start from (the draft payload when
+ * a draft exists, otherwise the live row). Only display fields are selected.
+ */
+export interface AdminScriptCoverState {
+  script: { id: string; title: string; slug: string; status: string; coverUrl: string | null; updatedAt: Date };
+  baselineAt: Date;
+  draftVersionNo: number | null;
+  draftCoverUrl: string | null;
+  editableCoverUrl: string | null;
+}
+
+export async function getAdminScriptCoverState(id: string): Promise<AdminScriptCoverState> {
+  const [script] = await db.select().from(scripts).where(eq(scripts.id, id)).limit(1);
+  if (!script) throw new NotFoundError('Script');
+  const [latest] = await db
+    .select()
+    .from(contentVersions)
+    .where(and(eq(contentVersions.entityType, 'script'), eq(contentVersions.entityId, id)))
+    .orderBy(desc(contentVersions.versionNo))
+    .limit(1);
+  const baselineAt = latest && latest.createdAt > script.updatedAt ? latest.createdAt : script.updatedAt;
+  const isDraft = latest?.status === 'draft';
+  const draftCoverUrl = isDraft && latest.payload && typeof latest.payload === 'object'
+    ? ((latest.payload as Record<string, unknown>).coverUrl as string | null | undefined) ?? null
+    : null;
+  return {
+    script: {
+      id: script.id, title: script.title, slug: script.slug,
+      status: script.status, coverUrl: script.coverUrl, updatedAt: script.updatedAt,
+    },
+    baselineAt,
+    draftVersionNo: isDraft ? latest!.versionNo : null,
+    draftCoverUrl,
+    editableCoverUrl: isDraft ? draftCoverUrl : script.coverUrl,
+  };
+}
 export async function createScriptDraft(actor: IdentityAdminActor, input: { title: string; description: string; worldSetting: string; slug: string; genre: string; searchKeywords?: string; coverUrl?: string | null; sortOrder?: number }) {
   return db.transaction(async (tx) => {
     const [script] = await tx.insert(scripts).values({ ...input, searchKeywords: input.searchKeywords ?? '', coverUrl: input.coverUrl ?? null, sortOrder: input.sortOrder ?? 0, status: 'inactive' }).returning();

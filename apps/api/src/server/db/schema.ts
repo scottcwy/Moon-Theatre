@@ -590,6 +590,29 @@ export const agentCurrentContext = pgTable('agent_current_context', {
   agentIdNonEmpty: check('agent_current_context_agent_id_nonempty', sql`length(btrim(${table.agentId})) > 0`),
 }));
 
+// Batch 3 step 5: content-addressed local media. The bytes live under `MEDIA_ROOT` at
+// `<root>/<hash[0:2]>/<hash>.<ext>` and this row is the only lookup an immutable URL needs. The hash
+// is unique, so identical bytes are uploaded once and every reference (published or draft) keeps
+// working after a replacement upload — nothing is ever deleted or overwritten in place.
+export const mediaAssets = pgTable('media_assets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  contentHash: text('content_hash').notNull(),
+  mime: text('mime').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  // Never used to build a path and never returned; the upload is a raw body with no filename.
+  originalName: text('original_name'),
+  createdByAdminAccountId: uuid('created_by_admin_account_id').references(() => adminAccounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  contentHashUnique: uniqueIndex('media_assets_content_hash_unique').on(table.contentHash),
+  contentHashNonEmpty: check('media_assets_content_hash_nonempty', sql`length(btrim(${table.contentHash})) > 0`),
+  mimeCheck: check('media_assets_mime_check', sql`${table.mime} IN ('image/png', 'image/jpeg', 'image/webp')`),
+  byteSizeCheck: check('media_assets_byte_size_check', sql`${table.byteSize} > 0 AND ${table.byteSize} <= 5242880`),
+  dimensionsCheck: check('media_assets_dimensions_check', sql`${table.width} >= 1 AND ${table.width} <= 4096 AND ${table.height} >= 1 AND ${table.height} <= 4096`),
+}));
+
 export const chatTurnSnapshots = pgTable('chat_turn_snapshots', {
   id: uuid('id').defaultRandom().primaryKey(),
   userMessageId: uuid('user_message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull().unique(),

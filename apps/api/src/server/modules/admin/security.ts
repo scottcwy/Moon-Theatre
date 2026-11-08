@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import { sql } from 'drizzle-orm';
+import { MEDIA_UPLOAD_CONTENT_TYPES } from '../media/limits.js';
 import { config } from '../../config/index.js';
 import { db } from '../../db/index.js';
 import { HttpError } from '../../http/errors.js';
@@ -11,14 +12,37 @@ import { recordAdminAudit } from './audit.js';
 
 export const ADMIN_SESSION_COOKIE = 'admin_session_v2';
 export const ADMIN_CACHE_CONTROL = 'private, no-store';
+/**
+ * The one admin write that is not JSON: a RAW image body (never multipart — `formData()` buffers the
+ * whole payload before a bound can apply). The exception is expressed as a *named body kind* and is
+ * additionally bound to this exact path inside `validateAdminWrite`, so it cannot be a caller-supplied
+ * content-type list that a future handler could widen without thinking about CSRF.
+ */
+export const MEDIA_UPLOAD_PATH = '/api/admin/media';
+const WRITE_CONTENT_TYPES = {
+  json: ['application/json'],
+  media_upload: MEDIA_UPLOAD_CONTENT_TYPES,
+} as const;
+/** Only the kinds above exist; there is no way to pass an arbitrary list of accepted content types. */
+export type AdminWriteBody = keyof typeof WRITE_CONTENT_TYPES;
 export class AdminRateLimitError extends HttpError {
   constructor(readonly retryAfter: number) { super('admin_login_limited', 429); }
 }
-export function validateAdminWrite(request: Request): void {
+export function validateAdminWrite(
+  request: Request,
+  options: { body?: AdminWriteBody } = {},
+): void {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method.toUpperCase())) return;
+  const body = options.body ?? 'json';
+  const contentTypes = WRITE_CONTENT_TYPES[body];
+  // The raw-body exception is a property of the upload endpoint, not of the caller: any handler that
+  // asks for it elsewhere fails closed instead of silently accepting a cross-site body shape.
+  if (body !== 'json' && new URL(request.url, 'https://admin.invalid').pathname !== MEDIA_UPLOAD_PATH)
+    throw new HttpError('admin_csrf_failed', 403);
+  const declared = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
   if (request.headers.get('origin') !== config.adminOrigin ||
       request.headers.get('x-admin-request') !== '1' ||
-      request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
+      !(contentTypes as readonly string[]).includes(declared))
     throw new HttpError('admin_csrf_failed', 403);
 }
 export function adminClientIp(headers: Headers, production = process.env.NODE_ENV === 'production'): string {

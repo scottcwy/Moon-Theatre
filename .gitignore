@@ -12,6 +12,8 @@ backups/
 *.tsbuildinfo
 *.log
 *.db
+# Local media uploads (default MEDIA_ROOT) are runtime data, never source.
+apps/api/data/
 .DS_Store
 coverage/
 .turbo/

@@ -26,6 +26,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Local media delivery (batch 3 step 5) writes content-addressed files under MEDIA_ROOT. The default
+# `./data/media` must be writable by the unprivileged runtime user; mounting a volume over it is the
+# deployment requirement (see the step report), not something this image can decide.
+RUN mkdir -p /app/data/media && chown -R nextjs:nodejs /app/data
 COPY --from=builder --chown=nextjs:nodejs /app/apps/api/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/api/.next/static ./apps/api/.next/static
 

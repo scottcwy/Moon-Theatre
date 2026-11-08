@@ -121,6 +121,28 @@ test('compose provides fastclaw persistence, healthchecks, log rotation and TZ (
   assert.match(fastclawBlock, /healthcheck:/, 'fastclaw must define a healthcheck');
 });
 
+test('api keeps content-addressed media on a named volume so published images survive a recreate', () => {
+  const compose = readRepoFile('docker-compose.yml');
+  const apiBlock = compose.slice(compose.indexOf('  api:\n'), compose.indexOf('  api-migrate:'));
+
+  // The media root is the system of record for avatars/covers: it must be a named volume, not the
+  // container's writable layer, or a `docker compose up -d` on a new image tag leaves every
+  // published URL pointing at a file that no longer exists (the media_assets rows survive).
+  assert.match(apiBlock, /^\s+volumes:$/m, 'api must mount a volume for MEDIA_ROOT');
+  assert.match(apiBlock, /^\s+- media_data:\/app\/data\/media$/m, 'media volume must mount at the media root');
+  assert.match(compose, /^\s+media_data:$/m, 'media_data must be declared as a top-level named volume');
+  assert.match(compose, /^\s+- MEDIA_ROOT=\/app\/data\/media$/m, 'MEDIA_ROOT must be explicit for the container');
+
+  // The explicit env value and the mount point have to agree, otherwise the writes land outside the volume.
+  const mediaRoot = /^\s+- MEDIA_ROOT=(\S+)$/m.exec(compose)?.[1];
+  assert.equal(mediaRoot, '/app/data/media');
+  assert.match(apiBlock, new RegExp(`- media_data:${escapeRegExp(String(mediaRoot))}$`, 'm'));
+
+  // Local development keeps the relative default; the compose value only applies inside the image.
+  for (const file of ['.env.example', 'apps/api/.env.example'])
+    assert.match(readRepoFile(file), /^MEDIA_ROOT=\.\/data\/media$/m, `${file} must keep the local default`);
+});
+
 test('backup artifacts stay out of git and Docker build context', () => {
   assert.match(readRepoFile('.gitignore'), /(^|\n)backups\/($|\n)/);
   assert.match(readRepoFile('.dockerignore'), /(^|\n)backups($|\n)/);

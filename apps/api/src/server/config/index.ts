@@ -34,6 +34,9 @@ const rawConfig = {
   paymentNotifyUrl: process.env.PAYMENT_NOTIFY_URL || '',
   paymentReturnUrl: process.env.PAYMENT_RETURN_URL || '',
   adminOrigin: validateAdminOrigin(process.env.ADMIN_ORIGIN || 'http://localhost:3000'),
+  // Local file storage only (no object storage, no CDN): content-addressed bytes live under this
+  // directory. The delivery route never accepts a path, so this root is the only filesystem input.
+  mediaRoot: process.env.MEDIA_ROOT || './data/media',
   devAuthBypass: !isProduction && process.env.DEV_AUTH_BYPASS === 'true',
   testUserInitialPoints: parseInt(process.env.TEST_USER_INITIAL_POINTS || '0', 10),
 } as const;

@@ -14,6 +14,7 @@ interface NavigationItem {
 const items: NavigationItem[] = [
   { href: '/admin', label: '运营概览', exact: true },
   { href: '/admin/characters', label: '角色卡片' },
+  { href: '/admin/scripts', label: '剧本封面' },
   { href: '/admin/users', label: '用户管理', group: '玩家' },
   { href: '/admin/sessions', label: '玩家会话', group: '交易与内容' },
   { href: '/admin/orders', label: '订单记录' },
