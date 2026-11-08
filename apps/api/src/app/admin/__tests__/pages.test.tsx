@@ -156,3 +156,14 @@ it.each(['accounts', 'transactions'])('wallet handles empty %s independently of 
   expect(html.match(/<table>/g)).toHaveLength(1);
   expect(html).toContain(`<p class="empty">${empty === 'accounts' ? '暂无钱包账户。玩家开通钱包后可在此查看。' : '暂无钱包流水。产生点数变动后可在此查看。'}</p>`);
 });
+
+describe('credential forms never leak secrets into the URL', () => {
+  it('renders a POST form so a native submit cannot put the password in the query string', async () => {
+    const { CredentialForm } = await import('../forms.js');
+    const html = renderToStaticMarkup(
+      <CredentialForm mode="login" endpoint="/api/admin/session" />,
+    );
+    expect(html).toContain('method="post"');
+    expect(html).toContain('name="password"');
+  });
+});

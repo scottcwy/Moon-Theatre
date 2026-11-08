@@ -56,7 +56,10 @@ export function CredentialForm({ mode, endpoint, next = '/admin', email = '' }: 
     } finally { busy.current = false; setPending(false); }
   }
   const newPassword = mode === 'create' || mode === 'reset' || mode === 'password';
-  return <form onSubmit={submit} className="credential-form" aria-label={labels[mode]} aria-busy={pending}>
+  // `method="post"` is a safety net, not the submit path: React handles submit. Without it a
+  // native submit (page still hydrating, or the bundle failed) would GET the credentials into the
+  // URL, the server log and the Referer. Nothing here is ever submitted natively.
+  return <form method="post" onSubmit={submit} className="credential-form" aria-label={labels[mode]} aria-busy={pending}>
     <fieldset disabled={pending}>
       {(mode === 'login' || mode === 'create' || mode === 'email') && <label>邮箱
         <input name="email" type="email" autoComplete="username" required maxLength={254} defaultValue={email} spellCheck={false} autoCapitalize="none" />
