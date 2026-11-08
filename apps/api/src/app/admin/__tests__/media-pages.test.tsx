@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   // Typed against the real contract: a drifting fixture (e.g. `draft` instead of
   // `draftVersionNo`/`draftCoverUrl`) fails the typecheck instead of passing through `any`.
   getAdminScriptCoverState: vi.fn<(id: string) => Promise<AdminScriptCoverState>>(),
+  listPublishTasks: vi.fn(),
   loadCharacterListItem: vi.fn(),
   getCharacterPreview: vi.fn(),
   readCharacterBaseContext: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('@/server/modules/admin/authentication.js', () => ({ resolveAdminToken: 
 vi.mock('@/server/modules/admin/index.js', () => ({
   listAdminScripts: mocks.listAdminScripts,
   getAdminScriptCoverState: mocks.getAdminScriptCoverState,
+  listPublishTasks: mocks.listPublishTasks,
   loadCharacterListItem: mocks.loadCharacterListItem,
   getCharacterPreview: mocks.getCharacterPreview,
   readCharacterBaseContext: mocks.readCharacterBaseContext,
@@ -70,6 +72,7 @@ beforeEach(() => {
   mocks.resolve.mockResolvedValue(identity);
   mocks.listAdminScripts.mockResolvedValue([scriptState.script]);
   mocks.getAdminScriptCoverState.mockResolvedValue(scriptState);
+  mocks.listPublishTasks.mockResolvedValue([]);
   mocks.readCharacterBaseContext.mockResolvedValue(null);
   mocks.loadCharacterListItem.mockResolvedValue({
     character: { id: characterId, name: '顾青梧', status: 'active', agentId: 'role-qingwu', scriptId: null, sortOrder: 7 },
@@ -202,6 +205,31 @@ describe('script cover pages', () => {
     expect(html).toContain('保存封面草稿');
     expect(html).not.toContain('保存并发布封面');
     expect(html).toContain('该剧本尚未上架');
+  });
+
+  it('lists the bounded publish-task history and offers the shared finalize action only while pending', async () => {
+    mocks.listPublishTasks.mockResolvedValue([
+      { id: 'task-pending', entityType: 'script', entityId: scriptId, versionId, versionNo: 2, status: 'committed', recoveryState: 'audit_pending', lastError: null, createdAt: new Date('2026-11-07T01:00:00Z'), updatedAt: new Date('2026-11-07T01:00:00Z') },
+      { id: 'task-done', entityType: 'script', entityId: scriptId, versionId, versionNo: 1, status: 'committed', recoveryState: null, lastError: null, createdAt: new Date('2026-11-06T01:00:00Z'), updatedAt: new Date('2026-11-06T01:00:00Z') },
+    ]);
+    const html = renderToStaticMarkup(await scriptCoverPage.default(props()));
+    expect(mocks.listPublishTasks).toHaveBeenCalledWith('script', scriptId, 5);
+    expect(html).toContain('发布任务记录');
+    expect(html).toContain('审计待恢复');
+    expect(html).toContain('尝试完成审计收尾');
+    expect(html).toContain('不会重新执行发布或调账');
+    const actions = html.match(/data-finalize-audit="[^"]+"/g) ?? [];
+    expect(actions).toEqual(['data-finalize-audit="task-pending"']);
+  });
+
+  it('shows no finalize action when no publish audit is pending', async () => {
+    mocks.listPublishTasks.mockResolvedValue([
+      { id: 'task-done', entityType: 'script', entityId: scriptId, versionId, versionNo: 1, status: 'committed', recoveryState: null, lastError: null, createdAt: new Date('2026-11-06T01:00:00Z'), updatedAt: new Date('2026-11-06T01:00:00Z') },
+    ]);
+    const html = renderToStaticMarkup(await scriptCoverPage.default(props()));
+    expect(html).toContain('发布成功');
+    expect(html).not.toContain('尝试完成审计收尾');
+    expect(html).not.toContain('data-finalize-audit=');
   });
 
   it('reports a missing script and a load failure separately', async () => {

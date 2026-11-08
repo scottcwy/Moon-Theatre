@@ -5,6 +5,7 @@
  * usable) are asserted as text instead of scattered JSX literals.
  */
 import type { ModelConsistencyCheck, ModelConsistencyStatus } from '@/server/modules/admin/index.js';
+import { AUDIT_RECOVERY_COPY } from './audit-recovery-copy.js';
 import type { ModelRuntimeParams } from '@/server/modules/admin/model-runtime-params.js';
 import { describeModelFields, formatModelRuntimeParams } from './model-patch.js';
 
@@ -132,7 +133,7 @@ export function modelFailureCopy(code: string | undefined, fallback: string): st
     case 'admin_input_invalid':
       return '填写内容不符合要求，请检查服务商、模型名、点数与运行参数后重试。';
     case 'model_publish_audit_conflict':
-      return '审计收尾失败：原有审计意图无法确认，未做收尾，也未重复发布。';
+      return AUDIT_RECOVERY_COPY.conflict;
     default:
       return fallback;
   }

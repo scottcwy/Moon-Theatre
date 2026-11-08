@@ -562,53 +562,6 @@ export function CharacterPublishActions({
 }
 
 /**
- * Finalize-only recovery for an existing publish-task audit intent. It never re-runs the publish and
- * never recomputes the business result: it re-locks the stored intent, appends the audit event under
- * the current admin, and answers 409 when the intent cannot be confirmed. Without this control an
- * operator stuck on 审计待恢复 after a reload has no path forward (the publish key is regenerated).
- */
-export function FinalizeAuditAction({ taskId }: { taskId: string }) {
-  const router = useRouter();
-  const busy = useRef(false);
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState('');
-  const [failed, setFailed] = useState(false);
-
-  async function finalize() {
-    if (busy.current) return;
-    busy.current = true;
-    setPending(true);
-    setMessage('');
-    try {
-      await adminRequest(
-        `/api/admin/publish-tasks/${encodeURIComponent(taskId)}/finalize-audit`, 'POST', {},
-      );
-      setFailed(false);
-      setMessage('审计收尾已完成：发布结果不变，只补记了缺失的审计记录。');
-      router.refresh();
-    } catch (cause) {
-      const failure = cause instanceof AdminRequestError ? cause : new AdminRequestError('审计收尾未完成，请稍后重试。');
-      setFailed(true);
-      setMessage(failure.code === 'character_publish_audit_conflict' || failure.code === 'script_publish_audit_conflict' ||
-        failure.code === 'audit_recovery_conflict'
-        ? '审计收尾失败：审计依据无法确认（任务状态已变化，或已被他人收尾）。发布不会重跑，请刷新后核对发布任务记录。'
-        : failure.message);
-      if (failure.redirectTo) window.location.assign(failure.redirectTo);
-    } finally {
-      busy.current = false;
-      setPending(false);
-    }
-  }
-
-  return <div className="finalize-audit" data-finalize-audit={taskId}>
-    <button type="button" onClick={finalize} disabled={pending}>
-      {pending ? '正在收尾…' : '尝试完成审计收尾'}
-    </button>
-    {message && <p className={`notice ${failed ? 'error' : 'success'}`} role={failed ? 'alert' : 'status'}>{message}</p>}
-  </div>;
-}
-
-/**
  * Batch 3 step 1 (plan W): the manual rebuild of the DERIVED FastClaw base context.
  *
  * The published PG version owns the persona; SOUL.md / IDENTITY.md / USER.md are regenerated from it

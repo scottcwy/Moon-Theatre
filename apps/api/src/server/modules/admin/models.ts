@@ -654,6 +654,43 @@ export async function listAdminModelVersions(id: string): Promise<AdminModelProf
 }
 
 /**
+ * The bounded audit state of a tier's most recent publish attempt (AC-19). The console needs exactly
+ * one fact to offer the finalize-only action honestly: is the latest intent still pending, already
+ * committed, an unknown persisted result, or absent. One row, no scan, no fabricated success.
+ */
+export interface ModelPublishAuditState {
+  status: 'none' | 'audit_pending' | 'committed' | 'unknown';
+  dedupeKey: string | null;
+  updatedAt: Date | null;
+}
+
+export async function getModelPublishAuditState(id: string): Promise<ModelPublishAuditState> {
+  // A malformed/unknown profile id answers `none` instead of inventing a recovery intent; the
+  // finalize route re-checks existence and answers 409 when it cannot confirm anything.
+  const [audit] = await db
+    .select({
+      result: adminAuditLogs.result,
+      dedupeKey: adminAuditLogs.dedupeKey,
+      createdAt: adminAuditLogs.createdAt,
+    })
+    .from(adminAuditLogs)
+    .where(and(
+      eq(adminAuditLogs.action, 'admin.model.publish'),
+      eq(adminAuditLogs.objectType, 'model_profile'),
+      eq(adminAuditLogs.objectId, id),
+    ))
+    .orderBy(desc(adminAuditLogs.createdAt))
+    .limit(1);
+  if (!audit) return { status: 'none', dedupeKey: null, updatedAt: null };
+  return {
+    status: audit.result === 'committed' ? 'committed'
+      : audit.result === 'audit_pending' ? 'audit_pending' : 'unknown',
+    dedupeKey: audit.dedupeKey,
+    updatedAt: audit.createdAt,
+  };
+}
+
+/**
  * Finalize-only recovery for a model publish audit left pending before the identity cutover.
  * Validates the persisted version/profile against the original intent; never re-runs the publish.
  */

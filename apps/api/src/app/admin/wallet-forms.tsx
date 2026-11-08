@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { adminRequest, AdminRequestError } from './request.js';
+import { finalizeAuditIntent } from './audit-recovery.js';
+import { AUDIT_RECOVERY_COPY, describeAuditRecoveryFailure } from './audit-recovery-copy.js';
 import {
   buildAdjustmentBody,
   newAdjustmentKey,
@@ -134,16 +136,17 @@ export function WalletAdjustmentForm() {
     setFinalizing(true);
     setFinalizeMessage('');
     try {
-      const result = await adminRequest<{ transactionId: string; balanceAfter: number; alreadyFinalized: boolean }>(
-        `/api/admin/wallet/adjustments/${encodeURIComponent(auditPending.idempotencyKey)}/finalize-audit`, 'POST', {},
+      const result = await finalizeAuditIntent<{ transactionId: string; balanceAfter: number; alreadyFinalized: boolean }>(
+        `/api/admin/wallet/adjustments/${encodeURIComponent(auditPending.idempotencyKey)}/finalize-audit`,
       );
       setAuditPending(null);
       setFinalizeConfirmed(false);
       setFinalized({ ...result, idempotencyKey: auditPending.idempotencyKey });
       router.refresh();
     } catch (cause) {
-      const failure = failureOf(cause, '审计收尾未完成，请稍后重试。');
-      setFinalizeMessage(describeAdjustmentFailure({ code: failure.code, details: failure.details }, failure.message));
+      // Same shared sentence as the three publish surfaces: a 409 means the intent could not be confirmed.
+      const failure = failureOf(cause, AUDIT_RECOVERY_COPY.failed);
+      setFinalizeMessage(describeAuditRecoveryFailure({ code: failure.code, status: failure.status }, failure.message));
     } finally {
       busy.current = false;
       setFinalizing(false);

@@ -1,9 +1,11 @@
-import { listAdminModels, listAdminModelVersions } from '@/server/modules/admin/index.js';
+import { getModelPublishAuditState, listAdminModels, listAdminModelVersions } from '@/server/modules/admin/index.js';
 import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/admin/page-auth.js';
 import { AdminTable, LoadError, formatAdminDate } from '../../ui.js';
 import { ModelCheckPanel, ModelTierEditor, ModelVersionHistory } from '../../model-forms.js';
 import { MODEL_EMPTY, MODEL_OPS_NOTES } from '../../model-copy.js';
 import { formatModelRuntimeParams, modelTierLabel } from '../../model-patch.js';
+import { FinalizeAuditAction } from '../../audit-recovery.js';
+import { AUDIT_RECOVERY_COPY, AUDIT_RECOVERY_STATE_LABELS, auditRecoveryNeedsFinalize } from '../../audit-recovery-copy.js';
 
 /**
  * Model tier console (AC-15 / AC-17).
@@ -14,6 +16,10 @@ import { formatModelRuntimeParams, modelTierLabel } from '../../model-patch.js';
  * reports. Nothing on this page accepts a key; the check never performs a provider round-trip and its
  * `unavailable` result is rendered as 无法核对, never as success. The page performs its own identity
  * guard before the first query (the console layout is only a redirect boundary).
+ *
+ * Each tier also shows the bounded state of its latest publish audit (AC-19). `审计待恢复`/unknown
+ * offers the shared finalize-only action, which completes the stored intent and never re-publishes or
+ * changes configuration; a `409` reads as「无法确认该待恢复意图」.
  */
 export default async function ModelsPage() {
   if (!await requireAdminPageAuth()) return <AdminIdentityRequired />;
@@ -21,12 +27,14 @@ export default async function ModelsPage() {
   let tiers: Array<{
     profile: Awaited<ReturnType<typeof listAdminModels>>[number];
     versions: Awaited<ReturnType<typeof listAdminModelVersions>>;
+    publishAudit: Awaited<ReturnType<typeof getModelPublishAuditState>>;
   }>;
   try {
     const profiles = await listAdminModels();
     tiers = await Promise.all(profiles.map(async profile => ({
       profile,
       versions: await listAdminModelVersions(profile.id),
+      publishAudit: await getModelPublishAuditState(profile.id),
     })));
   } catch {
     return <LoadError subject="模型档位" />;
@@ -57,12 +65,13 @@ export default async function ModelsPage() {
               <th scope="col">服务商 / 模型</th>
               <th scope="col" className="numeric">每次点数</th>
               <th scope="col">当前版本</th>
+              <th scope="col">发布审计</th>
               <th scope="col">声明运行参数</th>
               <th scope="col">维护</th>
             </tr>
           </thead>
           <tbody>
-            {tiers.map(({ profile, versions }) => {
+            {tiers.map(({ profile, versions, publishAudit }) => {
               const current = versions.find(version => version.isCurrent) ?? null;
               return (
                 <tr key={profile.id} data-tier={profile.tier} data-profile-id={profile.id}>
@@ -76,6 +85,11 @@ export default async function ModelsPage() {
                   <td>{profile.provider} / {profile.modelName}</td>
                   <td className="numeric" data-points={profile.pointsPerCall}>{profile.pointsPerCall}</td>
                   <td>{current ? `v${current.versionNo}` : '未发布'}</td>
+                  <td>
+                    <span className="tag" data-audit-state={publishAudit.status}>
+                      {AUDIT_RECOVERY_STATE_LABELS[publishAudit.status]}
+                    </span>
+                  </td>
                   <td>{formatModelRuntimeParams(current?.runtimeParams ?? {})}</td>
                   <td><a href={`#model-${profile.id}`}>编辑</a></td>
                 </tr>
@@ -88,7 +102,7 @@ export default async function ModelsPage() {
       {tiers.length > 0 && <section aria-labelledby="model-editors">
         <h2 id="model-editors">编辑、发布与版本恢复</h2>
         <p className="muted">保存或发布会写入新版本；恢复历史版本同样生成新版本，不改动、不删除任何历史记录。</p>
-        {tiers.map(({ profile, versions }) => {
+        {tiers.map(({ profile, versions, publishAudit }) => {
           const current = versions.find(version => version.isCurrent) ?? null;
           return (
             <article className="panel" id={`model-${profile.id}`} key={profile.id}>
@@ -117,6 +131,18 @@ export default async function ModelsPage() {
                 versions={versions}
                 expectedUpdatedAt={profile.updatedAt.toISOString()}
               />
+              <section className="finalize-audit-panel" aria-label={`审计恢复 ${modelTierLabel(profile.tier)}`}>
+                <h4>{AUDIT_RECOVERY_COPY.heading}</h4>
+                <p className="muted">
+                  最近一次发布审计：{AUDIT_RECOVERY_STATE_LABELS[publishAudit.status]}
+                  {publishAudit.updatedAt ? `（${formatAdminDate(publishAudit.updatedAt)}）` : ''}。
+                  {auditRecoveryNeedsFinalize(publishAudit.status) ? AUDIT_RECOVERY_COPY.note : ''}
+                </p>
+                {auditRecoveryNeedsFinalize(publishAudit.status) && <FinalizeAuditAction
+                  endpoint={`/api/admin/models/${encodeURIComponent(profile.id)}/finalize-audit`}
+                  identifier={`model-${profile.id}`}
+                />}
+              </section>
               <p className="muted">最后一次保存：{formatAdminDate(profile.updatedAt)}</p>
             </article>
           );

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { adminJsonError as jsonError, adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { verifyAdminAuth } from '@/server/middleware/auth.js';
-import { listAdminModelVersions } from '@/server/modules/admin/index.js';
+import { getModelPublishAuditState, listAdminModelVersions } from '@/server/modules/admin/index.js';
 import { requireUuid } from '../../../shared.js';
 
 /**
@@ -11,13 +11,20 @@ import { requireUuid } from '../../../shared.js';
  * `version_no` with `status='published'`). Each row carries creator email (or none, for a capture),
  * time, `configHash` and the allowlisted declared parameters — never a credential, a provider row or a
  * raw stored JSON blob. There is deliberately no handler that rewrites or deletes a version.
+ *
+ * `publishAudit` is the bounded state of the tier's latest publish audit intent, so the console can
+ * show「审计待恢复」and offer the finalize-only action without a second endpoint or a full audit scan.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await verifyAdminAuth(request);
   if (!admin.ok) return admin.response;
   try {
     const id = requireUuid((await params).id);
-    return successResponse({ versions: await listAdminModelVersions(id) });
+    const [versions, publishAudit] = await Promise.all([
+      listAdminModelVersions(id),
+      getModelPublishAuditState(id),
+    ]);
+    return successResponse({ versions, publishAudit });
   } catch (error) {
     return jsonError(error);
   }

@@ -3,6 +3,7 @@
  * purpose: "same key, different parameters", "would go negative", "audit pending" and "audit conflict"
  * are different operator decisions, and none of them may be reported as a generic outage.
  */
+import { AUDIT_RECOVERY_COPY } from './audit-recovery-copy.js';
 
 export const WALLET_LEDGER_NOTE =
   '人工调整以独立的 adjust 流水记录，不能伪装成充值或已支付订单；每笔调整都关联操作者、原因与幂等标识，可在此追溯。';
@@ -27,8 +28,8 @@ export const ADJUSTMENT_QUERY_NOT_FOUND_COPY =
 export const ADJUSTMENT_AUDIT_PENDING_COPY =
   '调账已提交，但审计尚未完成（audit_pending）。资金已按下方结果变动；收尾只把原有审计意图标记为完成，不会再次改钱，也不会新增流水。';
 
-export const ADJUSTMENT_AUDIT_CONFLICT_COPY =
-  '该幂等标识的审计意图无法核对（缺失、未知或未完成），未做任何改动，也未改动余额或新增流水。';
+/** The same 409 sentence the other three recovery surfaces use: the intent could not be confirmed. */
+export const ADJUSTMENT_AUDIT_CONFLICT_COPY = AUDIT_RECOVERY_COPY.conflict;
 
 export const ADJUSTMENT_AUDIT_FINALIZED_COPY =
   '审计已收尾：只把原有审计意图标记为已完成，没有再次改动余额，也没有新增流水。';

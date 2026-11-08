@@ -5,7 +5,9 @@ import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/ad
 import { LoadError, formatAdminDate } from '../../../../ui.js';
 import { ADMIN_UUID } from '../../../../character-data.js';
 import { baseContextSourceLabel, describeBaseContext, describeCharacterReadiness, describePublishTask, fieldIssueText, scriptPublishWarning } from '../../../../character-copy.js';
-import { BaseContextRebuildAction, CharacterEditForm, CharacterFirstDraftAction, CharacterPublishActions, FinalizeAuditAction } from '../../../../character-forms.js';
+import { BaseContextRebuildAction, CharacterEditForm, CharacterFirstDraftAction, CharacterPublishActions } from '../../../../character-forms.js';
+import { FinalizeAuditAction } from '../../../../audit-recovery.js';
+import { AUDIT_RECOVERY_COPY } from '../../../../audit-recovery-copy.js';
 import { characterEditValues } from '../../../../character-patch.js';
 import { NotFoundError } from '@/server/http/errors.js';
 
@@ -188,7 +190,7 @@ export default async function CharacterEditPage({ params }: { params: Promise<{ 
         ? <p className="empty">该角色还没有发布任务记录。</p>
         : <>
           {pendingAuditTasks.length > 0 && <p className="muted">
-            有 {pendingAuditTasks.length} 个任务已提交但审计仍待恢复。可尝试完成审计收尾：只补记缺失的审计结果，不会重新执行发布；审计依据无法确认时会返回冲突，发布结果保持不变。
+            有 {pendingAuditTasks.length} 个任务已提交但审计仍待恢复。可尝试完成审计收尾。{AUDIT_RECOVERY_COPY.note}
           </p>}
           <div className="table-wrap" role="region" aria-label="发布任务列表，可横向滚动" tabIndex={0}>
             <table>
@@ -214,7 +216,7 @@ export default async function CharacterEditPage({ params }: { params: Promise<{ 
                     <td>{formatAdminDate(publishTask.createdAt)}</td>
                     <td>{formatAdminDate(publishTask.updatedAt)}</td>
                     <td>{publishTask.recoveryState === 'audit_pending'
-                      ? <FinalizeAuditAction taskId={publishTask.id} />
+                      ? <FinalizeAuditAction endpoint={`/api/admin/publish-tasks/${encodeURIComponent(publishTask.id)}/finalize-audit`} identifier={publishTask.id} />
                       : '—'}</td>
                   </tr>;
                 })}

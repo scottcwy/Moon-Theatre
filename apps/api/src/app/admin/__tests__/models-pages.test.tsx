@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
   listAdminModels: vi.fn(),
   listAdminModelVersions: vi.fn(),
+  getModelPublishAuditState: vi.fn(),
 }));
 
 vi.stubGlobal('React', React);
@@ -16,6 +17,7 @@ vi.mock('@/server/modules/admin/authentication.js', () => ({ resolveAdminToken: 
 vi.mock('@/server/modules/admin/index.js', () => ({
   listAdminModels: mocks.listAdminModels,
   listAdminModelVersions: mocks.listAdminModelVersions,
+  getModelPublishAuditState: mocks.getModelPublishAuditState,
 }));
 
 const identity = {
@@ -64,6 +66,7 @@ beforeEach(() => {
   mocks.resolve.mockResolvedValue(identity);
   mocks.listAdminModels.mockResolvedValue([standardProfile, casualProfile]);
   mocks.listAdminModelVersions.mockResolvedValue(standardVersions);
+  mocks.getModelPublishAuditState.mockResolvedValue({ status: 'committed', dedupeKey: 'model_profile_publish:k', updatedAt: new Date('2026-11-06T10:00:00Z') });
 });
 
 describe('/admin/models page', () => {
@@ -74,6 +77,7 @@ describe('/admin/models page', () => {
     expect(html).not.toContain('模型档位');
     expect(mocks.listAdminModels).not.toHaveBeenCalled();
     expect(mocks.listAdminModelVersions).not.toHaveBeenCalled();
+    expect(mocks.getModelPublishAuditState).not.toHaveBeenCalled();
   });
 
   it('resolves the identity from the session cookie before any query', async () => {
@@ -83,6 +87,9 @@ describe('/admin/models page', () => {
     expect(mocks.listAdminModelVersions).toHaveBeenCalledTimes(2);
     expect(mocks.listAdminModelVersions).toHaveBeenCalledWith(standardId);
     expect(mocks.listAdminModelVersions).toHaveBeenCalledWith(casualId);
+    expect(mocks.getModelPublishAuditState).toHaveBeenCalledTimes(2);
+    expect(mocks.getModelPublishAuditState).toHaveBeenCalledWith(standardId);
+    expect(mocks.getModelPublishAuditState).toHaveBeenCalledWith(casualId);
   });
 
   it('never renders a figure when the tier list fails', async () => {
@@ -180,5 +187,34 @@ describe('/admin/models page', () => {
   it('warns that a disabled tier is not usable even after publishing', async () => {
     const html = await renderPage();
     expect(html).toContain('禁用状态下即使发布也不会被新回合使用');
+  });
+
+  it('shows the latest publish audit state as its own fact per tier', async () => {
+    mocks.getModelPublishAuditState.mockImplementation(async (id: string) => id === standardId
+      ? { status: 'committed', dedupeKey: 'model_profile_publish:ok', updatedAt: new Date('2026-11-06T10:00:00Z') }
+      : { status: 'none', dedupeKey: null, updatedAt: null });
+    const html = await renderPage();
+    expect(html).toContain('data-audit-state="committed"');
+    expect(html).toContain('data-audit-state="none"');
+    expect(html).toContain('审计已完成');
+    expect(html).toContain('无发布审计记录');
+    // A committed or absent intent never offers a finalize action: there is nothing to recover.
+    expect(html).not.toContain('data-finalize-audit=');
+  });
+
+  it('offers the finalize-only action only for an audit that is pending or unknown', async () => {
+    mocks.getModelPublishAuditState.mockImplementation(async (id: string) => id === standardId
+      ? { status: 'audit_pending', dedupeKey: 'model_profile_publish:pending', updatedAt: new Date('2026-11-06T10:00:00Z') }
+      : { status: 'unknown', dedupeKey: 'model_profile_publish:unknown', updatedAt: new Date('2026-11-05T10:00:00Z') });
+    const html = await renderPage();
+    expect(html).toContain('审计待恢复');
+    expect(html).toContain('审计状态未知（依据无法确认）');
+    expect(html).toContain('尝试完成审计收尾');
+    // One action per recoverable intent, addressed by tier id — no invented task id.
+    const actions = html.match(/data-finalize-audit="[^"]+"/g) ?? [];
+    expect(actions).toEqual([`data-finalize-audit="model-${standardId}"`, `data-finalize-audit="model-${casualId}"`]);
+    // The copy never claims a re-publish or a configuration change.
+    expect(html).toContain('不会重新执行发布或调账');
+    expect(html).toContain('业务结果保持不变');
   });
 });

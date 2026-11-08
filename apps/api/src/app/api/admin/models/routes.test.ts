@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   updateAdminModel: vi.fn(),
   publishAdminModel: vi.fn(),
   listAdminModelVersions: vi.fn(),
+  getModelPublishAuditState: vi.fn(),
   checkAdminModelConsistency: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ vi.mock('@/server/modules/admin/index.js', () => ({
   updateAdminModel: mocks.updateAdminModel,
   publishAdminModel: mocks.publishAdminModel,
   listAdminModelVersions: mocks.listAdminModelVersions,
+  getModelPublishAuditState: mocks.getModelPublishAuditState,
   checkAdminModelConsistency: mocks.checkAdminModelConsistency,
 }));
 
@@ -93,6 +95,9 @@ beforeEach(() => {
     changedFields: ['pointsPerCall'], auditStatus: 'committed', dedupeKey: 'model_profile_publish:k',
   });
   mocks.listAdminModelVersions.mockResolvedValue([versionRow]);
+  mocks.getModelPublishAuditState.mockResolvedValue({
+    status: 'audit_pending', dedupeKey: 'model_profile_publish:pending', updatedAt: new Date('2026-11-04T10:00:00Z'),
+  });
   mocks.checkAdminModelConsistency.mockResolvedValue({
     status: 'match', reason: null, checkedAt: '2026-11-04T10:00:00.000Z',
     expected: {
@@ -227,7 +232,9 @@ describe('GET /api/admin/models/:id/versions', () => {
     const response = await versions.GET(read(`http://localhost:3000/api/admin/models/${profileId}/versions`), context);
     expect(response.status).toBe(200);
     expect(mocks.listAdminModelVersions).toHaveBeenCalledWith(profileId);
-    const body = await response.json() as { versions: Array<Record<string, unknown>> };
+    expect(mocks.getModelPublishAuditState).toHaveBeenCalledWith(profileId);
+    const body = await response.json() as { versions: Array<Record<string, unknown>>; publishAudit: Record<string, unknown> };
+    expect(body.publishAudit).toMatchObject({ status: 'audit_pending', dedupeKey: 'model_profile_publish:pending' });
     expect(body.versions[0]).toMatchObject({
       id: versionId, versionNo: 2, status: 'published', configHash: 'hash-2', isCurrent: true,
       runtimeParams: { maxTokens: 768 },
