@@ -1,6 +1,6 @@
 # 文档索引与权威地图
 
-> 最后更新：2026-11-05 · 基线提交 `88e0867`
+> 最后更新：2026-11-07 · 基线提交 `88e0867`
 > 原则：代码现实优先；同一主题只保留一个权威来源；历史快照必须明确标注。
 
 ## 1. 按主题查文档
@@ -11,8 +11,9 @@
 | 聊天领域词表 | `CONTEXT.md` | Client Message ID、Script/Free Mode、Bond、Return Message 等 |
 | 当前技术架构 | `docs/技术开发架构与前后端文档.md` | 仓库结构、页面、模块、部署总览；不定义视觉权威 |
 | V1 历史技术基线 | `docs/technical-spec-v1.md` | 仅供追溯 V1 方案；当前实现以代码和当前架构文档为准 |
-| API 契约 | `docs/api-v1.md` | 45 个 API 路径的请求/响应说明；路径覆盖与代码对齐 |
-| Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PLANNED`；已确认需求及验收，不代表现有 API 已实现 |
+| API 契约 | `docs/api-v1.md` | 全部 API 路径的请求/响应说明（含管理账号/会话、角色内容版本与发布、会话检索与分页正文、发布审计收尾）；路径覆盖与代码对齐 |
+| Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PARTIAL` revision 3；优先角色卡与玩家聊天历史；独立邮箱管理员，同域同服务器部署；首批与批 2（角色发布、回合版本归属、会话历史）已实现并本地验证，整体未验收 |
+| Web 后台独立管理员与发布契约 | [admin 模块 SPEC](../apps/api/src/server/modules/admin/SPEC.md) | 邮箱密码账号、哈希会话、受限改密、CSRF 与登录限速、CLI、角色内容版本/发布边界与 0014/0015 纳管的实现契约；批次状态见后台 Spec §2.1 |
 | Miniapp 个人页组件复用 | [个人页设计系统与组件复用 Spec](./specs/2026-10-31-个人页设计系统与组件复用Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED / SUPERSEDED_IN_PART`；组件复用、社区/聊天共享庭院背景与 E2E 已通过，footer 挂载位置以新 Spec 为准 |
 | Miniapp Tab 生命周期与导航 | [Tab 页面生命周期与底部导航统一重构 Spec](./specs/2026-11-04-Miniapp-Tab页面生命周期与底部导航统一重构Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED`；H5 与微信四 Tab 切换、请求去重、静默刷新和认证生命周期通过；仓库级认证 UI 21/21 |
 | Miniapp 首页剧本横幅导航 | [首页剧本横幅重复导航修复 Spec](./specs/2026-11-04-首页剧本横幅重复导航修复Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED`；CTA 阻止冒泡后单次导航，两类点击均只增加一层页面栈 |
@@ -29,7 +30,7 @@
 
 ## 2. 文档生命周期
 
-- **当前契约**：`AGENTS.md`、`CONTEXT.md`、`docs/api-v1.md`、`docs/deployment.md`、当前架构文档、第二份合同 UI Spec、H5 Spec（未取代部分）、UI 打磨 Spec（未取代部分）、`DESIGN.md`、E2E README。
+- **当前契约**：`AGENTS.md`、`CONTEXT.md`、`docs/api-v1.md`、`docs/deployment.md`、当前架构文档、第二份合同 UI Spec、H5 Spec（未取代部分）、UI 打磨 Spec（未取代部分）、`DESIGN.md`、E2E README、[后台独立管理员模块 SPEC](../apps/api/src/server/modules/admin/SPEC.md)。
 - **历史基线**：`docs/prd-v1.md`、`docs/technical-spec-v1.md`、`docs/版本说明-dev.md`、2026-07-14 三个 Spec。历史文档保留追溯价值，但不得被当作当前实现状态。
 - **H5 事实源**：`docs/specs/2026-09-16-新视觉H5全帧复刻与组件化验证.md` 保留 13 帧与截图事实；生产迁移状态以 2026-10-01 H5 Spec、2026-10-19 UI Spec 和 2026-10-19 第二份合同 Spec 为准。
 - **执行层**：已完成的一次性 Plan 应删除或归档；不要把执行步骤长期留在 `docs/specs/`。

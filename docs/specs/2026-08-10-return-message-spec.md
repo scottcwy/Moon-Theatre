@@ -120,7 +120,7 @@
 
 请求：`{ "characterId": "uuid" }`。将该用户该角色全部未读留言置为已读，返回 `{ "updated": <条数> }`；重复调用幂等（第二次返回 0）。
 
-### 5.3 `POST /api/admin/return-messages/sweep`（admin + Basic Auth）
+### 5.3 `POST /api/admin/return-messages/sweep`（独立管理员会话身份）
 
 手动触发一次全局补发清扫，返回 `{ "swept": true }`。遍历所有 active 用户，对每个候选角色按 `3 - 当前未读` 预算在最近 3 个缺失窗口补发；AI 生成并发上限 4；单用户/单窗口失败只记日志，不中断整体。
 

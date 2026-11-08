@@ -1,10 +1,10 @@
 # API v1 初版
 
-本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；其中 `GET /api/characters`、`GET /api/scripts`、`GET /api/models`、`GET /api/quota/packages` 为公开只读接口，无需认证。admin API 使用同样 JWT，并额外要求用户 ID 在 `ADMIN_USER_IDS` 白名单内；`/api/admin/**` 与 `/admin/**` 仍由 Basic Auth 作为部署外层门禁，但 Basic 本身不是管理员身份。管理员先用白名单用户 JWT 调用 `POST /api/admin/session` 建立 HttpOnly 管理会话，页面和 API 都必须再通过该会话或 JWT 的白名单校验。
+本文档记录 V1 联调所需的主要 HTTP API。除支付回调和 health/ready 外，用户端 API 使用 `Authorization: Bearer <jwt>`；其中 `GET /api/characters`、`GET /api/scripts`、`GET /api/models`、`GET /api/quota/packages` 为公开只读接口，无需认证。admin API 使用独立管理员邮箱密码账号与 `admin_session_v2` HttpOnly cookie；普通用户 JWT、旧 `admin_session`/`x-admin-session`、`ADMIN_USER_IDS` 白名单、Basic Auth 和开发绕过都不再授予管理身份。页面与 API 共用同一 cookie 解析器，所有管理写入（含登录与退出）强制同源 Origin、JSON 类型及 `X-Admin-Request: 1`；完整身份、会话、密码与限速契约见 [admin 模块契约](../apps/api/src/server/modules/admin/SPEC.md)。
 
 聊天接口当前是 `incremental-buffered`（`X-Stream-Mode: incremental-buffered`）：响应为 NDJSON streaming 形态，服务端边生成边按行净化并下发 `delta`（不做整段缓冲），生成结束后对已发送全文复核输出过滤；命中过滤时追加修正提示 delta，并在 `done` 携带 `blocked:true` 与可选 `content`（= 落库 finalContent）；当落库 finalContent 与已下发增量不一致（blocked / outOfScope / JSON 块被剥离等文本修正场景）时 `done` 同样携带 `content` 供客户端以落库内容覆盖气泡。客户端在首个 delta 后断开只关闭下游输出，不撤销已提交回合；服务端继续持久化 assistant、usage、关系和 turn completed，不会退款或追加 failed usage。
 
-管理后台内容接口沿用 `/api/admin` 的统一身份边界：`GET/POST /api/admin/scripts` 用于脚本草稿列表和新建草稿，`PATCH/POST /api/admin/scripts/:id` 分别按 `expectedUpdatedAt` 原子保存草稿和按 `idempotencyKey` 发布，`GET /api/admin/characters` 返回角色及其人设编辑数据。草稿只写 `content_versions`，不修改公开接口读取的 `scripts` 线上行；发布事务锁定所选 draft，将 payload 原子应用到线上行并提交 `publish_tasks`。同 key 重放返回首次任务结果，同 key 不同目标返回 `409`。`GET /api/admin/messages` 和 `GET /api/admin/sessions/:id` 返回聊天原文前必须先成功写入管理员访问审计，审计不可用时返回 `503 admin_audit_unavailable`。
+管理后台内容接口沿用 `/api/admin` 的统一身份边界：`GET/POST /api/admin/scripts` 用于脚本草稿列表和新建草稿，`PATCH/POST /api/admin/scripts/:id` 分别按 `expectedUpdatedAt` 原子保存草稿和按 `idempotencyKey` 发布；角色侧有 `GET/POST /api/admin/characters`、`POST /api/admin/characters/:id/{first-draft,draft,publish,unpublish}` 与 `GET /api/admin/characters/:id/preview`，见下文“角色内容版本与发布”。草稿只写 `content_versions`，不修改公开接口读取的 `characters`/`scripts` 线上行；发布事务锁定所选 draft，将 payload 原子应用到线上行并提交 `publish_tasks`，同时把 `characters.published_version_id` 指向该不可变版本。同 key 重放返回首次任务结果，同 key 不同目标返回 `409`。`GET /api/admin/messages`、`GET /api/admin/sessions/:id` 和 `GET /api/admin/sessions/:id/messages` 返回聊天原文前必须先成功写入管理员访问审计，审计不可用时返回 `503 admin_audit_unavailable`。
 
 ## 小程序 API
 
@@ -181,6 +181,14 @@ Authorization: Bearer <jwt>
 - `sessionId`: 可选；不提供时自动查找或创建活跃会话。
 - `mode` / `scriptId`: 可选（向后兼容旧客户端）。`mode=script` 时 `scriptId` 必填。若提供的 `mode`/`scriptId` 与已有 session 不匹配，返回 `error.code="session_scope_mismatch"`（`409`）。`mode=free` 时不可传 `scriptId`。无 `mode` 且无 `sessionId` 时（旧客户端），服务端自动推断为 script 模式。
 - `scriptId` 对应的剧本已下架时返回 `error.code="script_unavailable"`（`409`）。
+
+受理回合必须固定版本：服务端在受理该轮的同一事务内解析角色 `published_version_id` 指向的不可变发布快照与所选档位的已发布模型档位版本，写入 `chat_turn_snapshots`（每个 user message 唯一）。任一前置不成立时，接口在预扣点数之前返回 `409` 和 `{ "error": "<code>" }`：
+
+- `character_version_unavailable`：角色不是 `active`、没有 `published_version_id`，或指针指向的不是该角色的已发布版本（角色本身不存在时仍是 `404`）。
+- `character_content_incomplete`：已发布版本无法再通过内容校验（例如纳管的旧内容缺人设），需要先保存完整草稿并发布。
+- `model_profile_unavailable`：所选档位已启用但没有已发布模型档位版本（档位不存在或未启用是预检阶段的 `400`）。
+
+被拒绝时不扣点、不写快照、不落消息，`reason` 只写服务端日志。已受理回合在重试、租约接管和进程重启后沿用首次快照的内容版本、档位与单价；旧回合没有快照时保持「版本未知」，任何重试都不会改用当前或更新的版本（无快照的重试直接 `409 character_version_unavailable`）。
 
 响应事件示例：
 
@@ -537,15 +545,32 @@ roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foun
 
 ## Admin API
 
-所有 admin API 必须使用 `verifyAdminAuth`，且 `/api/admin/**` 请求须先通过 Basic Auth middleware 校验。`/admin/**` 页面除 Basic 外还必须持有可验证的 `admin_session` cookie；共享 Basic 凭据在没有任何管理员身份时返回 `401`，不会执行页面数据查询。
+所有 admin API 必须通过 `verifyAdminAuth`，`/admin/**` 页面必须通过 `requireAdminPageAuth`；两者使用同一个 `admin_session_v2` cookie 解析器，并在每次请求重新校验账号有效、凭据版本、会话未撤销/未过期。未登录或已失效返回 `401`；强制改密的受限会话只允许会话自查、本人改密和退出，业务读取返回 `403 admin_password_change_required`。管理 API 与管理页面响应一律 `Cache-Control: private, no-store`；`apps/api/src/middleware.ts` 仅对 `/admin/**`、`/api/admin/**` 追加安全/缓存响应头，不做授权判定，每个页面和 handler 仍须自行守卫。
+
+所有 POST/PATCH/PUT/DELETE（含登录与退出，含无请求体的操作，也含批 2 新增的角色/发布/审计收尾写入）必须发送 `Origin: <ADMIN_ORIGIN>`、`Content-Type: application/json` 和 `X-Admin-Request: 1`，否则 `403 admin_csrf_failed`。
 
 | 模块 | 方法 | 路径 | 说明 |
 | --- | --- | --- | --- |
 | Stats | GET | `/api/admin/stats` | 基础统计：用户、会话、消息、订单、支付金额、钱包余额、模型调用、过滤次数 |
-| Session | POST | `/api/admin/session` | 使用白名单用户 JWT 建立 8 小时 HttpOnly 管理会话 cookie |
-| Session | GET/DELETE | `/api/admin/session` | 查询或撤销当前管理会话 |
-| Sessions | GET | `/api/admin/sessions` | 会话列表，可按 `userId`、`status` 筛选 |
-| Sessions | GET | `/api/admin/sessions/:id` | 聊天详情；返回正文前写入访问审计，审计失败返回 `503 admin_audit_unavailable` |
+| Session | POST | `/api/admin/session` | 邮箱 + 密码登录，返回安全账号信息并设置 8 小时绝对过期的 `admin_session_v2` cookie |
+| Session | GET/DELETE | `/api/admin/session` | 查询当前管理会话（受限会话可用）；退出仅撤销当前会话并清除 cookie |
+| Accounts | GET | `/api/admin/accounts` | 管理员账号列表，仅安全字段 |
+| Accounts | POST | `/api/admin/accounts` | 创建普通管理员 `{email,password}`，`201`；首次登录强制改密 |
+| Accounts | PATCH | `/api/admin/accounts/:id` | 停用普通管理员 `{active:false}`；不能停用自己或受保护账号，无启用/删除接口 |
+| Accounts | POST | `/api/admin/accounts/:id/reset-password` | 重置普通管理员密码 `{password}`，撤销其全部会话并要求下次登录改密 |
+| Account | POST | `/api/admin/account/password` | 本人改密 `{currentPassword,newPassword}`，受限会话可用；成功后清 cookie，需重新登录 |
+| Account | PATCH | `/api/admin/account/email` | 仅受保护账号本人改邮箱 `{email,currentPassword}`；成功后清 cookie，需重新登录 |
+| Sessions | GET | `/api/admin/sessions` | 会话列表；`userId`/`characterId`/`mode`（`script`/`free`）/`status`（`active`/`archived`）/`from`/`to`（UTC 日历日 `YYYY-MM-DD`，两端含全天）以 AND 组合，分页 `page`/`pageSize`（默认 `1`/`20`，上限 `100`），返回 `{items,total,page,pageSize}` |
+| Sessions | GET | `/api/admin/sessions/:id` | 聊天详情（元数据 + 完整正文 + 审核记录）；返回正文前写入访问审计，审计失败返回 `503 admin_audit_unavailable`；页面不再用它读正文 |
+| Sessions | GET | `/api/admin/sessions/:id/messages` | 分页正文；`page`/`pageSize`（默认 `1`/`20`，上限 `100`），返回 `{items,total,page,pageSize,attributions}`，每轮关联接受时的内容版本 |
+| Characters | GET | `/api/admin/characters` | 角色列表，发布状态、草稿差异与最近发布任务分列，见下文 |
+| Characters | POST | `/api/admin/characters` | 仅创建草稿：`inactive` 角色 + 草稿 v1，无发布指针 |
+| Characters | GET | `/api/admin/characters/:id` | 单个角色：`publishState`、`draftState`、`lastPublishTask`、最多 5 条 `publishTasks`、当前可编辑基准 `editable` 与默认预览 `preview` |
+| Characters | POST | `/api/admin/characters/:id/first-draft` | 为没有任何内容版本的存量角色创建首个草稿 |
+| Characters | POST | `/api/admin/characters/:id/draft` | 基于指定基准保存新的不可变草稿；过期基准 `409` |
+| Characters | POST | `/api/admin/characters/:id/publish` | 发布选定草稿版本；审计未完成时 `202` |
+| Characters | POST | `/api/admin/characters/:id/unpublish` | 下架：只改公开可见性与新会话资格，不删版本/指针/审计 |
+| Characters | GET | `/api/admin/characters/:id/preview?versionId=` | 展示预览；默认最新草稿，其次已发布版本；不含人设文本 |
 | Messages | GET | `/api/admin/messages` | 消息列表，按 `sessionId` 分页 |
 | Review | POST | `/api/admin/review` | 创建审核记录 |
 | Review Logs | GET | `/api/admin/review-logs` | 审核记录列表 |
@@ -564,7 +589,10 @@ roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foun
 | Payments | POST | `/api/admin/orders/:id/verify` | 向真实支付渠道查单；渠道不可用、金额不符或结果未知均不会伪造成功 |
 | Wallet | POST | `/api/admin/wallet/adjustments` | 管理员人工调账；同 key 同参数幂等重放，参数冲突 `409`，原因必填，事务内写审计意图 |
 | Wallet | GET | `/api/admin/wallet/adjustments/:idempotencyKey` | 查询调账流水与审计完成状态 |
+| Wallet | POST | `/api/admin/wallet/adjustments/:idempotencyKey/finalize-audit` | 仅收尾既有调账的待恢复审计；不写余额、不新增流水，见下文 |
 | Publish Tasks | GET | `/api/admin/publish-tasks/:id` | 查询发布任务、激活结果和关联审计 |
+| Publish Tasks | POST | `/api/admin/publish-tasks/:id/finalize-audit` | 仅收尾既有角色/剧本发布任务的待恢复审计；不重跑发布，不写业务行 |
+| Models | POST | `/api/admin/models/:id/finalize-audit` | 仅收尾该档位唯一的待恢复模型发布审计；当前无界面入口 |
 | Chat Recovery | GET/POST | `/api/admin/chat-recovery` | 查询 unknown/pending 扣退 attempt，或手动执行幂等对账 |
 | Audit Logs | GET | `/api/admin/audit-logs` | 按 `dedupeKey` / `result` 查询审计和恢复状态 |
 | Blocked Keywords | GET | `/api/admin/blocked-keywords` | 敏感词列表 |
@@ -591,20 +619,34 @@ roleplay readiness 的 `checks.db.roleplayAgents` 包含 `expectedCount`、`foun
 
 旧 Memories 页面和接口已退场。任何直接 `PATCH /api/admin/memories/:id` 请求均返回 `410`，不会修改记忆。
 
-### `POST /api/admin/session`
+### 管理会话与管理账号
 
-请求需同时通过 Basic 外层门禁和 `Authorization: Bearer <jwt>`。JWT 用户必须在 `ADMIN_USER_IDS` 中。服务端创建或续期 `admin_sessions` 记录并设置 HttpOnly、SameSite=Strict 的 `admin_session` cookie，默认有效期 8 小时。共享 Basic 凭据不能单独建立管理员身份。
-
-```http
-POST /api/admin/session
-Authorization: Bearer <jwt>
-```
-
-响应：
+`POST /api/admin/session` 只接受严格请求体 `{ "email": "admin@example.test", "password": "..." }`（邮箱 trim + 小写规范化后唯一）。成功返回 `200` 并设置 `admin_session_v2` cookie：
 
 ```json
-{ "authenticated": true, "userId": "uuid", "expiresAt": "2026-11-04T12:00:00.000Z" }
+{
+  "authenticated": true,
+  "account": { "id": "uuid", "email": "admin@example.test", "active": true, "mustChangePassword": true, "isProtected": true, "createdAt": "2026-11-07T12:00:00.000Z", "updatedAt": "2026-11-07T12:00:00.000Z" },
+  "mustChangePassword": true,
+  "expiresAt": "2026-11-07T20:00:00.000Z"
+}
 ```
+
+`GET /api/admin/session` 返回同一安全 JSON（受限会话可用）；`DELETE /api/admin/session` 请求体为 `{}`（仍须 CSRF 头），只撤销当前会话，返回 `{ "authenticated": false }` 与过期 cookie。cookie 为 HttpOnly、SameSite=Strict、Path=/、不设 Domain，生产 Secure；令牌是 32 字节随机值的 64 位十六进制串，数据库只保存其 SHA256，8 小时绝对过期且不续期。
+
+账号接口只返回 `SafeAdminAccount` 安全字段（`id`、`email`、`active`、`mustChangePassword`、`isProtected`、`createdAt`、`updatedAt`），不含密码哈希、凭据版本或会话令牌；日期为 ISO 字符串。改密、重置、停用和邮箱变更都递增凭据版本并撤销该账号全部会话；账号/会话变更与成功审计在同一事务提交。受保护首个账号不能被其他管理员停用、重置或改邮箱；普通账号邮箱创建后不可修改；没有删除或 Web 启用接口，停用账号与受保护账号只能经服务器命令恢复。密码为 15–128 个 Unicode 码点、不 trim/不归一化；哈希、并发上限与登录限速见模块契约。
+
+错误体为 `{ "error": string }`：
+
+- `400`：`admin_input_invalid`（严格 schema/邮箱/UUID/模型更新参数）、`admin_password_invalid`（共享密码策略）。既有业务路由的 `readJsonBody` 沿用自己的中文无关错误体 `{ "error": "Invalid JSON body" }`，本批未统一它们。
+- `401`：`admin_unauthenticated`、`admin_login_failed`（未知邮箱、错误密码、停用账号不可区分）。
+- `403`：`admin_csrf_failed`、`admin_password_change_required`、`admin_account_forbidden`、`admin_current_password_invalid`。
+- `404`：`admin_account_not_found`。
+- `409`：`admin_account_conflict`（邮箱唯一）、`admin_bootstrap_conflict`、`admin_bootstrap_broken_state`、`admin_credentials_changed`。
+- `429`：`admin_login_limited`，带正整数 `Retry-After` 秒。
+- `503`：`admin_dependency_unavailable`、`admin_login_limit_unavailable`、`admin_password_capacity`、`admin_password_unavailable`、`admin_client_address_unavailable`、`admin_audit_unavailable`。
+
+登录在密码哈希前原子占用邮箱 5 次/15 分钟、可信 IP 30 次/15 分钟、全局 60 次/分钟预算；未知邮箱同样计数。生产只信任 Caddy 覆盖写入的单个合法 `X-Admin-Client-IP`，缺失或非法返回 `503`，不回退 `X-Forwarded-For`；本地开发固定使用 `local` 预算，不采信客户端伪造地址。
 
 ### `POST /api/admin/orders/:id/verify`
 
@@ -614,9 +656,57 @@ Authorization: Bearer <jwt>
 
 请求体：`{ "userId": "uuid", "delta": 10, "reason": "补偿", "idempotencyKey": "case-1" }`。`delta` 为非零整数，原因必填；重复 key 且参数一致返回原流水，参数不同返回 `409`。事务内按 key 串行化、拒绝负余额，并写入 `audit_pending` 审计意图，流水记录管理员和原因。若审计完成后写失败，返回 `503 admin_audit_pending` 和 `transactionId`；调用 `GET /api/admin/wallet/adjustments/:idempotencyKey` 查询，重放同一 POST 可幂等完成审计。
 
+身份切换前已提交、审计仍为 `audit_pending` 的旧调账，可用 `POST /api/admin/wallet/adjustments/:idempotencyKey/finalize-audit`（无请求体，仍须 CSRF 头）收尾：事务锁定既有流水与 `wallet_adjustment:<key>` 审计意图，核对动作、目标用户、金额/方向、原因、余额快照及原操作者身份后，只把原意图改为 `committed` 并追加独立恢复事件（关联原审计 ID 与流水 ID，按原审计 ID 去重），原操作者与业务摘要不变。该接口不写余额、不新增钱包流水、不更换幂等 key；已完整完成返回既有结果，意图缺失/未知/不匹配返回 `409 wallet_adjustment_audit_conflict`。它只是身份迁移的审计兼容，不授权重新调账或资金纠错。
+
 ### `POST /api/admin/scripts/:id`
 
 发布请求体为 `{ "action": "publish", "idempotencyKey": "release-1" }`。服务端锁定脚本和草稿版本，创建 `publish_tasks`、激活版本并关联审计。同 key 同脚本重放返回首次 `taskId` / `versionId`；同 key 不同脚本返回 `409 publish_idempotency_conflict`。审计尚未完成时返回 `202`，任务 `recoveryState=audit_pending`，可通过 `GET /api/admin/publish-tasks/:id` 查询并用同 key 重试。
+
+### 角色内容版本与发布
+
+角色的内容版本存于 `content_versions`（`entityType='character'`），每次保存都是新的不可变草稿，`characters.published_version_id` 是唯一的已发布指针；同一 `(entity_type, entity_id)` 最多一条 `published` 行（部分唯一索引）。草稿对公开接口与新回合不可见；发布只激活选定草稿，下架只改 `characters.status`，版本、指针、任务和审计历史均保留。没有一个删除角色的接口：已发布对象只能下架。
+
+`GET /api/admin/characters` 返回 `{ items }`，每项把发布状态（`publishState`）、草稿差异（`draftState.hasDraft`/`changedFields`/`draftVersionNo`）和最近发布任务（`lastPublishTask`）作为三个独立事实，另有 `publishedValidity`（已发布内容是否仍通过校验）。
+
+`POST /api/admin/characters` 创建草稿：请求体为严格对象，含 `name`、`avatarUrl`、`identity`、`description`、`initialRelationship`、`agentId`、`scriptId`（可 `null`）、`sortOrder`、`starterQuestions`（`{script,free}`）和五字段 `prompt`。`agentId` 必须来自版本化角色 Agent 清单（`packages/shared/src/roleplay-agents.json`），由界面下拉选择而非手填。成功返回：
+
+```json
+{ "id": "uuid", "versionId": "uuid", "versionNo": 1, "updatedAt": "2026-11-07T10:00:00.000Z", "status": "inactive", "publishedVersionId": null }
+```
+
+新角色永远是未上架、不能聊天的草稿；只创建内容版本，不写公开读取的线上行。`POST /api/admin/characters/:id/first-draft` 针对没有任何内容版本的存量角色：空请求体，服务端用角色行与最新 `character_prompts` 生成首个草稿并返回 `{characterId,versionId,versionNo,updatedAt,validity}`；已经存在草稿或已发布版本时返回 `409 character_first_draft_exists`。
+
+`POST /api/admin/characters/:id/draft` 保存草稿：`{ versionId?, expectedUpdatedAt?, patch }`，`versionId` 与 `expectedUpdatedAt` 必须恰好提供一个（都传或都不传为 `400 admin_input_invalid`），`patch` 只接受角色草稿字段（未知字段 `400 character_patch_unknown_field`）。成功返回新的 `{versionId,versionNo,updatedAt,status,publishedVersionId}`，旧草稿转 `superseded`。过期基准返回 `409 character_draft_conflict`，不静默覆盖；`agentId` 已存在时不可改（`409 character_agent_id_system_owned`）；已发布角色改归属剧本 `409 character_script_change_requires_new_character`。
+
+`POST /api/admin/characters/:id/publish` 请求体为 `{ versionId, idempotencyKey }`，发布该草稿并原子切换展示行与指针（同时冻结服务端生成的 `scriptSnapshot`）。同 key 同目标重放返回首个任务结果；同 key 不同目标或不同操作者返回 `409 character_publish_conflict`。成功返回 `{id,versionId,taskId,idempotencyKey,status,replayed,auditStatus}`；审计未完成时 `202`。其他冲突：`409 character_version_already_published`、`409 character_version_not_publishable`、`409 character_version_hash_mismatch`；`400 character_agent_unavailable`（Agent 不在已发布清单）、`400 character_script_unavailable`/`character_script_not_found`（剧本未上架或不存在）。没有已发布模型档位版本**不阻止**发布，只在界面提示新回合会被拒绝。
+
+`POST /api/admin/characters/:id/unpublish` 空请求体，返回 `{id,status:'inactive',publishedVersionId,changed,auditStatus}`；已下架时 `changed:false`（`auditStatus:'not_required'`）。
+
+`GET /api/admin/characters/:id/preview?versionId=` 是只展示的预览：默认取最新草稿（即将发布的版本），无草稿时取已发布版本；显式 `versionId` 只读该版本，不属于该角色时 `404`。响应含剧本卡片、角色详情、开场引导、`validity` 校验结论与 `preflight`，不含人设提示词、不建立聊天。角色没有任何版本时返回 `404`（不同于列表/详情仍会返回该角色）。
+
+### 会话检索、分页正文与版本归属
+
+`GET /api/admin/sessions` 的筛选条件全部在服务端生效并以 AND 组合：`userId`、`characterId`、`mode`（`script`/`free`）、`status`（`active`/`archived`）、`from`/`to`（UTC 日历日 `YYYY-MM-DD`，两端都含整日；`from > to` 为 `400`）。返回 `{items,total,page,pageSize}`，按 `updatedAt` 倒序。页面 `/admin/sessions` 使用同一组参数并在分页链接中保留筛选。
+
+`GET /api/admin/sessions/:id/messages` 分页读取正文（`page`/`pageSize`，默认 `1`/`20`，上限 `100`），返回：
+
+```json
+{
+  "items": [{ "id": "uuid", "role": "user", "content": "你好", "mood": null, "createdAt": "2026-11-07T10:00:00.000Z" }],
+  "total": 1,
+  "page": 1,
+  "pageSize": 20,
+  "attributions": [{ "userMessageId": "uuid", "contentVersionId": "uuid", "contentVersionNo": 3, "modelProfileVersionId": "uuid", "versionUnknown": false }]
+}
+```
+
+`attributions` 只覆盖本页的 `role='user'` 消息；没有快照的回合返回 `versionUnknown: true` 且三个版本字段为 `null`，不会按时间或当前版本倒推。正文只在访问审计成功后返回，审计失败是 `503 admin_audit_unavailable` 且不包含正文。旧接口 `GET /api/admin/sessions/:id` 仍返回完整正文，供需要一次性读取的调用方使用；页面改用分页读，不一次加载全部消息。
+
+### 发布任务与模型发布审计收尾
+
+`POST /api/admin/publish-tasks/:id/finalize-audit` 以任务 ID 定位既有 `audit_pending` 审计意图：`character` 与 `script` 任务分别收尾。它核对持久化的任务/版本、`desiredHash` 与业务摘要，只把原意图改成 `committed`、清空任务的 `recoveryState`，并追加独立恢复事件（记录当前操作者）；不重跑发布、不改写版本或线上行。已完整完成返回 `alreadyFinalized:true`；意图缺失、重复或不匹配返回 `409 character_publish_audit_conflict` / `script_publish_audit_conflict`，未知 `entityType` 返回 `409 audit_recovery_conflict`。
+
+`POST /api/admin/models/:id/finalize-audit` 对模型档位做同样的事：从审计日志中解析该档位唯一待恢复的 `model_profile_publish:<key>` 意图，核对版本、档位与 `configHash` 后收尾；没有唯一意图返回 `409 model_publish_audit_conflict`。它没有界面入口（尚未有模型档位控制台）。
 
 ### `PATCH /api/admin/models`
 

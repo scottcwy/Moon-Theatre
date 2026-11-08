@@ -32,7 +32,7 @@ rtk cp .env.example .env
 - `FASTCLAW_LOG_LEVEL`: FastClaw 日志级别，取值 `debug` / `info` / `warn` / `error`，默认 `info`（未设置或未知值回退 `info`）。
 - `CHAT_EFFECTS_ASYNC_ENABLED`: 聊天 effects 异步开关，默认 `false`。设为 `true` 后，记忆、羁绊、成就/称号后台执行，聊天 `done` 只同步保证核心字段。
 - `PAYMENT_PROVIDER` 和支付服务商参数。生产只接受 `aggregate`；`mock` 和未知 provider 启动失败。
-- `ADMIN_USER_IDS`, `ADMIN_BASIC_AUTH_USER`, `ADMIN_BASIC_AUTH_PASSWORD`。Basic password 至少 12 字符且拒绝常见弱密码；Basic 只是外层门禁，管理员仍需用白名单 JWT 调用 `POST /api/admin/session` 建立页面身份。
+- `ADMIN_ORIGIN`: 管理后台同源基准，生产必须显式设置为 `https://api.yuemanlou.xyz`（规范 origin，不带路径/尾斜杠/凭据）；开发默认 `http://localhost:3000`。旧的 `ADMIN_USER_IDS`、`ADMIN_BASIC_AUTH_USER`、`ADMIN_BASIC_AUTH_PASSWORD` 已移除，Basic Auth 不再作为后台门禁，也不能单独建立管理员身份。
 - `TEST_USER_INITIAL_POINTS`: 生产必须为 `0`；非零值启动失败。
 
 不要把真实 `.env` 提交到仓库。
@@ -79,7 +79,27 @@ rtk docker compose up -d api caddy
 
 `api-migrate` 和 `api-seed` 使用 `API_TOOLS_IMAGE`，避免服务器为迁移/种子任务拉 Docker Hub 基础镜像或现场构建。
 
-普通升级不得再次运行 `api-seed`。seed 现在会在已有剧本、角色、内容版本或发布任务时拒绝执行，也不会覆盖运营改过的价格、套餐状态、prompt 或用户数据。现有环境只运行 `api-migrate`，内容变更走管理后台。
+普通升级不得再次运行 `api-seed`。seed 现在会在已有剧本、角色、内容版本或发布任务时拒绝执行，也不会覆盖运营改过的价格、套餐状态、prompt 或用户数据。现有环境只运行 `api-migrate`，内容变更走管理后台。`0014`/`0015` 迁移除了加列/索引，还会做一次服务端存量纳管：把每个无发布指针的在架角色捕获为首个已发布内容版本，并为从未有过版本行的模型档位捕获一个已发布版本。该过程可重跑（已有指针/已有版本行的对象不会被触碰），不写人工作者，不改角色展示行与 agent 标识；不需要手工补 SQL。
+
+### 3.1 首个管理员初始化与恢复
+
+管理员账号不随镜像、不随 seed 内置默认密码，也不提供公开注册或邮件找回。部署时复用现有 `api-migrate`/`api-seed` 相同的 tools profile 与 `API_TOOLS_IMAGE`，通过同一个 `admin:account` 命令执行；不新增服务、子域名或容器。`0013` 迁移会撤销全部旧管理会话并切断旧 JWT/Basic/白名单管理权限，因此首次切换必须在启动管理流量前完成账号初始化或恢复。
+
+```bash
+# 交互运行：密码由隐藏输入读取
+rtk docker compose --profile tools run --rm api-migrate \
+  pnpm --filter @juben-sha/api admin:account bootstrap --email <首个管理员邮箱>
+
+# 非交互：必须显式声明密码来自标准输入，避免密码进 argv
+<secret-provider> | rtk docker compose --profile tools run --rm -T api-migrate \
+  pnpm --filter @juben-sha/api admin:account bootstrap --email <首个管理员邮箱> --password-stdin
+```
+
+- 命令只接受 `bootstrap --email <邮箱>` 与 `recover --account-id <uuid>`；密码只能来自隐藏 TTY 输入或 `--password-stdin`，没有 argv/env 密码选项，也没有默认密码。输出仅为 `{id,email,active,mustChangePassword}`，错误输出不含凭据或驱动细节。
+- `bootstrap` 幂等：同一规范化邮箱重复执行返回原账号且不重置密码；不同邮箱或已存在普通账号但无受保护账号时拒绝（`409`），不会把任意账号提升为受保护身份。
+- `recover` 必须指定已存在的账号 UUID，保留身份与受保护标记，重新启用并递增凭据版本、撤销该账号全部会话，要求下次登录改密。
+- 不要把真实密码、密码示例或 `DATABASE_URL` 写入本文档或镜像；密码只经 secret provider/隐藏输入传递，数据库连接沿用服务端现有生产环境变量。
+- 建议顺序：备份 → `api-migrate` → 初始化/恢复首个管理员 → 启动 `api caddy` → 健康检查与登录验证。存量切换只需短暂冻结后台写入；小程序登录、聊天和支付回调不需冻结。
 
 ## 4. 健康检查
 
@@ -92,7 +112,9 @@ rtk curl -fsS https://api.yuemanlou.xyz/api/ready
 
 `USE_ROLEPLAY_AGENTS=true` 时，`/api/ready` 还以代码中的版本化清单 `packages/shared/src/roleplay-agents.json` 为准，校验全部角色行 `agent_id` 的完整稳定映射。当前版本固定 19 个 Agent；合法下架一个角色（保留 agent_id、status=inactive）不会导致全局 `503`。空 ID、重复 ID、未知 ID、数量不足或多出都会失败。`USE_ROLEPLAY_AGENTS=false` 时默认 Agent 也必须非 roleplay。
 
-管理页面要求 Basic 之外还有 `admin_session` cookie。使用白名单用户 JWT 调用 `POST /api/admin/session` 后浏览器才可读取管理数据；直接用共享 Basic 凭据访问 `/admin/**` 会返回 `401`。
+管理页面与 `/api/admin/**` 统一使用独立管理员邮箱密码会话，旧 `admin_session` cookie、用户 JWT、`ADMIN_USER_IDS` 白名单和 Basic 凭据都不再授权。浏览器登录 `POST /api/admin/session` 成功后才获得 HttpOnly、SameSite=Strict、生产 Secure 的 `admin_session_v2` cookie，绝对 8 小时过期、不续期。
+
+所有管理写入（含登录与退出）必须同源：`Origin` 必须等于服务器 `ADMIN_ORIGIN`，请求为 JSON，且带 `X-Admin-Request: 1`，否则 `403 admin_csrf_failed`。生产登录只信任 Caddy 单跳写入的合法 `X-Admin-Client-IP`；缺失或非法地址只能得到 `503`，不会回退 `X-Forwarded-For`，因此 API 端口不得对外发布，也不能绕过 Caddy 直接反向代理。若将来在 Caddy 前增加 CDN/代理，必须先重新审查这条信任边界。
 
 ## 5. 小程序生产构建
 
@@ -123,8 +145,12 @@ rtk docker compose pull api api-migrate api-seed fastclaw
 rtk docker compose up -d api fastclaw caddy
 ```
 
-3. 数据库迁移不做自动回滚。涉及破坏性迁移前必须先备份 Postgres（见第 8 节）。
+3. 数据库迁移不做自动回滚。涉及破坏性迁移前必须先备份 Postgres（见第 8 节）。`0013` 只新增表/列并放宽旧非空，不需要回滚迁移；旧管理会话已撤销，回退代码也不能让它们复活。`0014`/`0015` 同样是 additive（新增指针/索引/放宽创建者约束 + 存量纳管），回滚代码后新增列与纳管版本行保留即可，不要回滚迁移或删除已发布版本。
 4. 回滚后重新执行健康检查和小程序关键链路联调。
+
+若问题出在独立管理员身份边界本身，先关闭或拒绝管理路径与管理写入（`/admin/**`、`/api/admin/**`），再回退兼容代码；不得用重新启用 Basic Auth、`ADMIN_USER_IDS` 白名单、旧 `admin_session` cookie 或旧用户 JWT 作为回退手段，也不要整库还原覆盖上线后的用户聊天、订单、支付和审计。旧管理会话已不可恢复，需通过 `admin:account recover` 重新获得首个账号访问权。资金问题只能走可追溯补偿流水，不能删除或改写原流水。
+
+本节是操作顺序说明，不表示本次迁移或管理员切换已在生产执行；实际上线状态以运维记录和验收结果为准，不以文档代替。
 
 ## 7. FastClaw 说明
 
@@ -192,7 +218,7 @@ rtk docker compose pull
 rtk docker compose up -d
 ```
 
-4. 确认数据库迁移 `0004`–`0012` 已应用（`api-migrate` 执行后核对迁移记录；`0012` 为支付活动记录与审计幂等键的 additive 迁移）。
+4. 确认数据库迁移 `0004`–`0015` 已应用（`api-migrate` 执行后核对迁移记录；`0012` 为支付活动记录与审计幂等键的 additive 迁移；`0013` 为独立管理员账号、哈希会话令牌和审计/创建者身份列的 additive 迁移，会撤销全部旧管理会话；`0014` 为角色发布指针、每实体唯一已发布部分索引与存量角色纳管；`0015` 为回合模型档位版本固定与存量模型档位纳管。`0014`/`0015` 与 `0011`–`0013` 一致，是手写 SQL + journal 条目，没有生成的 drizzle snapshot）。
 5. 小程序生产构建 + 产物校验：
 
 ```bash
