@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm';
 import { ROLEPLAY_AGENT_IDS } from '@juben-sha/shared';
 import { db } from '../../db/index.js';
 import {
@@ -31,6 +31,8 @@ import {
   hashContentPayload,
   settlePublishAudit,
 } from './content.js';
+import { escapeLikeTerm } from './query.js';
+import { normalizePagination, type PaginatedResult, type PaginationParams } from './pagination.js';
 import { syncCharacterBaseContext, type BaseContextSyncResult } from '../agent-context/index.js';
 
 type CharacterRow = typeof characters.$inferSelect;
@@ -63,6 +65,15 @@ export interface AdminCharacterRecord {
   status: 'active' | 'inactive';
   publishedVersionId: string | null;
   payload: CharacterDraft;
+}
+
+/** `active` = 已上架, `inactive` = 未上架 (the only two stored states). */
+export type AdminCharacterStatus = 'active' | 'inactive';
+
+/** List filters: one search term over name / agent id / script title, plus the publish state. */
+export interface AdminCharacterListFilters {
+  query?: string;
+  status?: AdminCharacterStatus;
 }
 
 /** Publish state, draft divergence and the last publish task are reported separately. */
@@ -422,42 +433,141 @@ function toRecord(character: CharacterRow, version: ContentVersionRow, payload: 
   };
 }
 
-type CharacterListRow = { character: CharacterRow; prompt: CharacterPromptRow | null };
+export const ADMIN_CHARACTER_STATUSES: readonly AdminCharacterStatus[] = ['active', 'inactive'];
+export const ADMIN_CHARACTER_STATUS_INVALID = '角色发布状态只能是已上架或未上架';
+
+type CharacterPageRow = { character: CharacterRow; prompt: CharacterPromptRow | null };
+type VersionFacts = { id: string; versionNo: number; status: string; payload: unknown };
 
 /**
- * The list shape from the rows a caller already scoped: two version/task reads for exactly those ids,
- * one payload validation per published character. Both `listAdminCharacters` (whole list) and
- * `loadCharacterListItem` (one character) go through here, so they cannot drift apart.
+ * The page itself: the display row plus the legacy prompt row. Nothing else is joined here, so
+ * `LIMIT`/`OFFSET` bound the statement (a join would make the planner build the whole matched set
+ * before the limit).
  */
-async function assembleCharacterItems(rows: CharacterListRow[]): Promise<AdminCharacterListItem[]> {
-  if (rows.length === 0) return [];
+function characterPageQuery() {
+  return db
+    .select({ character: characters, prompt: characterPrompts })
+    .from(characters)
+    .leftJoin(characterPrompts, eq(characterPrompts.characterId, characters.id));
+}
 
-  const ids = rows.map(row => row.character.id);
+/** The published version each row's pointer names: primary-key lookups, at most one per page row. */
+async function publishedVersionsOf(rows: CharacterPageRow[]): Promise<Map<string, VersionFacts>> {
+  const pointerIds = rows
+    .map(row => row.character.publishedVersionId)
+    .filter((id): id is string => Boolean(id));
+  if (pointerIds.length === 0) return new Map();
   const versions = await db
-    .select()
+    .select({
+      id: contentVersions.id,
+      entityId: contentVersions.entityId,
+      versionNo: contentVersions.versionNo,
+      status: contentVersions.status,
+      payload: contentVersions.payload,
+    })
+    .from(contentVersions)
+    .where(and(eq(contentVersions.entityType, 'character'), inArray(contentVersions.id, pointerIds)));
+  // Keyed by character, and only when the version really belongs to that character: a corrupted
+  // pointer then reports `线上版本缺失` instead of another character's payload.
+  const byPointer = new Map(rows.map(row => [row.character.publishedVersionId, row.character.id]));
+  return new Map(versions
+    .filter(version => byPointer.get(version.id) === version.entityId)
+    .map(version => [version.entityId, version]));
+}
+
+/**
+ * The newest version per page row, as one `DISTINCT ON (entity_id)` read: one row per character even
+ * though every save leaves a version behind. `content_versions_entity_version_unique` serves the
+ * per-entity ordering, so this is not a scan of the whole version history.
+ */
+async function newestVersionsOf(ids: string[]): Promise<Map<string, VersionFacts>> {
+  if (ids.length === 0) return new Map();
+  const versions = await db
+    .selectDistinctOn([contentVersions.entityId], {
+      id: contentVersions.id,
+      entityId: contentVersions.entityId,
+      versionNo: contentVersions.versionNo,
+      status: contentVersions.status,
+      payload: contentVersions.payload,
+    })
     .from(contentVersions)
     .where(and(eq(contentVersions.entityType, 'character'), inArray(contentVersions.entityId, ids)))
-    .orderBy(desc(contentVersions.versionNo));
+    .orderBy(contentVersions.entityId, desc(contentVersions.versionNo));
+  return new Map(versions.map(version => [version.entityId, version]));
+}
+
+/**
+ * One term matches name substring, agent-id substring or bound-script-title substring. LIKE
+ * metacharacters in the operator's term are escaped, so `100%` matches a literal percent sign. The
+ * script title is an EXISTS instead of a join so a character never appears twice, and scripts that are
+ * not bound to this row cannot match it.
+ */
+function characterSearchCondition(term: string) {
+  const pattern = `%${escapeLikeTerm(term)}%`;
+  return or(
+    ilike(characters.name, pattern),
+    ilike(characters.agentId, pattern),
+    sql`exists (select 1 from "scripts" "s" where "s"."id" = "characters"."script_id" and "s"."title" ilike ${pattern})`,
+  )!;
+}
+
+function characterListWhere(filters: AdminCharacterListFilters) {
+  const conditions = [];
+  const term = filters.query?.trim();
+  if (term) conditions.push(characterSearchCondition(term));
+  if (filters.status) {
+    if (!ADMIN_CHARACTER_STATUSES.includes(filters.status)) throw new ValidationError(ADMIN_CHARACTER_STATUS_INVALID);
+    conditions.push(eq(characters.status, filters.status));
+  }
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+/**
+ * The last publish task per character, as one `DISTINCT ON (entity_id)` read for exactly the page's
+ * ids: one row per character, so a task history that grows with every publish never widens the page.
+ */
+async function lastPublishTaskOf(
+  ids: string[],
+): Promise<Map<string, Pick<PublishTaskRow, 'id' | 'entityId' | 'versionId' | 'status' | 'recoveryState' | 'lastError' | 'createdAt' | 'updatedAt'>>> {
+  if (ids.length === 0) return new Map();
   const tasks = await db
-    .select()
+    .selectDistinctOn([publishTasks.entityId], {
+      id: publishTasks.id,
+      entityId: publishTasks.entityId,
+      versionId: publishTasks.versionId,
+      status: publishTasks.status,
+      recoveryState: publishTasks.recoveryState,
+      lastError: publishTasks.lastError,
+      createdAt: publishTasks.createdAt,
+      updatedAt: publishTasks.updatedAt,
+    })
     .from(publishTasks)
     .where(and(eq(publishTasks.entityType, 'character'), inArray(publishTasks.entityId, ids)))
-    .orderBy(desc(publishTasks.createdAt), desc(publishTasks.id));
+    .orderBy(publishTasks.entityId, desc(publishTasks.createdAt), desc(publishTasks.id));
+  return new Map(tasks.map(task => [task.entityId, task]));
+}
 
-  const latest = new Map<string, ContentVersionRow>();
-  const published = new Map<string, ContentVersionRow>();
-  for (const version of versions) {
-    if (!latest.has(version.entityId)) latest.set(version.entityId, version);
-    if (version.status === 'published' && !published.has(version.entityId)) published.set(version.entityId, version);
-  }
-  const lastTask = new Map<string, PublishTaskRow>();
-  for (const task of tasks) {
-    if (!lastTask.has(task.entityId)) lastTask.set(task.entityId, task);
-  }
+/**
+ * The list shape from the page rows. Both `listAdminCharacters` (a bounded page) and
+ * `loadCharacterListItem` (one character) go through here, so the three separate states — publish
+ * status, draft divergence, last publish task — cannot drift apart between the list and the
+ * single-character pages.
+ *
+ * Each of the three per-row facts is one keyed read for *all* page rows (published version by
+ * pointer, newest version, last task), so the statement count is constant and no character is read
+ * on its own (no N+1).
+ */
+async function assembleCharacterItems(
+  rows: CharacterPageRow[],
+  facts: { published: Map<string, VersionFacts>; newest: Map<string, VersionFacts> },
+): Promise<AdminCharacterListItem[]> {
+  if (rows.length === 0) return [];
+  const ids = rows.map(row => row.character.id);
+  const lastTask = await lastPublishTaskOf(ids);
 
   return rows.map(({ character, prompt }) => {
-    const newest = latest.get(character.id);
-    const live = published.get(character.id);
+    const live = facts.published.get(character.id) ?? null;
+    const newest = facts.newest.get(character.id) ?? null;
     const task = lastTask.get(character.id);
     const hasDraft = newest?.status === 'draft';
     return {
@@ -491,15 +601,39 @@ async function assembleCharacterItems(rows: CharacterListRow[]): Promise<AdminCh
   });
 }
 
-/** The whole list (§4.2 display order): the only reader that needs every character's payload. */
-export async function listAdminCharacters(): Promise<AdminCharacterListItem[]> {
-  const rows = await db
-    .select({ character: characters, prompt: characterPrompts })
-    .from(characters)
-    .leftJoin(characterPrompts, eq(characterPrompts.characterId, characters.id))
-    // Managed display order (§4.2 排序): sortOrder first, then a stable tiebreaker for equal values.
-    .orderBy(characters.sortOrder, characters.name, characters.id);
-  return assembleCharacterItems(rows);
+/**
+ * One bounded page of the character list (§4.2 display order, AC-18): a count statement plus a page
+ * statement, never a full-table assembly. Ordering is `sort_order, name, id`, so a page cannot
+ * reorder between reads and equal sort values keep a stable position.
+ *
+ * Statement count for a page: **5** with rows (page, count, published versions, newest versions, last
+ * tasks), **2** when the page is empty. Every one of them is bounded by `pageSize`, so the count does
+ * not grow with the table or with how much version/task history a character has.
+ */
+export async function listAdminCharacters(
+  params: PaginationParams & AdminCharacterListFilters = {},
+): Promise<PaginatedResult<AdminCharacterListItem>> {
+  const { page, pageSize, offset } = normalizePagination(params);
+  const where = characterListWhere(params);
+
+  const [rows, totalRow] = await Promise.all([
+    characterPageQuery()
+      .where(where)
+      // Managed display order (§4.2 排序): sortOrder first, then a stable tiebreaker for equal values.
+      .orderBy(characters.sortOrder, characters.name, characters.id)
+      .limit(pageSize)
+      .offset(offset),
+    db.select({ total: count() }).from(characters).where(where),
+  ]);
+
+  const ids = rows.map(row => row.character.id);
+  const [published, newest] = await Promise.all([publishedVersionsOf(rows), newestVersionsOf(ids)]);
+  return {
+    items: await assembleCharacterItems(rows, { published, newest }),
+    total: totalRow[0]?.total ?? 0,
+    page,
+    pageSize,
+  };
 }
 
 /**
@@ -507,14 +641,10 @@ export async function listAdminCharacters(): Promise<AdminCharacterListItem[]> {
  * read exactly one character instead of loading (and re-validating) every character's versions.
  */
 export async function loadCharacterListItem(id: string): Promise<AdminCharacterListItem | null> {
-  const [row] = await db
-    .select({ character: characters, prompt: characterPrompts })
-    .from(characters)
-    .leftJoin(characterPrompts, eq(characterPrompts.characterId, characters.id))
-    .where(eq(characters.id, id))
-    .limit(1);
+  const [row] = await characterPageQuery().where(eq(characters.id, id)).limit(1);
   if (!row) return null;
-  const [item] = await assembleCharacterItems([row]);
+  const [published, newest] = await Promise.all([publishedVersionsOf([row]), newestVersionsOf([row.character.id])]);
+  const [item] = await assembleCharacterItems([row], { published, newest });
   return item ?? null;
 }
 

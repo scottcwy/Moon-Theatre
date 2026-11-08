@@ -33,7 +33,7 @@ vi.mock('@/server/modules/admin/index.js', () => ({
 }));
 
 const { GET: getDetail } = await import('./[id]/route.js');
-const { POST: createCharacter } = await import('./route.js');
+const { GET: listCharacters, POST: createCharacter } = await import('./route.js');
 const { GET: getPreview } = await import('./[id]/preview/route.js');
 const { POST: saveDraft } = await import('./[id]/draft/route.js');
 const { POST: publish } = await import('./[id]/publish/route.js');
@@ -127,7 +127,7 @@ const listItem = {
 beforeEach(() => {
   vi.clearAllMocks();
   admin();
-  mocks.listAdminCharacters.mockResolvedValue([listItem]);
+  mocks.listAdminCharacters.mockResolvedValue({ items: [listItem], total: 41, page: 1, pageSize: 20 });
   mocks.loadCharacterListItem.mockResolvedValue(listItem);
   mocks.getCharacterPreview.mockResolvedValue(previewPayload);
   mocks.listPublishTasks.mockResolvedValue([{ id: 'task-1', entityId: characterId, versionId, versionNo: 3, status: 'committed', recoveryState: null, lastError: null, createdAt: new Date('2026-11-07T00:00:00Z'), updatedAt: new Date('2026-11-07T00:00:00Z') }]);
@@ -515,5 +515,44 @@ describe('POST /api/admin/characters (draft-only creation)', () => {
     const invalid = await createCharacter(createRequest({ ...createBody, prompt: { ...createBody.prompt, systemPrompt: '' } }));
     expect(invalid.status).toBe(400);
     expect((await invalid.json() as ErrorBody).issues).toEqual([{ path: 'prompt.systemPrompt', message: 'is required' }]);
+  });
+});
+
+describe('GET /api/admin/characters (bounded searchable list)', () => {
+  function listRequest(query = '') {
+    return new NextRequest(`http://localhost:3000/api/admin/characters${query}`);
+  }
+
+  it('returns the page facts and passes the term, status and page through', async () => {
+    mocks.listAdminCharacters.mockResolvedValue({ items: [listItem], total: 41, page: 2, pageSize: 50 });
+    const response = await listCharacters(listRequest('?q=qingwu&status=active&page=2&pageSize=50'));
+    expect(response.status).toBe(200);
+    const body = await response.json() as { items: unknown[]; total: number; page: number; pageSize: number };
+    expect(body).toMatchObject({ total: 41, page: 2, pageSize: 50 });
+    expect(body.items).toHaveLength(1);
+    expect(mocks.listAdminCharacters).toHaveBeenCalledWith({ page: 2, pageSize: 50, query: 'qingwu', status: 'active' });
+  });
+
+  it('defaults to the first bounded page and sends no filters when the query is empty', async () => {
+    const response = await listCharacters(listRequest());
+    expect(response.status).toBe(200);
+    expect(mocks.listAdminCharacters).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
+  });
+
+  it('rejects an unusable status and an over-long term with Chinese copy instead of widening the query', async () => {
+    const badStatus = await listCharacters(listRequest('?status=deleted'));
+    expect(badStatus.status).toBe(400);
+    expect(await badStatus.json()).toMatchObject({ error: expect.stringContaining('已上架或未上架') });
+
+    const tooLong = await listCharacters(listRequest(`?q=${'x'.repeat(129)}`));
+    expect(tooLong.status).toBe(400);
+    expect(await tooLong.json()).toMatchObject({ error: expect.stringContaining('128') });
+    expect(mocks.listAdminCharacters).not.toHaveBeenCalled();
+  });
+
+  it('answers 401 without querying for an absent identity', async () => {
+    mocks.guard.mockResolvedValue({ ok: false, response: Response.json({ error: 'admin_unauthenticated' }, { status: 401 }) });
+    expect((await listCharacters(listRequest('?q=x'))).status).toBe(401);
+    expect(mocks.listAdminCharacters).not.toHaveBeenCalled();
   });
 });

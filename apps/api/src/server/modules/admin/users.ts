@@ -4,6 +4,7 @@ import { characters, chatSessions, users, walletAccounts } from '../../db/schema
 import { NotFoundError, ValidationError } from '../../http/errors.js';
 import { normalizePagination, type PaginatedResult, type PaginationParams } from './pagination.js';
 import { recordAdminAuditInTransaction, type IdentityAdminActor } from './audit.js';
+import { escapeLikeTerm } from './query.js';
 
 /**
  * User operations (AC-11): search/profile of a miniapp player and the ban/unban switch.
@@ -69,11 +70,6 @@ const lastSessionAtExpr = sql<string | null>`
 function asDate(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
   return value instanceof Date ? value : new Date(value);
-}
-
-/** `%`/`_`/`\` are literal characters of the operator's term, not LIKE syntax. */
-function escapeLikeTerm(value: string): string {
-  return value.replace(/[\\%_]/g, match => `\\${match}`);
 }
 
 /**

@@ -6,14 +6,28 @@ import {
   adminSuccessResponse as successResponse,
 } from '@/server/modules/admin/security.js';
 import { createCharacterDraft, listAdminCharacters } from '@/server/modules/admin/index.js';
+import { listAdminCharactersQuerySchema, parseAdminQuery } from '@/server/modules/admin/query.js';
 import { ContentValidationError } from '@/server/modules/content/validation.js';
 import { actorOf, requestIdOf } from '../shared.js';
 
+/**
+ * Bounded, searchable character list (AC-18). `q` matches the character name, the agent id or the
+ * bound script title; `status` filters the publish state; `page`/`pageSize` bound the page (max 100).
+ * An unusable term or an unknown status is a `400` with Chinese copy instead of a silently ignored
+ * filter, and the response carries the page facts so the caller never counts rows to page.
+ */
 export async function GET(request: NextRequest) {
   const auth = await verifyAdminAuth(request);
   if (!auth.ok) return auth.response;
   try {
-    return successResponse({ items: await listAdminCharacters() });
+    const query = parseAdminQuery(listAdminCharactersQuerySchema, new URL(request.url).searchParams);
+    const result = await listAdminCharacters({
+      page: query.page,
+      pageSize: query.pageSize,
+      ...(query.q ? { query: query.q } : {}),
+      ...(query.status ? { status: query.status } : {}),
+    });
+    return successResponse(result);
   } catch (e) {
     return jsonError(e);
   }

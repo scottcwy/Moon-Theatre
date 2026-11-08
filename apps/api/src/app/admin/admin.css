@@ -217,6 +217,12 @@ body:has(.admin-root) { margin: 0; background: #decdbd; }
 .admin-root .check-agents > li > ul { flex-basis: 100%; margin: 4px 0 0; padding-left: 18px; color: var(--error); font-size: 13px; }
 .admin-root .model-history .table-wrap { margin-top: 8px; }
 
+/* Character list search/pagination and the mobile emergency unpublish (batch 3 step 7, AC-18).
+   The anchor target keeps its heading clear of the viewport edge after the jump. */
+.admin-root #emergency-unpublish { scroll-margin-top: 16px; }
+/* The list's mobile unpublish entry stays one readable line instead of wrapping per character. */
+.admin-root [data-character-unpublish-entry] { white-space: nowrap; }
+
 /* Local media upload/reuse (batch 3 step 5). Reuses the batch-3 field and panel patterns. */
 .admin-root .media-field { display: grid; gap: 8px; }
 .admin-root .media-field > label { display: grid; gap: 6px; }

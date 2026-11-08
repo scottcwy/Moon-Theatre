@@ -115,6 +115,11 @@ const listItem = {
   lastPublishTask: { id: 'task-1', versionId, status: 'committed', recoveryState: null, lastError: null, createdAt: new Date('2026-11-07T00:00:00Z'), updatedAt: new Date('2026-11-07T00:00:00Z') },
 };
 
+/** The bounded-list shape every read returns: the page rows plus the page facts. */
+function pageOf(items: unknown[], overrides: Partial<{ total: number; page: number; pageSize: number }> = {}) {
+  return { items, total: items.length, page: 1, pageSize: 20, ...overrides };
+}
+
 function controlTag(html: string, name: string): string {
   return new RegExp(`<(?:input|textarea)(?=[^>]*name="${name}")[^>]*>`).exec(html)?.[0] ?? '';
 }
@@ -126,7 +131,7 @@ function guardAbsent() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.resolve.mockResolvedValue(identity);
-  mocks.listAdminCharacters.mockResolvedValue([listItem]);
+  mocks.listAdminCharacters.mockResolvedValue(pageOf([listItem]));
   mocks.loadCharacterListItem.mockResolvedValue(listItem);
   mocks.listAdminScripts.mockResolvedValue([{ id: 'script-1', title: '月满楼', status: 'active' }]);
   mocks.getCharacterPreview.mockResolvedValue(preview);
@@ -181,13 +186,13 @@ describe.each([
 
 describe('characters list', () => {
   it('shows publish state, draft divergence and the last publish result as separate columns', async () => {
-    mocks.listAdminCharacters.mockResolvedValue([{
+    mocks.listAdminCharacters.mockResolvedValue(pageOf([{
       ...listItem,
       draftState: { hasDraft: true, draftVersionId, draftVersionNo: 4, changedFields: ['name', 'prompt.systemPrompt'] },
       lastPublishTask: { ...listItem.lastPublishTask, status: 'committed', recoveryState: 'audit_pending' },
-    }]);
+    }]));
     const Page = (await import('../(console)/characters/page.js')).default;
-    const html = renderToStaticMarkup(await Page());
+    const html = renderToStaticMarkup(await Page({}));
     expect(html).toContain('已上架');
     expect(html).toContain('有草稿改动');
     expect(html).toContain('姓名');
@@ -200,12 +205,12 @@ describe('characters list', () => {
   });
 
   it('surfaces the content-incomplete reason straight from the list read, with no preview read at all', async () => {
-    mocks.listAdminCharacters.mockResolvedValue([{
+    mocks.listAdminCharacters.mockResolvedValue(pageOf([{
       ...listItem,
       publishedValidity: { valid: false, issues: [{ path: 'prompt.systemPrompt', message: 'is required' }] },
-    }]);
+    }]));
     const Page = (await import('../(console)/characters/page.js')).default;
-    const html = renderToStaticMarkup(await Page());
+    const html = renderToStaticMarkup(await Page({}));
     expect(html).toContain('内容待补全：系统人设');
     expect(html).toContain('去补全');
     expect(html).toContain(`href="/admin/characters/${characterId}/edit"`);
@@ -215,21 +220,21 @@ describe('characters list', () => {
   });
 
   it('flags a live character without a published version', async () => {
-    mocks.listAdminCharacters.mockResolvedValue([{
+    mocks.listAdminCharacters.mockResolvedValue(pageOf([{
       ...listItem,
       publishState: { status: 'active', publishedVersionId: null, publishedVersionNo: null },
       lastPublishTask: null,
-    }]);
+    }]));
     const Page = (await import('../(console)/characters/page.js')).default;
-    const html = renderToStaticMarkup(await Page());
+    const html = renderToStaticMarkup(await Page({}));
     expect(html).toContain('线上版本缺失');
     expect(mocks.getCharacterPreview).not.toHaveBeenCalled();
   });
 
   it('offers draft-only creation and never advertises trial chat or reply comparison', async () => {
-    mocks.listAdminCharacters.mockResolvedValue([]);
+    mocks.listAdminCharacters.mockResolvedValue(pageOf([]));
     const Page = (await import('../(console)/characters/page.js')).default;
-    const html = renderToStaticMarkup(await Page());
+    const html = renderToStaticMarkup(await Page({}));
     expect(html).toContain('<p class="empty">');
     expect(html).toContain('暂无角色卡');
     expect(html).toContain('href="/admin/characters/new"');
@@ -241,9 +246,73 @@ describe('characters list', () => {
   it('reports a dependency failure without rendering partial data', async () => {
     mocks.listAdminCharacters.mockRejectedValue(new Error('dependency unavailable'));
     const Page = (await import('../(console)/characters/page.js')).default;
-    const html = renderToStaticMarkup(await Page());
+    const html = renderToStaticMarkup(await Page({}));
     expect(html).toContain('角色卡暂时无法加载');
     expect(html).not.toContain('顾青梧');
+  });
+
+  it('applies the search term, status and page and keeps them in the pagination links', async () => {
+    mocks.listAdminCharacters.mockResolvedValue(pageOf([listItem], { total: 41, page: 2, pageSize: 20 }));
+    const Page = (await import('../(console)/characters/page.js')).default;
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: 'qingwu', status: 'active', page: '2' }) }));
+    expect(mocks.listAdminCharacters).toHaveBeenCalledWith({ page: 2, pageSize: 20, query: 'qingwu', status: 'active' });
+    expect(html).toContain('aria-label="搜索角色卡"');
+    expect(html).toContain('name="q"');
+    expect(html).toContain('name="status"');
+    // The page facts come from the count read, never from counting the rendered rows.
+    expect(html).toContain('共 41 个角色');
+    expect(html).toContain('本页显示 1 个');
+    expect(html).toContain('第 2 / 3 页');
+    expect(html).toContain('href="/admin/characters?page=3&amp;q=qingwu&amp;status=active"');
+    expect(html).toContain('href="/admin/characters?page=1&amp;q=qingwu&amp;status=active"');
+    expect(html).toContain('当前筛选：关键词「qingwu」 · 已上架');
+    expect(html).toContain('清除筛选');
+  });
+
+  it('reports unusable search input and does not apply it', async () => {
+    mocks.listAdminCharacters.mockResolvedValue(pageOf([]));
+    const Page = (await import('../(console)/characters/page.js')).default;
+    const html = renderToStaticMarkup(await Page({
+      searchParams: Promise.resolve({ q: 'x'.repeat(129), status: 'deleted', page: '0' }),
+    }));
+    // A typo must not silently widen a 1000-role list: nothing of it reaches the query.
+    expect(mocks.listAdminCharacters).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
+    expect(html).toContain('搜索关键词最多 128 个字符');
+    expect(html).toContain('发布状态筛选只能是已上架或未上架');
+    expect(html).toContain('页码需为大于 0 的整数');
+  });
+
+  it('distinguishes no matches from having no characters at all', async () => {
+    mocks.listAdminCharacters.mockResolvedValue(pageOf([]));
+    const Page = (await import('../(console)/characters/page.js')).default;
+    const filtered = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ q: '不存在' }) }));
+    expect(filtered).toContain('当前筛选下没有匹配的角色卡');
+    expect(filtered).not.toContain('暂无角色卡');
+    const empty = renderToStaticMarkup(await Page({}));
+    expect(empty).toContain('暂无角色卡');
+    expect(empty).not.toContain('当前筛选下没有匹配的角色卡');
+  });
+
+  it('offers the emergency unpublish entry inside the always-visible first cell (mobile, AC-18)', async () => {
+    const Page = (await import('../(console)/characters/page.js')).default;
+    const html = renderToStaticMarkup(await Page({}));
+    const entry = /<a(?=[^>]*data-character-unpublish-entry)[^>]*>[^<]*<\/a>/.exec(html)?.[0] ?? '';
+    expect(entry).toContain(`href="/admin/characters/${characterId}/preview#emergency-unpublish"`);
+    expect(entry).toContain('下架（需确认）');
+    // It sits in the 角色 cell, which is visible at 390px without scrolling the table to 操作.
+    expect(html.indexOf('data-character-unpublish-entry')).toBeLessThan(html.indexOf('>编辑</a>'));
+    expect(html.indexOf('data-character-unpublish-entry')).toBeGreaterThan(html.indexOf('<strong>顾青梧</strong>'));
+  });
+
+  it('offers no unpublish entry for a character that is not on the shelf', async () => {
+    mocks.listAdminCharacters.mockResolvedValue(pageOf([{
+      ...listItem,
+      publishState: { status: 'inactive', publishedVersionId: null, publishedVersionNo: null },
+    }]));
+    const Page = (await import('../(console)/characters/page.js')).default;
+    const html = renderToStaticMarkup(await Page({}));
+    expect(html).not.toContain('data-character-unpublish-entry');
+    expect(html).toContain('未上架');
   });
 });
 
@@ -592,6 +661,43 @@ describe('character preview page', () => {
     const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: characterId }), searchParams: Promise.resolve({}) }));
     expect(html).toContain('我确认下架');
     expect(html).toContain('我确认发布此版本');
+  });
+
+  it('reaches the emergency unpublish from the top and states its honest effect (mobile, AC-18)', async () => {
+    const Page = (await import('../(console)/characters/[id]/preview/page.js')).default;
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: characterId }), searchParams: Promise.resolve({}) }));
+
+    // One anchor from the header to the panel that holds the confirmation, and the panel itself is a
+    // plain section: no disclosure, no hidden control, no horizontal scroll needed to reach it.
+    expect(html).toMatch(/<a href="#emergency-unpublish">[^<]*<\/a>/);
+    expect(html).toMatch(/<section class="panel" id="emergency-unpublish" data-emergency-unpublish="true" aria-labelledby="preview-publish">/);
+    expect(html).not.toContain('<details');
+
+    const action = /<div class="publish-action" data-unpublish-action="true">(.*?)<\/div>/s.exec(html)?.[1] ?? '';
+    // The confirmation says what actually stops and what survives.
+    expect(action).toContain('停止公开展示与新会话');
+    expect(action).toContain('历史聊天、版本与发布记录保留');
+    // The gate is one explicit Chinese confirmation; it is enabled for a live character, and the
+    // action itself is rendered right next to it (only the unticked box keeps it disabled).
+    const checkbox = /<input[^>]*type="checkbox"[^>]*>/.exec(action)?.[0] ?? '';
+    expect(checkbox).not.toContain('disabled');
+    expect(action).toContain('>我确认下架</label>');
+    const button = /<button[^>]*data-action="unpublish"[^>]*>[^<]*<\/button>/.exec(action)?.[0] ?? '';
+    expect(button).toContain('下架');
+    expect(button).toContain('type="button"');
+  });
+
+  it('offers no unpublish shortcut for a character that is not on the shelf', async () => {
+    mocks.loadCharacterListItem.mockResolvedValue({
+      ...listItem,
+      publishState: { status: 'inactive', publishedVersionId: null, publishedVersionNo: null },
+    });
+    mocks.getCharacterPreview.mockResolvedValue({ ...preview, versionStatus: 'draft', isPublished: false, versionNo: 1 });
+    const Page = (await import('../(console)/characters/[id]/preview/page.js')).default;
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: characterId }), searchParams: Promise.resolve({}) }));
+    expect(html).not.toContain('<a href="#emergency-unpublish">');
+    // No live character, no reachable confirmation: the checkbox is disabled, so the action cannot run.
+    expect(/<input[^>]*type="checkbox"[^>]*>我确认下架/.exec(html)?.[0] ?? '').toContain('disabled');
   });
 
   it('previews the requested draft version', async () => {

@@ -4,7 +4,7 @@ import { AdminIdentityRequired, requireAdminPageAuth } from '@/server/modules/ad
 import { NotFoundError } from '@/server/http/errors.js';
 import { LoadError, formatAdminDate } from '../../../../ui.js';
 import { ADMIN_UUID } from '../../../../character-data.js';
-import { baseContextSourceLabel, describeBaseContext, describeCharacterReadiness, describeImageRisks, describePublishTask, fieldIssueText, scriptPublishWarning } from '../../../../character-copy.js';
+import { baseContextSourceLabel, describeBaseContext, describeCharacterReadiness, describeImageRisks, describePublishTask, fieldIssueText, scriptPublishWarning, CHARACTER_UNPUBLISH_ANCHOR } from '../../../../character-copy.js';
 import { BaseContextRebuildAction, CharacterPublishActions } from '../../../../character-forms.js';
 
 function CharacterMissing() {
@@ -113,6 +113,10 @@ export default async function CharacterPreviewPage({
         <p className="muted">{requested
           ? `已指定版本 v${preview.versionNo} 预览；发布目标仍是发布动作中标注的选定版本（草稿优先）。`
           : '未指定版本：默认预览最新草稿；没有草稿时预览线上版本。发布会使用同一原则选定的版本。'}</p>
+        {/* Mobile (§4.1 紧急下架): one tap to the confirmation, which sits at the bottom of this page. */}
+        {item.publishState.status === 'active' && <p className="muted" data-unpublish-shortcut>
+          紧急下架：<a href={`#${CHARACTER_UNPUBLISH_ANCHOR}`}>跳到“发布与下架”确认操作</a>（停止公开展示与新会话，历史保留）。
+        </p>}
       </div>
       <Link className="button" href={`/admin/characters/${id}/edit`}>返回编辑</Link>
     </div>
@@ -171,7 +175,7 @@ export default async function CharacterPreviewPage({
       <ul className="issue-list">{risks.map(risk => <li key={risk.message} className={risk.level === 'warning' ? 'error' : 'muted'}>{risk.message}</li>)}</ul>
     </section>
 
-    <section className="panel" aria-labelledby="preview-publish">
+    <section className="panel" id={CHARACTER_UNPUBLISH_ANCHOR} data-emergency-unpublish aria-labelledby="preview-publish">
       <h2 id="preview-publish">发布与下架</h2>
       <p className="muted">发布会把选定版本切换为线上版本：新回合使用该版本，进行中的回合按原版本结束。发布任务与审计结果会持久记录。</p>
       <p>

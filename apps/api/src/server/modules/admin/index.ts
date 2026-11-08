@@ -67,11 +67,15 @@ export {
   getCharacterPublishPreflight,
   getPublishedCharacterVersion,
   MODEL_PROFILE_PREFLIGHT_WARNING,
+  ADMIN_CHARACTER_STATUSES,
+  ADMIN_CHARACTER_STATUS_INVALID,
 } from './characters.js';
 export type { AdminScriptCoverState } from './content.js';
 export type {
   AdminCharacterRecord,
   AdminCharacterListItem,
+  AdminCharacterStatus,
+  AdminCharacterListFilters,
   CharacterDraftBaseline,
   CharacterFirstDraftRecord,
   CharacterDraftDiff,

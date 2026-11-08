@@ -434,12 +434,15 @@ it('previews the script card and detail of the version that is being edited, whi
 
 it('lists publish state, draft changes and the last publish task as separate fields', async () => {
   const actor = await newActor();
-  const created = await createCharacterDraft(actor, characterInput());
+  // The shared disposable database holds the scale suite's 1000 rows, so the read is scoped by a
+  // unique term instead of assuming this run owns the first page.
+  const token = randomUUID().slice(0, 8);
+  const created = await createCharacterDraft(actor, characterInput({ name: `角色甲${token}` }));
   registry.characters.push(created.id);
   await publishCharacter(actor, created.id, created.versionId, `publish-${randomUUID()}`);
-  const draft = await updateCharacterDraft(actor, created.id, { versionId: created.versionId }, { name: '角色乙' });
+  const draft = await updateCharacterDraft(actor, created.id, { versionId: created.versionId }, { name: `角色乙${token}` });
 
-  const items = await listAdminCharacters();
+  const { items } = await listAdminCharacters({ query: token });
   const item = items.find(entry => entry.character.id === created.id);
   expect(item).toBeDefined();
   expect(item!.publishState).toMatchObject({ publishedVersionId: created.versionId, publishedVersionNo: 1, status: 'active' });
@@ -492,23 +495,24 @@ it('orders the character list by sortOrder with a stable tiebreaker', async () =
     return created.id;
   };
   // Created in reverse name order: a recency ordering would put A角色 first by accident.
-  const laterByName = await publishWith('B角色', 7);
-  const earlierByName = await publishWith('A角色', 7);
-  const lowest = await publishWith('Z角色', 1);
+  const token = randomUUID().slice(0, 8);
+  const laterByName = await publishWith(`B角色${token}`, 7);
+  const earlierByName = await publishWith(`A角色${token}`, 7);
+  const lowest = await publishWith(`Z角色${token}`, 1);
 
-  const items = await listAdminCharacters();
+  const { items } = await listAdminCharacters({ query: token, pageSize: 100 });
   const index = (id: string) => items.findIndex(item => item.character.id === id);
   expect(index(lowest)).toBeGreaterThanOrEqual(0);
   expect(index(lowest)).toBeLessThan(index(earlierByName));
   expect(index(earlierByName)).toBeLessThan(index(laterByName));
   expect(items.filter(item => [earlierByName, laterByName].includes(item.character.id)).map(item => item.character.name))
-    .toEqual(['A角色', 'B角色']);
+    .toEqual([`A角色${token}`, `B角色${token}`]);
 
   // The public list honours the same managed order, so equal sort values never flip per query.
   const listed = (await listCharacters())
     .filter(item => [earlierByName, laterByName].includes(item.id))
     .map(item => item.name);
-  expect(listed).toEqual(['A角色', 'B角色']);
+  expect(listed).toEqual([`A角色${token}`, `B角色${token}`]);
 });
 
 it('stores a server-derived script snapshot on publish and refuses a client one', async () => {
@@ -673,19 +677,20 @@ it('answers the published-version conflict before canonical validation', async (
 
 it('loads one character list item without reading the whole character table', async () => {
   const actor = await newActor();
-  const created = await createCharacterDraft(actor, characterInput({ name: '被单独读取的角色' }));
+  const token = randomUUID().slice(0, 8);
+  const created = await createCharacterDraft(actor, characterInput({ name: `被单独读取的角色${token}` }));
   registry.characters.push(created.id);
   const other = await createCharacterDraft(actor, characterInput({ name: '同批次的另一个角色' }));
   registry.characters.push(other.id);
   await publishCharacter(actor, created.id, created.versionId, `publish-${randomUUID()}`);
 
   const item = await loadCharacterListItem(created.id);
-  const fromList = (await listAdminCharacters()).find(row => row.character.id === created.id);
+  const fromList = (await listAdminCharacters({ query: token })).items.find(row => row.character.id === created.id);
   expect(item).not.toBeNull();
   // Exactly the item the list read produces, so the detail route and both pages cannot drift.
   expect(item).toEqual(fromList);
   expect(item).toMatchObject({
-    character: { id: created.id, name: '被单独读取的角色', status: 'active' },
+    character: { id: created.id, name: `被单独读取的角色${token}`, status: 'active' },
     publishState: { status: 'active', publishedVersionId: created.versionId, publishedVersionNo: 1 },
     draftState: { hasDraft: false, changedFields: [] },
     publishedValidity: { valid: true, issues: [] },

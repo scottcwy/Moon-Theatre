@@ -6,6 +6,15 @@ const paginationSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+/**
+ * `%`/`_`/`\` are literal characters of the operator's term, not LIKE syntax. PostgreSQL's default
+ * LIKE escape character is the backslash, so prefixing them is enough and keeps the term a bound
+ * parameter instead of SQL text.
+ */
+export function escapeLikeTerm(value: string): string {
+  return value.replace(/[\\%_]/g, match => `\\${match}`);
+}
+
 const optionalUuid = z.string().uuid().optional();
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
 
@@ -79,6 +88,17 @@ export const listWalletAccountsQuerySchema = paginationSchema.extend({
 export const listAdminUsersQuerySchema = paginationSchema.extend({
   q: z.string().trim().max(128, '搜索关键词最多 128 个字符').optional(),
   status: z.enum(['active', 'banned'], { message: '用户状态只能是正常或已封禁' }).optional(),
+});
+
+/**
+ * Character list (AC-18): the same bounded page contract as users, with a term over the character
+ * name, the agent id or the bound script title, plus the publish state. A blank term is "no filter";
+ * an over-long term or an unknown status is a client error with Chinese copy instead of a silently
+ * widened query.
+ */
+export const listAdminCharactersQuerySchema = paginationSchema.extend({
+  q: z.string().trim().max(128, '搜索关键词最多 128 个字符').optional(),
+  status: z.enum(['active', 'inactive'], { message: '角色发布状态只能是已上架或未上架' }).optional(),
 });
 
 export const listAdminMemoriesQuerySchema = paginationSchema.extend({

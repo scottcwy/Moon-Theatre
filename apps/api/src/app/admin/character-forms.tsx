@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminRequest, AdminRequestError } from './request.js';
 import { MediaField } from './media-forms.js';
-import { characterFieldLabel, describeBaseContextSync, scriptPublishWarning, type BaseContextStatusLike } from './character-copy.js';
+import { characterFieldLabel, describeBaseContextSync, scriptPublishWarning, CHARACTER_UNPUBLISH_EFFECT, type BaseContextStatusLike } from './character-copy.js';
 import {
   buildCharacterEditPatch,
   parseQuestions,
@@ -548,10 +548,10 @@ export function CharacterPublishActions({
       </button>
       {pending === 'publish' && slow && <p className="notice warning" role="status">处理中：已超过 30 秒仍未拿到最终结果。请稍后刷新查看任务结果，不要重复发布。</p>}
     </div>
-    <div className="publish-action">
-      <p className="muted">下架只停止公开展示与新会话；已接受的在途请求按原版本结束，历史仍可查看。恢复上架不重建任何用户数据。</p>
+    <div className="publish-action" data-unpublish-action>
+      <p className="muted">{CHARACTER_UNPUBLISH_EFFECT}</p>
       <label className="checkbox"><input type="checkbox" checked={confirmedUnpublish} disabled={!canUnpublish || pending !== null} onChange={event => setConfirmedUnpublish(event.target.checked)} />我确认下架</label>
-      <button className="danger" type="button" onClick={unpublish} disabled={!canUnpublish || !confirmedUnpublish || pending !== null}>
+      <button className="danger" type="button" data-action="unpublish" onClick={unpublish} disabled={!canUnpublish || !confirmedUnpublish || pending !== null}>
         {pending === 'unpublish' ? '正在下架…' : '下架'}
       </button>
     </div>

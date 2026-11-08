@@ -6,6 +6,8 @@
  * content contract (`ValidationIssue.path`/`message`); the raw English text is never rendered.
  */
 
+import type { AdminCharacterStatus } from '@/server/modules/admin/index.js';
+
 const FIELD_LABELS: Record<string, string> = {
   name: '姓名',
   avatarUrl: '头像',
@@ -94,6 +96,29 @@ export function describeCharacterReadiness(input: {
  * not make the character publishable while the script is inactive.
  */
 export const SCRIPT_UNAVAILABLE_WARNING = '归属剧本未上架：发布前需先上架剧本，否则发布会失败。';
+
+/**
+ * Character list search + pagination (AC-18). The page and the API share the same contract, so the
+ * cap and the two filter sentences are stated once. An unusable value is reported and not applied —
+ * a typo must never silently widen a 1000-character list.
+ */
+export const CHARACTER_SEARCH_MAX_LENGTH = 128;
+
+export const CHARACTER_STATUS_LABELS: Record<AdminCharacterStatus, string> = { active: '已上架', inactive: '未上架' };
+
+export const CHARACTER_STATUS_FILTER_INVALID = '发布状态筛选只能是已上架或未上架，当前输入未用于筛选。';
+export const CHARACTER_QUERY_TOO_LONG = `搜索关键词最多 ${CHARACTER_SEARCH_MAX_LENGTH} 个字符，当前输入未用于筛选。`;
+export const CHARACTER_PAGE_INVALID = '页码需为大于 0 的整数，当前输入未用于分页。';
+
+/**
+ * The emergency unpublish is a mobile requirement (§4.1 手机至少支持查看和紧急下架): the list entry and
+ * the preview section share one anchor, so the operator lands on the confirmation instead of hunting
+ * for it at the bottom of a long preview.
+ */
+export const CHARACTER_UNPUBLISH_ANCHOR = 'emergency-unpublish';
+export const CHARACTER_UNPUBLISH_ENTRY = '下架（需确认）';
+export const CHARACTER_UNPUBLISH_EFFECT =
+  '下架只停止公开展示与新会话；已接受的在途请求按原版本结束，历史聊天、版本与发布记录保留。恢复上架不重建任何用户数据。';
 
 export function scriptPublishWarning(scriptStatus: string | null | undefined): string | null {
   if (!scriptStatus || scriptStatus === 'active') return null;
