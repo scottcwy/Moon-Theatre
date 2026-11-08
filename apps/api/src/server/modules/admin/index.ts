@@ -73,6 +73,23 @@ export type {
 } from './characters.js';
 export { finalizeModelPublishAudit } from './models.js';
 export {
+  listAdminUsers,
+  getAdminUser,
+  setAdminUserStatus,
+  maskOpenidPreview,
+  ADMIN_USER_STATUSES,
+  ADMIN_USER_RECENT_SESSION_LIMIT,
+} from './users.js';
+export type {
+  AdminUserListFilters,
+  AdminUserListItem,
+  AdminUserProfile,
+  AdminUserRecentSession,
+  AdminUserStatus,
+  AdminUserStatusChange,
+  AdminUserWalletSummary,
+} from './users.js';
+export {
   readCharacterBaseContext,
   rebuildCharacterBaseContext,
 } from '../agent-context/index.js';

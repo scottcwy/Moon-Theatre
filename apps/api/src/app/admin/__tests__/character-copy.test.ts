@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   characterFieldLabel,
+  describeBaseContext,
+  describeBaseContextSync,
   describeCharacterReadiness,
   describeImageRisks,
   describePublishTask,
@@ -87,5 +89,47 @@ describe('publish task copy', () => {
     expect(describePublishTask({ status: 'processing', recoveryState: null })).toEqual({ tone: 'warn', label: '处理中' });
     expect(describePublishTask({ status: 'committed', recoveryState: 'audit_pending' })).toEqual({ tone: 'warn', label: '已提交，审计待恢复' });
     expect(describePublishTask({ status: 'failed', recoveryState: null })).toEqual({ tone: 'error', label: '发布失败' });
+  });
+});
+
+/**
+ * Batch 3 step 1 review fix: every base-context outcome gets its own honest Chinese label, so a
+ * `record_failed` (files written, record lost) is never rendered as "FastClaw 未更新".
+ */
+describe('base context copy', () => {
+  it('gives each sync outcome its own label and note', () => {
+    expect(describeBaseContextSync({ status: 'synced', reason: null, written: true }))
+      .toMatchObject({ tone: 'ok', label: '已同步' });
+    expect(describeBaseContextSync({ status: 'synced', reason: null, written: false }).label).toBe('已同步');
+    expect(describeBaseContextSync({ status: 'unchanged', reason: null, written: false }).label).toBe('内容未变');
+    expect(describeBaseContextSync({ status: 'pending', reason: 'unreachable', written: false }).label).toBe('待同步');
+  });
+
+  it('separates a rejected write, a failed read-back and a failed record', () => {
+    const rejected = describeBaseContextSync({ status: 'failed', reason: 'upstream_error:SOUL.md', written: false });
+    expect(rejected.label).toBe('写入失败');
+    expect(rejected.tone).toBe('error');
+
+    const unverified = describeBaseContextSync({ status: 'failed', reason: 'write_not_verified:SOUL.md', written: true });
+    expect(unverified.label).toBe('校验失败');
+    expect(unverified.note).toContain('回读');
+
+    // Files landed and were verified, only the record failed: FastClaw IS updated, so the copy must
+    // not say "FastClaw 中的基础上下文未更新".
+    const recordFailed = describeBaseContextSync({ status: 'failed', reason: 'record_failed', written: true });
+    expect(recordFailed.label).toBe('未记录');
+    expect(recordFailed.note).not.toContain('未更新');
+    expect(recordFailed.note).toContain('可再执行一次重建');
+  });
+
+  it('labels the drift read honestly: 不可用 is never 已同步, 未记录 never claims a version', () => {
+    expect(describeBaseContext({ status: 'in-sync', recorded: { displayNo: 3, createdAt: '2026-11-07T00:00:00Z', source: 'publish' }, live: { readable: true }, matchesPublished: true }))
+      .toMatchObject({ tone: 'ok', label: '已同步', badge: 'b3' });
+    const unavailable = describeBaseContext({ status: 'unavailable', recorded: { displayNo: 3, createdAt: '2026-11-07T00:00:00Z', source: 'publish' }, live: { readable: false }, matchesPublished: null });
+    expect(unavailable.label).toBe('不可用');
+    expect(unavailable.notice).toContain('FastClaw 不可用');
+    const unrecorded = describeBaseContext({ status: 'unrecorded', recorded: null, live: { readable: true }, matchesPublished: null });
+    expect(unrecorded.label).toContain('未记录');
+    expect(unrecorded.badge).toContain('未记录');
   });
 });

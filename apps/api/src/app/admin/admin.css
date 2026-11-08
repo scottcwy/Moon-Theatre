@@ -85,7 +85,7 @@ body:has(.admin-root) { margin: 0; background: #decdbd; }
 .admin-root .tag { display: inline-block; font-size: 13px; line-height: 1.5; padding: 2px 9px; border: 1px solid #b7a69e; border-radius: 999px; background: var(--soft); color: var(--muted); white-space: nowrap; }
 .admin-root .tag.ok, .admin-root .tag[data-status='success'], .admin-root .tag[data-status='paid'], .admin-root .tag[data-status='normal'], .admin-root .tag[data-status='active'], .admin-root .tag[data-status='credited'], .admin-root .tag[data-status='resolved'], .admin-root .tag[data-status='recharge'] { color: #285332; background: #edf3e8; border-color: #a1b69c; }
 .admin-root .tag.warn, .admin-root .tag[data-status='pending'], .admin-root .tag[data-status='created'], .admin-root .tag[data-status='filtered'], .admin-root .tag[data-status='adjust'] { color: #734807; background: #fff1db; border-color: #c5a06c; }
-.admin-root .tag[data-status='failed'], .admin-root .tag[data-status='flagged'] { color: var(--error); background: #fff0ec; border-color: #c68980; }
+.admin-root .tag[data-status='failed'], .admin-root .tag[data-status='flagged'], .admin-root .tag[data-status='banned'] { color: var(--error); background: #fff0ec; border-color: #c68980; }
 .admin-root .under { display: block; font-size: 13px; color: var(--muted); margin-top: 4px; }
 .admin-root .note-cell { max-width: 280px; min-width: 160px; overflow-wrap: anywhere; white-space: normal; }
 .admin-root .table-total { margin: 8px 0 28px; }

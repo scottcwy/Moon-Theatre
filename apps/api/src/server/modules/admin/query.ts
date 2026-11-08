@@ -71,6 +71,16 @@ export const listWalletAccountsQuerySchema = paginationSchema.extend({
   userId: optionalUuid,
 });
 
+/**
+ * User search (AC-11): one term matches nickname substring, openid prefix or user-id prefix. A blank
+ * term is "no filter" so an empty search box still submits; an over-long term or an unknown status is
+ * a client error with Chinese copy instead of a silently widened query.
+ */
+export const listAdminUsersQuerySchema = paginationSchema.extend({
+  q: z.string().trim().max(128, '搜索关键词最多 128 个字符').optional(),
+  status: z.enum(['active', 'banned'], { message: '用户状态只能是正常或已封禁' }).optional(),
+});
+
 export const listAdminMemoriesQuerySchema = paginationSchema.extend({
   userId: optionalUuid,
   characterId: optionalUuid,
