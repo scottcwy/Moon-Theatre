@@ -146,3 +146,20 @@ test('FastClaw deploy configs default agents to model-level thinking off', () =>
     assert.match(config, /"thinking": "off"/, `${file}: agents.defaults must set thinking=off (model-level thinking disabled)`);
   }
 });
+
+test('independent admin deployment removes Basic/whitelist and overrides client-IP in the single proxy', () => {
+  const compose = readRepoFile('docker-compose.yml');
+  assert.match(compose, /ADMIN_ORIGIN=\$\{ADMIN_ORIGIN:\?ADMIN_ORIGIN is required\}/);
+  assert.doesNotMatch(compose, /ADMIN_USER_IDS|ADMIN_BASIC_AUTH/);
+  for (const file of ['.env.example', 'apps/api/.env.example']) {
+    const env = readRepoFile(file);
+    assert.match(env, file === '.env.example' ? /^ADMIN_ORIGIN=https:\/\/api\.yuemanlou\.xyz$/m : /^ADMIN_ORIGIN=http:\/\/localhost:3000$/m);
+    assert.doesNotMatch(env, /ADMIN_USER_IDS|ADMIN_BASIC_AUTH/);
+  }
+  const caddy = readRepoFile('infra/caddy/Caddyfile');
+  assert.equal((caddy.match(/reverse_proxy/g) ?? []).length, 1);
+  assert.match(caddy, /reverse_proxy api:3000\s*\{\s*header_up X-Admin-Client-IP \{remote_host\}\s*\}/);
+  assert.doesNotMatch(caddy, /flush_interval|response_buffers|request_buffers/);
+  for (const file of ['apps/api/package.json', 'apps/api/package.tools.json'])
+    assert.equal(JSON.parse(readRepoFile(file)).scripts['admin:account'], 'tsx src/server/admin-cli.ts');
+});

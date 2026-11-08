@@ -1,9 +1,10 @@
+import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
+import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
-import { corsPreflightResponse } from '@/server/middleware/cors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
+import { adminPreflightResponse as corsPreflightResponse } from '@/server/modules/admin/security.js';
 import { listAdminMemories } from '@/server/modules/memory/index.js';
 import { listAdminMemoriesQuerySchema, parseAdminQuery } from '@/server/modules/admin/query.js';
-import { jsonError } from '@/server/http/errors.js';
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);

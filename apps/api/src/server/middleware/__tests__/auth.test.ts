@@ -34,39 +34,22 @@ describe('admin auth middleware', () => {
     vi.resetModules();
   });
 
-  it('forbids authenticated users outside the admin whitelist', async () => {
+  it('rejects valid miniapp JWTs including formerly whitelisted users and all legacy credentials', async () => {
     vi.stubEnv('JWT_SECRET', 'test-secret');
+    vi.stubEnv('ADMIN_ORIGIN', 'https://api.yuemanlou.xyz');
     vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
-    mockActiveAuthUser('regular-user');
-    const { verifyAdminAuth } = await loadAuth();
-    const token = await makeToken('regular-user');
-    const request = new Request('https://api.example.com/api/admin/orders', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const result = await verifyAdminAuth(request as unknown as NextRequest);
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.response.status).toBe(403);
-    }
-  });
-
-  it('allows authenticated users in the admin whitelist', async () => {
-    vi.stubEnv('JWT_SECRET', 'test-secret');
-    vi.stubEnv('ADMIN_USER_IDS', 'admin-user, other-admin');
     mockActiveAuthUser('admin-user');
     const { verifyAdminAuth } = await loadAuth();
+    const { NextRequest } = await import('next/server');
     const token = await makeToken('admin-user');
-    const request = new Request('https://api.example.com/api/admin/orders', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const result = await verifyAdminAuth(request as unknown as NextRequest);
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.auth.userId).toBe('admin-user');
+    for (const headers of [
+      { authorization: `Bearer ${token}` }, { cookie: 'admin_session=old' },
+      { 'x-admin-session': 'old' }, { authorization: 'Basic YTpi' },
+      { authorization: 'Bearer dev-auth-bypass-token' },
+    ]) {
+      const result = await verifyAdminAuth(new NextRequest('http://localhost:3000/api/admin/orders', { headers: headers as unknown as Record<string, string> }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) { expect(result.response.status).toBe(401); expect(result.response.headers.get('cache-control')).toBe('private, no-store'); }
     }
   });
 });
@@ -200,6 +183,7 @@ describe('dev auth bypass', () => {
     vi.stubEnv('PAYMENT_NOTIFY_URL', 'https://api.example.com/notify');
     vi.stubEnv('WECHAT_APP_ID', 'wx-app');
     vi.stubEnv('WECHAT_APP_SECRET', 'wx-secret');
+    vi.stubEnv('ADMIN_ORIGIN', 'https://api.yuemanlou.xyz');
     vi.stubEnv('ADMIN_USER_IDS', 'admin-user');
     vi.stubEnv('ADMIN_BASIC_AUTH_USER', 'admin');
     vi.stubEnv('ADMIN_BASIC_AUTH_PASSWORD', 'strong-admin-password');

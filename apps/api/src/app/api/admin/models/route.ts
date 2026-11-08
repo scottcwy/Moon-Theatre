@@ -1,6 +1,8 @@
+import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
+import { ValidationError } from '@/server/http/error-types.js';
+import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
-import { jsonError } from '@/server/http/errors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
 import { listAdminModels, updateAdminModel } from '@/server/modules/admin/models.js';
 
 export async function GET(request: NextRequest) {
@@ -26,10 +28,10 @@ export async function PATCH(request: NextRequest) {
       !body.expectedUpdatedAt ||
       (body.pointsPerCall !== undefined && (!Number.isInteger(body.pointsPerCall) || body.pointsPerCall < 0))
     ) {
-      return jsonError(new Error('Invalid model update'));
+      return jsonError(new ValidationError('admin_input_invalid'));
     }
     const result = await updateAdminModel(
-      auth.auth.userId,
+      { kind: 'admin_account', adminAccountId: auth.auth.adminAccountId },
       body.id,
       body.idempotencyKey,
       body.expectedUpdatedAt,

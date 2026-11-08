@@ -11,6 +11,7 @@ export {
   markUserMessageOutOfScope,
   reacquireGenerationLease,
   saveUserMessage,
+  acceptUserTurn,
   saveAssistantMessage,
   resolveClientTurn,
   completeTurn,
@@ -40,7 +41,18 @@ export type {
   FinalizeAssistantTurnResult,
   ChatGenerationSnapshot,
   GenerationAttemptStatus,
+  PinnedTurn,
 } from './service.js';
+export { TurnPinError } from './service.js';
+export {
+  loadPinnedTurn,
+  getTurnVersionAttributions,
+} from './turn-snapshot.js';
+export type {
+  TurnPinErrorCode,
+  TurnVersionAttribution,
+  PinnedTurnModel,
+} from './turn-snapshot.js';
 
 export { buildSystemPrompt } from './prompt-builder.js';
 export { parseMood } from './mood-parser.js';

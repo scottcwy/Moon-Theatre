@@ -3,6 +3,7 @@ import { db } from '../../db/index.js';
 import {
   chatGenerationAttempts,
   chatSessions,
+  chatTurnSnapshots,
   messages,
   walletTransactions,
 } from '../../db/schema.js';
@@ -25,6 +26,10 @@ export interface GenerationRecoveryItem {
   chargeWalletTransactionId: string | null;
   refundStatus: string | null;
   refundWalletTransactionId: string | null;
+  /** The content version pinned when the turn was accepted; `null` + `versionUnknown` for legacy
+   *  turns that carry no snapshot (never inferred from the current character card). */
+  contentVersionId: string | null;
+  versionUnknown: boolean;
   updatedAt: Date;
 }
 
@@ -60,7 +65,7 @@ function unresolvedAttemptCondition() {
 }
 
 export async function listUnresolvedGenerationAttempts(limit = 100): Promise<GenerationRecoveryItem[]> {
-  return db
+  const rows = await db
     .select({
       id: chatGenerationAttempts.id,
       userMessageId: chatGenerationAttempts.userMessageId,
@@ -76,13 +81,20 @@ export async function listUnresolvedGenerationAttempts(limit = 100): Promise<Gen
       chargeWalletTransactionId: chatGenerationAttempts.chargeWalletTransactionId,
       refundStatus: chatGenerationAttempts.refundStatus,
       refundWalletTransactionId: chatGenerationAttempts.refundWalletTransactionId,
+      contentVersionId: chatTurnSnapshots.contentVersionId,
       updatedAt: chatGenerationAttempts.updatedAt,
     })
     .from(chatGenerationAttempts)
     .innerJoin(messages, eq(chatGenerationAttempts.userMessageId, messages.id))
     .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
+    .leftJoin(chatTurnSnapshots, eq(chatTurnSnapshots.userMessageId, chatGenerationAttempts.userMessageId))
     .where(unresolvedAttemptCondition())
     .limit(limit);
+  return rows.map(({ contentVersionId, ...row }) => ({
+    ...row,
+    contentVersionId: contentVersionId ?? null,
+    versionUnknown: contentVersionId == null,
+  }));
 }
 
 /**

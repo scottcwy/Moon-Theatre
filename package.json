@@ -26,7 +26,8 @@
     "test:deploy-config": "node --test scripts/deploy-config.test.mjs",
     "dev:miniapp:lan": "pnpm --filter @juben-sha/miniapp dev:weapp:lan",
     "build:miniapp:prod": "pnpm --filter @juben-sha/miniapp build:weapp:prod",
-    "test:e2e:miniapp:ui:real": "pnpm --filter @juben-sha/miniapp test:e2e:ui:real"
+    "test:e2e:miniapp:ui:real": "pnpm --filter @juben-sha/miniapp test:e2e:ui:real",
+    "test:web-admin": "node scripts/test-web-admin.mjs"
   },
   "engines": {
     "node": ">=20.0.0",

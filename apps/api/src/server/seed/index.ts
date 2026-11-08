@@ -13,6 +13,8 @@ import {
 } from '../db/schema.js';
 import { seedQuotaPackages } from './quota-packages.js';
 import { seedCharacters, seedScripts } from './story-data.js';
+import { captureExistingCharacterContent } from '../modules/admin/character-capture.js';
+import { captureExistingModelProfileVersions } from '../modules/admin/model-capture.js';
 
 type SeedDatabase = Pick<typeof db, 'transaction'>;
 type SeedTransactionClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -99,7 +101,18 @@ export async function seed(database: SeedDatabase = db) {
       console.log(`Seeded characters [${script.slug}]: ${characterIds.join(', ')}`);
     }
 
+    // §5.3: the characters just inserted are captured as their first published content version by
+    // the same unit the migration uses, so a fresh database (migrate → seed) is immediately
+    // readable through the pinned `published_version_id` instead of leaving a NULL pointer.
+    await captureExistingCharacterContent(tx);
+
+    console.log('Captured published character versions');
+
     await seedModelProfiles(tx);
+
+    // §5.3/§8: the profiles just inserted are captured as their first published version, so an
+    // accepted chat turn can pin `model_profile_version_id` on a freshly bootstrapped database.
+    await captureExistingModelProfileVersions(tx);
 
     console.log('Created model profiles');
 

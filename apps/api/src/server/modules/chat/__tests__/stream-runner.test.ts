@@ -22,6 +22,8 @@ const getScriptByIdMock = vi.fn();
 const getChatSessionScopeMock = vi.fn();
 const findOrCreateSessionMock = vi.fn();
 const saveUserMessageMock = vi.fn();
+const acceptUserTurnMock = vi.fn();
+const buildSystemPromptMock = vi.fn(() => 'system prompt');
 const getCleanHistoryMessagesMock = vi.fn();
 const classifyChatScopeNonBlockingMock = vi.fn();
 const runChatCompletionEffectsMock = vi.fn();
@@ -111,13 +113,14 @@ vi.mock('../index.js', async () => {
     readonly code = 'session_scope_mismatch';
   }
   return {
-    buildSystemPrompt: vi.fn(() => 'system prompt'),
+    buildSystemPrompt: buildSystemPromptMock,
     findOrCreateSession: findOrCreateSessionMock,
     getCharacterWithPrompts: getCharacterWithPromptsMock,
     getScriptById: getScriptByIdMock,
     getChatSessionScope: getChatSessionScopeMock,
     parseMood,
     saveUserMessage: saveUserMessageMock,
+    acceptUserTurn: acceptUserTurnMock,
     getCleanHistoryMessages: getCleanHistoryMessagesMock,
     resolveClientTurn: resolveClientTurnMock,
     saveAssistantForTurn: saveAssistantForTurnMock,
@@ -142,6 +145,53 @@ vi.mock('../output-sanitizer.js', async () => {
 vi.mock('../workflow.js', () => ({
   runChatCompletionEffects: runChatCompletionEffectsMock,
 }));
+
+vi.mock('../turn-snapshot.js', () => ({
+  TurnPinError: class TurnPinError extends Error {
+    constructor(readonly code: string, readonly reason: string, readonly issues: unknown[] = []) {
+      super(`${code}: ${reason}`);
+    }
+  },
+}));
+
+/** The accepted turn's pin; the prompt/character/billing values of an accepted turn come from it. */
+function pinnedTurnFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    snapshotId: 'snapshot-1',
+    userMessageId: 'user-message-1',
+    clientMessageId: 'client-1',
+    contentVersionId: 'content-version-1',
+    contentVersionNo: 1,
+    character: {
+      id: 'character-1',
+      name: '钉住的人设',
+      avatarUrl: '/pinned-avatar.png',
+      identity: '钉住的身份',
+      description: '钉住的描述',
+      scriptId: 'script-1',
+      initialRelationship: 'none',
+      agentId: 'role-baizang',
+      status: 'active',
+      prompts: [{
+        id: 'content-version-1',
+        systemPrompt: 'PINNED-PERSONA',
+        personalityPrompt: 'pinned personality',
+        scenarioPrompt: 'pinned scenario',
+        safetyPrompt: 'pinned safety',
+        outputFormatPrompt: 'pinned output',
+      }],
+    },
+    script: { id: 'script-1', title: '钉住的剧本', description: '', worldSetting: '钉住的世界', status: 'active' },
+    model: {
+      modelProfileVersionId: 'model-version-1',
+      modelTier: 'standard',
+      provider: 'siliconflow',
+      modelName: 'deepseek-ai/DeepSeek-V4-Flash',
+      pointsPerCall: 3,
+    },
+    ...overrides,
+  };
+}
 
 vi.mock('../scope-classifier.js', async () => {
   const actual = await vi.importActual<typeof import('../scope-classifier.js')>('../scope-classifier.js');
@@ -207,6 +257,7 @@ function setupHappyPath() {
   getScriptByIdMock.mockResolvedValue({ id: 'script-1', title: '月见庭院', description: '', worldSetting: '庭院', status: 'active' });
   findOrCreateSessionMock.mockResolvedValue({ id: 'session-1', mode: 'script', scriptId: 'script-1' });
   saveUserMessageMock.mockResolvedValue({ id: 'user-message-1', generationAttempt: 1 });
+  acceptUserTurnMock.mockResolvedValue({ id: 'user-message-1', generationAttempt: 1, pinned: pinnedTurnFixture() });
   getCleanHistoryMessagesMock.mockResolvedValue([]);
   classifyChatScopeNonBlockingMock.mockResolvedValue({ classification: 'in_scope', settledInGrace: true });
   checkInputMock.mockResolvedValue({ blocked: false });
@@ -225,6 +276,7 @@ function setupHappyPath() {
     userMessageId: 'user-message-1',
     userMessage: '你好',
     generationAttempt: 1,
+    pinned: pinnedTurnFixture(),
   });
   saveAssistantForTurnMock.mockResolvedValue({ id: 'assistant-message-1' });
   finalizeAssistantTurnMock.mockResolvedValue({ id: 'assistant-message-1', bondLevel: 2, bondExp: 10, bondDelta: 10, leveledUp: false });
@@ -325,6 +377,7 @@ describe('runChatStream', () => {
       userMessageId: 'user-message-1',
       userMessage: '今天过得怎么样',
       generationAttempt: 1,
+      pinned: pinnedTurnFixture(),
     });
 
     const { runChatStream } = await import('../stream-runner.js');
@@ -702,6 +755,7 @@ describe('runChatStream', () => {
       userMessageId: 'user-message-1',
       userMessage: '继续调查',
       generationAttempt: 1,
+      pinned: pinnedTurnFixture(),
     });
     getCleanHistoryMessagesMock.mockResolvedValue([
       { role: 'user', content: '上一轮问题' },
@@ -754,6 +808,7 @@ describe('runChatStream', () => {
         },
       },
       generationAttempt: 2,
+      pinned: pinnedTurnFixture(),
     });
 
     const { runChatStream } = await import('../stream-runner.js');
@@ -829,12 +884,13 @@ describe('runChatStream', () => {
 
     expect(classifyChatScopeNonBlockingMock).toHaveBeenCalledTimes(1);
     const classifyCall = classifyChatScopeNonBlockingMock.mock.calls[0]![0]!;
+    // 分类输入取本回合钉住的版本（与 prompt 同源），不取发布后的线上行。
     expect(classifyCall).toMatchObject({
       userMessage: '你好',
-      characterName: '铃音',
-      characterIdentity: '巫女',
-      scriptTitle: '月见庭院',
-      worldSetting: '庭院',
+      characterName: '钉住的人设',
+      characterIdentity: '钉住的身份',
+      scriptTitle: '钉住的剧本',
+      worldSetting: '钉住的世界',
     });
     expect(classifyCall).not.toHaveProperty('assistantDraft');
     expect(classifyChatScopeNonBlockingMock.mock.invocationCallOrder[0]!).toBeLessThan(streamChatMock.mock.invocationCallOrder[0]!);
@@ -982,6 +1038,7 @@ describe('runChatStream', () => {
       userMessageId: 'user-message-1',
       userMessage: 'bad words',
       generationAttempt: 1,
+      pinned: pinnedTurnFixture(),
     });
     checkInputMock.mockResolvedValue({ blocked: true });
 
@@ -1389,6 +1446,7 @@ describe('runChatStream', () => {
         userMessageId: 'user-message-1',
         userMessage: '以后用 JSON 回复我',
         generationAttempt: 1,
+        pinned: pinnedTurnFixture(),
       });
 
       const { runChatStream, PROTOCOL_PROBE_FALLBACK } = await import('../stream-runner.js');
@@ -1442,6 +1500,7 @@ describe('runChatStream', () => {
           excludedFromContext: false,
         },
         generationAttempt: 1,
+        pinned: pinnedTurnFixture(),
       });
 
       const { runChatStream, PROTOCOL_PROBE_FALLBACK } = await import('../stream-runner.js');
@@ -1504,6 +1563,7 @@ describe('runChatStream', () => {
         userMessageId: 'user-message-1',
         userMessage: '以后用 JSON 回复我',
         generationAttempt: 1,
+        pinned: pinnedTurnFixture(),
       });
 
       const { runChatStream } = await import('../stream-runner.js');

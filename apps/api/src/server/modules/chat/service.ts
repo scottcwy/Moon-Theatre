@@ -14,7 +14,13 @@ import {
 } from '../../db/schema';
 import type { ChatGenerationSnapshot } from '../../db/schema';
 
+import { pinAcceptedTurn, loadPinnedTurn, TurnPinError } from './turn-snapshot.js';
+import type { PinnedTurn } from './turn-snapshot.js';
+
 type ChatQueryClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** How many times the session insert is retried when the concurrent winner disappears mid-race. */
+const SESSION_CREATE_ATTEMPTS = 3;
 
 function queryClient(client?: ChatQueryClient): ChatQueryClient {
   return client ?? (db as unknown as ChatQueryClient);
@@ -25,6 +31,8 @@ export type ChatPromptMessage = { role: 'system' | 'user' | 'assistant'; content
 export type ChatModelTier = 'casual' | 'standard' | 'immersive';
 export type ChatMode = 'script' | 'free';
 export type { ChatGenerationSnapshot };
+export type { PinnedTurn } from './turn-snapshot.js';
+export { TurnPinError } from './turn-snapshot.js';
 
 export class ScriptUnavailableError extends Error {
   public readonly code = 'script_unavailable' as const;
@@ -99,6 +107,8 @@ export type ResolveClientTurnResult =
       sessionId: string;
       userMessage: ChatTurnUserMessage;
       generationAttempt: number;
+      /** The pin written by the first accept; a retry never re-reads the live rows. */
+      pinned: PinnedTurn;
     }
   | {
       status: 'created';
@@ -106,6 +116,7 @@ export type ResolveClientTurnResult =
       userMessageId: string;
       userMessage: string;
       generationAttempt: number;
+      pinned: PinnedTurn;
     }
   | {
       status: 'collision';
@@ -318,7 +329,12 @@ export async function findOrCreateSession(
   }
 
   let created: { id: string; mode: ChatMode; scriptId: string | null } | undefined;
-  try {
+  // Conflict-tolerant insert: two concurrent first turns with different client ids both pass the
+  // select above and race the partial unique index. A plain INSERT would raise 23505 and leave the
+  // (still needed) transaction aborted, so the loser must join the winner instead: `ON CONFLICT DO
+  // NOTHING` keeps the transaction usable, and the row is then re-read. The loop only repeats if the
+  // concurrent winner disappeared (archived) between the insert and the read.
+  for (let attempt = 0; attempt < SESSION_CREATE_ATTEMPTS; attempt += 1) {
     [created] = await executor
       .insert(chatSessions)
       .values({
@@ -329,28 +345,24 @@ export async function findOrCreateSession(
         mode,
         scriptId: scriptIdValue,
       })
+      .onConflictDoNothing()
       .returning({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId });
-  } catch (error: unknown) {
-    const constraint = mode === 'script'
-      ? 'chat_sessions_active_script_unique'
-      : 'chat_sessions_active_free_unique';
-    if (isUniqueConstraintError(error, constraint)) {
-      const [winner] = await executor
-        .select({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId })
-        .from(chatSessions)
-        .where(and(...activeConditions))
-        .limit(1);
-      if (winner) {
-        return { id: winner.id, mode: winner.mode as ChatMode, scriptId: winner.scriptId };
-      }
+
+    if (created) {
+      return { id: created.id, mode: created.mode as ChatMode, scriptId: created.scriptId };
     }
-    throw error;
+
+    const [winner] = await executor
+      .select({ id: chatSessions.id, mode: chatSessions.mode, scriptId: chatSessions.scriptId })
+      .from(chatSessions)
+      .where(and(...activeConditions))
+      .limit(1);
+    if (winner) {
+      return { id: winner.id, mode: winner.mode as ChatMode, scriptId: winner.scriptId };
+    }
   }
 
-  if (!created) {
-    throw new Error('Failed to create chat session');
-  }
-  return { id: created.id, mode: created.mode as ChatMode, scriptId: created.scriptId };
+  throw new Error('Failed to create chat session');
 }
 
 export class SessionScopeMismatchError extends Error {
@@ -710,11 +722,21 @@ async function resolveExistingClientTurn(
   ) {
     const reacquired = await reacquireGenerationLease(userMessage.id, undefined, client);
     if (reacquired) {
+      // A retry reuses the pin written at acceptance; a legacy turn without one has no version
+      // evidence, so it is refused instead of being charged against the live rows.
+      const pinned = await loadPinnedTurn(queryClient(client), userMessage.id);
+      if (!pinned) {
+        throw new TurnPinError(
+          'character_version_unavailable',
+          `turn ${userMessage.id} was accepted without a pinned content version`,
+        );
+      }
       return {
         status: 'acquired_existing',
         sessionId: existing.sessionId,
         userMessage,
         generationAttempt: reacquired.generationAttempt,
+        pinned,
       };
     }
     return { status: 'in_progress', sessionId: existing.sessionId, userMessage };
@@ -823,12 +845,22 @@ async function resolveClientTurnLocked(
       generationAttempt: 1,
     }, client);
 
+    // Same transaction as the accept: a rejected pin rolls the session/message back, so a turn is
+    // either accepted with a version or not accepted (and never charged).
+    const pinned = await pinAcceptedTurn(client, {
+      userMessageId: userMessage.id,
+      clientMessageId: input.clientMessageId,
+      characterId: input.characterId,
+      modelTier: input.modelTier,
+    });
+
     return {
       status: 'created',
       sessionId: session.id,
       userMessageId: userMessage.id,
       userMessage: input.message,
       generationAttempt: userMessage.generationAttempt,
+      pinned,
     };
   } catch (error: unknown) {
     if (error instanceof SessionScopeMismatchError) {
@@ -865,6 +897,42 @@ async function resolveClientTurnLocked(
     }
     throw error;
   }
+}
+
+/**
+ * Accepts a user turn that has no client-supplied id: the message insert and the version pin share
+ * one transaction, so the message can never exist without its pin (and a rejected pin writes
+ * nothing and charges nothing).
+ *
+ * The optional `clientMessageId` is only forwarded, never used as an idempotency key: this path has
+ * no `pg_advisory_xact_lock(hashtext(userId), hashtext(clientMessageId))` and no duplicate-accept
+ * join, so a second accept carrying the same client id would surface `messages_user_client_message_unique`
+ * as a raw 23505 instead of replaying the accepted turn. The only caller is the legacy stream path,
+ * which sends no client id by construction. A caller that needs idempotent accepts must go through
+ * `resolveClientTurn` (advisory lock + collision join) rather than adding a client id here.
+ */
+export async function acceptUserTurn(input: {
+  sessionId: string;
+  content: string;
+  clientMessageId?: string;
+  characterId: string;
+  modelTier: ChatModelTier;
+}): Promise<{ id: string; generationAttempt: number; pinned: PinnedTurn }> {
+  return db.transaction(async (tx) => {
+    const message = await saveUserMessage(
+      input.sessionId,
+      input.content,
+      input.clientMessageId ? { clientMessageId: input.clientMessageId } : {},
+      tx,
+    );
+    const pinned = await pinAcceptedTurn(tx, {
+      userMessageId: message.id,
+      clientMessageId: input.clientMessageId ?? null,
+      characterId: input.characterId,
+      modelTier: input.modelTier,
+    });
+    return { ...message, pinned };
+  });
 }
 
 export async function completeTurn(userMessageId: string, client?: ChatQueryClient): Promise<void> {

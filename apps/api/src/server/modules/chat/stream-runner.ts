@@ -18,7 +18,7 @@ import {
   parseMood,
   resolveClientTurn,
   finalizeAssistantTurn,
-  saveUserMessage,
+  acceptUserTurn,
   failTurn,
   persistGenerationSnapshot,
   ensureGenerationAttempt,
@@ -29,6 +29,7 @@ import {
 } from './index.js';
 import type { ChatMode, ChatSessionScope, Script } from './index.js';
 import { extractUserRecap } from './prompt-builder.js';
+import { TurnPinError } from './turn-snapshot.js';
 import { createStreamingOutputCleaner, sanitizeAssistantOutput } from './output-sanitizer.js';
 import { classifyChatScopeNonBlocking, settleScopeWithinGrace, type ScopeClassification } from './scope-classifier.js';
 import { runChatCompletionEffects } from './workflow.js';
@@ -101,6 +102,28 @@ export const STREAM_HEADERS = {
 };
 
 export async function runChatStream(input: ChatStreamInput): Promise<Response> {
+  try {
+    return await runChatStreamPinned(input);
+  } catch (error) {
+    if (error instanceof TurnPinError) {
+      // Fail closed: no version evidence means no accepted turn, so nothing was charged and no
+      // snapshot was written. The reason is admin-visible server-side only.
+      console.warn({
+        event: 'chat_turn_pin_rejected',
+        code: error.code,
+        reason: error.reason,
+        issues: error.issues,
+        userId: input.userId,
+        characterId: input.characterId,
+        clientMessageId: input.clientMessageId,
+      });
+      return errorResponse(error.code, 409);
+    }
+    throw error;
+  }
+}
+
+async function runChatStreamPinned(input: ChatStreamInput): Promise<Response> {
   const requestStartedAt = Date.now();
   const { userId, characterId, sessionId, modelTier } = input;
   const clientMessageId = input.clientMessageId?.trim();
@@ -197,21 +220,31 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
         if (probeResponse) {
           return probeResponse;
         }
+        const pinned = resolved.pinned;
         const cleanHistory = config.useRoleplayAgents
           ? []
           : await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
-        const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory, scope.script);
+        // 版本钉住：prompt / 人设 / 计费全部来自接受回合时固定的快照，重试不读线上行。
+        const promptContext = await buildPromptContext(
+          userId,
+          characterId,
+          pinned.character,
+          scope,
+          cleanHistory,
+          pinned.script,
+          true,
+        );
         if (typeof persistGenerationSnapshot === 'function') {
           await persistGenerationSnapshot(resolved.userMessage.id, {
-            modelTier,
-            modelName: profile.modelName,
-            pointsPerCall: profile.pointsPerCall,
+            modelTier: pinned.model.modelTier,
+            modelName: pinned.model.modelName,
+            pointsPerCall: pinned.model.pointsPerCall,
             systemPrompt: promptContext.systemPrompt,
             scriptTitle: promptContext.scriptTitle,
             worldSetting: promptContext.worldSetting,
-            characterName: character.name,
-            characterIdentity: character.identity,
-            agentId: character.agentId ?? null,
+            characterName: pinned.character.name,
+            characterIdentity: pinned.character.identity,
+            agentId: pinned.character.agentId ?? null,
             mode: scope.mode,
             scriptId: scope.scriptId,
           });
@@ -223,15 +256,15 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           sessionId: resolved.sessionId,
           userMessageId: resolved.userMessage.id,
           userMessage: resolved.userMessage.content,
-          modelTier,
-          modelName: profile.modelName,
-          pointsPerCall: profile.pointsPerCall,
+          modelTier: pinned.model.modelTier,
+          modelName: pinned.model.modelName,
+          pointsPerCall: pinned.model.pointsPerCall,
           systemPrompt: promptContext.systemPrompt,
           scriptTitle: promptContext.scriptTitle,
           worldSetting: promptContext.worldSetting,
-          characterName: character.name,
-          characterIdentity: character.identity,
-          agentId: character.agentId ?? null,
+          characterName: pinned.character.name,
+          characterIdentity: pinned.character.identity,
+          agentId: pinned.character.agentId ?? null,
           cleanHistory,
           clientMessageId,
           generationAttempt: resolved.generationAttempt,
@@ -263,21 +296,31 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
         if (probeResponse) {
           return probeResponse;
         }
+        const pinned = resolved.pinned;
         const cleanHistory = config.useRoleplayAgents
           ? []
           : await getCleanHistoryMessages(userId, resolved.sessionId, clientMessageId);
-        const promptContext = await buildPromptContext(userId, characterId, character, scope, cleanHistory, scope.script);
+        // 版本钉住：prompt / 人设 / 计费全部来自接受回合时固定的快照，发布后的新版本不影响本回合。
+        const promptContext = await buildPromptContext(
+          userId,
+          characterId,
+          pinned.character,
+          scope,
+          cleanHistory,
+          pinned.script,
+          true,
+        );
         if (typeof persistGenerationSnapshot === 'function') {
           await persistGenerationSnapshot(resolved.userMessageId, {
-            modelTier,
-            modelName: profile.modelName,
-            pointsPerCall: profile.pointsPerCall,
+            modelTier: pinned.model.modelTier,
+            modelName: pinned.model.modelName,
+            pointsPerCall: pinned.model.pointsPerCall,
             systemPrompt: promptContext.systemPrompt,
             scriptTitle: promptContext.scriptTitle,
             worldSetting: promptContext.worldSetting,
-            characterName: character.name,
-            characterIdentity: character.identity,
-            agentId: character.agentId ?? null,
+            characterName: pinned.character.name,
+            characterIdentity: pinned.character.identity,
+            agentId: pinned.character.agentId ?? null,
             mode: scope.mode,
             scriptId: scope.scriptId,
           });
@@ -289,15 +332,15 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
           sessionId: resolved.sessionId,
           userMessageId: resolved.userMessageId,
           userMessage: resolved.userMessage,
-          modelTier,
-          modelName: profile.modelName,
-          pointsPerCall: profile.pointsPerCall,
+          modelTier: pinned.model.modelTier,
+          modelName: pinned.model.modelName,
+          pointsPerCall: pinned.model.pointsPerCall,
           systemPrompt: promptContext.systemPrompt,
           scriptTitle: promptContext.scriptTitle,
           worldSetting: promptContext.worldSetting,
-          characterName: character.name,
-          characterIdentity: character.identity,
-          agentId: character.agentId ?? null,
+          characterName: pinned.character.name,
+          characterIdentity: pinned.character.identity,
+          agentId: pinned.character.agentId ?? null,
           cleanHistory,
           clientMessageId,
           generationAttempt: resolved.generationAttempt,
@@ -316,7 +359,14 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     scope.mode,
     scope.scriptId,
   );
-  const userMsg = await saveUserMessage(session.id, message, clientMessageId ? { clientMessageId } : {});
+  // 消息写入与版本钉住同一事务：被拒绝的回合不落消息、不扣点。
+  const userMsg = await acceptUserTurn({
+    sessionId: session.id,
+    content: message,
+    ...(clientMessageId ? { clientMessageId } : {}),
+    characterId,
+    modelTier,
+  });
 
   const inputCheck = await checkInput(message, session.id, userId, userMsg.id);
   if (inputCheck.blocked) {
@@ -344,7 +394,15 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
   const cleanHistory = config.useRoleplayAgents
     ? []
     : await getCleanHistoryMessages(userId, session.id, clientMessageId);
-  const promptContext = await buildPromptContext(userId, characterId, character, session, cleanHistory, scope.script);
+  const promptContext = await buildPromptContext(
+    userId,
+    characterId,
+    userMsg.pinned.character,
+    session,
+    cleanHistory,
+    userMsg.pinned.script,
+    true,
+  );
 
   return createPreparedGenerationResponse({
     requestStartedAt,
@@ -353,15 +411,15 @@ export async function runChatStream(input: ChatStreamInput): Promise<Response> {
     sessionId: session.id,
     userMessageId: userMsg.id,
     userMessage: message,
-    modelTier,
-    modelName: profile.modelName,
-    pointsPerCall: profile.pointsPerCall,
+    modelTier: userMsg.pinned.model.modelTier,
+    modelName: userMsg.pinned.model.modelName,
+    pointsPerCall: userMsg.pinned.model.pointsPerCall,
     systemPrompt: promptContext.systemPrompt,
     scriptTitle: promptContext.scriptTitle,
     worldSetting: promptContext.worldSetting,
-    characterName: character.name,
-    characterIdentity: character.identity,
-    agentId: character.agentId ?? null,
+    characterName: userMsg.pinned.character.name,
+    characterIdentity: userMsg.pinned.character.identity,
+    agentId: userMsg.pinned.character.agentId ?? null,
     cleanHistory,
     clientMessageId,
     generationAttempt: userMsg.generationAttempt,
@@ -546,6 +604,8 @@ async function buildPromptContext(
   scope: { mode: ChatMode; scriptId: string | null },
   cleanHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
   script: Script | null,
+  /** Pinned turn: `character`/`script` come from the accepted content version and must be sent. */
+  pinnedContent = false,
 ): Promise<{ systemPrompt: string; scriptTitle?: string; worldSetting?: string }> {
   // P2-2 4.3：script 由 resolveRequestScope 已加载并随 scope 传入，不再重复查询 scripts。
   // 角色 Agent 架构：记忆唯一事实源在 FastClaw，API 不再取 memories（开关内置空）；
@@ -575,6 +635,7 @@ async function buildPromptContext(
           }),
       bondLevel: existingRelationship?.bondLevel,
       bondExp: existingRelationship?.bondExp,
+      ...(pinnedContent ? { pinnedCharacterPrompts: true } : {}),
     }),
     scriptTitle: script?.title,
     worldSetting: script?.worldSetting,

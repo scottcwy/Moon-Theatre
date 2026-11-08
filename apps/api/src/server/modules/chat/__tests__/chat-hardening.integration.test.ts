@@ -1,21 +1,41 @@
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { closeDb, db } from '../../../db/index.js';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { ownedTestTarget } from '../../../db/__tests__/disposable-postgres.js';
 import {
   characters,
   chatGenerationAttempts,
   chatSessions,
+  chatTurnSnapshots,
+  contentVersions,
   messages,
   scripts,
   users,
   walletAccounts,
   walletTransactions,
 } from '../../../db/schema.js';
-import { consumePoints } from '../../wallet/service.js';
-import { recoverGenerationAttempts, resolveClientTurn } from '../index.js';
+import { derivedChatDatabase, ensurePublishedModelProfile, publishFixtureCharacterVersion } from './chat-db-fixtures.js';
+import type * as chatModule from '../index.js';
+import type * as walletModule from '../../wallet/service.js';
 
 const describeRealPg = describe.skipIf(!process.env.DATABASE_URL);
+
+// Chat fixtures now own a model profile version and a published character version, so this suite
+// runs on its own derived database inside the guard-verified instance (same pattern as the admin
+// suites) instead of racing other files for the shared `model_profiles` tier.
+let fixture: Awaited<ReturnType<typeof derivedChatDatabase>>;
+let db: typeof import('../../../db/index.js').db;
+let chat: typeof chatModule;
+let walletApi: typeof walletModule;
+
+beforeAll(async () => {
+  ownedTestTarget(); // fail closed before creating anything
+  fixture = await derivedChatDatabase();
+  db = (await import('../../../db/index.js')).db;
+  chat = await import('../index.js');
+  walletApi = await import('../../wallet/service.js');
+  await ensurePublishedModelProfile(db as never, 'standard');
+});
 const userIds: string[] = [];
 const scriptIds: string[] = [];
 const characterIds: string[] = [];
@@ -46,6 +66,7 @@ async function createChatFixture() {
     initialRelationship: 'none',
     agentId: 'role-baizang',
   });
+  await publishFixtureCharacterVersion(db as never, { characterId, scriptId });
   return { userId, scriptId, characterId };
 }
 
@@ -81,7 +102,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
     const clientMessageId = `concurrent-${randomUUID()}`;
 
     const results = await Promise.all(Array.from({ length: 20 }, () =>
-      resolveClientTurn({
+      chat.resolveClientTurn({
         userId: fixture.userId,
         characterId: fixture.characterId,
         modelTier: 'standard',
@@ -107,12 +128,79 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
     expect(userMessages).toHaveLength(1);
   });
 
+  it('converges concurrent first turns with different clientMessageIds into one active session', async () => {
+    // Both partial unique indexes are exercised: the four-column script index and the three-column
+    // free index. Each round uses a fresh user, so "exactly one active session" is per (user, mode).
+    for (const mode of ['script', 'free'] as const) {
+      const fixture = await createChatFixture();
+      const clientMessageIds = Array.from({ length: 8 }, () => `first-turn-${randomUUID()}`);
+
+      // Every request carries its own clientMessageId, so the per-client advisory lock does not
+      // serialize them: they all reach session creation at the same time and race the partial unique
+      // index.
+      const settled = await Promise.allSettled(clientMessageIds.map((clientMessageId) =>
+        chat.resolveClientTurn({
+          userId: fixture.userId,
+          characterId: fixture.characterId,
+          modelTier: 'standard',
+          message: `hello ${clientMessageId}`,
+          clientMessageId,
+          mode,
+          ...(mode === 'script' ? { scriptId: fixture.scriptId } : {}),
+        })));
+
+      const rejections = settled
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) => {
+          const reason = result.reason as { code?: string; message?: string } | undefined;
+          return `${reason?.code ?? ''} ${reason?.message ?? String(result.reason)}`.trim();
+        });
+      // No raw 23505 / 25P02 may escape: losing the session insert race means joining the winner.
+      expect(rejections).toEqual([]);
+
+      const accepted = settled.map((result) => {
+        if (result.status !== 'fulfilled') throw new Error('expected every accept to settle');
+        return result.value;
+      });
+      expect(accepted.map((result) => result.status)).toEqual(clientMessageIds.map(() => 'created'));
+
+      const sessions = await db
+        .select()
+        .from(chatSessions)
+        .where(eq(chatSessions.userId, fixture.userId));
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0]).toEqual(expect.objectContaining({ status: 'active', mode }));
+
+      const userMessages = await db
+        .select()
+        .from(messages)
+        .where(inArray(messages.clientMessageId, clientMessageIds));
+      expect(userMessages).toHaveLength(clientMessageIds.length);
+      expect(userMessages.every((message) => message.sessionId === sessions[0]?.id)).toBe(true);
+
+      // Each accepted turn has its own snapshot pinned to a real published version of the character.
+      const snapshots = await db
+        .select()
+        .from(chatTurnSnapshots)
+        .where(eq(chatTurnSnapshots.characterId, fixture.characterId));
+      expect(snapshots).toHaveLength(clientMessageIds.length);
+      expect(new Set(snapshots.map((snapshot) => snapshot.userMessageId)).size)
+        .toBe(clientMessageIds.length);
+      const publishedVersions = await db
+        .select({ id: contentVersions.id })
+        .from(contentVersions)
+        .where(eq(contentVersions.entityId, fixture.characterId));
+      const publishedIds = new Set(publishedVersions.map((version) => version.id));
+      expect(snapshots.every((snapshot) => publishedIds.has(snapshot.contentVersionId))).toBe(true);
+    }
+  });
+
   it('keeps one accepted turn across concurrent free and script modes', async () => {
     const fixture = await createChatFixture();
     const clientMessageId = `cross-mode-${randomUUID()}`;
 
     const results = await Promise.all([
-      resolveClientTurn({
+      chat.resolveClientTurn({
         userId: fixture.userId,
         characterId: fixture.characterId,
         modelTier: 'standard',
@@ -120,7 +208,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
         clientMessageId,
         mode: 'free',
       }),
-      resolveClientTurn({
+      chat.resolveClientTurn({
         userId: fixture.userId,
         characterId: fixture.characterId,
         modelTier: 'standard',
@@ -168,7 +256,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       balancePoints: 10,
       totalConsumedPoints: 0,
     });
-    const consume = await consumePoints(
+    const consume = await walletApi.consumePoints(
       fixture.userId,
       3,
       `consume_${message!.id}_1`,
@@ -183,12 +271,12 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       refundWalletTransactionId: null,
     });
 
-    await expect(recoverGenerationAttempts()).resolves.toEqual({
+    await expect(chat.recoverGenerationAttempts()).resolves.toEqual({
       scanned: 1,
       recovered: 1,
       failed: 0,
     });
-    await expect(recoverGenerationAttempts()).resolves.toEqual({
+    await expect(chat.recoverGenerationAttempts()).resolves.toEqual({
       scanned: 0,
       recovered: 0,
       failed: 0,
@@ -246,7 +334,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       balancePoints: 10,
       totalConsumedPoints: 0,
     });
-    const consume = await consumePoints(
+    const consume = await walletApi.consumePoints(
       fixture.userId,
       3,
       `consume_${chargedMessage!.id}_1`,
@@ -268,7 +356,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       },
     ]);
 
-    await expect(recoverGenerationAttempts()).resolves.toEqual({
+    await expect(chat.recoverGenerationAttempts()).resolves.toEqual({
       scanned: 2,
       recovered: 1,
       failed: 0,
@@ -318,7 +406,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       balancePoints: 10,
       totalConsumedPoints: 0,
     });
-    const consume = await consumePoints(
+    const consume = await walletApi.consumePoints(
       fixture.userId,
       3,
       `consume_${message!.id}_1`,
@@ -332,7 +420,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       refundStatus: 'not_required',
     });
 
-    await expect(recoverGenerationAttempts()).resolves.toEqual({
+    await expect(chat.recoverGenerationAttempts()).resolves.toEqual({
       scanned: 1,
       recovered: 1,
       failed: 0,
@@ -374,7 +462,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       balancePoints: 10,
       totalConsumedPoints: 0,
     });
-    await consumePoints(fixture.userId, 3, `consume_${message!.id}_1`);
+    await walletApi.consumePoints(fixture.userId, 3, `consume_${message!.id}_1`);
     await db.insert(chatGenerationAttempts).values({
       userMessageId: message!.id,
       attempt: 1,
@@ -383,7 +471,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       refundStatus: 'not_required',
     });
 
-    await expect(recoverGenerationAttempts()).resolves.toEqual({
+    await expect(chat.recoverGenerationAttempts()).resolves.toEqual({
       scanned: 0,
       recovered: 0,
       failed: 0,
@@ -399,7 +487,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
     await db.update(messages).set({
       generationLeaseExpiresAt: new Date(Date.now() - 1_000),
     }).where(eq(messages.id, message!.id));
-    await expect(recoverGenerationAttempts()).resolves.toEqual({
+    await expect(chat.recoverGenerationAttempts()).resolves.toEqual({
       scanned: 1,
       recovered: 1,
       failed: 0,
@@ -446,7 +534,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
         outOfScope: false,
         excludedFromContext: false,
       });
-      const consume = await consumePoints(fixture.userId, 3, `consume_${message!.id}_1`);
+      const consume = await walletApi.consumePoints(fixture.userId, 3, `consume_${message!.id}_1`);
       await db.insert(chatGenerationAttempts).values({
         userMessageId: message!.id,
         attempt: 1,
@@ -457,7 +545,7 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
       });
     }
 
-    await recoverGenerationAttempts();
+    await chat.recoverGenerationAttempts();
     const recoveredMessages = await db
       .select()
       .from(messages)
@@ -474,7 +562,8 @@ describeRealPg('chat runtime hardening real PostgreSQL', () => {
 });
 
 afterAll(async () => {
-  if (process.env.DATABASE_URL) {
-    await closeDb();
-  }
+  if (!process.env.DATABASE_URL) return;
+  const { closeDb } = await import('../../../db/index.js');
+  await closeDb();
+  await fixture.closeDb();
 });

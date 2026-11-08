@@ -10,6 +10,12 @@ export interface PromptContext {
   bondExp?: number;
   mode?: 'script' | 'free';
   preferredName?: string;
+  /**
+   * 版本钉住的回合（Batch 2 §5.1/§8）：人设 5 字段来自接受回合时固定的内容版本，
+   * 所以 roleplay agent 模式下也要随请求发送（FastClaw 把请求 system 消息作为 Turn Context
+   * 追加在 agent 角色卡之后，见 roleplay-agent 架构 Spec F4）。
+   */
+  pinnedCharacterPrompts?: boolean;
 }
 
 const PRODUCTION_GUARDRAILS = [
@@ -93,7 +99,8 @@ export function buildSystemPrompt(
   // 角色 Agent 架构（USE_ROLEPLAY_AGENTS=true）：角色静态 prompt 由 FastClaw 角色卡
   // （SOUL/IDENTITY/USER）承担，记忆唯一事实源在 FastClaw，API 每轮只发动态上下文。
   // 关闭开关时保持现状：拼入角色 5 个 prompt 字段 + 记忆 + 回查摘要。
-  if (!config.useRoleplayAgents) {
+  // 版本钉住的回合例外：人设来自接受时固定的内容版本，必须随请求发送。
+  if (!config.useRoleplayAgents || context?.pinnedCharacterPrompts) {
     if (prompts?.[0]?.systemPrompt) {
       parts.push(prompts[0].systemPrompt);
     }
@@ -109,7 +116,10 @@ export function buildSystemPrompt(
     if (prompts?.[0]?.outputFormatPrompt) {
       parts.push(prompts[0].outputFormatPrompt);
     }
+  }
 
+  // 记忆/回查摘要只在关闭开关时拼入（开关内唯一事实源在 FastClaw）。
+  if (!config.useRoleplayAgents) {
     const memoryLines = (context?.memories ?? []).map(
       (m) => `[记忆-${m.type}] ${m.content}`
     );

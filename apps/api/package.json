@@ -14,7 +14,8 @@
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "tsx src/server/seed/index.ts"
+    "seed": "tsx src/server/seed/index.ts",
+    "admin:account": "tsx src/server/admin-cli.ts"
   },
   "dependencies": {
     "next": "^15.1.0",

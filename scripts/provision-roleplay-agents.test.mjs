@@ -215,6 +215,29 @@ describe('provision-roleplay-agents seed + rendering', () => {
   });
 });
 
+describe('provision-roleplay-agents product-data boundary', () => {
+  it('never writes product character rows, so the §5.3 capture belongs to the product bootstrap', () => {
+    // This script provisions the FastClaw gateway database (agents / agent_files / configs). It
+    // never inserts product `characters` / `character_prompts` rows, so there is nothing here for
+    // `captureExistingCharacterContent` to capture: the product writer is `seed()`, which calls the
+    // unit inside its own transaction (migrate → seed leaves no character without a published
+    // version). If a future change starts writing product character rows here, this test fails and
+    // the capture has to be called from the same transaction.
+    const source = fs.readFileSync(scriptPath, 'utf8');
+    assert.doesNotMatch(
+      source,
+      /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"?(?:characters|character_prompts|content_versions)"?/i,
+    );
+    assert.doesNotMatch(source, /captureExistingCharacterContent/);
+
+    const seedSource = fs.readFileSync(
+      path.join(repoRoot, 'apps/api/src/server/seed/index.ts'),
+      'utf8',
+    );
+    assert.match(seedSource, /captureExistingCharacterContent\(tx\)/);
+  });
+});
+
 describe('provision-roleplay-agents plan + merge', () => {
   it('plans creation for an empty FastClaw DB', () => {
     const characters = loadSeedCharacters();

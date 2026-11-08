@@ -1,9 +1,11 @@
+import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
+import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
-import { corsPreflightResponse } from '@/server/middleware/cors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
+import { adminPreflightResponse as corsPreflightResponse } from '@/server/modules/admin/security.js';
 import { updateQuotaPackage } from '@/server/modules/admin/index.js';
-import { formatZodIssues, jsonError, readJsonBody, ValidationError } from '@/server/http/errors.js';
+import { formatZodIssues, readJsonBody, ValidationError } from '@/server/http/errors.js';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(64).optional(),
@@ -36,7 +38,7 @@ export async function PATCH(
     }
 
     const result = await updateQuotaPackage(id, parsed.data, {
-      actorUserId: admin.auth.userId,
+      actor: { kind: 'admin_account', adminAccountId: admin.auth.adminAccountId },
       requestId: request.headers.get('x-request-id') ?? undefined,
     });
     return successResponse(result);

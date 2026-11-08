@@ -22,7 +22,9 @@ export async function listCharacters() {
       eq(characters.status, 'active'),
       or(isNull(characters.scriptId), eq(scripts.status, 'active')),
     ))
-    .orderBy(characters.sortOrder);
+    // §4.2 排序: managed sortOrder plus a stable tiebreaker for equal values (never left to the
+    // storage order), matching the admin listing.
+    .orderBy(characters.sortOrder, characters.name, characters.id);
 }
 
 export interface GetCharacterByIdOptions {

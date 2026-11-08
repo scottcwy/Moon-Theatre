@@ -1,6 +1,7 @@
+import { adminSuccessResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, errorResponse } from '@/server/middleware/auth.js';
-import { corsPreflightResponse } from '@/server/middleware/cors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
+import { adminPreflightResponse as corsPreflightResponse } from '@/server/modules/admin/security.js';
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
@@ -14,5 +15,5 @@ export async function PATCH(
     return admin.response;
   }
 
-  return errorResponse('Memory administration is retired; memories are immutable from admin APIs', 410);
+  return adminSuccessResponse({ error: 'Memory administration is retired; memories are immutable from admin APIs' }, 410);
 }

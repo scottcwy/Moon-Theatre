@@ -56,6 +56,15 @@ describe('chat message rendering helpers', () => {
     expect(getFriendlyStreamErrorMessage('input_blocked')).toBe('这条内容无法发送，请换一种表达后再试。');
     expect(getFriendlyStreamErrorMessage('output_filtered')).toBe('这次回复未通过安全检查，请换个问题再试。');
     expect(getFriendlyStreamErrorMessage('stream_stalled')).toBe('回复被中断，已为你保留以上内容');
+    // 服务端受理回合时拒绝的三个 409 错误码：中文可读，且三个文案互不相同。
+    expect(getFriendlyStreamErrorMessage('character_version_unavailable')).toBe('该角色暂时无法聊天，请稍后再试。');
+    expect(getFriendlyStreamErrorMessage('character_content_incomplete')).toBe('该角色内容正在完善，暂时无法聊天，请稍后再试。');
+    expect(getFriendlyStreamErrorMessage('model_profile_unavailable')).toBe('当前模型配置暂停使用，请稍后再试。');
+    expect(new Set([
+      getFriendlyStreamErrorMessage('character_version_unavailable'),
+      getFriendlyStreamErrorMessage('character_content_incomplete'),
+      getFriendlyStreamErrorMessage('model_profile_unavailable'),
+    ]).size).toBe(3);
   });
 
   it('never returns raw unknown English stream messages', () => {

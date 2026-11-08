@@ -20,6 +20,8 @@ const txValuesMock = vi.fn();
 const txReturningMock = vi.fn();
 const txSetMock = vi.fn();
 const txWhereMock = vi.fn();
+const pinAcceptedTurnMock = vi.fn();
+const loadPinnedTurnMock = vi.fn();
 
 vi.mock('../../../db/index.js', () => ({
   db: {
@@ -102,6 +104,18 @@ vi.mock('../../../db/schema', () => ({
   },
 }));
 
+vi.mock('../turn-snapshot.js', () => ({
+  pinAcceptedTurn: pinAcceptedTurnMock,
+  loadPinnedTurn: loadPinnedTurnMock,
+  // 版本钉住的真实行为由 turn-snapshot.integration.test.ts（真实 PG）覆盖；此处只验证服务编排。
+  TurnPinError: class TurnPinError extends Error {
+    constructor(readonly code: string, readonly reason: string, readonly issues: unknown[] = []) {
+      super(`${code}: ${reason}`);
+      this.name = 'TurnPinError';
+    }
+  },
+}));
+
 vi.mock('../../../config/index.js', () => ({
   config: {
     fastclawTimeoutMs: 30_000,
@@ -140,6 +154,37 @@ function createdSessionRow(overrides: Record<string, unknown> = {}) {
     id: 'session-1',
     mode: 'script',
     scriptId: 'script-1',
+    ...overrides,
+  };
+}
+
+function pinnedTurn(overrides: Record<string, unknown> = {}) {
+  return {
+    snapshotId: 'snapshot-1',
+    userMessageId: 'msg-u',
+    clientMessageId: 'cm-1',
+    contentVersionId: 'content-version-1',
+    contentVersionNo: 1,
+    character: {
+      id: 'char-1',
+      name: 'pinned character',
+      avatarUrl: '/pinned.png',
+      identity: 'pinned',
+      description: 'pinned',
+      scriptId: 'script-1',
+      initialRelationship: 'none',
+      agentId: 'role-baizang',
+      status: 'active',
+      prompts: null,
+    },
+    script: null,
+    model: {
+      modelProfileVersionId: 'model-version-1',
+      modelTier: 'casual',
+      provider: 'siliconflow',
+      modelName: 'pinned-model',
+      pointsPerCall: 1,
+    },
     ...overrides,
   };
 }
@@ -584,8 +629,15 @@ describe('resolveClientTurn', () => {
     selectLimitMock.mockResolvedValue([]);
 
     insertMock.mockReturnValue({ values: valuesMock });
-    valuesMock.mockReturnValue({ returning: insertReturningMock });
+    valuesMock.mockReturnValue({
+      returning: insertReturningMock,
+      // `findOrCreateSession` inserts conflict-tolerantly (step B follow-up): a lost session race
+      // returns no row from RETURNING and then re-reads the winner.
+      onConflictDoNothing: () => ({ returning: insertReturningMock }),
+    });
     insertReturningMock.mockResolvedValue([{ id: 'msg-default', generationAttempt: 1 }]);
+    pinAcceptedTurnMock.mockResolvedValue(pinnedTurn());
+    loadPinnedTurnMock.mockResolvedValue(pinnedTurn());
 
     updateMock.mockReturnValue({ set: setMock });
     setMock.mockReturnValue({ where: updateWhereMock });
@@ -669,12 +721,12 @@ describe('resolveClientTurn', () => {
   });
 
   it('converges a first-turn session unique race instead of throwing', async () => {
-    orderByMock.mockResolvedValueOnce([]);
+    orderByMock.mockResolvedValueOnce([]); // findTurnByClientMessageId → no existing turn
     selectLimitMock
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([sessionRow()]);
+      .mockResolvedValueOnce([]) // findOrCreateSession → no active session yet
+      .mockResolvedValueOnce([sessionRow()]); // ON CONFLICT DO NOTHING: the other accept won
     insertReturningMock
-      .mockRejectedValueOnce(pgUniqueError('chat_sessions_active_script_unique'))
+      .mockResolvedValueOnce([]) // session insert skipped → re-read the winner
       .mockResolvedValueOnce([{ id: 'msg-created', generationAttempt: 1 }]);
 
     const { resolveClientTurn } = await import('../service.js');
@@ -685,6 +737,8 @@ describe('resolveClientTurn', () => {
       expect(result.sessionId).toBe('session-1');
       expect(result.userMessageId).toBe('msg-created');
     }
+    // The accept joined the winning session and still pinned its own turn.
+    expect(pinAcceptedTurnMock).toHaveBeenCalledTimes(1);
   });
 
   it('unique constraint (23505) on insert -> re-read with assistant -> replay', async () => {
@@ -1049,6 +1103,50 @@ describe('resolveClientTurn', () => {
       scriptId: 'script-2',
     }));
   });
+
+  // ── 版本钉住编排（真实事务行为见 turn-snapshot.integration.test.ts） ──
+
+  it('pins the accepted turn through the accept transaction and returns the pin', async () => {
+    selectLimitMock.mockResolvedValueOnce([sessionRow()]);
+    insertReturningMock.mockResolvedValueOnce([{ id: 'msg-created', generationAttempt: 1 }]);
+
+    const { resolveClientTurn } = await import('../service.js');
+    const result = await resolveClientTurn(baseInput);
+
+    expect(pinAcceptedTurnMock).toHaveBeenCalledTimes(1);
+    expect(pinAcceptedTurnMock).toHaveBeenCalledWith(expect.anything(), {
+      userMessageId: 'msg-created',
+      clientMessageId: 'cm-1',
+      characterId: 'char-1',
+      modelTier: 'casual',
+    });
+    expect(result.status).toBe('created');
+    if (result.status !== 'created') throw new Error('expected created');
+    expect(result.pinned.contentVersionId).toBe('content-version-1');
+  });
+
+  it('reuses the stored pin on retry and refuses a turn accepted without one', async () => {
+    orderByMock.mockResolvedValue([
+      userRow({ generationStatus: 'failed', generationLeaseExpiresAt: null, generationAttempt: 2 }),
+    ]);
+    returningMock.mockResolvedValueOnce([{ id: 'msg-u', generationAttempt: 3 }]);
+
+    const { resolveClientTurn, TurnPinError } = await import('../service.js');
+    const retried = await resolveClientTurn(baseInput);
+
+    expect(retried.status).toBe('acquired_existing');
+    if (retried.status !== 'acquired_existing') throw new Error('expected acquired_existing');
+    expect(retried.pinned.contentVersionId).toBe('content-version-1');
+    expect(pinAcceptedTurnMock).not.toHaveBeenCalled();
+
+    loadPinnedTurnMock.mockResolvedValueOnce(null);
+    orderByMock.mockResolvedValue([
+      userRow({ generationStatus: 'failed', generationLeaseExpiresAt: null, generationAttempt: 3 }),
+    ]);
+    returningMock.mockResolvedValueOnce([{ id: 'msg-u', generationAttempt: 4 }]);
+
+    await expect(resolveClientTurn(baseInput)).rejects.toBeInstanceOf(TurnPinError);
+  });
 });
 
 describe('findOrCreateSession boundary validation', () => {
@@ -1060,7 +1158,10 @@ describe('findOrCreateSession boundary validation', () => {
     selectWhereMock.mockReturnValue({ limit: selectLimitMock });
     selectLimitMock.mockResolvedValue([]);
     insertMock.mockReturnValue({ values: valuesMock });
-    valuesMock.mockReturnValue({ returning: insertReturningMock });
+    valuesMock.mockReturnValue({
+      returning: insertReturningMock,
+      onConflictDoNothing: () => ({ returning: insertReturningMock }),
+    });
     insertReturningMock.mockResolvedValue([{ id: 'session-new', mode: 'script', scriptId: 'script-1' }]);
   });
 

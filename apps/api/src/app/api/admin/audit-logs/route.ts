@@ -1,7 +1,8 @@
+import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
+import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
 import { listAdminAuditLogs } from '@/server/modules/admin/index.js';
-import { jsonError } from '@/server/http/errors.js';
 
 export async function GET(request: NextRequest) {
   const admin = await verifyAdminAuth(request);

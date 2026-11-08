@@ -27,6 +27,12 @@ export interface ScriptDraft {
   sortOrder?: number;
 }
 
+/** Server-derived snapshot of the bound script at publish time; clients never supply it. */
+export interface ScriptSnapshot {
+  title: string;
+  worldSetting: string;
+}
+
 export interface CharacterDraft {
   name: string;
   avatarUrl: string;
@@ -37,6 +43,10 @@ export interface CharacterDraft {
   agentId: string;
   starterQuestions: StarterQuestionsDraft;
   prompt: PromptDraft;
+  /** Managed display order (§4.2 排序); omission keeps the current value. */
+  sortOrder?: number;
+  /** Written only by the publish path from the live `scripts` row (§5.1 script snapshot). */
+  scriptSnapshot?: ScriptSnapshot | null;
 }
 
 export interface ValidationIssue {
@@ -135,6 +145,29 @@ export function validateCharacterDraft(input: unknown): CharacterDraft {
       outputFormatPrompt: text(rawPrompt.outputFormatPrompt, 'prompt.outputFormatPrompt', issues),
     },
   };
+  if (value.sortOrder !== undefined && value.sortOrder !== null) {
+    if (typeof value.sortOrder !== 'number' || !Number.isInteger(value.sortOrder)) {
+      issues.push({ path: 'sortOrder', message: 'must be an integer' });
+    } else if (value.sortOrder < 0 || value.sortOrder > 100000) {
+      issues.push({ path: 'sortOrder', message: 'must be between 0 and 100000' });
+    } else {
+      result.sortOrder = value.sortOrder;
+    }
+  }
+  if (value.scriptSnapshot !== undefined && value.scriptSnapshot !== null) {
+    const snapshot = (typeof value.scriptSnapshot === 'object' && !Array.isArray(value.scriptSnapshot)
+      ? value.scriptSnapshot : null) as Record<string, unknown> | null;
+    if (!snapshot) {
+      issues.push({ path: 'scriptSnapshot', message: 'must be an object' });
+    } else {
+      // Server-derived capture: legacy script rows may carry empty text, so emptiness is not a
+      // validation failure here (the client cannot supply this field at all).
+      result.scriptSnapshot = {
+        title: text(snapshot.title, 'scriptSnapshot.title', issues, false),
+        worldSetting: text(snapshot.worldSetting, 'scriptSnapshot.worldSetting', issues, false),
+      };
+    }
+  }
   if (result.agentId && !AGENT_ID.test(result.agentId)) issues.push({ path: 'agentId', message: 'must be a stable role-* routing id' });
   if (!scriptId && result.starterQuestions.script.length > 0) {
     issues.push({ path: 'starterQuestions.script', message: 'script questions require a scriptId' });

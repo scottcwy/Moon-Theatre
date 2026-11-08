@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "db:migrate": "drizzle-kit migrate",
-    "seed": "tsx src/server/seed/index.ts"
+    "seed": "tsx src/server/seed/index.ts",
+    "admin:account": "tsx src/server/admin-cli.ts"
   },
   "dependencies": {
     "@juben-sha/shared": "workspace:*",

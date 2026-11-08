@@ -289,6 +289,28 @@ describe('buildSystemPrompt', () => {
     vi.unstubAllEnvs();
   });
 
+  it('USE_ROLEPLAY_AGENTS=true still sends the pinned version persona (Batch 2 §5.1)', async () => {
+    vi.resetModules();
+    vi.stubEnv('USE_ROLEPLAY_AGENTS', 'true');
+    const { buildSystemPrompt: roleplayBuildSystemPrompt } = await import('../prompt-builder.js');
+    const prompt = roleplayBuildSystemPrompt(makeCharacter(), makeScript(), {
+      mode: 'script',
+      pinnedCharacterPrompts: true,
+      memories: [{ type: 'user_info', content: '用户喜欢猫。' }],
+      userRecap: ['用户最近提到「我喜欢草莓」'],
+    });
+
+    // 版本钉住的人设随请求发送（FastClaw 作为 Turn Context 附加在角色卡之后）；
+    // 记忆/回查摘要仍不进入（唯一事实源在 FastClaw）。
+    expect(prompt).toContain('You are a helpful assistant.');
+    expect(prompt).toContain('You are in a coffee shop.');
+    expect(prompt).toContain('Keep conversations appropriate.');
+    expect(prompt).toContain('剧本：Test Script');
+    expect(prompt).not.toContain('已知信息：');
+    expect(prompt).not.toContain('用户最近提到');
+    vi.unstubAllEnvs();
+  });
+
   it('free mode renders whatever memories are passed (caller responsibility to filter)', () => {
     const character = makeCharacter();
     const prompt = buildSystemPrompt(character, null, {

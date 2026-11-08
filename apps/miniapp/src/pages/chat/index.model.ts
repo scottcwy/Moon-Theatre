@@ -30,6 +30,10 @@ const STREAM_CLIENT_ID_COLLISION_MESSAGE = '这次发送状态发生冲突，请
 const STREAM_INPUT_BLOCKED_MESSAGE = '这条内容无法发送，请换一种表达后再试。';
 const STREAM_OUTPUT_FILTERED_MESSAGE = '这次回复未通过安全检查，请换个问题再试。';
 const STREAM_STALLED_MESSAGE = '回复被中断，已为你保留以上内容';
+// 后台发布版本缺失/内容未补全或模型档位不可用：服务端在受理回合时拒绝，错误码保持独立。
+const STREAM_CHARACTER_UNAVAILABLE_MESSAGE = '该角色暂时无法聊天，请稍后再试。';
+const STREAM_CHARACTER_INCOMPLETE_MESSAGE = '该角色内容正在完善，暂时无法聊天，请稍后再试。';
+const STREAM_MODEL_UNAVAILABLE_MESSAGE = '当前模型配置暂停使用，请稍后再试。';
 
 /**
  * 打开会话时应标记已读的角色：有 session 历史时以历史所属角色为准（列表/详情等
@@ -63,6 +67,9 @@ export function getFriendlyStreamErrorMessage(message: string): string {
   if (normalized === 'input_blocked') return STREAM_INPUT_BLOCKED_MESSAGE;
   if (normalized === 'output_filtered') return STREAM_OUTPUT_FILTERED_MESSAGE;
   if (normalized === 'stream_stalled') return STREAM_STALLED_MESSAGE;
+  if (normalized === 'character_version_unavailable') return STREAM_CHARACTER_UNAVAILABLE_MESSAGE;
+  if (normalized === 'character_content_incomplete') return STREAM_CHARACTER_INCOMPLETE_MESSAGE;
+  if (normalized === 'model_profile_unavailable') return STREAM_MODEL_UNAVAILABLE_MESSAGE;
   if (
     normalized === 'upstream_error' ||
     normalized === 'generation_failed' ||

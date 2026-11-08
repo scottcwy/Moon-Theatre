@@ -1,9 +1,11 @@
+import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
+import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
-import { corsPreflightResponse } from '@/server/middleware/cors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
+import { adminPreflightResponse as corsPreflightResponse } from '@/server/modules/admin/security.js';
 import { listBlockedKeywords, createBlockedKeyword } from '@/server/modules/admin/index.js';
-import { formatZodIssues, jsonError, readJsonBody, ValidationError } from '@/server/http/errors.js';
+import { formatZodIssues, readJsonBody, ValidationError } from '@/server/http/errors.js';
 
 const createSchema = z.object({
   keyword: z.string().min(1).max(128),

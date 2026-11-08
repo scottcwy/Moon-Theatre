@@ -37,6 +37,15 @@
           "type": "package-script",
           "key": "test:deploy-config"
         }
+      },
+      {
+        "category": "test",
+        "command": "pnpm run test:web-admin",
+        "owner": {
+          "path": "package.json",
+          "type": "package-script",
+          "key": "test:web-admin"
+        }
       }
     ],
     "skippedSurfaces": [

@@ -1,9 +1,11 @@
+import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
+import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
-import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
-import { corsPreflightResponse } from '@/server/middleware/cors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
+import { adminPreflightResponse as corsPreflightResponse } from '@/server/modules/admin/security.js';
 import { listMessages, recordAdminAudit } from '@/server/modules/admin/index.js';
 import { listMessagesQuerySchema, parseAdminQuery } from '@/server/modules/admin/query.js';
-import { HttpError, jsonError } from '@/server/http/errors.js';
+import { HttpError } from '@/server/http/errors.js';
 
 export async function OPTIONS(request: NextRequest) {
   return corsPreflightResponse(request);
@@ -20,7 +22,7 @@ export async function GET(request: NextRequest) {
     const result = await listMessages(query);
     try {
       await recordAdminAudit({
-        actorUserId: admin.auth.userId,
+        actor: { kind: 'admin_account', adminAccountId: admin.auth.adminAccountId },
         action: 'admin.messages.read',
         objectType: 'chat_session',
         objectId: query.sessionId,

@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it, vi } from 'vitest';
+import { ownedTestTarget } from '../../../db/__tests__/disposable-postgres.js';
+import { derivedChatDatabase, ensurePublishedModelProfile, publishFixtureCharacterVersion } from './chat-db-fixtures.js';
 
 const describeRealPg = describe.skipIf(!process.env.DATABASE_URL);
 
@@ -29,6 +31,8 @@ function sseResponse(chunks: Array<{ content: string; delayMs: number }>): Respo
 
 describeRealPg('chat disconnect accounting real PostgreSQL', () => {
   it('keeps a committed charge and one success usage after the client cancels', async () => {
+    ownedTestTarget(); // fail closed before creating the derived database
+    const derived = await derivedChatDatabase();
     vi.stubEnv('FASTCLAW_BASE_URL', 'http://fastclaw.test');
     vi.stubEnv('FASTCLAW_API_KEY', 'test-key');
     vi.stubEnv('FASTCLAW_AGENT_ID', 'legacy-agent');
@@ -46,9 +50,11 @@ describeRealPg('chat disconnect accounting real PostgreSQL', () => {
       characters,
       chatEffectRuns,
       chatSessions,
+      contentVersions,
       memories,
       messages,
       modelProfiles,
+      modelProfileVersions,
       modelUsageLogs,
       relationshipBondExpEvents,
       relationships,
@@ -64,7 +70,7 @@ describeRealPg('chat disconnect accounting real PostgreSQL', () => {
     const userId = randomUUID();
     const scriptId = randomUUID();
     const characterId = randomUUID();
-    let createdProfileId: string | null = null;
+    const model = await ensurePublishedModelProfile(db as never, 'standard');
     try {
       await db.insert(users).values({ id: userId, openid: `cancel-${randomUUID()}` });
       await db.insert(scripts).values({
@@ -93,22 +99,11 @@ describeRealPg('chat disconnect accounting real PostgreSQL', () => {
         safetyPrompt: '保持安全。',
         outputFormatPrompt: '纯文本。',
       });
-      let [profile] = await db
-        .select()
-        .from(modelProfiles)
-        .where(eq(modelProfiles.tier, 'standard'))
-        .limit(1);
-      if (!profile) {
-        [profile] = await db.insert(modelProfiles).values({
-          tier: 'standard',
-          modelName: 'deepseek-ai/DeepSeek-V4-Flash',
-          provider: 'siliconflow',
-          enabled: true,
-          pointsPerCall: 3,
-          displayName: '标准',
-        }).returning();
-        createdProfileId = profile!.id;
-      }
+      await publishFixtureCharacterVersion(db as never, {
+        characterId,
+        scriptId,
+        scriptSnapshot: { title: 'cancel fixture', worldSetting: 'integration' },
+      });
       await db.insert(walletAccounts).values({ userId, balancePoints: 100 });
 
       const clientMessageId = `cancel-${randomUUID()}`;
@@ -187,15 +182,20 @@ describeRealPg('chat disconnect accounting real PostgreSQL', () => {
         await db.delete(chatSessions).where(eq(chatSessions.id, session.id));
       }
       await db.delete(characterPrompts).where(eq(characterPrompts.characterId, characterId));
+      await db.update(characters).set({ publishedVersionId: null }).where(eq(characters.id, characterId));
+      await db.delete(contentVersions).where(and(
+        eq(contentVersions.entityType, 'character'),
+        eq(contentVersions.entityId, characterId),
+      ));
       await db.delete(characters).where(eq(characters.id, characterId));
       await db.delete(scripts).where(eq(scripts.id, scriptId));
       await db.delete(walletTransactions).where(eq(walletTransactions.userId, userId));
       await db.delete(walletAccounts).where(eq(walletAccounts.userId, userId));
       await db.delete(users).where(eq(users.id, userId));
-      if (createdProfileId) {
-        await db.delete(modelProfiles).where(eq(modelProfiles.id, createdProfileId));
-      }
+      await db.delete(modelProfileVersions).where(eq(modelProfileVersions.profileId, model.profileId));
+      await db.delete(modelProfiles).where(eq(modelProfiles.id, model.profileId));
       await closeDb();
+      await derived.closeDb();
       vi.unstubAllEnvs();
       vi.unstubAllGlobals();
     }

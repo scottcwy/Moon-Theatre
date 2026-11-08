@@ -1,10 +1,12 @@
+import { adminJsonError as jsonError } from '@/server/modules/admin/security.js';
+import { adminSuccessResponse as successResponse } from '@/server/modules/admin/security.js';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { adjustWalletPoints, WalletAdjustmentConflictError } from '@/server/modules/wallet/index.js';
 import { finalizeAdminAudit } from '@/server/modules/admin/index.js';
-import { verifyAdminAuth, successResponse } from '@/server/middleware/auth.js';
-import { corsPreflightResponse } from '@/server/middleware/cors.js';
-import { formatZodIssues, jsonError, readJsonBody, ValidationError } from '@/server/http/errors.js';
+import { verifyAdminAuth } from '@/server/middleware/auth.js';
+import { adminPreflightResponse as corsPreflightResponse } from '@/server/modules/admin/security.js';
+import { formatZodIssues, readJsonBody, ValidationError } from '@/server/http/errors.js';
 
 const adjustmentSchema = z.object({
   userId: z.string().trim().min(1).max(128),
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       parsed.data.delta,
       parsed.data.idempotencyKey,
       parsed.data.reason,
-      admin.auth.userId,
+      { kind: 'admin_account', adminAccountId: admin.auth.adminAccountId },
       {
         dedupeKey,
         requestId: request.headers.get('x-request-id') ?? undefined,
@@ -40,24 +42,18 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
     try {
       await finalizeAdminAudit(dedupeKey);
-    } catch (error) {
-      console.error({
-        event: 'admin_audit_pending',
-        action: 'admin.wallet.adjust',
-        dedupeKey,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return Response.json({
+    } catch {
+      return successResponse({
         error: 'admin_audit_pending',
         dedupeKey,
         transactionId: result.transactionId,
         balanceAfter: result.balanceAfter,
-      }, { status: 503 });
+      }, 503);
     }
     return successResponse(result, result.alreadyAdjusted ? 200 : 201);
   } catch (error) {
     if (error instanceof WalletAdjustmentConflictError) {
-      return Response.json({ error: error.message, code: error.code }, { status: 409 });
+      return successResponse({ error: error.message, code: error.code }, 409);
     }
     return jsonError(error);
   }

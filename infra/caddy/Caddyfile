@@ -17,5 +17,7 @@
         X-Frame-Options "DENY"
         -Server
     }
-    reverse_proxy api:3000
+    reverse_proxy api:3000 {
+        header_up X-Admin-Client-IP {remote_host}
+    }
 }
