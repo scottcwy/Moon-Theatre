@@ -127,7 +127,7 @@
 - 读路径（`GetMemory`/`GetWorkspaceFile`）实现回退链：**chatter 行 → owner 行（模板）**；绝不引入 `user_id=''` 行（`migrateAgentFilesDropTemplate` 已清退，禁止回写）；
 - `MemoryStoreAdapter` 构造增加 ownerID：`NewMemoryStoreAdapter(st, ownerID)`（唯一构造点在 `internal/gateway/userspace.go` L428，传入该 UserSpace 的 owner uid）；`GetMemory`/`GetWorkspaceFile` 先查 chatter 行，`ErrNotFound` 时查 owner 行；
 - 写路径保持 per-user（chatter 行），只写当前用户；
-- 角色卡（SOUL/IDENTITY/USER 模板）由 provisioning 写 **owner 行**（复用 setup system-files API，见 §7）；
+- 角色卡（SOUL/IDENTITY/USER 模板）由 provisioning 与后台角色发布共同写 **owner 行**（复用 setup system-files API，见 §7）；后台发布按已发布版本重新渲染这三个文件，两条路径共用同一渲染器并由字节级 parity 测试防漂移；
 - 效果：角色卡全用户共享，MEMORY.md/USER.md 每用户独立，模板行由 owner 行承担。
 
 ### F4 Roleplay 模式（`internal/agent/context.go` + `loop.go` + `internal/config/config.go`）
@@ -211,6 +211,7 @@
   - `IDENTITY.md` = 身份/名字/关系起点；
   - `USER.md` = 初始为空模板（运行时由 AutoPersist 写入 per-user 称呼/偏好）；
 - 目标：FastClaw `agent_files` **owner 行**（复用 setup server `PUT /api/agents/{id}/system-files/{name}`，或直连 DB 写 owner 行）；**禁止写 `user_id=''` 模板行**（`migrateAgentFilesDropTemplate` 会删除）；
+- 写入方：provisioning **不再是唯一写入方**。Web 后台角色发布在 PG 发布事务提交后，用同一渲染器从刚激活的已发布版本重新渲染 `SOUL.md`/`IDENTITY.md`/`USER.md` 并写回同一 owner 行（派生缓存），回读校验后记录 `agent_context_versions` 与 `agent_current_context` 指针；控制台手改会在下次发布/手动重建时被覆盖，在此之前后台显示为漂移。运行时上下文组装（bootstrap files + 记忆 + 输出守卫）不变；
 - 要求：幂等（重复执行不产生重复/漂移）、可版本化、可 diff、可回滚（先备份 FastClaw volume）；不用 FastClaw UI。
 
 ## 8. 配置契约

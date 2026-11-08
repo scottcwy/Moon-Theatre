@@ -26,12 +26,13 @@ rtk cp .env.example .env
 - `DATABASE_URL`: API 使用的数据库连接串，密码必须和 `POSTGRES_PASSWORD` 一致。
 - `JWT_SECRET`: 至少 32 字符的随机字符串；生产启动会拒绝默认值、缺失值和短值。
 - `WECHAT_APP_ID`, `WECHAT_APP_SECRET`: 小程序登录使用。
-- `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。`FASTCLAW_AGENT_ID` 必须指向专用业务聊天 Agent，且 `FASTCLAW_API_KEY` 必须有访问该 Agent 的权限。对话生成仅支持 DeepSeek agent（`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`）；Qwen agent 已停用，不配置降级（Spec 5）。该 Agent 的 `thinking` 必须为 `"off"`（模型级思考关闭，`2026-08-12-fastclaw-disable-model-thinking` Spec），缺失或非 off 时 `/api/ready` 不通过。
+- `FASTCLAW_API_KEY`, `FASTCLAW_AGENT_ID`: API 调 FastClaw 使用。`FASTCLAW_AGENT_ID` 必须指向专用业务聊天 Agent，且 `FASTCLAW_API_KEY` 必须有访问该 Agent 的权限。后台发布还会用同一个 key 读写角色 Agent 的 SOUL/IDENTITY/USER（setup `system-files`，按认证用户作用域），因此该 key 必须解析到每个角色 Agent 的 `agents.user_id`——这是部署要求，服务端无法检测；key 指向其他用户时写入/回读会落在运行时不会读取的行上，界面只表现为「校验失败」。对话生成仅支持 DeepSeek agent（`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`）；Qwen agent 已停用，不配置降级（Spec 5）。该 Agent 的 `thinking` 必须为 `"off"`（模型级思考关闭，`2026-08-12-fastclaw-disable-model-thinking` Spec），缺失或非 off 时 `/api/ready` 不通过。
 - `FASTCLAW_TIMEOUT_MS`: API 调 FastClaw 的超时，默认 `120000`。
 - `FASTCLAW_FALLBACK_ENABLED`: 必须保持 `false`（Spec 5：Qwen 停用，不配置降级）；生产启动拒绝 `true`。
 - `FASTCLAW_LOG_LEVEL`: FastClaw 日志级别，取值 `debug` / `info` / `warn` / `error`，默认 `info`（未设置或未知值回退 `info`）。
 - `CHAT_EFFECTS_ASYNC_ENABLED`: 聊天 effects 异步开关，默认 `false`。设为 `true` 后，记忆、羁绊、成就/称号后台执行，聊天 `done` 只同步保证核心字段。
 - `PAYMENT_PROVIDER` 和支付服务商参数。生产只接受 `aggregate`；`mock` 和未知 provider 启动失败。
+- `MEDIA_ROOT`: 本地素材根目录。容器内显式设为 `/app/data/media` 并挂载命名卷 `media_data`（`docker-compose.yml` 已配置，`pnpm run test:deploy-config` 会在挂载、卷声明或显式取值缺失/不一致时失败）；本地开发默认 `./data/media`。素材 URL 是 `${ADMIN_ORIGIN}/api/media/<id>` 的绝对地址，因此该 origin 必须与小程序可访问的生产域名一致。
 - `ADMIN_ORIGIN`: 管理后台同源基准，生产必须显式设置为 `https://api.yuemanlou.xyz`（规范 origin，不带路径/尾斜杠/凭据）；开发默认 `http://localhost:3000`。旧的 `ADMIN_USER_IDS`、`ADMIN_BASIC_AUTH_USER`、`ADMIN_BASIC_AUTH_PASSWORD` 已移除，Basic Auth 不再作为后台门禁，也不能单独建立管理员身份。
 - `TEST_USER_INITIAL_POINTS`: 生产必须为 `0`；非零值启动失败。
 
@@ -79,7 +80,9 @@ rtk docker compose up -d api caddy
 
 `api-migrate` 和 `api-seed` 使用 `API_TOOLS_IMAGE`，避免服务器为迁移/种子任务拉 Docker Hub 基础镜像或现场构建。
 
-普通升级不得再次运行 `api-seed`。seed 现在会在已有剧本、角色、内容版本或发布任务时拒绝执行，也不会覆盖运营改过的价格、套餐状态、prompt 或用户数据。现有环境只运行 `api-migrate`，内容变更走管理后台。`0014`/`0015` 迁移除了加列/索引，还会做一次服务端存量纳管：把每个无发布指针的在架角色捕获为首个已发布内容版本，并为从未有过版本行的模型档位捕获一个已发布版本。该过程可重跑（已有指针/已有版本行的对象不会被触碰），不写人工作者，不改角色展示行与 agent 标识；不需要手工补 SQL。
+普通升级不得再次运行 `api-seed`。seed 现在会在已有剧本、角色、内容版本或发布任务时拒绝执行，也不会覆盖运营改过的价格、套餐状态、prompt 或用户数据。现有环境只运行 `api-migrate`，内容变更走管理后台。`0014`/`0015` 迁移除了加列/索引，还会做一次服务端存量纳管：把每个无发布指针的在架角色捕获为首个已发布内容版本，并为从未有过版本行的模型档位捕获一个已发布版本。该过程可重跑（已有指针/已有版本行的对象不会被触碰），不写人工作者，不改角色展示行与 agent 标识；不需要手工补 SQL。`0016` 只新增 `agent_context_versions` 与 `chat_turn_snapshots.agent_context_version_id`，`0017` 新增 `agent_current_context` 当前指针并为既有 Agent 回填一行，`0018` 新增 `media_assets`；三者都是 additive、可重跑，不需要手工补 SQL，也不会改写既有内容行。
+
+角色发布会在发布事务提交后额外做一次基础上下文同步：读/写 FastClaw 的 SOUL/IDENTITY/USER（首次 3 个 GET、至多 3 个 PUT、回读 3 个 GET，每个请求 5 秒上限），成功才记录新的派生版本；FastClaw 不可用或拒绝写入时发布仍然成功，响应里的 `baseContext.status` 为 `pending`/`failed`，保留上一个可用记录，可在后台角色编辑页用「记录基础上下文」手动重建。素材目录必须与数据库一起备份（见第 8 节）。
 
 ### 3.1 首个管理员初始化与恢复
 
@@ -145,7 +148,7 @@ rtk docker compose pull api api-migrate api-seed fastclaw
 rtk docker compose up -d api fastclaw caddy
 ```
 
-3. 数据库迁移不做自动回滚。涉及破坏性迁移前必须先备份 Postgres（见第 8 节）。`0013` 只新增表/列并放宽旧非空，不需要回滚迁移；旧管理会话已撤销，回退代码也不能让它们复活。`0014`/`0015` 同样是 additive（新增指针/索引/放宽创建者约束 + 存量纳管），回滚代码后新增列与纳管版本行保留即可，不要回滚迁移或删除已发布版本。
+3. 数据库迁移不做自动回滚。涉及破坏性迁移前必须先备份 Postgres（见第 8 节）。`0013` 只新增表/列并放宽旧非空，不需要回滚迁移；旧管理会话已撤销，回退代码也不能让它们复活。`0014`/`0015` 同样是 additive（新增指针/索引/放宽创建者约束 + 存量纳管），回滚代码后新增列与纳管版本行保留即可，不要回滚迁移或删除已发布版本。`0016`/`0017`/`0018` 同样是 additive（基础上下文版本表/当前指针/素材元数据表），回滚代码后保留表与已记录的基础上下文版本、`media_assets` 行即可；不要删除素材卷 `media_data`，否则已发布头像/封面会变成永久 404（恢复需要重新上传并重新发布）。
 4. 回滚后重新执行健康检查和小程序关键链路联调。
 
 若问题出在独立管理员身份边界本身，先关闭或拒绝管理路径与管理写入（`/admin/**`、`/api/admin/**`），再回退兼容代码；不得用重新启用 Basic Auth、`ADMIN_USER_IDS` 白名单、旧 `admin_session` cookie 或旧用户 JWT 作为回退手段，也不要整库还原覆盖上线后的用户聊天、订单、支付和审计。旧管理会话已不可恢复，需通过 `admin:account recover` 重新获得首个账号访问权。资金问题只能走可追溯补偿流水，不能删除或改写原流水。
@@ -159,6 +162,8 @@ rtk docker compose up -d api fastclaw caddy
 业务聊天 Agent 需要按 V1 速度目标配置：`model = siliconflow/deepseek-ai/DeepSeek-V4-Flash`、`maxTokens <= 768`、`maxToolIterations = 0`、`thinking = "off"`（模型级思考关闭，向 SiliconFlow 下发 `enable_thinking: false`，降低 TTFT/整轮延迟）。对话生成仅支持 DeepSeek agent：Qwen agent 必须停用/删除，`FASTCLAW_FALLBACK_ENABLED` 保持 `false`（不配置降级）。API 侧 `FASTCLAW_TIMEOUT_MS` 默认 120 秒，业务 prompt 默认约束回复 80-180 个中文字符，必要时最多 300 个中文字符。`/api/ready` 会通过 FastClaw `GET /v1/agents/{FASTCLAW_AGENT_ID}/runtime-spec` 验证这些运行参数；超过 `maxTokens=768`、启用任何工具迭代或 `thinking` 不等于 `"off"`（缺失/非 off）都不能通过 readiness。若开启 `CHAT_EFFECTS_ASYNC_ENABLED=true`，出现异常时可直接改回 `false` 回到同步 effects 路径。
 
 **CORS 允许头清单**：FastClaw `handleCORS`（`fastclaw/internal/api/server.go`）允许 `Authorization, Content-Type, x-fastclaw-agent-id, x-fastclaw-session-key, x-fastclaw-user-id, x-fastclaw-scope, x-fastclaw-message-id, x-fastclaw-no-persist`（2026-08-14 fastclaw-roleplay-agent-architecture Spec F1 头契约；新增请求头随 apps/api 切换同步生效）。
+
+**角色卡与后台发布（方案 W）**：PG 已发布版本是唯一人设真源，但 FastClaw 的运行时上下文组装保持不变（SOUL/IDENTITY/USER + 记忆 + 输出守卫）。后台角色发布成功后，API 用与 `scripts/provision-roleplay-agents.mjs` 同一渲染器生成三个文件并写回 FastClaw owner 行（派生缓存），回读校验后记录 `agent_context_versions` 并移动 `agent_current_context` 指针；`provisioning` 不再是这三个文件的唯一写入方，两条路径由字节级 parity 测试保证不漂移。控制台手改会在下次发布/手动重建时被覆盖，在此之前后台显示为漂移。
 
 **数据持久化**：FastClaw 已挂载命名卷 `fastclaw-data`（容器内 `/data/.fastclaw`，sqlite 数据落该目录）。服务器旧容器若已有匿名卷数据，切换前必须先备份：`docker inspect juben-sha-fastclaw` 找到匿名卷 `Source` 路径，用 `docker cp` 或临时挂载导出备份后再切换命名卷；本地测试阶段无业务数据可直接切换。匿名卷在 `docker compose down -v` 时会被删除，切换命名卷后旧匿名卷数据不再挂载（未删除但不可见）。
 
@@ -203,6 +208,15 @@ rtk docker compose exec -T postgres pg_restore -U postgres -d juben_sha --clean 
 
 恢复后重启 api 并执行第 4 节健康检查。
 
+### 8.3 素材文件备份（与数据库保持一致）
+
+素材（角色头像、剧本封面）不在 PostgreSQL 里：`media_assets` 只是元数据，字节在 `MEDIA_ROOT` 对应的命名卷 `media_data` 上。因此备份必须同时覆盖 **FastClaw 数据、PostgreSQL 与素材卷**，并且按同一时间点成对保存，否则恢复后会不一致：
+
+- 只恢复数据库、不恢复素材卷：每条 `media_assets` 行仍在，但文件缺失，`GET /api/media/:id` 返回 `404 media_not_found`（不会返回错误图片），已发布头像/封面全部失效。
+- 只恢复素材卷、不恢复数据库：文件成为孤儿，不会被任何 URL 读到；后续上传相同字节会自愈（插入行并复用该文件）。
+
+建议与 `pg_dump` 同一批次打包 `/app/data/media`（例如同时刻的卷快照或 `docker cp` 导出），并按同样的 14 天策略保留。素材目录只增不减：素材永久不可变，替换图片会生成新文件与新 URL，不删除旧文件，因此磁盘随每次不同上传单调增长；5 MiB/张的上限与运营规范是唯一约束，没有 GC、配额或对象存储/CDN。
+
 ## 9. v1.1 上线检查清单
 
 > **上线阻断：真实支付服务商联调未完成。`PAYMENT_PROVIDER` 必须为 `aggregate` 且四参数（`PAYMENT_MERCHANT_ID` / `PAYMENT_APP_ID` / `PAYMENT_SECRET` / `PAYMENT_NOTIFY_URL`）齐全方可上线。**
@@ -218,7 +232,7 @@ rtk docker compose pull
 rtk docker compose up -d
 ```
 
-4. 确认数据库迁移 `0004`–`0015` 已应用（`api-migrate` 执行后核对迁移记录；`0012` 为支付活动记录与审计幂等键的 additive 迁移；`0013` 为独立管理员账号、哈希会话令牌和审计/创建者身份列的 additive 迁移，会撤销全部旧管理会话；`0014` 为角色发布指针、每实体唯一已发布部分索引与存量角色纳管；`0015` 为回合模型档位版本固定与存量模型档位纳管。`0014`/`0015` 与 `0011`–`0013` 一致，是手写 SQL + journal 条目，没有生成的 drizzle snapshot）。
+4. 确认数据库迁移 `0004`–`0018` 已应用（`api-migrate` 执行后核对迁移记录；`0012` 为支付活动记录与审计幂等键的 additive 迁移；`0013` 为独立管理员账号、哈希会话令牌和审计/创建者身份列的 additive 迁移，会撤销全部旧管理会话；`0014` 为角色发布指针、每实体唯一已发布部分索引与存量角色纳管；`0015` 为回合模型档位版本固定与存量模型档位纳管；`0016` 为基础上下文版本表与回合基础上下文外键；`0017` 为基础上下文当前指针与回填；`0018` 为本地素材 `media_assets`。`0014`–`0018` 与 `0011`–`0013` 一致，是手写 SQL + journal 条目，没有生成的 drizzle snapshot），并确认 `media_data` 卷已挂载、`MEDIA_ROOT=/app/data/media` 显式生效。
 5. 小程序生产构建 + 产物校验：
 
 ```bash

@@ -11,9 +11,9 @@
 | 聊天领域词表 | `CONTEXT.md` | Client Message ID、Script/Free Mode、Bond、Return Message 等 |
 | 当前技术架构 | `docs/技术开发架构与前后端文档.md` | 仓库结构、页面、模块、部署总览；不定义视觉权威 |
 | V1 历史技术基线 | `docs/technical-spec-v1.md` | 仅供追溯 V1 方案；当前实现以代码和当前架构文档为准 |
-| API 契约 | `docs/api-v1.md` | 全部 API 路径的请求/响应说明（含管理账号/会话、角色内容版本与发布、会话检索与分页正文、发布审计收尾）；路径覆盖与代码对齐 |
-| Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PARTIAL` revision 3；优先角色卡与玩家聊天历史；独立邮箱管理员，同域同服务器部署；首批与批 2（角色发布、回合版本归属、会话历史）已实现并本地验证，整体未验收 |
-| Web 后台独立管理员与发布契约 | [admin 模块 SPEC](../apps/api/src/server/modules/admin/SPEC.md) | 邮箱密码账号、哈希会话、受限改密、CSRF 与登录限速、CLI、角色内容版本/发布边界与 0014/0015 纳管的实现契约；批次状态见后台 Spec §2.1 |
+| API 契约 | `docs/api-v1.md` | 全部 API 路径的请求/响应说明（含管理账号/会话、用户管理、角色内容版本与发布、会话检索与分页正文、发布审计收尾、套餐与人工调账、模型档位配置/发布/检查、本地素材、派生基础上下文）；路径覆盖与代码对齐 |
+| Web 运营后台需求 | [Web 运营管理后台 V1 Spec](./specs/2026-10-31-web-admin-spec.md) | `FROZEN / PARTIAL` revision 3；优先角色卡与玩家聊天历史；独立邮箱管理员，同域同服务器部署；首批、批 2 与批 3（用户管理、套餐/调账、模型档位、本地素材、审计恢复、派生基础上下文、规模）已实现并本地验证，整体未验收；AC-12 `BLOCKED`、AC-15「错误测试阻止发布」未实现 |
+| Web 后台独立管理员与发布契约 | [admin 模块 SPEC](../apps/api/src/server/modules/admin/SPEC.md) | 邮箱密码账号、哈希会话、受限改密、CSRF 与登录限速、CLI、角色内容版本/发布与 0014/0015 纳管、用户/套餐/调账、模型档位控制台、本地素材、派生基础上下文与 0016–0018 的实现契约；AC-12 `BLOCKED`；批次状态见后台 Spec §2.1 |
 | Miniapp 个人页组件复用 | [个人页设计系统与组件复用 Spec](./specs/2026-10-31-个人页设计系统与组件复用Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED / SUPERSEDED_IN_PART`；组件复用、社区/聊天共享庭院背景与 E2E 已通过，footer 挂载位置以新 Spec 为准 |
 | Miniapp Tab 生命周期与导航 | [Tab 页面生命周期与底部导航统一重构 Spec](./specs/2026-11-04-Miniapp-Tab页面生命周期与底部导航统一重构Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED`；H5 与微信四 Tab 切换、请求去重、静默刷新和认证生命周期通过；仓库级认证 UI 21/21 |
 | Miniapp 首页剧本横幅导航 | [首页剧本横幅重复导航修复 Spec](./specs/2026-11-04-首页剧本横幅重复导航修复Spec.md) | `FROZEN / IMPLEMENTED / VERIFIED`；CTA 阻止冒泡后单次导航，两类点击均只增加一层页面栈 |

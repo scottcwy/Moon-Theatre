@@ -1,7 +1,7 @@
 # Web 运营管理后台 V1 Spec
 
-> 规格状态：`FROZEN` · 需求：`REQUIRED / DECIDED` · 实现：`PARTIAL`（首批与批 2 已实现并本地验证，整体未验收）
-> 创建：2026-10-31 · 更新：2026-11-07 · revision 3（首批与批 2 实现状态同步见 §2.1）
+> 规格状态：`FROZEN` · 需求：`REQUIRED / DECIDED` · 实现：`PARTIAL`（首批、批 2 与批 3 已实现并本地验证，整体未验收）
+> 创建：2026-10-31 · 更新：2026-11-07 · revision 3（首批、批 2 与批 3 实现状态同步见 §2.1）
 > 用户已确认需求并批准落地本文档；本次授权仅覆盖规格文档，不代表批准执行代码改造。
 
 ## 1. 目标与权威边界
@@ -32,15 +32,15 @@
 | 支付已有查单接口，但当前聚合 provider 明确返回查单不可用 | [provider.interface.ts](../../apps/api/src/server/modules/payments/provider.interface.ts)、[aggregate-provider.ts](../../apps/api/src/server/modules/payments/aggregate-provider.ts) | 接通可信渠道后才可验收查单及补发 |
 | 小程序生产 API 配置为 `https://api.yuemanlou.xyz`；Caddy 统一代理到 `api:3000` | [hosts.json](../../apps/miniapp/config/hosts.json)、[Caddyfile](../../infra/caddy/Caddyfile) | 后台复用该域名、服务器及 API 应用，见 §12.1 |
 
-以上为 2026-11-07 主干静态核实，不代表生产部署或完整功能验收通过。本规格整体实现状态为 `PARTIAL`：修订后的目标尚未完整验收，并非所有模块均无代码（首批与批 2 状态见 §2.1）。
+以上为 2026-11-07 主干静态核实，不代表生产部署或完整功能验收通过。本规格整体实现状态为 `PARTIAL`：修订后的目标尚未完整验收，并非所有模块均无代码（首批、批 2 与批 3 状态见 §2.1）。
 
 ### 2.1 已实现批次状态（2026-11-07）
 
-本规格整体仍为 `PARTIAL`。首批（独立管理员全生命周期、历史管理身份兼容、安全门禁、中文品牌框架）与批 2（角色内容版本与发布、存量纳管、回合版本固定、会话检索与分页历史及版本归属）代码已实现并在本地验证，但修订后的目标尚未完整验收，不得因任一批次完成而标为 `IMPLEMENTED` 或 `VERIFIED`。
+本规格整体仍为 `PARTIAL`。首批（独立管理员全生命周期、历史管理身份兼容、安全门禁、中文品牌框架）、批 2（角色内容版本与发布、存量纳管、回合版本固定、会话检索与分页历史及版本归属）与批 3（用户管理、套餐与人工调账、模型档位控制台、本地素材、审计恢复入口、派生基础上下文、规模与移动）代码已实现并在本地验证，但修订后的目标尚未完整验收，不得因任一批次完成而标为 `IMPLEMENTED` 或 `VERIFIED`。
 
 **首批（已实现并本地验证）**
 
-- 已实现（代码存在）：`admin_accounts`/`admin_sessions`/`admin_login_limits` 与 `0013` additive 迁移；邮箱密码登录、只存 SHA256 的 `admin_session_v2` 会话、受限强制改密、受保护首个账号、普通账号创建/重置/停用、本人改密与受保护账号改邮箱；Origin + JSON + `X-Admin-Request` 写入校验；邮箱/IP/全局登录预算与 `Retry-After`；`admin:account bootstrap|recover` CLI；首批 13 个 `/admin` 动态页面与中文品牌框架（批 2 新增 5 个后共 18 个）；仅收尾既有审计的 `POST /api/admin/wallet/adjustments/:idempotencyKey/finalize-audit`；历史用户 FK/审计与旧会话撤销的 additive 兼容。身份、会话、CSRF、密码与 CLI 契约见 [admin 模块契约](../../apps/api/src/server/modules/admin/SPEC.md)。
+- 已实现（代码存在）：`admin_accounts`/`admin_sessions`/`admin_login_limits` 与 `0013` additive 迁移；邮箱密码登录、只存 SHA256 的 `admin_session_v2` 会话、受限强制改密、受保护首个账号、普通账号创建/重置/停用、本人改密与受保护账号改邮箱；Origin + JSON + `X-Admin-Request` 写入校验；邮箱/IP/全局登录预算与 `Retry-After`；`admin:account bootstrap|recover` CLI；首批 13 个 `/admin` 动态页面与中文品牌框架（批 2 新增 5 个、批 3 新增 5 个后共 23 个）；仅收尾既有审计的 `POST /api/admin/wallet/adjustments/:idempotencyKey/finalize-audit`；历史用户 FK/审计与旧会话撤销的 additive 兼容。身份、会话、CSRF、密码与 CLI 契约见 [admin 模块契约](../../apps/api/src/server/modules/admin/SPEC.md)。
 - 已本地验证（真实本地 PostgreSQL/HTTP/浏览器、Node 20 工具镜像与本地 Caddy 配置；不是生产证据）：账号、登录、受限、撤销、审计回滚、限速与 CSRF 集成测试；真实开发服务器上的登录、强制改密、创建/重置/停用、受保护改邮箱、退出、`429`+`Retry-After`、离线与键盘流程；九个原业务页面在真实登录下的中文空态，以及登录/账号/我的账号/钱包在 1440/1024/390 视口的无横向溢出检查；Caddy 三种伪造客户端地址头的覆盖行为；tools 镜像在 256 MiB/1 CPU 下的 bootstrap 幂等与 recover 保留 ID。可复现入口：`pnpm run test:web-admin`、`pnpm run test:deploy-config`、`pnpm run test:dev-script`、`pnpm --filter @juben-sha/api typecheck`、`pnpm run build:api`。
 
 **批 2（已实现并本地验证）**
@@ -50,14 +50,32 @@
 - 已实现（接口）：`POST /api/admin/characters`、`POST /api/admin/characters/:id/first-draft`、`POST /api/admin/characters/:id/draft`、`POST /api/admin/characters/:id/publish`、`POST /api/admin/characters/:id/unpublish`、`GET /api/admin/characters/:id/preview?versionId=`、`GET /api/admin/characters/:id`（含最多 5 条 `publishTasks`）、`GET /api/admin/sessions?…&from&to`、`GET /api/admin/sessions/:id/messages`、`POST /api/admin/publish-tasks/:id/finalize-audit`、`POST /api/admin/models/:id/finalize-audit`；写入沿用首批 CSRF 规则，响应仍为 `private, no-store`。
 - 已实现（聊天契约）：`POST /api/chat/stream` 在受理回合的同一事务内固定角色已发布内容版本与已发布模型档位版本；无法固定时在预扣点数前返回 `409` + `character_version_unavailable`、`character_content_incomplete` 或 `model_profile_unavailable`；已受理回合在重试、租约接管和重启后沿用首次快照；无快照的旧回合仍显示“版本未知”且不能被重试升级到新版本。
 - 已本地验证（真实本地 PostgreSQL；不是生产证据）：角色版本链/过期基准/发布/下架/预览、仅草稿创建、首个草稿、发布前置提示、存量纳管（含迁移与 server 捕获单元逐字节一致）、会话筛选与元数据、发布审计收尾、已受理回合固定（按固定价扣费/退款、失败关闭、旧回合 `versionUnknown`）的集成测试。可复现入口：`pnpm run test:web-admin`（真实 PostgreSQL 经过受控入口）、`pnpm --filter @juben-sha/api typecheck`、`pnpm run build:api`。
-- 本批已知限制：发布不因缺少已发布模型档位版本而阻塞，只在界面提示（新回合会被 `model_profile_unavailable` 拒绝）；模型 `finalize-audit` 没有界面入口（尚无模型档位控制台）；旧接口 `GET /api/admin/sessions/<id>` 仍返回整段正文，页面改用分页读取；§5.3 的角色删除未实现；`config_hash` 存在两套不兼容算法（既有问题，未统一）；`0014`/`0015` 与 `0011`–`0013` 一样是手写 SQL，没有生成的 drizzle snapshot。
+- 本批已知限制：发布不因缺少已发布模型档位版本而阻塞，只在界面提示（新回合会被 `model_profile_unavailable` 拒绝）；模型 `finalize-audit` 在批 2 时尚无界面入口（批 3 已在 `/admin/models` 提供，见下文）；旧接口 `GET /api/admin/sessions/<id>` 仍返回整段正文，页面改用分页读取；§5.3 的角色删除未实现；`config_hash` 存在两套不兼容算法（既有问题，未统一）；`0014`/`0015` 与 `0011`–`0013` 一样是手写 SQL，没有生成的 drizzle snapshot。
 - 本批未实现（仍属后续批次）：素材上传（头像/封面仍为 URL 文本字段，无上传接口与对象存储）、用户业务管理、订单可信查单与补发、套餐/模型控制台与版本恢复界面、通用审计恢复界面（AC-12/15/17/18/19 的剩余部分）、问题标注与回复比较等非目标。
 
-**两个批次共同未验证的外部条件**
+**批 3（已实现并本地验证）**
 
-- 生产 HTTPS 与同域重启（AC-26）、真实小程序真机及真实支付渠道/LLM（AC-26/27 的外部部分）。最终验证以仓库 harness `verify`/`handoff` 收口（`test:dev-script` → `test:deploy-config` → `test:web-admin`）；全新 Node 20 生产构建已通过。上述外部条件不得写成通过。
+- 已实现（用户，AC-11）：`GET /api/admin/users`（`q` 匹配昵称子串、openid 前缀或用户 ID 前缀，`status` 过滤，分页 `page`/`pageSize`）、`GET /api/admin/users/:id`（脱敏 openid、钱包汇总、使用概况、最近 10 条会话）、`PATCH /api/admin/users/:id` `{status:'active'|'banned'}`；单事务 + 行锁，状态已是目标值时幂等返回 `changed:false`，审计记录真实管理员，不改动钱包/流水、不删除用户或会话/消息。封禁生效沿用既有 `verifyAuth`（非 `active` 用户的 JWT 被拒），未新增执行点。
+- 已实现（套餐，AC-13）：`POST /api/admin/quota-packages`、`PATCH /api/admin/quota-packages/:id` 返回 `{package,changed,auditId}`；金额为整数分、点数 ≥1、名称 1–64、说明可空、`sortOrder` 非负，未知字段 `400`；上下架用 `active`，无删除接口；名称唯一性是应用层规则，在事务内以 `pg_advisory_xact_lock(hashtext(lower(name)))` 串行化，**没有数据库唯一索引**；无变化的写入不落库也不写审计，审计与业务同事务。公开列表与下单拒绝 `active=false` 套餐；已有订单保留购买时的金额/点数快照。
+- 已实现（人工调账，AC-14）：沿用既有 `POST /api/admin/wallet/adjustments`，固定错误语义——同 key 同操作者/用户/方向/金额/原因返回 `200 {transactionId,balanceAfter,alreadyAdjusted:true}`；任一参数不同返回 `409 wallet_adjustment_idempotency_conflict`；扣成负余额返回 `409 insufficient_wallet_balance`；目标用户不存在 `404 admin_user_not_found`；审计收尾失败返回 `503 admin_audit_pending`。`POST …/:idempotencyKey/finalize-audit` 仍只收尾既有意图、不动资金。控制台显示幂等标识、可按标识重新查询，流水读取失败时不渲染任何余额/流水数字（不编造）。
+- 已实现（模型档位，AC-15/AC-17）：`PATCH /api/admin/models` 接受 `enabled`/`pointsPerCall`/`displayName`/`description`/`provider`/`modelName`/允许清单内的 `runtimeParams`；`tier` 不可变、疑似凭据字段被拒、过期基准 `409`，每次被接受的变更写一条不可变 `model_profile_versions` 行并按请求哈希幂等。`GET /api/admin/models/:id/versions` 返回追加式版本历史（`configHash`、创建人、`isCurrent` 与该档位最新发布审计状态）。`POST /api/admin/models/:id/publish` 发布当前保存配置，或按 `versionId` 恢复：恢复把旧版本内容**复制为新版本**后发布，历史行不被改写或删除。`POST /api/admin/models/:id/check` 只读比较档位声明与 `GET /v1/agents/{id}/runtime-spec` 的真实报告，返回 `match|mismatch|unavailable`。**「错误测试阻止发布」（AC-15）未实现**：`check` 不调用 `POST /api/test-provider`、不读取或保存任何凭据，也不作为发布闸门——`mismatch` 或从未检查过的档位同样可以发布。
+- 已实现（素材，AC-01/03/09 的素材部分）：`0018` 新增 `media_assets`（内容哈希唯一）与 `<MEDIA_ROOT>/<hash[0:2]>/<hash>.<ext>` 内容寻址磁盘布局；`POST /api/admin/media` 按“鉴权/CSRF → 有界读取（≤5 MiB，超限即取消）→ magic bytes 判型 → 仅解析头部尺寸（每边 1–4096 px，长宽比 ≤20:1）→ sha256 → 同哈希复用 → 临时文件 + fsync + rename → 插入行与审计”执行；相同字节复用同一行与 URL 且不重复写审计，任何素材都不被删除或覆盖（替换 = 新素材/新 URL，已发布版本的旧引用继续可用）。`GET /api/media/[id]` 返回存储 mime、`Content-Length`、强 `ETag`、`public, max-age=31536000, immutable` 与 `nosniff`，`If-None-Match` 命中返回 `304`，未知/损坏条目 `404 media_not_found`，存储故障 `503 media_store_unavailable`。素材 URL 为绝对地址（`ADMIN_ORIGIN`）。CSRF 的 content-type 例外是受约束的 `media_upload` body 类型，只在上传路径生效，其他管理写入请求它得到 `403 admin_csrf_failed`。
+- 已实现（审计恢复，AC-19 剩余部分）：统一 `FinalizeAuditAction` 覆盖四个 finalize-only 入口——钱包调账、角色发布任务、剧本发布任务（`POST /api/admin/publish-tasks/:id/finalize-audit`）与模型发布（`POST /api/admin/models/:id/finalize-audit`，页面入口在 `/admin/models`）；每个入口只锁定并核对既有审计意图与已持久化业务结果（含原操作者），把 `audit_pending` 改为 `committed` 并追加一条独立去重的恢复事件（记录真实恢复者、保留原操作者与摘要），不重跑业务、不改金额或内容，并发重复点击只产生一条恢复事件；无法确认时诚实返回 `409`。
+- 已实现（基础上下文，方案 W）：`0016` 新增 `agent_context_versions`（`(agent_id, content_hash)` 唯一、不可变历史）与 `chat_turn_snapshots.agent_context_version_id`，`0017` 新增 `agent_current_context` 当前指针并回填；角色发布后用与 provisioning 同一渲染器（字节级 parity 测试）生成 SOUL/IDENTITY/USER 并写回 FastClaw，再记录或复用一个版本，写完回读三个文件校验字节。回读只能证明“凭据可见的字节”一致；`FASTCLAW_API_KEY` 必须解析到该 Agent 的 `agents.user_id`，这是部署要求，服务端无法检测。`GET/POST /api/admin/characters/:id/base-context` 提供漂移状态（`in-sync|drifted|unavailable|unrecorded`）与手动重建（审计 `admin.character.base_context.rebuild`）。发布返回的 `baseContext`（`synced|unchanged|pending|failed`）不会让发布失败或回滚。**边界：运行时仍按原逻辑组装 SOUL/USER/IDENTITY + 记忆**；PG 已发布版本只决定按回合追加的人设段，记录的基础上下文是派生缓存，控制台手改会在下次发布/重建时被覆盖，在此之前如实显示为漂移。
+- 已实现（规模与移动，AC-18）：`GET /api/admin/characters` 改为 count + 分页 + 三条按页键读取，1000 角色基线实测每页 5 条语句（空页 2 条），支持按名称/agent id/剧本标题搜索（LIKE 元字符转义）与发布状态过滤；因实测执行计划约 1 ms 未加索引，并记录触发条件（`publish_tasks` 再涨一个数量级后复测，必要时加 `publish_tasks (entity_type, entity_id, created_at DESC, id DESC)`）；390 px 下角色列表首列提供可达的“下架（需确认）”入口，预览页有锚点与顶部快捷链接。
+- 已实现（迁移）：范围现为 `0004`–`0018`；`0016`/`0017`/`0018` 与 `0011`–`0015` 一样是 additive 手写 SQL + journal 条目，没有生成的 drizzle snapshot。
+- 已本地验证（真实本地 PostgreSQL、真实临时目录与本地替身 HTTP；不是生产证据）：用户搜索/封禁/解封/审计、套餐增改与公开购买、调账五参数幂等/负余额/并发、模型配置/发布/恢复/一致性检查、素材上传/复用/投递/替换不破坏已发布引用、四个审计收尾的业务不变性与并发幂等、基础上下文记录/漂移/重建/回合归属、1000 角色分页与搜索的语句数。可复现入口：`pnpm run test:web-admin`、`pnpm run test:deploy-config`、`pnpm run test:dev-script`、`pnpm --filter @juben-sha/api typecheck`、`pnpm run build:api`。
+- 本批已知限制：**AC-12 阻塞**（聚合支付没有主动查单接口，渠道对账与“验证已支付后幂等补发”未实现；本地支付/退款状态只读展示，不得当作渠道证据）；AC-15 的「错误测试阻止发布」未实现（见上）；模型一致性检查只比较声明与 FastClaw 报告、不做真实 provider 往返，且按 agent id 截断到 20 个 Agent；真实 FastClaw 网关、其 setup 鉴权与 owner 行作用域未被本地验证（仅本地替身 HTTP）；剧本仍只有封面编辑页，标题/简介/世界观编辑未实现（AC-01 剩余部分）；用户 openid 只显示脱敏前缀；素材无 GC/配额、磁盘随每次不同上传增长，且只校验图片头部；`quota_packages.name` 只有应用层唯一性；`config_hash` 仍有两套历史算法（新版本用 `{profileId,provider,modelName,pointsPerCall,runtimeParams}` 规范化算法，旧行不改写）；发布/重建会等待最多 9 个 FastClaw 请求（首次读取 3 个 GET、至多 3 个 PUT、回读 3 个 GET；每个 5 秒上限），且一次同步在 PG 事务内持有 per-agent advisory lock。
+- 本批未实现（仍属后续批次）：剧本正文编辑、订单可信查单与补发（AC-12 阻塞）、删除角色、通用审计恢复控制台、素材 GC 与对象存储/CDN、用户原始 openid 展示、问题标注与回复比较等非目标。
 
-至此，本规格对 AC-01～09 与 AC-25 的本地代码与测试覆盖属于批 2；AC-10/19/21～24/26/27 的相关部分属首批。AC-01/03/09 的素材上传部分、AC-05 的跨系统 FastClaw 同步/激活注入验证、AC-07 的扩编与 provisioning 联调仍不属已完成范围。
+**各批次共同未验证的外部条件（不得写成通过）**
+
+- 生产 HTTPS 与同域重启（AC-26）、真实小程序真机及真实支付渠道/LLM（AC-26/27 的外部部分）。
+- 真实 FastClaw 实例：provisioning 与基础上下文写回、`runtime-spec` 读取、setup 鉴权与 owner 行作用域只用本地替身验证；`FASTCLAW_API_KEY` 与 `agents.user_id` 的对齐是部署要求，服务端无法检测。
+- AC-05 的跨系统 FastClaw 同步/激活注入、AC-07 的扩编与 provisioning 联调仍未验证。
+- 最终验证以仓库 harness `verify`/`handoff` 收口（`test:dev-script` → `test:deploy-config` → `test:web-admin`）；全新 Node 20 生产构建已通过。
+
+至此，AC-10/19/21～24/26/27 的相关部分属首批，AC-01～09 与 AC-25 的本地代码与测试覆盖属批 2；批 3 补上 AC-01/03/09 的素材部分、AC-11、AC-13/AC-14、AC-15 的配置/发布/检查部分（**不含「错误测试阻止发布」**）、AC-18 的本地部分、AC-19 的四个收尾入口与派生基础上下文记录。AC-12 **BLOCKED**：没有可信渠道查单，补发与对账未实现，本地状态不得当作渠道证据。AC-05/07 的跨系统注入与 provisioning 联调、AC-26/27 的生产 HTTPS/重启、真机、真实支付渠道与真实 LLM 仍未验证。
 
 ## 3. 使用者、范围与非目标
 
@@ -242,7 +260,7 @@
 
 ## 11. 验收矩阵
 
-以下条目为需求 `REQUIRED`、验收 `PLANNED`；全部通过方可把本规格实现状态更新为 `VERIFIED`。首批仅在本地覆盖 AC-21～24 与 AC-10/19/26/27 的相关部分，批 2 覆盖 AC-01～09 与 AC-25 的本地部分（见 §2.1），其余仍未验收。自动化测试、联调和人工验收须记录结果及证据入口；仅现有 harness 通过不能证明后台实现完成。
+以下条目为需求 `REQUIRED`、验收 `PLANNED`；全部通过方可把本规格实现状态更新为 `VERIFIED`。首批仅在本地覆盖 AC-21～24 与 AC-10/19/26/27 的相关部分，批 2 覆盖 AC-01～09 与 AC-25 的本地部分，批 3 覆盖 AC-01/03/09 的素材部分、AC-11、AC-13/14、AC-15 的配置/发布/检查部分（不含「错误测试阻止发布」）、AC-18 的本地部分与 AC-19 的四个收尾入口（见 §2.1）；AC-12 记 `BLOCKED`，其余仍未验收。自动化测试、联调和人工验收须记录结果及证据入口；仅现有 harness 通过不能证明后台实现完成。
 
 | ID | 可操作场景 | 通过标准 |
 | --- | --- | --- |
@@ -276,7 +294,7 @@
 
 代码落地时按改动运行 API 测试、typecheck、后台交互验证和小程序回归；涉及 FastClaw 则增加对应 Go 验证及真实链路版本隔离测试。仓库收口另遵守 `AGENTS.md` 的 harness 验证，不用文档检查代替行为验收。
 
-首批已对本矩阵的 AC-21～24 形成本地身份/账号覆盖，并覆盖 AC-10/19/26/27 的本批相关部分（登录入口、管理写入 CSRF 与限速、敏感读取审计、本地反向代理头覆盖）；批 2 对 AC-01～09 与 AC-25 形成了本地代码与集成测试覆盖（含内容版本、发布/下架/预览、纳管、回合版本归属与会话筛选/分页），但 AC-01/03/09 的素材上传部分、AC-05 的跨系统 FastClaw 同步/激活注入、AC-07 的扩编与 provisioning 联调仍不属已完成范围。AC-26 的生产 HTTPS/重启和小程序真机、AC-27 的模型连接测试所需外部条件仍未验收。其余 AC（AC-12/15/17/18/19 的剩余部分等）属于后续批次，未实现也未验收，不能因任一批次部分通过而视为整体通过。
+首批已对本矩阵的 AC-21～24 形成本地身份/账号覆盖，并覆盖 AC-10/19/26/27 的本批相关部分（登录入口、管理写入 CSRF 与限速、敏感读取审计、本地反向代理头覆盖）；批 2 对 AC-01～09 与 AC-25 形成了本地代码与集成测试覆盖（含内容版本、发布/下架/预览、纳管、回合版本归属与会话筛选/分页）；批 3 补上 AC-01/03/09 的素材上传与复用、AC-11 的用户搜索/概况/封禁、AC-13/AC-14 的套餐与人工调账、AC-15 的档位配置/发布/恢复/一致性检查（**明确不含「错误测试阻止发布」**：检查不是发布闸门）、AC-18 的本地规模与 390 px 紧急下架、AC-19 的角色/剧本/模型/钱包四个 finalize-only 入口，以及派生基础上下文记录（运行时组装不变）。**AC-12 记 `BLOCKED`**：聚合支付没有主动查单接口，可信渠道对账与「验证已支付后幂等补发」未实现，本地状态不得当作渠道证据。AC-05 的跨系统 FastClaw 同步/激活注入、AC-07 的扩编与 provisioning 联调、AC-26 的生产 HTTPS/重启与真机、AC-27 的外部条件（真实支付渠道、真实 LLM、真实 FastClaw）仍未验收。不能因任一批次部分通过而视为整体通过。
 
 ## 12. 交付、回撤与待核实条件
 
@@ -290,7 +308,7 @@
 
 ### 12.2 交付顺序与回撤
 
-优先级：账号与中文后台框架 → 角色卡编辑、玩家聊天历史及发布能力（包含必要素材和版本追溯）→ 其余用户、资金、模型及审计恢复管理。允许分批验收，但全部保留范围通过后才宣称后台 V1 完成。首批（账号与中文后台框架）与批 2（角色内容版本/发布、回合版本追溯、会话检索与分页历史）已完成代码与本地验证，详见 §2.1；这不改变后续批次的交付依赖，也不代表生产验收通过。
+优先级：账号与中文后台框架 → 角色卡编辑、玩家聊天历史及发布能力（包含必要素材和版本追溯）→ 其余用户、资金、模型及审计恢复管理。允许分批验收，但全部保留范围通过后才宣称后台 V1 完成。首批（账号与中文后台框架）、批 2（角色内容版本/发布、回合版本追溯、会话检索与分页历史）与批 3（用户管理、套餐/人工调账、模型档位控制台、本地素材、审计恢复入口、派生基础上下文、规模与移动）已完成代码与本地验证，详见 §2.1；这不改变后续批次的交付依赖，也不代表生产验收通过。
 
 上线允许短暂冻结编辑及发布，用于存量纳管；正常用户聊天尽量保持可用。迁移前备份业务库、FastClaw 数据、发布配置及素材引用；回撤只恢复兼容的代码与配置，不通过重放旧库覆盖上线后的用户交易和聊天。资金纠错走可追溯补偿流水，不能删除原流水。
 
@@ -315,4 +333,5 @@
 - revision 3（2026-11-07）：用户确认邮箱密码及独立管理员账号，首个账号保护、无公开注册与邮件找回；重点为角色卡编辑及玩家聊天历史，新增真实角色卡版本追溯；明确移除问题标注/处理闭环、历史回复比较及草稿试聊，保留普通展示预览和模型连接测试；与小程序 API 同域名、同服务器、同应用部署。仅更新规格，不代表代码已迁移或已上线。
 - 实现状态同步（2026-11-07）：首批独立管理员身份/账号/会话/安全门禁与中文品牌框架已实现并本地验证，本规格实现状态改为 `PARTIAL`；冻结需求与 revision 3 边界不变，后续批次与外部条件仍未验收，见 §2.1。
 - 实现状态同步（2026-11-07，批 2）：角色内容版本与发布（`0014`）、回合版本固定（`0015`）、存量内容纳管、角色后台页面、会话筛选/分页历史与版本归属、发布与模型发布审计收尾接口已实现并本地验证；本规格仍为 `PARTIAL`，素材上传、删除角色、用户/订单/套餐/模型控制台与通用审计恢复界面属后续批次，外部条件仍未验收。仅同步实现状态与接口契约，§3～§10 的冻结需求与 revision 3 边界未变。
+- 实现状态同步（2026-11-07，批 3）：用户管理（AC-11）、套餐维护（AC-13）、人工调账控制台（AC-14）、模型档位配置/发布/恢复/一致性检查（AC-15/17，其中「错误测试阻止发布」未实现）、本地素材上传与投递（AC-01/03/09 素材部分，`0018`）、四个 finalize-only 审计恢复入口（AC-19 剩余部分）、派生基础上下文（`0016`/`0017`，方案 W，运行时组装不变）与角色列表规模/移动紧急下架（AC-18）已实现并本地验证；迁移范围 `0004`–`0018`。AC-12 记 `BLOCKED`（无主动查单接口，本地状态不是渠道证据），AC-05/07 与 AC-26/27 的外部条件仍未验收。本规格仍为 `PARTIAL`，仅同步实现状态与接口契约，§3～§10 的冻结需求与 revision 3 边界未变。
 - 冻结的是目标、边界与验收要求；§10 的实现设计及 §12 的外部条件尚未完成验证。实现状态不得因文档冻结而标成 `IMPLEMENTED` 或 `VERIFIED`。
