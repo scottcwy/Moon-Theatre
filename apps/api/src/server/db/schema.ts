@@ -566,11 +566,28 @@ export const agentContextVersions = pgTable('agent_context_versions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   agentHashUnique: uniqueIndex('agent_context_versions_agent_hash_unique').on(table.agentId, table.contentHash),
-  latestIdx: index('agent_context_versions_agent_latest_idx').on(table.agentId, table.createdAt, table.id),
+  // Declared DESC to match the actual `order by created_at desc, id desc` (history ordinal reads);
+  // without it a future `drizzle-kit generate` would propose a spurious index rewrite.
+  latestIdx: index('agent_context_versions_agent_latest_idx').on(table.agentId, table.createdAt.desc(), table.id.desc()),
   agentIdNonEmpty: check('agent_context_versions_agent_id_nonempty', sql`length(btrim(${table.agentId})) > 0`),
   contentHashNonEmpty: check('agent_context_versions_content_hash_nonempty', sql`length(btrim(${table.contentHash})) > 0`),
   sourceCheck: check('agent_context_versions_source_check', sql`${table.source} IN ('publish', 'manual', 'startup')`),
   contentVersionNoPositive: check('agent_context_versions_content_version_no_positive', sql`${table.contentVersionNo} IS NULL OR ${table.contentVersionNo} > 0`),
+}));
+
+// Batch 3 step 1 review fix — the base context the runtime is ACTUALLY running, one row per agent.
+//
+// `agent_context_versions` is immutable and hash-deduped, so it only describes history: after
+// publishing A → B → A the A row keeps its original `created_at` and "latest by created_at" would
+// report B. This pointer is written inside the transaction that records a successful sync (after the
+// write was read back and verified), so drift, the admin panel and turn attributions read the version
+// FastClaw really holds.
+export const agentCurrentContext = pgTable('agent_current_context', {
+  agentId: text('agent_id').primaryKey(),
+  versionId: uuid('version_id').references(() => agentContextVersions.id, { onDelete: 'cascade' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  agentIdNonEmpty: check('agent_current_context_agent_id_nonempty', sql`length(btrim(${table.agentId})) > 0`),
 }));
 
 export const chatTurnSnapshots = pgTable('chat_turn_snapshots', {

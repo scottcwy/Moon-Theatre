@@ -174,6 +174,7 @@ export default async function CharacterEditPage({ params }: { params: Promise<{ 
       <p className="muted">
         运行人设 = 基础上下文（SOUL.md / IDENTITY.md / USER.md，本页可追溯的记录）+ 按回合注入的已发布版本人设 + 记忆与输出约束；
         运行时会话仍使用控制台里的实时文件。
+        这里显示的是<b>当前版本</b>：最近一次写入 FastClaw 并通过回读校验的记录（内容回到旧版本时也以当前指针为准）。
         发布成功后会按已发布版本重新生成这三份文件并写入 FastClaw，内容未变化时不新增记录；控制台手改会在下次发布或重建时被覆盖。
         记录的是采集时刻的内容，记忆与用户画像仍由 FastClaw 维护，不在此范围内。
       </p>

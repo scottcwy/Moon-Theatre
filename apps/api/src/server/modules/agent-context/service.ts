@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { agentContextVersions, characters, contentVersions } from '../../db/schema.js';
+import { agentContextVersions, agentCurrentContext, characters, contentVersions } from '../../db/schema.js';
 import { NotFoundError } from '../../http/error-types.js';
 import { recordAdminAudit, type IdentityAdminActor } from '../admin/audit.js';
 import {
@@ -27,6 +27,12 @@ import {
  *  - the live FastClaw files are what the runtime actually reads, and an operator can still hand-edit
  *    them in the FastClaw console. Publish/rebuild overwrite such an edit; the drift read detects it
  *    in between and reports it instead of pretending the systems are in sync.
+ *
+ * WHICH recorded version is current is an explicit pointer (`agent_current_context`), never
+ * `max(created_at)`: recording is hash-deduped, so publishing A → B → A re-uses the old A row whose
+ * `created_at` is older than B's. Ordering by capture time would then claim drift against B while the
+ * runtime holds A, and no rebuild could ever clear it. The pointer is written in the same transaction
+ * as the record, only after the written bytes were read back and verified.
  *
  * FastClaw's context assembly is untouched: a turn still gets SOUL/IDENTITY/USER + memory + guards.
  */
@@ -76,6 +82,7 @@ export interface CharacterBaseContext {
 
 type AgentContextQueryClient = Pick<typeof db, 'select' | 'insert'>;
 type AgentContextReadClient = Pick<typeof db, 'select'>;
+type AgentContextTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const versionColumns = {
   id: agentContextVersions.id,
@@ -128,16 +135,19 @@ function toView(row: AgentContextVersionRow, displayNo: number): AgentContextVer
   };
 }
 
-/** The newest recorded base context of an agent, or null when nothing was ever recorded. */
-export async function getLatestAgentContextVersion(
+/**
+ * The base context the runtime is CURRENTLY running: the version named by `agent_current_context`, or
+ * null when the agent has no current record. Never a `max(created_at)` guess (see the module comment).
+ */
+export async function getCurrentAgentContextVersion(
   agentId: string,
   client: AgentContextReadClient = db,
 ): Promise<AgentContextVersionView | null> {
   const [row] = await client
     .select(versionColumns)
-    .from(agentContextVersions)
-    .where(eq(agentContextVersions.agentId, agentId))
-    .orderBy(desc(agentContextVersions.createdAt), desc(agentContextVersions.id))
+    .from(agentCurrentContext)
+    .innerJoin(agentContextVersions, eq(agentContextVersions.id, agentCurrentContext.versionId))
+    .where(eq(agentCurrentContext.agentId, agentId))
     .limit(1);
   if (!row) return null;
   const numbers = await displayNumbers([row.id], client);
@@ -148,18 +158,35 @@ export async function getLatestAgentContextVersion(
  * The id a newly accepted turn must reference. One local read, no cross-service call: the accept
  * transaction may not depend on FastClaw, and a turn without a record stays unattributed.
  */
-export async function latestAgentContextVersionId(
+export async function currentAgentContextVersionId(
   client: AgentContextReadClient,
   agentId: string | null,
 ): Promise<string | null> {
   if (!agentId) return null;
   const [row] = await client
-    .select({ id: agentContextVersions.id })
-    .from(agentContextVersions)
-    .where(eq(agentContextVersions.agentId, agentId))
-    .orderBy(desc(agentContextVersions.createdAt), desc(agentContextVersions.id))
+    .select({ id: agentCurrentContext.versionId })
+    .from(agentCurrentContext)
+    .where(eq(agentCurrentContext.agentId, agentId))
     .limit(1);
   return row?.id ?? null;
+}
+
+/**
+ * Makes a recorded version the current one. Must run in the same transaction as the record insert, so
+ * "a capture exists" and "this capture is what FastClaw holds" can never disagree.
+ */
+async function setCurrentAgentContextVersion(
+  client: AgentContextQueryClient,
+  agentId: string,
+  versionId: string,
+): Promise<void> {
+  await client
+    .insert(agentCurrentContext)
+    .values({ agentId, versionId })
+    .onConflictDoUpdate({
+      target: agentCurrentContext.agentId,
+      set: { versionId, updatedAt: sql`now()` },
+    });
 }
 
 /** Base-context ordinals for a page of turn attributions, in one read. */
@@ -178,13 +205,23 @@ export interface RecordAgentContextInput {
 }
 
 /**
- * Records one immutable base-context version. Hash-deduped: the same rendered bytes for the same
- * agent keep the row they already have (`created: false`), so re-publishing an unchanged character
- * appends nothing and a recorded capture is never rewritten.
+ * Records one immutable base-context version AND makes it the current one (A → B → A repoints to the
+ * existing A row; it never appends a second copy of the same bytes).
+ *
+ * The two writes are one transaction: a record that is not current would be a claim about a capture
+ * nothing points at. Callers that already own a transaction pass its client and get the same atomicity.
  */
 export async function recordAgentContextVersion(
   input: RecordAgentContextInput,
-  client: AgentContextQueryClient = db,
+  client?: AgentContextQueryClient,
+): Promise<{ version: AgentContextVersionView; created: boolean }> {
+  if (client) return recordAndPointCurrent(client, input);
+  return db.transaction((tx) => recordAndPointCurrent(tx, input));
+}
+
+async function recordAndPointCurrent(
+  client: AgentContextQueryClient,
+  input: RecordAgentContextInput,
 ): Promise<{ version: AgentContextVersionView; created: boolean }> {
   const { agentId, rendered } = input;
   const [inserted] = await client
@@ -219,6 +256,7 @@ export async function recordAgentContextVersion(
     ))
     .limit(1))[0];
   if (!row) throw new Error('agent_context_version_record_failed');
+  await setCurrentAgentContextVersion(client, agentId, row.id);
   const numbers = await displayNumbers([row.id], client);
   return {
     version: toView(row, numbers.get(row.id) ?? 1),
@@ -226,14 +264,14 @@ export async function recordAgentContextVersion(
   };
 }
 
-async function loadPublishedSource(characterId: string): Promise<{
+async function loadPublishedSource(characterId: string, client: AgentContextReadClient = db): Promise<{
   characterId: string;
   agentId: string | null;
   publishedVersionId: string | null;
   publishedVersionNo: number | null;
   rendered: RenderedAgentContext | null;
 }> {
-  const [row] = await db
+  const [row] = await client
     .select({
       characterId: characters.id,
       agentId: characters.agentId,
@@ -279,47 +317,113 @@ export interface SyncCharacterBaseContextInput {
  *  - `unchanged`  — they already did; nothing was written and no version was recorded;
  *  - `pending`    — FastClaw could not be read (not configured / unreachable / unauthorized), so
  *                   nothing was written or recorded and the last good record is kept;
- *  - `failed`     — FastClaw was reachable but rejected a write, or the record could not be stored.
+ *  - `failed`     — FastClaw was reachable but rejected a write (`written` says whether all three PUTs
+ *                   landed), the read-back did not match (`write_not_verified`), or the record could
+ *                   not be stored (`record_failed`).
  *
  * This function never throws for a cross-system problem: a publish must stay successful.
  */
 export async function syncCharacterBaseContext(
   input: SyncCharacterBaseContextInput,
 ): Promise<BaseContextSyncResult> {
-  const source = await loadPublishedSource(input.characterId);
-  const agentId = source.agentId ?? null;
-  const base = { characterId: input.characterId, agentId };
-  if (!source.publishedVersionId || !source.rendered) {
-    return { ...base, status: 'failed', reason: 'character_version_unavailable', written: false, version: null };
-  }
+  // The agent id is needed to take the per-agent lock, and it is system-owned (never re-bound).
+  const head = await loadPublishedSource(input.characterId);
+  const agentId = head.agentId ?? null;
   if (!agentId) {
-    return { ...base, status: 'failed', reason: 'character_agent_unavailable', written: false, version: null };
+    return {
+      characterId: input.characterId, agentId: null, status: 'failed',
+      reason: 'character_agent_unavailable', written: false, version: null,
+    };
   }
-
-  const desired = source.rendered;
-  const recorded = await getLatestAgentContextVersion(agentId);
-  const live = await readRoleSystemFiles(agentId, { timeoutMs: input.timeoutMs });
-  if (!live.ok) {
-    // Not "failed": FastClaw was not reachable to write at all. The old record stays the last good one.
-    return { ...base, status: 'pending', reason: live.code, written: false, version: recorded };
-  }
-
-  const liveHash = hashRoleFiles(live.files);
-  if (liveHash === desired.contentHash) {
-    if (recorded && recorded.contentHash === desired.contentHash) {
-      return { ...base, status: 'unchanged', reason: null, written: false, version: recorded };
+  try {
+    // One sync per agent at a time, and the published source is re-read INSIDE the lock: two admins
+    // publishing (or a publish plus a rebuild) can no longer interleave read → write → record, which
+    // would leave the current pointer on the version whose sync merely finished last.
+    return await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${agentId}))`);
+      return syncInsideAgentLock(tx, input, agentId);
+    });
+  } catch (error) {
+    if (error instanceof BaseContextRecordError) {
+      return {
+        characterId: input.characterId, agentId, status: 'failed', reason: 'record_failed',
+        written: error.written, version: error.version,
+      };
     }
-    // The files already match (e.g. a previous write whose record was lost): record, do not rewrite.
+    throw error;
+  }
+}
+
+/** A record/pointer write failed after the file operations: `written` preserves what really happened. */
+class BaseContextRecordError extends Error {
+  constructor(readonly written: boolean, readonly version: AgentContextVersionView | null) {
+    super('agent_context_record_failed');
+    this.name = 'BaseContextRecordError';
+  }
+}
+
+async function storeContext(
+  tx: AgentContextTransaction,
+  input: SyncCharacterBaseContextInput,
+  agentId: string,
+  source: { publishedVersionId: string; publishedVersionNo: number | null; rendered: RenderedAgentContext },
+  written: boolean,
+  current: AgentContextVersionView | null,
+): Promise<AgentContextVersionView> {
+  try {
+    // Record and repoint the current version in this same transaction: an append-only, deduped
+    // history cannot say which row is live, so the pointer is the only honest source of "current".
     const stored = await recordAgentContextVersion({
       agentId,
-      rendered: desired,
+      rendered: source.rendered,
       source: input.source,
       capturedByAdminAccountId: input.capturedByAdminAccountId ?? null,
       characterId: input.characterId,
       contentVersionId: source.publishedVersionId,
       contentVersionNo: source.publishedVersionNo,
-    });
-    return { ...base, status: 'synced', reason: null, written: false, version: stored.version };
+    }, tx);
+    return stored.version;
+  } catch {
+    throw new BaseContextRecordError(written, current);
+  }
+}
+
+async function syncInsideAgentLock(
+  tx: AgentContextTransaction,
+  input: SyncCharacterBaseContextInput,
+  agentId: string,
+): Promise<BaseContextSyncResult> {
+  const source = await loadPublishedSource(input.characterId, tx);
+  const base = { characterId: input.characterId, agentId };
+  if (!source.publishedVersionId || !source.rendered) {
+    return { ...base, status: 'failed', reason: 'character_version_unavailable', written: false, version: null };
+  }
+  if (!source.agentId) {
+    return { ...base, status: 'failed', reason: 'character_agent_unavailable', written: false, version: null };
+  }
+
+  const desired = source.rendered;
+  const published = {
+    publishedVersionId: source.publishedVersionId,
+    publishedVersionNo: source.publishedVersionNo,
+    rendered: desired,
+  };
+  const current = await getCurrentAgentContextVersion(agentId, tx);
+  const live = await readRoleSystemFiles(agentId, { timeoutMs: input.timeoutMs });
+  if (!live.ok) {
+    // Not "failed": FastClaw was not reachable to write at all. The old record stays the last good one.
+    return { ...base, status: 'pending', reason: live.code, written: false, version: current };
+  }
+
+  const liveHash = hashRoleFiles(live.files);
+  if (liveHash === desired.contentHash) {
+    if (current && current.contentHash === desired.contentHash) {
+      return { ...base, status: 'unchanged', reason: null, written: false, version: current };
+    }
+    // The files already match (e.g. a previous write whose record was lost): record (and thereby
+    // repoint current), do not rewrite. This is also the A → B → A case once the files match again.
+    const version = await storeContext(tx, input, agentId, published, false, current);
+    return { ...base, status: 'synced', reason: null, written: false, version };
   }
 
   // The live files differ from the published version: this is where a FastClaw-console hand edit is
@@ -332,30 +436,38 @@ export async function syncCharacterBaseContext(
       timeoutMs: input.timeoutMs,
     });
     if (!write.ok) {
-      // Partial write stays visible: no version is recorded, so the drift read keeps reporting it.
-      return { ...base, status: 'failed', reason: `${write.code}:${name}`, written: true, version: recorded };
+      // A partial write stays visible: no version is recorded and current is NOT repointed, so the
+      // drift read keeps reporting it. `written` is false because not all three PUTs landed.
+      return { ...base, status: 'failed', reason: `${write.code}:${name}`, written: false, version: current };
     }
   }
 
-  try {
-    const stored = await recordAgentContextVersion({
-      agentId,
-      rendered: desired,
-      source: input.source,
-      capturedByAdminAccountId: input.capturedByAdminAccountId ?? null,
-      characterId: input.characterId,
-      contentVersionId: source.publishedVersionId,
-      contentVersionNo: source.publishedVersionNo,
-    });
-    return { ...base, status: 'synced', reason: null, written: true, version: stored.version };
-  } catch {
-    return { ...base, status: 'failed', reason: 'record_failed', written: true, version: recorded };
+  // A PUT can answer 200 without the bytes being visible afterwards (dropped write, concurrent
+  // overwrite). Read them back so such a state is `failed` instead of `synced` forever.
+  // Note: FastClaw's setup API scopes BOTH GET and PUT by the authenticated user, so this check
+  // cannot detect a credential that is not the agent owner — it only sees the row it just wrote.
+  // Keeping FASTCLAW_API_KEY aligned with `agents.user_id` is an operational requirement.
+  const verified = await readRoleSystemFiles(agentId, { timeoutMs: input.timeoutMs });
+  if (!verified.ok) {
+    return { ...base, status: 'failed', reason: `write_not_verified:${verified.code}`, written: true, version: current };
   }
+  for (const name of ROLE_SYSTEM_FILES) {
+    const file = name as RoleSystemFile;
+    if (verified.files[file] !== desired.files[file]) {
+      return { ...base, status: 'failed', reason: `write_not_verified:${name}`, written: true, version: current };
+    }
+  }
+  if (hashRoleFiles(verified.files) !== desired.contentHash) {
+    return { ...base, status: 'failed', reason: 'write_not_verified', written: true, version: current };
+  }
+
+  const version = await storeContext(tx, input, agentId, published, true, current);
+  return { ...base, status: 'synced', reason: null, written: true, version };
 }
 
 /**
- * Latest recorded base context vs the live FastClaw files. Never infers a match: an unreadable
- * FastClaw is `unavailable`, an empty history is `unrecorded`, and only an equal hash is `in-sync`.
+ * The CURRENT recorded base context vs the live FastClaw files. Never infers a match: an unreadable
+ * FastClaw is `unavailable`, no current record is `unrecorded`, and only an equal hash is `in-sync`.
  */
 export async function readCharacterBaseContext(
   characterId: string,
@@ -364,7 +476,7 @@ export async function readCharacterBaseContext(
   const source = await loadPublishedSource(characterId);
   const agentId = source.agentId ?? null;
   const publishedHash = source.rendered?.contentHash ?? null;
-  const recorded = agentId ? await getLatestAgentContextVersion(agentId) : null;
+  const recorded = agentId ? await getCurrentAgentContextVersion(agentId) : null;
   const checkedAt = new Date();
 
   let live: CharacterBaseContext['live'] = { readable: false, contentHash: null, failure: null };

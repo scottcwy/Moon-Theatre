@@ -13,7 +13,7 @@ import {
   type CharacterDraft,
   type ValidationIssue,
 } from '../content/validation.js';
-import { latestAgentContextVersionId, getAgentContextDisplayNumbers } from '../agent-context/index.js';
+import { currentAgentContextVersionId, getAgentContextDisplayNumbers } from '../agent-context/index.js';
 import type { ChatModelTier, CharacterWithPrompts, Script } from './service.js';
 
 type TurnQueryClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -250,10 +250,11 @@ export async function pinAcceptedTurn(
   const version = await loadPublishedVersion(client, character.id, character.publishedVersionId);
   const payload = pinnedPayload(version);
   const model = await resolveModelProfile(client, input.modelTier);
-  // Batch 3 step 1: the turn references the base context recorded at accept time. One local read in
-  // this same transaction — never a FastClaw call, never an inference from "the latest one later" —
-  // and NULL when nothing was ever recorded ("基础上下文未记录").
-  const agentContextVersionId = await latestAgentContextVersionId(client, character.agentId ?? payload.agentId ?? null);
+  // Batch 3 step 1: the turn references the base context that is CURRENT at accept time (the explicit
+  // `agent_current_context` pointer, not `max(created_at)` — recording is hash-deduped, so a content
+  // revert keeps an older row). One local read in this same transaction — never a FastClaw call, never
+  // an inference from "the latest one later" — and NULL when nothing was ever recorded.
+  const agentContextVersionId = await currentAgentContextVersionId(client, character.agentId ?? payload.agentId ?? null);
 
   const [inserted] = await client
     .insert(chatTurnSnapshots)

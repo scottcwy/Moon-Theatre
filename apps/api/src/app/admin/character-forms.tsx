@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminRequest, AdminRequestError } from './request.js';
-import { characterFieldLabel, scriptPublishWarning } from './character-copy.js';
+import { characterFieldLabel, describeBaseContextSync, scriptPublishWarning, type BaseContextStatusLike } from './character-copy.js';
 import {
   buildCharacterEditPatch,
   parseQuestions,
@@ -442,20 +442,24 @@ export function CharacterPublishActions({
         versionId: string;
         status: string;
         auditStatus: 'committed' | 'pending';
-        baseContext?: { status: string; reason: string | null };
+        baseContext?: { status: BaseContextStatusLike; reason: string | null; written: boolean };
       }>(
         `/api/admin/characters/${encodeURIComponent(characterId)}/publish`, 'POST',
         { versionId, idempotencyKey: idempotencyKey.current },
       );
       // Batch 3 step 1: the derived base context is reported separately from the publish result. A
-      // cross-system problem never turns the publish into a failure — it is stated as `baseContextStatus`.
-      const baseNote = result.baseContext?.status === 'synced'
-        ? '基础上下文已按该版本重建并记录。'
-        : result.baseContext?.status === 'failed'
-          ? '基础上下文同步失败：发布已生效，但 FastClaw 中的基础上下文未更新，可在角色页重建。'
-          : result.baseContext?.status === 'pending'
-            ? '基础上下文尚未写入 FastClaw（不可用）：发布已生效，可在 FastClaw 恢复后重建。'
-            : '';
+      // cross-system problem never turns the publish into a failure — it is stated as `baseContextStatus`,
+      // and each outcome gets its own honest label (a failed record is NOT "FastClaw 未更新").
+      const baseNote = result.baseContext
+        ? (() => {
+          const sync = describeBaseContextSync({
+            status: result.baseContext.status,
+            reason: result.baseContext.reason,
+            written: result.baseContext.written,
+          });
+          return `基础上下文${sync.label}：${sync.note}`;
+        })()
+        : '';
       if (result.auditStatus === 'pending') {
         setFailed(false);
         setMessage(`已提交发布，但审计仍待恢复（处理中）。请稍后刷新确认；同一任务不会重复发布，也不构成完整成功。${baseNote ? ` ${baseNote}` : ''}`);
@@ -608,19 +612,12 @@ export function BaseContextRebuildAction({ characterId, disabled = false }: { ch
     setPending(true);
     setMessage('');
     try {
-      const result = await adminRequest<{ sync: { status: string; reason: string | null; written: boolean } }>(
+      const result = await adminRequest<{ sync: { status: BaseContextStatusLike; reason: string | null; written: boolean } }>(
         `/api/admin/characters/${encodeURIComponent(characterId)}/base-context`, 'POST', {},
       );
-      setFailed(result.sync.status === 'failed');
-      setMessage(result.sync.status === 'synced'
-        ? (result.sync.written
-          ? '已按已发布版本重新生成 SOUL.md / IDENTITY.md / USER.md 并写入 FastClaw，同时记录基础上下文版本。'
-          : 'FastClaw 中的基础上下文已与已发布版本一致，本次只补记录了版本。')
-        : result.sync.status === 'unchanged'
-          ? '基础上下文与已发布版本一致，无需重建。'
-          : result.sync.status === 'pending'
-            ? 'FastClaw 当前不可用：没有写入任何文件，也没有记录新版本。已发布版本与上一次记录保持不变，可稍后重试。'
-            : '基础上下文重建失败：没有记录新版本，上一次记录保持不变。请核对 FastClaw 可用性后重试。');
+      const sync = describeBaseContextSync(result.sync);
+      setFailed(sync.tone === 'error');
+      setMessage(`基础上下文${sync.label}：${sync.note}`);
       router.refresh();
     } catch (cause) {
       const failure = cause instanceof AdminRequestError ? cause : new AdminRequestError('重建未完成，请稍后重试。');

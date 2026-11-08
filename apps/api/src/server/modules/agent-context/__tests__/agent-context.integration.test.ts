@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ownedTestTarget } from '../../../db/__tests__/disposable-postgres.js';
 import type { CharacterDraft } from '../../content/validation.js';
@@ -35,13 +35,30 @@ interface StandInRequest {
   body: string;
 }
 
+type StandInMode =
+  | 'ok'
+  | 'down'
+  | 'fail-put'
+  | 'fail-put-third'
+  | 'fail-get'
+  // A PUT that answers 200 while the bytes land under a DIFFERENT owner's row (what a
+  // `FASTCLAW_API_KEY` that does not resolve to the agent owner actually does).
+  | 'not-persisted'
+  // One delayed GET response, so another transaction can commit in the middle of a sync.
+  | 'slow-get-once';
+
 /** Local stand-in for the FastClaw setup server's system-files API. */
 const standIn = {
   server: undefined as Server | undefined,
   url: '',
   requests: [] as StandInRequest[],
   files: new Map<string, string>(),
-  mode: 'ok' as 'ok' | 'down' | 'fail-put' | 'fail-get',
+  /** Rows a 200-but-not-persisted write would land on: the read-back never sees them. */
+  foreignFiles: new Map<string, string>(),
+  mode: 'ok' as StandInMode,
+  getCount: 0,
+  putCount: 0,
+  slowGetMs: 0,
   key(agentId: string, name: string) {
     return `${agentId}/${name}`;
   },
@@ -81,6 +98,10 @@ async function startStandIn(): Promise<string> {
       const agentId = decodeURIComponent(match[1]!);
       const name = decodeURIComponent(match[2]!);
       if (recorded.method === 'GET') {
+        standIn.getCount += 1;
+        if (standIn.mode === 'slow-get-once' && standIn.getCount === 1) {
+          await new Promise((resolve) => setTimeout(resolve, standIn.slowGetMs));
+        }
         if (standIn.mode === 'fail-get') {
           json(response, 500, { error: 'boom' });
           return;
@@ -90,11 +111,21 @@ async function startStandIn(): Promise<string> {
         return;
       }
       if (recorded.method === 'PUT') {
+        standIn.putCount += 1;
         if (standIn.mode === 'fail-put') {
           json(response, 500, { error: 'boom' });
           return;
         }
+        if (standIn.mode === 'fail-put-third' && standIn.putCount === 3) {
+          json(response, 500, { error: 'boom' });
+          return;
+        }
         const parsed = JSON.parse(recorded.body || '{}') as { content?: string };
+        if (standIn.mode === 'not-persisted') {
+          standIn.foreignFiles.set(standIn.key(agentId, name), parsed.content ?? '');
+          json(response, 200, { ok: true });
+          return;
+        }
         standIn.files.set(standIn.key(agentId, name), parsed.content ?? '');
         json(response, 200, { ok: true });
         return;
@@ -181,6 +212,10 @@ describeRealPg('agent context versions (plan W) real PostgreSQL', () => {
     standIn.requests = [];
     standIn.mode = 'ok';
     standIn.files.clear();
+    standIn.foreignFiles.clear();
+    standIn.getCount = 0;
+    standIn.putCount = 0;
+    standIn.slowGetMs = 0;
   });
 
   afterAll(async () => {
@@ -217,7 +252,43 @@ describeRealPg('agent context versions (plan W) real PostgreSQL', () => {
       .orderBy(runtime.schema.agentContextVersions.createdAt);
   }
 
-  describe('migration 0016', () => {
+  /** The explicit "current" pointer rows of an agent (at most one by primary key). */
+  async function currentRows(agentId: string) {
+    return runtime.db
+      .select()
+      .from(runtime.schema.agentCurrentContext)
+      .where(eq(runtime.schema.agentCurrentContext.agentId, agentId));
+  }
+
+  async function waitFor(predicate: () => boolean, timeoutMs = 2_000) {
+    const started = Date.now();
+    while (!predicate()) {
+      if (Date.now() - started > timeoutMs) throw new Error('waitFor timed out');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  /** Commits a publish-shaped switch WITHOUT the publish hook, i.e. a concurrent publish step. */
+  async function commitPublishWithoutSync(characterId: string, versionId: string) {
+    await runtime.db
+      .update(runtime.schema.contentVersions)
+      .set({ status: 'superseded', publishedAt: null })
+      .where(and(
+        eq(runtime.schema.contentVersions.entityType, 'character'),
+        eq(runtime.schema.contentVersions.entityId, characterId),
+        eq(runtime.schema.contentVersions.status, 'published'),
+      ));
+    await runtime.db
+      .update(runtime.schema.contentVersions)
+      .set({ status: 'published', publishedAt: new Date() })
+      .where(eq(runtime.schema.contentVersions.id, versionId));
+    await runtime.db
+      .update(runtime.schema.characters)
+      .set({ publishedVersionId: versionId, status: 'active' })
+      .where(eq(runtime.schema.characters.id, characterId));
+  }
+
+  describe('migrations 0016/0017', () => {
     it('replays idempotently and leaves one table, one unique index and the snapshot column', async () => {
       const migrationSql = readFileSync(path.resolve('drizzle/0016_agent_context_versions.sql'), 'utf8');
       // Deployments replay migrations: running the file again must not raise or duplicate anything.
@@ -238,6 +309,48 @@ describeRealPg('agent context versions (plan W) real PostgreSQL', () => {
       const columns = (await runtime.db.execute(sql`
         select column_name from information_schema.columns where table_name = 'chat_turn_snapshots'`)) as unknown as Array<{ column_name: string }>;
       expect(columns.map((row) => row.column_name)).toContain('agent_context_version_id');
+    });
+
+    it('0017 replays idempotently and backfills one current row per agent', async () => {
+      const migrationSql = readFileSync(path.resolve('drizzle/0017_agent_current_context.sql'), 'utf8');
+      await runtime.db.execute(sql.raw(migrationSql));
+      await runtime.db.execute(sql.raw(migrationSql));
+
+      const tables = (await runtime.db.execute(sql`
+        select count(*)::int as tables from information_schema.tables
+        where table_name = 'agent_current_context'`)) as unknown as Array<{ tables: number }>;
+      expect(Number(tables[0]?.tables)).toBe(1);
+      const keys = (await runtime.db.execute(sql`
+        select count(*)::int as keys from pg_constraint
+        where conrelid = 'agent_current_context'::regclass and contype = 'p'`)) as unknown as Array<{ keys: number }>;
+      expect(Number(keys[0]?.keys)).toBe(1);
+
+      // A pre-0017 installation has records but no pointer. The backfill materialises the previous
+      // definition of "current" (newest capture) exactly once per agent, and a replay changes nothing.
+      const agentId = `role-backfill-${randomUUID().slice(0, 8)}`;
+      const older = runtime.agentContext.renderPublishedAgentContext({
+        name: '甲', identity: '一', initialRelationship: '初', prompt: { systemPrompt: 'BACKFILL-OLD' },
+      });
+      const newer = runtime.agentContext.renderPublishedAgentContext({
+        name: '甲', identity: '一', initialRelationship: '初', prompt: { systemPrompt: 'BACKFILL-NEW' },
+      });
+      const [oldRow] = await runtime.db.insert(runtime.schema.agentContextVersions).values({
+        agentId, contentHash: older.contentHash, snapshot: {}, source: 'publish',
+        createdAt: new Date('2026-11-01T00:00:00.000Z'),
+      }).returning();
+      const [newRow] = await runtime.db.insert(runtime.schema.agentContextVersions).values({
+        agentId, contentHash: newer.contentHash, snapshot: {}, source: 'publish',
+        createdAt: new Date('2026-11-02T00:00:00.000Z'),
+      }).returning();
+      await runtime.db.delete(runtime.schema.agentCurrentContext)
+        .where(eq(runtime.schema.agentCurrentContext.agentId, agentId));
+
+      await runtime.db.execute(sql.raw(migrationSql));
+
+      const rows = await currentRows(agentId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.versionId).toBe(newRow!.id);
+      expect(rows[0]!.versionId).not.toBe(oldRow!.id);
     });
   });
 
@@ -267,10 +380,15 @@ describeRealPg('agent context versions (plan W) real PostgreSQL', () => {
       expect(rows).toHaveLength(2);
       expect(rows[0]!.source).toBe('publish');
 
-      const latest = await runtime.agentContext.getLatestAgentContextVersion(agentId);
-      expect(latest?.id).toBe(c.version.id);
-      expect(latest?.contentHash).toBe(second.contentHash);
-      expect(latest?.displayNo).toBe(2);
+      // "Current" is the pointer written by the last successful capture, not `max(created_at)`: after
+      // B the current record is B (and A stays readable in the history).
+      const current = await runtime.agentContext.getCurrentAgentContextVersion(agentId);
+      expect(current?.id).toBe(c.version.id);
+      expect(current?.contentHash).toBe(second.contentHash);
+      expect(current?.displayNo).toBe(2);
+      const pointer = await currentRows(agentId);
+      expect(pointer).toHaveLength(1);
+      expect(pointer[0]!.versionId).toBe(c.version.id);
     });
 
     it('stores the rendered files, their hashes and counts in the snapshot', async () => {
@@ -376,7 +494,8 @@ describeRealPg('agent context versions (plan W) real PostgreSQL', () => {
       // …and the cross-system step is reported as failed, never as success.
       expect(published.baseContext.status).toBe('failed');
       expect(published.baseContext.reason).toContain('upstream_error');
-      expect(published.baseContext.written).toBe(true);
+      // Only the PUTs that actually landed count as written: the first one already failed.
+      expect(published.baseContext.written).toBe(false);
       // The old record is untouched: no new version was invented for a write that did not land.
       const after = await versionRows('role-baizang');
       expect(after).toHaveLength(before.length);
@@ -541,15 +660,212 @@ describeRealPg('agent context versions (plan W) real PostgreSQL', () => {
     });
   });
 
+  /**
+   * Review fix (critical): recording is hash-deduped, so "latest by created_at" cannot express
+   * "current" once content returns to an earlier value (A → B → A). The current version is an
+   * explicit pointer written by the successful sync; drift, the panel and turn attribution read it.
+   */
+  describe('current version pointer', () => {
+    it('repoints current on a content revert (A → B → A) and never claims drift', async () => {
+      const character = await newCharacter();
+      const first = await publish(character.id, character.versionId);
+      expect(first.baseContext.status).toBe('synced');
+      const afterA = await versionRows('role-baizang');
+      expect(afterA).toHaveLength(1);
+      expect((await currentRows('role-baizang'))[0]!.versionId).toBe(afterA[0]!.id);
+
+      // A → B: new bytes, so a second immutable record and current = b2.
+      const toB = await runtime.characters.updateCharacterDraft(
+        actor, character.id, { versionId: character.versionId },
+        { prompt: { ...character.payload.prompt, systemPrompt: 'SOUL-REVERT-B' } },
+      );
+      const second = await publish(character.id, toB.versionId);
+      expect(second.baseContext.status).toBe('synced');
+      const afterB = await versionRows('role-baizang');
+      expect(afterB).toHaveLength(2);
+      expect((await currentRows('role-baizang'))[0]!.versionId).toBe(afterB[1]!.id);
+
+      // B → A: the bytes of the FIRST publish again. The record dedupes onto b1; the FILES are
+      // rewritten with A, so b1 is the live content and must be current.
+      const backToA = await runtime.characters.updateCharacterDraft(
+        actor, character.id, { versionId: toB.versionId }, { ...character.payload },
+      );
+      const third = await publish(character.id, backToA.versionId);
+      expect(third.baseContext.status).toBe('synced');
+      expect(third.baseContext.written).toBe(true);
+      expect(third.baseContext.version?.id).toBe(afterA[0]!.id);
+      expect(await versionRows('role-baizang')).toHaveLength(2);
+
+      const pointer = await currentRows('role-baizang');
+      expect(pointer).toHaveLength(1);
+      expect(pointer[0]!.versionId).toBe(afterA[0]!.id);
+
+      // The panel must say "in sync" here: FastClaw holds exactly the published version.
+      const base = await runtime.agentContext.readCharacterBaseContext(character.id);
+      expect(base.status).toBe('in-sync');
+      expect(base.matchesPublished).toBe(true);
+      expect(base.recorded?.id).toBe(afterA[0]!.id);
+      expect(base.recorded?.displayNo).toBe(1);
+      expect(base.live.contentHash).toBe(base.recorded?.contentHash);
+
+      // A console hand edit is then drift against the CURRENT version…
+      standIn.files.set(standIn.key('role-baizang', 'SOUL.md'), '# Soul\n\n## 核心人设\n手改的人设\n');
+      const drifted = await runtime.agentContext.readCharacterBaseContext(character.id);
+      expect(drifted.status).toBe('drifted');
+      expect(drifted.recorded?.id).toBe(afterA[0]!.id);
+      expect(drifted.matchesPublished).toBe(true);
+
+      // …and the advertised repair actually repairs it (it cannot get stuck on a stale "latest").
+      const rebuilt = await runtime.agentContext.rebuildCharacterBaseContext({ actor, characterId: character.id });
+      expect(rebuilt.sync.status).toBe('synced');
+      expect(rebuilt.baseContext.status).toBe('in-sync');
+      expect(rebuilt.baseContext.recorded?.id).toBe(afterA[0]!.id);
+      const rendered = runtime.agentContext.renderPublishedAgentContext(character.payload);
+      expect(liveFile('role-baizang', 'SOUL.md')).toBe(rendered.files['SOUL.md']);
+    });
+
+    it('serializes syncs per agent so the newest published version stays current', async () => {
+      const character = await newCharacter();
+      await publish(character.id, character.versionId);
+
+      // B is published (but not yet written to FastClaw) when the slow sync starts…
+      const toB = await runtime.characters.updateCharacterDraft(
+        actor, character.id, { versionId: character.versionId },
+        { prompt: { ...character.payload.prompt, systemPrompt: 'SOUL-CONCURRENT-B' } },
+      );
+      await commitPublishWithoutSync(character.id, toB.versionId);
+
+      // The in-flight sync is held inside its first GET, i.e. after it resolved its source version
+      // and while it holds the per-agent lock.
+      standIn.requests = [];
+      standIn.getCount = 0;
+      standIn.mode = 'slow-get-once';
+      standIn.slowGetMs = 400;
+      const slow = runtime.agentContext.syncCharacterBaseContext({ characterId: character.id, source: 'manual' });
+      await waitFor(() => standIn.requests.some((request) => request.method === 'GET'));
+
+      // …and C is published + synced while the slow sync is still in flight.
+      const toC = await runtime.characters.updateCharacterDraft(
+        actor, character.id, { versionId: toB.versionId },
+        { prompt: { ...character.payload.prompt, systemPrompt: 'SOUL-CONCURRENT-C' } },
+      );
+      await commitPublishWithoutSync(character.id, toC.versionId);
+      const fast = runtime.agentContext.syncCharacterBaseContext({ characterId: character.id, source: 'publish' });
+
+      const [slowResult, fastResult] = await Promise.all([slow, fast]);
+      expect(slowResult.status).toBe('synced');
+      expect(fastResult.status).toBe('synced');
+
+      const base = await runtime.agentContext.readCharacterBaseContext(character.id);
+      const renderedC = runtime.agentContext.renderPublishedAgentContext({
+        ...character.payload,
+        prompt: { ...character.payload.prompt, systemPrompt: 'SOUL-CONCURRENT-C' },
+      });
+      // The last writer is the newest publish, never the slow one that started earlier.
+      expect(base.live.contentHash).toBe(renderedC.contentHash);
+      expect(base.recorded?.contentHash).toBe(renderedC.contentHash);
+      expect(base.status).toBe('in-sync');
+      expect(base.matchesPublished).toBe(true);
+      // Exactly one current row per agent, no matter how many syncs raced.
+      const pointer = await currentRows('role-baizang');
+      expect(pointer).toHaveLength(1);
+      expect(pointer[0]!.versionId).toBe(base.recorded!.id);
+    }, { timeout: 20_000 });
+  });
+
+  /**
+   * Read-back verification: a PUT may answer 200 without the bytes being visible afterwards. Any
+   * mismatch is `write_not_verified`, never `synced`. Scope note: FastClaw's setup API scopes BOTH
+   * GET and PUT by the authenticated user, so this check cannot detect a credential that is not the
+   * agent owner (it only sees the row it just wrote) — that alignment is an operational requirement.
+   */
+  describe('write verification', () => {
+    it('reports write_not_verified when a PUT answers 200 without persisting', async () => {
+      const character = await newCharacter();
+      standIn.mode = 'not-persisted';
+
+      const published = await publish(character.id, character.versionId);
+
+      expect(published.status).toBe('committed');
+      expect(published.baseContext.status).toBe('failed');
+      expect(published.baseContext.reason?.startsWith('write_not_verified')).toBe(true);
+      // All three PUTs answered 200, so "written" is true — and nothing may be recorded as synced.
+      expect(published.baseContext.written).toBe(true);
+      expect(await versionRows('role-baizang')).toHaveLength(0);
+      expect(await currentRows('role-baizang')).toHaveLength(0);
+      expect(standIn.foreignFiles.size).toBe(3);
+
+      // Nothing is claimed: no record means `unrecorded`, and the next publish retries the write.
+      const base = await runtime.agentContext.readCharacterBaseContext(character.id);
+      expect(base.status).toBe('unrecorded');
+      expect(base.recorded).toBeNull();
+    });
+
+    it('does not claim written when only some of the three PUTs landed', async () => {
+      const character = await newCharacter();
+      standIn.mode = 'fail-put-third';
+
+      const published = await publish(character.id, character.versionId);
+
+      expect(published.baseContext.status).toBe('failed');
+      expect(published.baseContext.reason).toBe('upstream_error:USER.md');
+      // Two of three landed: that is not "the files were written".
+      expect(published.baseContext.written).toBe(false);
+      expect(await versionRows('role-baizang')).toHaveLength(0);
+      expect(await currentRows('role-baizang')).toHaveLength(0);
+      expect(standIn.putCount).toBe(3);
+    });
+
+    it('reports record_failed when the record cannot be stored and never claims a sync', async () => {
+      // A published character's agent id must come from the versioned contract, so this uses one of
+      // the real ids and keys the injected failure to it.
+      const agentId = 'role-hemaoqingxuan';
+      const character = await newCharacter({ agentId });
+      // Force the one failure the code cannot otherwise reach: the record insert failing AFTER the
+      // files were written. The trigger is keyed to this private agent id.
+      await runtime.db.execute(sql.raw(`
+        create or replace function test_fail_agent_context_record() returns trigger language plpgsql as $fn$
+        begin
+          if new.agent_id = '${agentId}' then raise exception 'injected record failure'; end if;
+          return new;
+        end $fn$`));
+      await runtime.db.execute(sql.raw(
+        'create trigger test_fail_agent_context_record before insert on agent_context_versions for each row execute function test_fail_agent_context_record()',
+      ));
+      try {
+        const published = await publish(character.id, character.versionId);
+
+        // The publish stands, and the operator is told exactly what happened: files written, no record.
+        expect(published.status).toBe('committed');
+        expect(published.baseContext.status).toBe('failed');
+        expect(published.baseContext.reason).toBe('record_failed');
+        expect(published.baseContext.written).toBe(true);
+        expect(await versionRows(agentId)).toHaveLength(0);
+        expect(await currentRows(agentId)).toHaveLength(0);
+
+        const base = await runtime.agentContext.readCharacterBaseContext(character.id);
+        expect(base.status).toBe('unrecorded');
+        expect(base.live.readable).toBe(true);
+      } finally {
+        await runtime.db.execute(sql.raw('drop trigger if exists test_fail_agent_context_record on agent_context_versions'));
+        await runtime.db.execute(sql.raw('drop function if exists test_fail_agent_context_record()'));
+      }
+    });
+  });
+
   describe('turn attribution', () => {
-    async function chatFixture(input: { persona: string }) {
+    // The published model profile is a singleton: its fixture always inserts version 1, so the second
+    // chat fixture in this file must not insert it again.
+    let modelProfileReady = false;
+
+    async function chatFixture(input: { persona: string; agentId?: string }) {
       const { db, schema } = runtime;
-      await resetAgent('role-baizang');
+      const agentId = input.agentId ?? 'role-baizang';
+      await resetAgent(agentId);
       const userId = randomUUID();
       const characterId = randomUUID();
       const sessionId = randomUUID();
       const messageId = randomUUID();
-      const agentId = 'role-baizang';
       await db.insert(schema.users).values({ id: userId, openid: `ac-${randomUUID()}` });
       await db.insert(schema.characters).values({
         id: characterId,
@@ -561,7 +877,10 @@ describeRealPg('agent context versions (plan W) real PostgreSQL', () => {
         agentId,
       });
       const versionId = await runtime.chatFixtures.publishFixtureCharacterVersion(db as never, { characterId });
-      await runtime.chatFixtures.ensurePublishedModelProfile(db as never, 'standard');
+      if (!modelProfileReady) {
+        await runtime.chatFixtures.ensurePublishedModelProfile(db as never, 'standard');
+        modelProfileReady = true;
+      }
       await db.insert(schema.chatSessions).values({
         id: sessionId,
         userId,
@@ -630,6 +949,48 @@ describeRealPg('agent context versions (plan W) real PostgreSQL', () => {
       // The legacy turn keeps its honest "not recorded" answer: no backfill.
       const legacy = await runtime.turnSnapshot.getTurnVersionAttributions([fixtureChat.messageId]);
       expect(legacy[0]!.agentContextVersionId).toBeNull();
+    });
+
+    it('pins the CURRENT record after a content revert, not the newest row', async () => {
+      // A private agent id: the accepted turn of the earlier case already references a record, and a
+      // base-context row referenced by a turn snapshot can never be deleted.
+      const fixtureChat = await chatFixture({ persona: 'ATTR-REVERT', agentId: `role-attr-${randomUUID().slice(0, 8)}` });
+      const render = (systemPrompt: string) => runtime.agentContext.renderPublishedAgentContext({
+        name: 'ATTR', identity: 'identity', initialRelationship: 'none', prompt: { systemPrompt },
+      });
+
+      const a = await runtime.agentContext.recordAgentContextVersion({
+        agentId: fixtureChat.agentId, rendered: render('ATTR-REVERT-A'), source: 'publish',
+      });
+      const b = await runtime.agentContext.recordAgentContextVersion({
+        agentId: fixtureChat.agentId, rendered: render('ATTR-REVERT-B'), source: 'publish',
+      });
+      expect(b.version.displayNo).toBe(2);
+      // The runtime is back on A: b1 is what the next turn actually uses.
+      const aAgain = await runtime.agentContext.recordAgentContextVersion({
+        agentId: fixtureChat.agentId, rendered: render('ATTR-REVERT-A'), source: 'publish',
+      });
+      expect(aAgain.created).toBe(false);
+      expect(aAgain.version.id).toBe(a.version.id);
+
+      const messageId = randomUUID();
+      await runtime.db.insert(runtime.schema.messages).values({
+        id: messageId, sessionId: fixtureChat.sessionId, role: 'user', content: 'q-revert',
+      });
+      await runtime.db.transaction(async (tx) => runtime.turnSnapshot.pinAcceptedTurn(tx, {
+        userMessageId: messageId,
+        clientMessageId: `c-${randomUUID()}`,
+        characterId: fixtureChat.characterId,
+        modelTier: 'standard',
+      }));
+
+      const [attribution] = await runtime.turnSnapshot.getTurnVersionAttributions([messageId]);
+      expect(attribution).toMatchObject({
+        agentContextVersionId: a.version.id,
+        agentContextVersionNo: 1,
+        versionUnknown: false,
+      });
+      expect(attribution!.agentContextVersionId).not.toBe(b.version.id);
     });
   });
 });

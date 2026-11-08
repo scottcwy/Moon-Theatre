@@ -151,6 +151,13 @@ export interface BaseContextView {
   matchesPublished: boolean | null;
 }
 
+/** One sync outcome as the API reports it: a status, a machine reason and whether files really landed. */
+export interface BaseContextSyncLike {
+  status: BaseContextStatusLike;
+  reason?: string | null;
+  written?: boolean;
+}
+
 export const BASE_CONTEXT_DRIFT_NOTICE = '控制台已被手改，与已发布版本不一致';
 export const BASE_CONTEXT_UNRECORDED = '基础上下文未记录';
 export const BASE_CONTEXT_UNAVAILABLE = 'FastClaw 不可用，无法核对基础上下文';
@@ -165,12 +172,68 @@ export function baseContextSourceLabel(source: string): string {
   return BASE_CONTEXT_SOURCE_LABELS[source] ?? source;
 }
 
-/** One Chinese label for a publish-time / rebuild sync outcome. */
-export function describeBaseContextSync(status: BaseContextStatusLike): PublishTaskState {
-  if (status === 'synced') return { tone: 'ok', label: '已写入并记录' };
-  if (status === 'unchanged') return { tone: 'ok', label: '无变化' };
-  if (status === 'pending') return { tone: 'warn', label: '待同步（FastClaw 不可用）' };
-  return { tone: 'error', label: '同步失败' };
+/**
+ * One Chinese label + sentence per sync outcome. Each status says only what is true of that call:
+ * `written` is false unless all three files really landed, a failed read-back is 校验失败 (not a write
+ * failure: the PUT returned 200), and `record_failed` says the files ARE updated while the record is
+ * missing — never "FastClaw 未更新".
+ */
+export function describeBaseContextSync(result: BaseContextSyncLike): PublishTaskState & { note: string } {
+  const reason = result.reason ?? '';
+  if (result.status === 'synced') {
+    return {
+      tone: 'ok',
+      label: '已同步',
+      note: result.written === false
+        ? 'FastClaw 中的基础上下文已与已发布版本一致，本次只补记录了版本。'
+        : '已按已发布版本重新生成 SOUL.md / IDENTITY.md / USER.md，写入并通过回读校验，同时记录了基础上下文版本。',
+    };
+  }
+  if (result.status === 'unchanged') {
+    return { tone: 'ok', label: '内容未变', note: '基础上下文已与已发布版本一致，没有写入文件，也没有新增记录。' };
+  }
+  if (result.status === 'pending') {
+    return {
+      tone: 'warn',
+      label: '待同步',
+      note: 'FastClaw 当前不可用：没有写入任何文件，也没有记录新版本；FastClaw 恢复后可重建基础上下文。',
+    };
+  }
+  if (reason === 'record_failed') {
+    if (result.written) {
+      return {
+        tone: 'warn',
+        label: '未记录',
+        note: '三份文件已写入 FastClaw 并通过回读校验，但基础上下文版本记录失败：FastClaw 内容已是该版本，可再执行一次重建以补记录。',
+      };
+    }
+    return {
+      tone: 'warn',
+      label: '未记录',
+      note: '本次重建没有写入任何文件（内容已是最新），但补记录失败：FastClaw 内容未变，可再执行一次重建以补记录。',
+    };
+  }
+  if (reason === 'base_context_sync_error') {
+    return {
+      tone: 'error',
+      label: '同步异常',
+      note: '基础上下文同步过程出现异常，未达到可确认的结果：没有记录新版本，请稍后重试。',
+    };
+  }
+  if (reason.startsWith('write_not_verified')) {
+    return {
+      tone: 'error',
+      label: '校验失败',
+      note: '写入请求返回成功，但回读内容与已发布版本不一致：没有记录新版本，请稍后重试并确认 FastClaw 可用。',
+    };
+  }
+  return {
+    tone: 'error',
+    label: '写入失败',
+    note: reason === 'character_version_unavailable' || reason === 'character_agent_unavailable'
+      ? '没有可写入的已发布版本或 Agent 标识：没有写入文件，也没有记录新版本。'
+      : 'FastClaw 没有接受这次写入：没有记录新版本，已发布版本保持不变；可稍后重建重试。',
+  };
 }
 
 /** `基础上下文：b1 · 2026-11-07 10:00 · 已同步` or the honest "not recorded"/"unavailable" text. */
@@ -191,7 +254,7 @@ export function describeBaseContext(view: BaseContextView | null): {
     return { tone: 'warn', label: '不一致', badge, notice: BASE_CONTEXT_DRIFT_NOTICE };
   }
   // `unavailable`: the files could not be read, so nothing is claimed about them.
-  return { tone: 'warn', label: '无法核对', badge, notice: BASE_CONTEXT_UNAVAILABLE };
+  return { tone: 'warn', label: '不可用', badge, notice: BASE_CONTEXT_UNAVAILABLE };
 }
 
 /** A task that only committed its audit intent is never described as complete success. */

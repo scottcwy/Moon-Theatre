@@ -8,8 +8,8 @@ export {
 } from './render.js';
 export type { RenderedAgentContext, RenderedRoleFiles, RoleFileSource, RoleSystemFile } from './render.js';
 export {
-  getLatestAgentContextVersion,
-  latestAgentContextVersionId,
+  getCurrentAgentContextVersion,
+  currentAgentContextVersionId,
   getAgentContextDisplayNumbers,
   recordAgentContextVersion,
   syncCharacterBaseContext,
