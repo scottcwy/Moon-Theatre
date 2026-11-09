@@ -967,6 +967,8 @@ function createGenerationResponse(input: {
               characterId: input.characterId,
               modelTier: input.modelTier,
               modelName: actualModel ?? 'unknown',
+              // F2: what the adapter reported; `finalizeAssistantTurn` records it on success only.
+              actualModelName: actualModel,
               walletTransactionId: null,
               status: 'out_of_scope',
               pointsConsumed: 0,
@@ -1041,6 +1043,9 @@ function createGenerationResponse(input: {
             characterId: input.characterId,
             modelTier: input.modelTier,
             modelName: usedFallback ? 'fallback' : (actualModel ?? 'unknown'),
+            // F2: the runtime model the adapter validated on `done`; recorded on the turn snapshot
+            // only when this turn succeeded, and reported back as "unrecorded" if that write fails.
+            actualModelName: actualModel,
             walletTransactionId: blocked || isOutOfScope || usedFallback ? null : input.walletTransactionId,
             status: usedFallback ? 'failed' : blocked ? 'filtered' : isOutOfScope ? 'out_of_scope' : 'success',
             pointsConsumed: blocked || isOutOfScope || usedFallback ? 0 : input.pointsPerCall,
@@ -1049,6 +1054,14 @@ function createGenerationResponse(input: {
           },
         });
         turnCommitted = true;
+        if (saved.actualModelRecorded === false) {
+          console.warn({
+            event: 'chat_turn_actual_model_unrecorded',
+            sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+            actualModel: actualModel,
+          });
+        }
         saveMs = Date.now() - saveStartedAt;
 
         const effectsStartedAt = Date.now();

@@ -20,6 +20,7 @@ import {
   loadSeedCharacters,
   mergeRoleplayConfig,
   renderRoleFiles,
+  validateRoleModel,
 } from './provision-roleplay-agents.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -445,6 +446,167 @@ test('provision-roleplay-agents guards the legacy default agent', { skip: !hasSq
     ]);
     assert.equal(allowed.status, 0, allowed.stderr);
     assert.equal(sqliteJson(dbPath, 'SELECT COUNT(*) AS count FROM agents')[0].count, 19);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// F3: the role agent's model is written explicitly or not at all.
+// Spec §8 fixes roleplay/thinking/maxToolIterations and forbids provisioning from
+// MOVING an operator's model; a freshly provisioned instance with no model silently
+// inherits the FastClaw system default, which the product allowlist may reject.
+// `--model` is the explicit way to pin it; without it nothing is invented.
+// ---------------------------------------------------------------------------
+const FIXTURE_MODEL = 'siliconflow/deepseek-ai/DeepSeek-V4-Flash';
+const OTHER_MODEL = 'siliconflow/deepseek-ai/DeepSeek-V3';
+
+function readAgentConfigs(dbPath) {
+  return sqliteJson(
+    dbPath,
+    "SELECT scope_id, data FROM configs WHERE name = 'agents.defaults' ORDER BY scope_id",
+  ).map((row) => ({ agentId: row.scope_id, data: JSON.parse(row.data) }));
+}
+
+describe('provision-roleplay-agents --model validation', () => {
+  it('accepts a provider/model value', () => {
+    assert.equal(validateRoleModel(FIXTURE_MODEL), FIXTURE_MODEL);
+    assert.equal(validateRoleModel('  siliconflow/deepseek-ai/DeepSeek-V4-Flash  '), FIXTURE_MODEL);
+  });
+
+  it('refuses an empty, bare or malformed value', () => {
+    assert.throws(() => validateRoleModel(''), /provider\/model/);
+    assert.throws(() => validateRoleModel('   '), /provider\/model/);
+    assert.throws(() => validateRoleModel('siliconflow'), /provider\/model/);
+    assert.throws(() => validateRoleModel('siliconflow/'), /provider\/model/);
+    assert.throws(() => validateRoleModel('/DeepSeek-V4-Flash'), /provider\/model/);
+    assert.throws(() => validateRoleModel('siliconflow/deep seek'), /provider\/model/);
+    assert.throws(() => validateRoleModel(undefined), /provider\/model/);
+  });
+
+  it('rejects an invalid --model on the command line before touching the database', () => {
+    // The database target is intentionally unusable: validation must come first.
+    const result = runScript(['--db', '/nonexistent/fastclaw.db', '--model', 'deepseek-chat']);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /provider\/model/);
+    assert.equal(result.stdout, '');
+  });
+
+  it('rejects --model without a value', () => {
+    const result = runScript(['--db', '/nonexistent/fastclaw.db', '--model']);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /provider\/model/);
+  });
+});
+
+describe('provision-roleplay-agents --model merge', () => {
+  it('writes an explicitly provided model and keeps the stored one when it is omitted', () => {
+    const withModel = mergeRoleplayConfig({ maxTokens: 768 }, FIXTURE_MODEL);
+    assert.equal(withModel.model, FIXTURE_MODEL);
+    assert.equal(withModel.maxTokens, 768);
+    assert.equal(withModel.roleplay, true);
+
+    const withoutModel = mergeRoleplayConfig({ model: OTHER_MODEL, maxTokens: 768 });
+    assert.equal(withoutModel.model, OTHER_MODEL, 'no flag must never invent or move a model');
+
+    const untouched = mergeRoleplayConfig();
+    assert.equal('model' in untouched, false, 'provisioning must not write a model on its own');
+  });
+});
+
+test('provision-roleplay-agents writes the given --model into every role agent', { skip: !hasSqlite3 && 'sqlite3 CLI unavailable' }, () => {
+  const { dir, dbPath } = makeFixtureDb();
+  try {
+    const dryRun = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--model', FIXTURE_MODEL]);
+    assert.equal(dryRun.status, 0, dryRun.stderr);
+    assert.match(dryRun.stdout, /would write agents\.defaults for role-baizang \(model 未设置 -> siliconflow\/deepseek-ai\/DeepSeek-V4-Flash\)/);
+    assert.equal(sqliteJson(dbPath, 'SELECT COUNT(*) AS count FROM configs')[0].count, 0);
+
+    const apply = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--model', FIXTURE_MODEL, '--apply']);
+    assert.equal(apply.status, 0, apply.stderr);
+    const configs = readAgentConfigs(dbPath);
+    assert.equal(configs.length, 19, 'the 19-agent contract is unchanged');
+    for (const config of configs) {
+      assert.equal(config.data.model, FIXTURE_MODEL, `agent ${config.agentId} must carry the model`);
+      assert.equal(config.data.roleplay, true);
+      assert.equal(config.data.thinking, 'off');
+      assert.equal(config.data.maxToolIterations, 0);
+      assert.deepEqual(config.data.memory, { autoPersist: { enabled: true, everyNTurns: 5 } });
+    }
+
+    // Idempotent: the same model is not rewritten a second time.
+    const second = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--model', FIXTURE_MODEL, '--apply']);
+    assert.equal(second.status, 0, second.stderr);
+    assert.match(second.stdout, /no changes \(diff is empty\)/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('provision-roleplay-agents shows a model change as a diff instead of drifting', { skip: !hasSqlite3 && 'sqlite3 CLI unavailable' }, () => {
+  const { dir, dbPath } = makeFixtureDb();
+  try {
+    const apply = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--model', FIXTURE_MODEL, '--apply']);
+    assert.equal(apply.status, 0, apply.stderr);
+
+    // Dry-run with a different model: the diff names both values and writes nothing.
+    const dryRun = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--model', OTHER_MODEL]);
+    assert.equal(dryRun.status, 0, dryRun.stderr);
+    assert.match(
+      dryRun.stdout,
+      new RegExp(`would write agents\\.defaults for role-baizang \\(model ${FIXTURE_MODEL} -> ${OTHER_MODEL}\\)`),
+    );
+    assert.equal(
+      readAgentConfigs(dbPath).every((config) => config.data.model === FIXTURE_MODEL),
+      true,
+      'a dry-run must not move the model',
+    );
+
+    // Apply the change: every role agent follows, and the run reports what moved.
+    const changed = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--model', OTHER_MODEL, '--apply']);
+    assert.equal(changed.status, 0, changed.stderr);
+    assert.match(
+      changed.stdout,
+      new RegExp(`wrote agents\\.defaults for role-baizang \\(model ${FIXTURE_MODEL} -> ${OTHER_MODEL}\\)`),
+    );
+    const configs = readAgentConfigs(dbPath);
+    assert.equal(configs.length, 19);
+    assert.equal(configs.every((config) => config.data.model === OTHER_MODEL), true);
+
+    const second = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--model', OTHER_MODEL, '--apply']);
+    assert.equal(second.status, 0, second.stderr);
+    assert.match(second.stdout, /no changes \(diff is empty\)/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('provision-roleplay-agents warns when --model is omitted and stays exit 0', { skip: !hasSqlite3 && 'sqlite3 CLI unavailable' }, () => {
+  const { dir, dbPath } = makeFixtureDb();
+  try {
+    const apply = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--apply']);
+    assert.equal(apply.status, 0, apply.stderr);
+    // Honest warning: no model was invented, and the runtime default is not guaranteed.
+    assert.match(apply.stdout, /WARNING --model not given/);
+    assert.match(apply.stdout, /19 role agent\(s\) have no explicit model/);
+    assert.match(apply.stdout, /system default/);
+    assert.match(apply.stdout, /allowlist/);
+
+    const configs = readAgentConfigs(dbPath);
+    assert.equal(configs.length, 19);
+    assert.equal(
+      configs.every((config) => !('model' in config.data)),
+      true,
+      'provisioning must not invent a model',
+    );
+
+    // The warning is not emitted when every agent already has a model.
+    const pinned = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--model', FIXTURE_MODEL, '--apply']);
+    assert.equal(pinned.status, 0, pinned.stderr);
+    const rerun = runScript(['--db', dbPath, '--owner-user-id', 'u_test_owner', '--apply']);
+    assert.equal(rerun.status, 0, rerun.stderr);
+    assert.doesNotMatch(rerun.stdout, /WARNING --model not given/);
+    assert.match(rerun.stdout, /no changes \(diff is empty\)/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

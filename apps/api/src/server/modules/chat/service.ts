@@ -14,7 +14,7 @@ import {
 } from '../../db/schema';
 import type { ChatGenerationSnapshot } from '../../db/schema';
 
-import { pinAcceptedTurn, loadPinnedTurn, TurnPinError } from './turn-snapshot.js';
+import { pinAcceptedTurn, loadPinnedTurn, recordTurnActualModel, TurnPinError } from './turn-snapshot.js';
 import type { PinnedTurn } from './turn-snapshot.js';
 
 type ChatQueryClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -147,7 +147,10 @@ export type FinalizeAssistantTurnInput = SaveAssistantForTurnInput & {
     userId: string;
     characterId: string;
     modelTier: ChatModelTier;
+    /** The model the tier DECLARED — what `model_usage_logs` files for a fallback/refusal path. */
     modelName: string;
+    /** The model the runtime ACTUALLY reported (adapter `done`); recorded on success only. */
+    actualModelName?: string | null;
     walletTransactionId?: string | null;
     status: 'success' | 'failed' | 'filtered' | 'out_of_scope';
     pointsConsumed: number;
@@ -161,6 +164,12 @@ export interface FinalizeAssistantTurnResult {
   bondExp?: number;
   bondDelta?: number;
   leveledUp?: boolean;
+  /**
+   * F2: only present when an actual model was supplied for a SUCCESSFUL turn, i.e. when the
+   * attribution write was attempted. `false` means the write failed (or found no snapshot) and the
+   * turn's snapshot still reads 实际模型未记录 — the turn itself stayed successful.
+   */
+  actualModelRecorded?: boolean;
 }
 
 const BLOCKED_INPUT_FALLBACK = '您的消息触发了安全机制，暂时无法发送。如有疑问，请联系客服。';
@@ -962,7 +971,7 @@ export async function saveAssistantForTurn(
 }
 
 export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): Promise<FinalizeAssistantTurnResult> {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const now = new Date();
     const [assistant] = await tx
       .insert(messages)
@@ -1083,6 +1092,17 @@ export async function finalizeAssistantTurn(input: FinalizeAssistantTurnInput): 
       ...(leveledUp !== undefined ? { leveledUp } : {}),
     };
   });
+
+  // F2 — after the turn is committed, and only for a turn that actually succeeded: the snapshot gets
+  // the model the runtime reported instead of leaving the declared one to be misread as the truth.
+  // Best-effort by construction: a failed write cannot roll the turn back, and it is reported as
+  // "not recorded" rather than claimed (the transcript then says 实际模型未记录).
+  const actualModelName = input.usage?.status === 'success'
+    ? (input.usage.actualModelName ?? '').trim()
+    : '';
+  if (!actualModelName) return result;
+  const recorded = await recordTurnActualModel(input.userMessageId, actualModelName);
+  return { ...result, actualModelRecorded: recorded };
 }
 
 export async function getCleanHistoryMessages(

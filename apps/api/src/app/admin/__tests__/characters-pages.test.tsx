@@ -1011,4 +1011,37 @@ describe('character base context surfaces', () => {
     expect(html).toContain('基础上下文未记录');
     expect(html).not.toContain(personas.systemPrompt);
   });
+
+  it('separates the declared model from the model the runtime actually recorded', async () => {
+    mocks.listMessages.mockResolvedValue({
+      items: [
+        { id: 'm-actual', role: 'user', content: '第一回合的问题', mood: null, modelTier: 'standard', tokensUsed: null, pointsConsumed: 3, createdAt: new Date('2026-11-07T00:00:00Z') },
+        { id: 'm-unrecorded', role: 'user', content: '第二回合的问题', mood: null, modelTier: 'standard', tokensUsed: null, pointsConsumed: 3, createdAt: new Date('2026-11-07T00:01:00Z') },
+      ], total: 2, page: 1, pageSize: 20,
+    });
+    mocks.getTurnVersionAttributions.mockResolvedValue([
+      {
+        userMessageId: 'm-actual', contentVersionId: versionId, contentVersionNo: 3, modelProfileVersionId: 'model-version-1',
+        agentContextVersionId: null, agentContextVersionNo: null,
+        declaredModelName: 'siliconflow/deepseek-ai/DeepSeek-V3',
+        actualModelName: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
+        versionUnknown: false,
+      },
+      {
+        userMessageId: 'm-unrecorded', contentVersionId: versionId, contentVersionNo: 3, modelProfileVersionId: 'model-version-1',
+        agentContextVersionId: null, agentContextVersionNo: null,
+        declaredModelName: 'siliconflow/deepseek-ai/DeepSeek-V3',
+        actualModelName: null,
+        versionUnknown: false,
+      },
+    ]);
+    const Page = (await import('../(console)/sessions/[id]/page.js')).default;
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: sessionId }), searchParams: Promise.resolve({}) }));
+    // The declared model is the tier pin; the actual one is what the runtime reported.
+    expect(html).toContain('声明模型 siliconflow/deepseek-ai/DeepSeek-V3');
+    expect(html).toContain('实际模型 siliconflow/deepseek-ai/DeepSeek-V4-Flash');
+    // A turn whose runtime model was never recorded says so instead of repeating the declared name.
+    expect(html).toContain('实际模型未记录');
+    expect(html).not.toMatch(/<span[^>]*data-actual-model-badge[^>]*>实际模型 siliconflow\/deepseek-ai\/DeepSeek-V3/);
+  });
 });

@@ -6,6 +6,9 @@ import { derivedChatDatabase, ensurePublishedModelProfile } from './chat-db-fixt
 
 const describeRealPg = describe.skipIf(!process.env.DATABASE_URL);
 const FAKE_MODEL = 'siliconflow/deepseek-ai/DeepSeek-V4-Flash';
+// F2: the tier DECLARES one model, the runtime CALLS another. Keeping them different is what makes
+// "declared" vs "actual" observable at all.
+const DECLARED_MODEL = 'siliconflow/deepseek-ai/DeepSeek-V3';
 
 /**
  * Batch 2 step B: every accepted turn pins the character's published content version (and the
@@ -298,7 +301,9 @@ describeRealPg('accepted turn version pinning real PostgreSQL', () => {
       modelProfileVersionId: fixture.model.versionId,
       modelTier: 'standard',
       provider: fixture.model.provider,
-      modelName: fixture.model.modelName,
+      // F2: the accept-time pin carries the DECLARED model only; the actual one is recorded later.
+      declaredModelName: fixture.model.modelName,
+      actualModelName: null,
       pointsPerCall: fixture.model.pointsPerCall,
     });
     const [pinnedVersion] = await db
@@ -655,6 +660,205 @@ describeRealPg('accepted turn version pinning real PostgreSQL', () => {
     expect(versions.filter((version) => version.status === 'published')).toHaveLength(1);
   });
 
+  /** Rewrites the pinned model-profile version's model: the tier now DECLARES a different model. */
+  async function declareModel(fixture: Awaited<ReturnType<typeof createFixture>>) {
+    const { db, schema } = runtime;
+    await db
+      .update(schema.modelProfileVersions)
+      .set({ modelName: DECLARED_MODEL })
+      .where(eq(schema.modelProfileVersions.id, fixture.model.versionId));
+  }
+
+  async function snapshotOf(userMessageId: string) {
+    const { db, schema } = runtime;
+    const [row] = await db
+      .select()
+      .from(schema.chatTurnSnapshots)
+      .where(eq(schema.chatTurnSnapshots.userMessageId, userMessageId));
+    return row;
+  }
+
+  it('records the declared model at accept and leaves the actual model unrecorded', async () => {
+    const { db, schema, service, turnSnapshot } = runtime;
+    stubFastClaw();
+    const fixture = await createFixture();
+    await declareModel(fixture);
+
+    const accepted = await service.resolveClientTurn({
+      userId: fixture.userId,
+      characterId: fixture.characterId,
+      modelTier: 'standard',
+      message: '你好',
+      clientMessageId: `declared-${randomUUID()}`,
+      mode: 'free',
+    });
+    if (accepted.status !== 'created') throw new Error('expected created');
+
+    // Accept-time attribution is the pin, i.e. DECLARED only. The runtime model is not known yet,
+    // so nothing may claim it: NULL, never "unknown" or the declared name repeated.
+    const snapshot = await snapshotOf(accepted.userMessageId);
+    expect(snapshot).toMatchObject({
+      declaredModelName: DECLARED_MODEL,
+      actualModelName: null,
+    });
+    const [attribution] = await turnSnapshot.getTurnVersionAttributions([accepted.userMessageId]);
+    expect(attribution).toMatchObject({
+      versionUnknown: false,
+      declaredModelName: DECLARED_MODEL,
+      actualModelName: null,
+    });
+
+    // No usage row exists yet either: an accepted-but-unfinished turn has no runtime evidence.
+    const usage = await db
+      .select()
+      .from(schema.modelUsageLogs)
+      .where(eq(schema.modelUsageLogs.sessionId, accepted.sessionId));
+    expect(usage).toHaveLength(0);
+  });
+
+  it('persists the model the adapter actually reported once the turn completes', async () => {
+    const { db, schema, stream, turnSnapshot } = runtime;
+    stubFastClaw();
+    const fixture = await createFixture();
+    await declareModel(fixture);
+    const clientMessageId = `actual-${randomUUID()}`;
+
+    const response = await stream.runChatStream({
+      userId: fixture.userId,
+      characterId: fixture.characterId,
+      message: '你好',
+      modelTier: 'standard',
+      clientMessageId,
+      mode: 'free',
+    });
+    const events = (await response.text())
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'done' }));
+    expect(events).not.toContainEqual(expect.objectContaining({ type: 'error' }));
+
+    const [userMessage] = await db
+      .select({ id: schema.messages.id })
+      .from(schema.messages)
+      .where(and(eq(schema.messages.clientMessageId, clientMessageId), eq(schema.messages.role, 'user')));
+    const snapshot = await snapshotOf(userMessage!.id);
+    // The pinned declared model stays untouched; the actual one is what the adapter reported (and
+    // what the usage log already had to record).
+    expect(snapshot).toMatchObject({
+      declaredModelName: DECLARED_MODEL,
+      actualModelName: FAKE_MODEL,
+    });
+    const usageRows = await db
+      .select()
+      .from(schema.modelUsageLogs)
+      .where(eq(schema.modelUsageLogs.clientMessageId, clientMessageId));
+    expect(usageRows).toHaveLength(1);
+    expect(usageRows[0]).toMatchObject({ modelName: FAKE_MODEL, status: 'success' });
+
+    const [attribution] = await turnSnapshot.getTurnVersionAttributions([userMessage!.id]);
+    expect(attribution).toMatchObject({
+      declaredModelName: DECLARED_MODEL,
+      actualModelName: FAKE_MODEL,
+    });
+
+    // Idempotent: a second identical attribution write changes nothing and cannot double-record.
+    const again = await turnSnapshot.recordTurnActualModel(userMessage!.id, FAKE_MODEL);
+    expect(again).toBe(true);
+    expect((await snapshotOf(userMessage!.id))?.actualModelName).toBe(FAKE_MODEL);
+  });
+
+  it('keeps the actual model unrecorded for a turn that did not succeed', async () => {
+    const { service } = runtime;
+    stubFastClaw();
+    const fixture = await createFixture();
+    await declareModel(fixture);
+    const accepted = await service.resolveClientTurn({
+      userId: fixture.userId,
+      characterId: fixture.characterId,
+      modelTier: 'standard',
+      message: '你好',
+      clientMessageId: `filtered-${randomUUID()}`,
+      mode: 'free',
+    });
+    if (accepted.status !== 'created') throw new Error('expected created');
+
+    // A filtered/refused turn called the model, but it was not a success: the snapshot must not
+    // claim a runtime attribution the billing record already handles as a refusal.
+    const saved = await service.finalizeAssistantTurn({
+      sessionId: accepted.sessionId,
+      userMessageId: accepted.userMessageId,
+      content: '回复触发了安全机制，该消息已被替换。',
+      mood: null,
+      excludedFromContext: true,
+      usage: {
+        userId: fixture.userId,
+        characterId: fixture.characterId,
+        modelTier: 'standard',
+        modelName: FAKE_MODEL,
+        actualModelName: FAKE_MODEL,
+        walletTransactionId: null,
+        status: 'filtered',
+        pointsConsumed: 0,
+      },
+    });
+    expect(saved.actualModelRecorded).toBeUndefined();
+    expect((await snapshotOf(accepted.userMessageId))?.actualModelName).toBeNull();
+  });
+
+  it('never fails a successful turn when the attribution write is rejected', async () => {
+    const { db, schema, service } = runtime;
+    stubFastClaw();
+    const fixture = await createFixture();
+    await declareModel(fixture);
+    const accepted = await service.resolveClientTurn({
+      userId: fixture.userId,
+      characterId: fixture.characterId,
+      modelTier: 'standard',
+      message: '你好',
+      clientMessageId: `unrecordable-${randomUUID()}`,
+      mode: 'free',
+    });
+    if (accepted.status !== 'created') throw new Error('expected created');
+
+    // A real write rejection: the column is varchar(128), so this value cannot be stored.
+    const unrecordable = 'x'.repeat(200);
+    const saved = await service.finalizeAssistantTurn({
+      sessionId: accepted.sessionId,
+      userMessageId: accepted.userMessageId,
+      content: '好啊。',
+      mood: 'neutral',
+      usage: {
+        userId: fixture.userId,
+        characterId: fixture.characterId,
+        modelTier: 'standard',
+        modelName: FAKE_MODEL,
+        actualModelName: unrecordable,
+        walletTransactionId: null,
+        status: 'success',
+        pointsConsumed: fixture.model.pointsPerCall,
+      },
+    });
+
+    // The turn itself committed: assistant message + usage row are there...
+    expect(saved.actualModelRecorded).toBe(false);
+    const [assistant] = await db
+      .select()
+      .from(schema.messages)
+      .where(eq(schema.messages.id, saved.id));
+    expect(assistant).toMatchObject({ role: 'assistant', content: '好啊。' });
+    const usageRows = await db
+      .select()
+      .from(schema.modelUsageLogs)
+      .where(eq(schema.modelUsageLogs.sessionId, accepted.sessionId));
+    expect(usageRows).toHaveLength(1);
+    expect(usageRows[0]).toMatchObject({ status: 'success', modelName: FAKE_MODEL });
+
+    // ...and the snapshot honestly stays "not recorded" instead of claiming the value.
+    expect((await snapshotOf(accepted.userMessageId))?.actualModelName).toBeNull();
+  });
+
   it('reports version unknown for legacy messages and attempts without inferring one', async () => {
     const { db, schema, service, recovery, turnSnapshot } = runtime;
     stubFastClaw();
@@ -705,9 +909,19 @@ describeRealPg('accepted turn version pinning real PostgreSQL', () => {
       // Batch 3 step 1: a legacy turn also has no recorded base context, and none is inferred.
       agentContextVersionId: null,
       agentContextVersionNo: null,
+      // F2: no snapshot means no model evidence at all — neither declared nor actual is invented.
+      declaredModelName: null,
+      actualModelName: null,
       versionUnknown: true,
     });
-    expect(pinned).toMatchObject({ versionUnknown: false, contentVersionNo: 1, agentContextVersionId: null });
+    expect(pinned).toMatchObject({
+      versionUnknown: false,
+      contentVersionNo: 1,
+      agentContextVersionId: null,
+      // The accepted turn knows its declared model already; the runtime model is not recorded yet.
+      declaredModelName: FAKE_MODEL,
+      actualModelName: null,
+    });
     expect(pinned?.contentVersionId).toEqual(expect.any(String));
 
     const items = await recovery.listUnresolvedGenerationAttempts();

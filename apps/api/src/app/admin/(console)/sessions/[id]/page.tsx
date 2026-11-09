@@ -86,7 +86,7 @@ export default async function SessionHistoryPage({
     <div className="page-heading">
       <div>
         <h1>聊天历史</h1>
-        <p className="page-description">每个回合关联接受时的角色卡发布版本，点击版本标签可打开该回合使用的历史版本内容；基础上下文标签是该回合接受时记录的 FastClaw 基础上下文版本，没有记录时明确显示“基础上下文未记录”，不做推断。</p>
+        <p className="page-description">每个回合关联接受时的角色卡发布版本，点击版本标签可打开该回合使用的历史版本内容；基础上下文标签是该回合接受时记录的 FastClaw 基础上下文版本，没有记录时明确显示“基础上下文未记录”，不做推断。声明模型是该回合固定档位声明的模型（计费口径），实际模型是运行时真正调用的模型，未记录时显示“实际模型未记录”，两者互不推断。</p>
       </div>
       <Link className="button" href="/admin/sessions">返回会话列表</Link>
     </div>
@@ -130,6 +130,18 @@ export default async function SessionHistoryPage({
                     {attribution.agentContextVersionNo != null
                       ? <span className="tag ok" data-base-context-badge title="该回合接受时记录的 FastClaw 基础上下文版本">基础上下文 b{attribution.agentContextVersionNo}</span>
                       : <span className="tag warn" data-base-context-badge>基础上下文未记录</span>}
+                    {/* F2: the declared tier model and the model the runtime actually called are two
+                        different facts; neither is inferred from the other. */}
+                    {attribution.declaredModelName
+                      ? <>
+                        {' · '}
+                        <span className="tag" data-declared-model-badge title="该回合固定档位声明的模型（计费/展示口径）">声明模型 {attribution.declaredModelName}</span>
+                      </>
+                      : null}
+                    {' · '}
+                    {attribution.actualModelName
+                      ? <span className="tag ok" data-actual-model-badge title="运行时实际调用的模型（FastClaw 完成事件上报）">实际模型 {attribution.actualModelName}</span>
+                      : <span className="tag warn" data-actual-model-badge>实际模型未记录</span>}
                   </>
                   : <span className="tag warn" aria-describedby={hasUnknownVersion ? 'version-unknown-note' : undefined}>版本未知</span>)}
                 <span className="under">{formatAdminDate(message.createdAt)}{message.mood ? ` · ${message.mood}` : ''}{message.tokensUsed != null ? ` · ${message.tokensUsed} tokens` : ''}</span>

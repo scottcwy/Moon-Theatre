@@ -49,6 +49,7 @@ export interface PinnedTurnModel {
   modelProfileVersionId: string;
   modelTier: ChatModelTier;
   provider: string;
+  /** The model the pinned tier DECLARED; the model actually called is recorded separately. */
   modelName: string;
   pointsPerCall: number;
 }
@@ -71,6 +72,10 @@ export interface TurnVersionAttribution {
   contentVersionId: string | null;
   contentVersionNo: number | null;
   modelProfileVersionId: string | null;
+  /** The model the pinned model-profile version DECLARED (billing/display fact). */
+  declaredModelName: string | null;
+  /** The model the runtime ACTUALLY called; `null` means "not recorded", never "unknown". */
+  actualModelName: string | null;
   /** The base-context record current at accept time; NULL means "not recorded", never "latest". */
   agentContextVersionId: string | null;
   /** Per-agent base-context ordinal (`b#`) for display; NULL when unrecorded. */
@@ -83,6 +88,8 @@ const UNKNOWN_ATTRIBUTION = {
   contentVersionId: null,
   contentVersionNo: null,
   modelProfileVersionId: null,
+  declaredModelName: null,
+  actualModelName: null,
   agentContextVersionId: null,
   agentContextVersionNo: null,
   versionUnknown: true,
@@ -266,7 +273,7 @@ export async function pinAcceptedTurn(
       modelProfileVersionId: model.modelProfileVersionId,
       modelTier: model.modelTier,
       provider: model.provider,
-      modelName: model.modelName,
+      declaredModelName: model.modelName,
       pointsPerCall: model.pointsPerCall,
       agentContextVersionId,
     })
@@ -314,7 +321,7 @@ export async function loadPinnedTurn(
       modelProfileVersionId: chatTurnSnapshots.modelProfileVersionId,
       modelTier: chatTurnSnapshots.modelTier,
       provider: chatTurnSnapshots.provider,
-      modelName: chatTurnSnapshots.modelName,
+      modelName: chatTurnSnapshots.declaredModelName,
       pointsPerCall: chatTurnSnapshots.pointsPerCall,
     })
     .from(chatTurnSnapshots)
@@ -356,6 +363,8 @@ export async function getTurnVersionAttributions(
       contentVersionId: chatTurnSnapshots.contentVersionId,
       contentVersionNo: contentVersions.versionNo,
       modelProfileVersionId: chatTurnSnapshots.modelProfileVersionId,
+      declaredModelName: chatTurnSnapshots.declaredModelName,
+      actualModelName: chatTurnSnapshots.actualModelName,
       agentContextVersionId: chatTurnSnapshots.agentContextVersionId,
     })
     .from(chatTurnSnapshots)
@@ -373,6 +382,8 @@ export async function getTurnVersionAttributions(
       contentVersionId: row.contentVersionId,
       contentVersionNo: row.contentVersionNo,
       modelProfileVersionId: row.modelProfileVersionId,
+      declaredModelName: row.declaredModelName,
+      actualModelName: row.actualModelName,
       agentContextVersionId: row.agentContextVersionId,
       agentContextVersionNo: row.agentContextVersionId
         ? agentContextNumbers.get(row.agentContextVersionId) ?? null
@@ -380,4 +391,48 @@ export async function getTurnVersionAttributions(
       versionUnknown: false,
     };
   });
+}
+
+/**
+ * F2 — records the model the runtime ACTUALLY called on the turn's snapshot.
+ *
+ * Deliberately called after the finalize transaction commits, not inside it: a failed attribution
+ * write must never roll back the assistant message and the usage row of a turn that already
+ * succeeded. The caller gets a plain boolean and surfaces the honest outcome — `false` means the
+ * snapshot keeps `actual_model_name = NULL`, i.e. the transcript says 实际模型未记录 instead of
+ * claiming a model it does not have.
+ *
+ * Idempotent: the accepted turn's snapshot is keyed by its unique `user_message_id` and the write is
+ * the same value on every retry of the same turn (the adapter validates one runtime model), so a
+ * repeat updates one row to the value it already holds and records nothing new.
+ */
+export async function recordTurnActualModel(
+  userMessageId: string,
+  actualModelName: string,
+): Promise<boolean> {
+  const value = actualModelName.trim();
+  if (!value) return false;
+  try {
+    const updated = await db
+      .update(chatTurnSnapshots)
+      .set({ actualModelName: value })
+      .where(eq(chatTurnSnapshots.userMessageId, userMessageId))
+      .returning({ id: chatTurnSnapshots.id });
+    if (updated.length === 0) {
+      // No snapshot (e.g. an accepted turn without a pin): nothing to attribute, and nothing is
+      // claimed. Never an error for the caller — the turn itself already committed.
+      console.warn({ event: 'chat_turn_actual_model_unrecorded', userMessageId, reason: 'no_snapshot', actualModel: value });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn({
+      event: 'chat_turn_actual_model_unrecorded',
+      userMessageId,
+      reason: 'write_failed',
+      actualModel: value,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
 }

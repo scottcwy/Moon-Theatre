@@ -623,7 +623,11 @@ export const chatTurnSnapshots = pgTable('chat_turn_snapshots', {
   modelProfileVersionId: uuid('model_profile_version_id').references(() => modelProfileVersions.id).notNull(),
   modelTier: modelTierEnum('model_tier').notNull(),
   provider: varchar('provider', { length: 64 }).notNull(),
-  modelName: varchar('model_name', { length: 128 }).notNull(),
+  // F2: the model the pinned tier DECLARED (billing/display), never the one the runtime called.
+  declaredModelName: varchar('declared_model_name', { length: 128 }).notNull(),
+  // F2: the model the FastClaw adapter actually reported on `done`; NULL means "not recorded" — never
+  // "unknown" and never a copy of the declared name. Written when the turn's usage is finalised.
+  actualModelName: varchar('actual_model_name', { length: 128 }),
   pointsPerCall: integer('points_per_call').notNull(),
   // The base-context record that was current when this turn was accepted; NULL means "not recorded",
   // never "the latest one" (a legacy turn is not backfilled).

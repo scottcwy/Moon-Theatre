@@ -46,8 +46,15 @@ beforeEach(() => {
   mocks.guard.mockResolvedValue({ ok: true, auth: { adminAccountId: 'admin-1' } });
   mocks.listMessages.mockResolvedValue(PAGED);
   mocks.getTurnVersionAttributions.mockResolvedValue([
-    { userMessageId, contentVersionId: 'version-1', contentVersionNo: 3, modelProfileVersionId: 'model-version-1', versionUnknown: false },
-    { userMessageId: legacyMessageId, contentVersionId: null, contentVersionNo: null, modelProfileVersionId: null, versionUnknown: true },
+    {
+      userMessageId, contentVersionId: 'version-1', contentVersionNo: 3, modelProfileVersionId: 'model-version-1',
+      declaredModelName: 'siliconflow/deepseek-ai/DeepSeek-V3', actualModelName: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
+      versionUnknown: false,
+    },
+    {
+      userMessageId: legacyMessageId, contentVersionId: null, contentVersionNo: null, modelProfileVersionId: null,
+      declaredModelName: null, actualModelName: null, versionUnknown: true,
+    },
   ]);
   mocks.recordAdminAudit.mockResolvedValue('audit-1');
 });
@@ -79,8 +86,15 @@ describe('GET /api/admin/sessions/[id]/messages', () => {
     expect(body.pageSize).toBe(20);
     expect(body.items).toHaveLength(3);
     expect(body.attributions).toEqual([
-      { userMessageId, contentVersionId: 'version-1', contentVersionNo: 3, modelProfileVersionId: 'model-version-1', versionUnknown: false },
-      { userMessageId: legacyMessageId, contentVersionId: null, contentVersionNo: null, modelProfileVersionId: null, versionUnknown: true },
+      {
+        userMessageId, contentVersionId: 'version-1', contentVersionNo: 3, modelProfileVersionId: 'model-version-1',
+        declaredModelName: 'siliconflow/deepseek-ai/DeepSeek-V3', actualModelName: 'siliconflow/deepseek-ai/DeepSeek-V4-Flash',
+        versionUnknown: false,
+      },
+      {
+        userMessageId: legacyMessageId, contentVersionId: null, contentVersionNo: null, modelProfileVersionId: null,
+        declaredModelName: null, actualModelName: null, versionUnknown: true,
+      },
     ]);
   });
 

@@ -6,7 +6,13 @@
 // USER.md, and syncs them as FastClaw agent_files owner rows (agents.user_id)
 // — never user_id='' template rows. Also upserts the agent-scope
 // `agents.defaults` config row (roleplay/thinking/maxToolIterations/
-// memory.autoPersist only; model/maxTokens/temperature are never touched).
+// memory.autoPersist, plus `model` when --model is given).
+//
+// F3: without a per-agent model a fresh instance silently inherits the FastClaw
+// system default, which the product allowlist (`CHAT_RUNTIME_MODEL`) may reject,
+// so `--model <provider/model>` is the explicit way to pin it. Omitting the flag
+// writes no model at all (never invents one, never moves an operator's existing
+// model — Spec §8 不动) and prints a warning instead.
 //
 // Modes:
 //   default      dry-run: print the diff, write nothing, exit 0
@@ -17,6 +23,7 @@
 //
 // Usage:
 //   node scripts/provision-roleplay-agents.mjs [--apply] [--db <path|dsn>]
+//       [--model <provider/model>]
 //       [--owner-user-id <id>] [--default-agent-id <id>]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,11 +52,12 @@ export const ROLE_AGENT_SLUGS = Object.freeze(Object.values(ROLE_AGENT_BY_NAME))
 export const ROLE_SYSTEM_FILES = Object.freeze(['SOUL.md', 'IDENTITY.md', 'USER.md']);
 
 // Only these keys are written by provisioning (Spec §8: model/maxTokens/
-// temperature must NOT move). Roleplay/memory.autoPersist/tools/heartbeat/
-// skills defaults are
+// temperature must NOT move on their own). Roleplay/memory.autoPersist/tools/
+// heartbeat/skills defaults are
 // enforced by the FastClaw roleplay kernel (F4); provisioning pins the
 // keys the runtime reads from the agent-scope agents.defaults row and that
-// /api/ready verifies via runtime-spec.
+// /api/ready verifies via runtime-spec. `model` is not in this object: it is
+// written only when the operator passes `--model` (see F3 above).
 export const ROLEPLAY_AGENT_CONFIG = Object.freeze({
   roleplay: true,
   thinking: 'off',
@@ -74,6 +82,28 @@ export const USER_MD_TEMPLATE = [
   '- (To be filled as the agent learns about the user)',
   '',
 ].join('\n');
+
+// `provider/model`, model part may carry further slashes (`deepseek-ai/DeepSeek-V4-Flash`).
+export const ROLE_MODEL_PATTERN = /^[a-z0-9][a-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
+/**
+ * F3: `--model` is the only way provisioning writes an agent model. A value that does not look like
+ * `provider/model` is a hard error — provisioning never guesses or normalises what the runtime will
+ * be told to call.
+ */
+export function validateRoleModel(value) {
+  const model = typeof value === 'string' ? value.trim() : '';
+  if (!roleModelLooksValid(model)) {
+    throw new Error(
+      `--model must be a non-empty <provider/model> value, e.g. siliconflow/deepseek-ai/DeepSeek-V4-Flash (got: ${JSON.stringify(value)})`,
+    );
+  }
+  return model;
+}
+
+function roleModelLooksValid(model) {
+  return model !== '' && ROLE_MODEL_PATTERN.test(model);
+}
 
 // ---------------------------------------------------------------------------
 // Seed loading: story-data.ts is a plain data module (no imports); transpile
@@ -277,17 +307,20 @@ export function deepEqual(a, b) {
   return false;
 }
 
-export function mergeRoleplayConfig(existing) {
+export function mergeRoleplayConfig(existing, model = null) {
   const base =
     existing && typeof existing === 'object' && !Array.isArray(existing) ? { ...existing } : {};
-  // Never clobber model/maxTokens/temperature (Spec §8: 不动).
+  // Never clobber maxTokens/temperature (Spec §8: 不动). The model is written only when the
+  // operator asked for it: with no `--model` the stored value survives untouched.
   for (const [key, value] of Object.entries(ROLEPLAY_AGENT_CONFIG)) {
     base[key] = value;
   }
+  if (model) base.model = model;
   return base;
 }
 
-export function buildPlan(desiredAgents, actual) {
+export function buildPlan(desiredAgents, actual, options = {}) {
+  const model = options.model ?? null;
   const changes = {
     createAgents: [],
     updateAgents: [],
@@ -316,9 +349,15 @@ export function buildPlan(desiredAgents, actual) {
     }
 
     const existingConfig = actual.configs.get(agent.id);
-    const desiredConfig = mergeRoleplayConfig(existingConfig);
+    const desiredConfig = mergeRoleplayConfig(existingConfig, model);
     if (!deepEqual(existingConfig ?? {}, desiredConfig)) {
-      changes.writeConfigs.push({ agentId: agent.id, data: desiredConfig });
+      changes.writeConfigs.push({
+        agentId: agent.id,
+        data: desiredConfig,
+        // F3: the model this write moves (null when the agent had none / keeps none), so the
+        // operator sees `<old> -> <new>` instead of a silent drift.
+        previousModel: typeof existingConfig?.model === 'string' ? existingConfig.model : null,
+      });
     }
   }
 
@@ -581,13 +620,17 @@ function loadRootEnv() {
 }
 
 function resolveArgs(argv) {
-  const args = { apply: false, db: null, ownerUserId: null, defaultAgentId: null, publishedFile: null };
+  const args = { apply: false, db: null, ownerUserId: null, defaultAgentId: null, publishedFile: null, model: undefined };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--apply') args.apply = true;
     else if (arg === '--help' || arg === '-h') args.help = true;
     else if (arg === '--db') args.db = argv[++index];
-    else if (arg === '--owner-user-id') args.ownerUserId = argv[++index];
+    else if (arg === '--model') {
+      const value = argv[++index];
+      if (value === undefined) throw new Error('--model requires a non-empty <provider/model> value');
+      args.model = value;
+    } else if (arg === '--owner-user-id') args.ownerUserId = argv[++index];
     else if (arg === '--default-agent-id') args.defaultAgentId = argv[++index];
     else if (arg === '--published-file') args.publishedFile = argv[++index];
     else {
@@ -611,12 +654,16 @@ export async function main(argv = process.argv.slice(2)) {
     process.stdout.write(
       [
         'usage: node scripts/provision-roleplay-agents.mjs [--apply] [--db <path|dsn>]',
-        '       [--owner-user-id <id>] [--default-agent-id <id>]',
+        '       [--model <provider/model>] [--owner-user-id <id>] [--default-agent-id <id>]',
         '',
         '  default      dry-run: print the diff, write nothing, exit 0',
         '  --apply      apply the diff (idempotent; second run prints no changes)',
         '  --db         sqlite file path or postgres DSN (default: FASTCLAW_STORAGE_DSN',
         '               or ~/.fastclaw/fastclaw.db)',
+        '  --model      model written into every role agent (agents.defaults),',
+        '               format <provider/model>; omitted = no model written (the',
+        '               runtime falls back to the system default, which the product',
+        '               allowlist may reject)',
         '  --owner-user-id  FastClaw user id owning the role agents (default:',
         '               super_admin / first user)',
         '  --default-agent-id  legacy default agent id to guard (default: FASTCLAW_AGENT_ID)',
@@ -626,6 +673,9 @@ export async function main(argv = process.argv.slice(2)) {
     );
     return 0;
   }
+
+  // F3: validate the model before anything touches the database, so a typo cannot half-apply.
+  const model = args.model === undefined ? null : validateRoleModel(args.model);
 
   const rootEnv = loadRootEnv();
   const dbTarget = resolveDbTarget(args, rootEnv);
@@ -652,7 +702,12 @@ export async function main(argv = process.argv.slice(2)) {
   const desiredAgents = publishedCharacters
     ? buildDesiredAgentsFromPublished(publishedCharacters, resolvedOwner)
     : buildDesiredAgents(desiredSource, resolvedOwner);
-  const changes = buildPlan(desiredAgents, actual);
+  const changes = buildPlan(desiredAgents, actual, { model });
+  // F3: a role agent whose desired config ends up without a model inherits the FastClaw system
+  // default. That is reported, never invented: the flag stays opt-in and the exit code stays 0.
+  const agentsWithoutModel = model
+    ? []
+    : desiredAgents.filter((agent) => !mergeRoleplayConfig(actual.configs.get(agent.id)).model);
 
   // Guard (Spec §9.1): the legacy default agent must stay non-roleplay.
   let defaultAgentGuard = null;
@@ -677,8 +732,17 @@ export async function main(argv = process.argv.slice(2)) {
   const mode = args.apply ? 'apply' : 'dry-run';
 
   process.stdout.write(
-    `[provision] mode=${mode} db=${dbTarget} owner=${resolvedOwner} roleAgents=${desiredAgents.length}\n`,
+    `[provision] mode=${mode} db=${dbTarget} owner=${resolvedOwner} roleAgents=${desiredAgents.length}` +
+      ` model=${model ?? '(not set)'}\n`,
   );
+  if (agentsWithoutModel.length > 0) {
+    process.stdout.write(
+      `[provision] WARNING --model not given: ${agentsWithoutModel.length} role agent(s) have no explicit model` +
+        ' in agents.defaults, so the FastClaw runtime falls back to the system default, which the' +
+        ' product allowlist may reject (every turn can fail until a model is set). Re-run with' +
+        ' --model <provider/model> to pin it.\n',
+    );
+  }
   if (summary.errors > 0) {
     for (const error of changes.errors) process.stdout.write(`[provision] ERROR ${error}\n`);
     process.exitCode = 1;
@@ -704,8 +768,13 @@ export async function main(argv = process.argv.slice(2)) {
     );
   }
   for (const config of changes.writeConfigs) {
+    const previous = config.previousModel ?? null;
+    const next = typeof config.data.model === 'string' ? config.data.model : null;
+    const modelDiff = previous !== next
+      ? ` (model ${previous ?? '未设置'} -> ${next ?? '未设置'})`
+      : '';
     process.stdout.write(
-      `[provision] ${mode === 'apply' ? 'wrote' : 'would write'} agents.defaults for ${config.agentId}\n`,
+      `[provision] ${mode === 'apply' ? 'wrote' : 'would write'} agents.defaults for ${config.agentId}${modelDiff}\n`,
     );
   }
 

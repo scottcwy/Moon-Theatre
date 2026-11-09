@@ -47,6 +47,7 @@ export { TurnPinError } from './service.js';
 export {
   loadPinnedTurn,
   getTurnVersionAttributions,
+  recordTurnActualModel,
 } from './turn-snapshot.js';
 export type {
   TurnPinErrorCode,
