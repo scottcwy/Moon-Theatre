@@ -112,7 +112,6 @@ describe('PlaybookPage', () => {
       'Avatars',
       'Discovery',
       'Commerce',
-      'Memory',
       'Status',
       'Page Primitives',
       'Bottom Action',

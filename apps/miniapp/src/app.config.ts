@@ -33,6 +33,25 @@ const subpackageConfig = {
   ],
 };
 
+/** Taro 的 tabBar 类型未声明微信自定义 tabBar 的 `custom` 字段，这里显式补齐，避免用 `as any` 抹掉整体类型。 */
+type CustomTabBarConfig = {
+  custom: true;
+  color: string;
+  selectedColor: string;
+  backgroundColor: string;
+  borderStyle: 'white' | 'black';
+  list: ReturnType<typeof getAppTabBarItems>;
+};
+
+const customTabBar: CustomTabBarConfig = {
+  custom: true,
+  color: '#5A4A4E',
+  selectedColor: '#8B4258',
+  backgroundColor: '#FFFBF8',
+  borderStyle: 'white',
+  list: getAppTabBarItems(),
+};
+
 export default defineAppConfig({
   pages: [
     'pages/home/index',
@@ -42,14 +61,7 @@ export default defineAppConfig({
     'pages/profile/index',
   ],
   ...subpackageConfig,
-  tabBar: {
-    custom: true,
-    color: '#5A4A4E',
-    selectedColor: '#8B4258',
-    backgroundColor: '#FFFBF8',
-    borderStyle: 'white',
-    list: getAppTabBarItems(),
-  } as any,
+  tabBar: customTabBar,
   window: {
     backgroundColor: '#FFFBF8',
     backgroundTextStyle: 'dark',

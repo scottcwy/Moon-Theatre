@@ -28,7 +28,7 @@ pnpm test:e2e:miniapp:ui
 
 开发构建不压缩，不执行 2 MiB 主包预算断言；生产包体只以 `build:weapp:prod` 内置的 `verify:weapp` 结果为准。
 
-`test:e2e:ui` 只接受 `development + http://127.0.0.1:3000 + devAuthBypass=true + visualFixtures=false` 的构建 sidecar。runner 从真实 `/api/scripts` 与 `/api/characters` 解析剧本和角色 UUID，覆盖登录、首页、剧本目录、选角、角色详情、聊天列表、聊天、社区、我的、额度购买和分享预览；聊天页必须出现 header、消息区和输入栏，错误状态卡或流式错误会直接失败。分享预览必须渲染真实角色图。
+`test:e2e:ui` 只接受 `development + http://127.0.0.1:3000 + devAuthBypass=true + visualFixtures=false` 的构建 sidecar。runner 从真实 `/api/scripts` 与 `/api/characters` 解析剧本和角色 UUID，覆盖登录、首页、剧本目录、选角、角色详情、聊天列表、聊天、社区、我的、额度购买和分享预览；聊天页必须出现头部（有会话时 `.character-header`，自由模式首轮前的 bare-free 状态为 `.chat-page__scope-bar`）、消息区和输入栏，错误状态卡或流式错误会直接失败；聊天列表无会话时接受 `chat-list__state--search` 空态，但仍禁止 loading/错误/未登录卡片。分享预览必须渲染真实角色图。
 
 需要交付支付结果页时，先通过本地 mock 支付链路取得开发账号的已到账订单，再传入真实订单 ID：
 

@@ -10,7 +10,6 @@ import {
   ChatSessionRow,
   EmptyState,
   IconButton,
-  MemoryCard,
   MoodChip,
   NoticeBlock,
   PageShell,
@@ -149,31 +148,6 @@ export default function PlaybookPage() {
               description="推荐用于连续剧情推进和长对话。"
               recommended
               selected
-            />
-          </View>
-        </View>
-
-        <View className="playbook-section">
-          <View className="playbook-section__header">
-            <Text className="playbook-section__title">Memory</Text>
-            <Badge tone="secondary">state</Badge>
-          </View>
-          <View className="playbook-stack">
-            <MemoryCard
-              typeLabel="关系状态"
-              characterName="白藏"
-              tone="relationship"
-              content="用户曾在鸟居前选择相信白藏，因此白藏会更愿意主动解释庭院中的旧约。"
-            />
-            <MemoryCard
-              typeLabel="剧情状态"
-              characterName="月岛澪"
-              tone="story"
-              content="屏风上的桥已经第二次出现，桥对岸的人影开始能回应用户的问题。"
-            />
-            <MemoryCard
-              typeLabel="用户信息"
-              content="用户偏好更慢的节奏，希望角色先给出线索，再提出下一步行动。"
             />
           </View>
         </View>

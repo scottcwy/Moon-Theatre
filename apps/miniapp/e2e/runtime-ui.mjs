@@ -116,10 +116,10 @@ function createPageChecks({ scriptId, characterId }) {
       required: [
         { label: 'chat list body', selectors: ['.chat-list__body'] },
         { label: 'chat list header', selectors: ['.chat-list__header'] },
-        { label: 'chat session list', selectors: ['.chat-list__list'] },
-        { label: 'chat session row', selectors: ['.chat-list__item'] },
+        { label: 'chat session row or empty state', selectors: ['.chat-list__item', '.chat-list__state--search'] },
       ],
-      forbidden: ['.chat-list__state'],
+      // loading / error / 未登录都是 .chat-list__state 里的 StatusStateCard；无会话空态是 chat-list__state--search 的普通 View。
+      forbidden: ['.chat-list__state .status-state-card'],
     },
     {
       name: 'community',
@@ -145,7 +145,7 @@ function createPageChecks({ scriptId, characterId }) {
         { label: 'profile shell', selectors: ['.profile'] },
         { label: 'profile hero', selectors: ['.profile__hero'] },
       ],
-      forbidden: ['.status-state-card'],
+      forbidden: ['.status-state-card--error'],
     },
     {
       name: 'chat',
@@ -156,7 +156,8 @@ function createPageChecks({ scriptId, characterId }) {
       settleMs: 1500,
       required: [
         { label: 'chat page', selectors: ['.chat-page'] },
-        { label: 'chat header', selectors: ['.character-header'] },
+        // 自由模式首轮发起前（isBareFreeChat）页面头部是 chat-page__scope-bar，有会话后才是 character-header。
+        { label: 'chat header', selectors: ['.character-header', '.chat-page__scope-bar'] },
         { label: 'chat messages', selectors: ['.chat-page__messages'] },
         { label: 'chat input bar', selectors: ['.chat-input-bar'] },
       ],

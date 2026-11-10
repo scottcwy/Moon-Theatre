@@ -305,8 +305,10 @@ describe('playbook component functional behavior', () => {
 
     expect(shell.props.className).toContain('page-shell--has-backdrop');
     expect(backdrops).toHaveLength(1);
-    expect(backdrops[0].props.src).toBe('/assets/backgrounds/courtyard.jpg');
-    expect(backdrops[0].props.style).toEqual({ top: '72rpx' });
+    const [backdrop] = backdrops;
+    if (!backdrop) throw new Error('expected exactly one page-shell backdrop');
+    expect(backdrop.props.src).toBe('/assets/backgrounds/courtyard.jpg');
+    expect(backdrop.props.style).toEqual({ top: '72rpx' });
     expect(findAll(shell, (node) => String(node.props.className ?? '').includes('page-shell__backdrop-overlay'))).toHaveLength(1);
   });
 
