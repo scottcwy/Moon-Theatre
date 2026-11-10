@@ -33,6 +33,9 @@ const rawConfig = {
   adminBasicAuthPassword: process.env.ADMIN_BASIC_AUTH_PASSWORD || '',
   devAuthBypass: !isProduction && process.env.DEV_AUTH_BYPASS === 'true',
   testUserInitialPoints: parseInt(process.env.TEST_USER_INITIAL_POINTS || '0', 10),
+  // 显式逃生舱：仍有环境用生产配置服务测试用户，需要给新用户发测试积分。
+  // 默认 false 保留原有硬校验；只有显式置 true 才放行，并在启动时打警告。
+  allowTestUserInitialPoints: process.env.ALLOW_TEST_USER_INITIAL_POINTS_IN_PRODUCTION === 'true',
 } as const;
 
 validateProductionConfig(rawConfig);
@@ -115,7 +118,12 @@ function validateProductionConfig(cfg: typeof rawConfig): void {
     throw new Error('FASTCLAW_FALLBACK_ENABLED must be false in production');
   }
   if (!Number.isInteger(cfg.testUserInitialPoints) || cfg.testUserInitialPoints !== 0) {
-    throw new Error('TEST_USER_INITIAL_POINTS must be 0 in production');
+    if (!cfg.allowTestUserInitialPoints) {
+      throw new Error('TEST_USER_INITIAL_POINTS must be 0 in production');
+    }
+    console.warn(
+      `[config] TEST_USER_INITIAL_POINTS=${cfg.testUserInitialPoints} in production allowed by ALLOW_TEST_USER_INITIAL_POINTS_IN_PRODUCTION=true; new users will receive test points.`,
+    );
   }
 }
 

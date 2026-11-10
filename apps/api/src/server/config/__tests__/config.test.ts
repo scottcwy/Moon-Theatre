@@ -86,6 +86,17 @@ describe('server config production validation', () => {
     await expect(loadConfig()).rejects.toThrow('TEST_USER_INITIAL_POINTS must be 0 in production');
   });
 
+  it('allows non-zero test points in production behind an explicit opt-in', async () => {
+    stubValidProductionEnv();
+    vi.stubEnv('TEST_USER_INITIAL_POINTS', '1000');
+    vi.stubEnv('ALLOW_TEST_USER_INITIAL_POINTS_IN_PRODUCTION', 'true');
+
+    const { config } = await loadConfig();
+
+    expect(config.testUserInitialPoints).toBe(1000);
+    expect(config.allowTestUserInitialPoints).toBe(true);
+  });
+
   it('rejects weak administrator Basic passwords in production', async () => {
     for (const password of ['short', 'password', 'password1234', '123456789012', 'aaaaaaaaaaaa']) {
       vi.unstubAllEnvs();
