@@ -83,14 +83,21 @@ function imageSize(filePath) {
   fail(`unsupported image format: ${filePath}`);
 }
 
-function assetPathFromProductionPath(value) {
+// 角色头像由 API 静态目录托管（apps/api/public），不再计入小程序包；账本仍保留版权与尺寸信息。
+const apiPublicRoot = path.resolve(projectRoot, '../../apps/api/public');
+const allowedHostings = new Set(['package', 'api']);
+
+function assetPathFromProductionPath(value, hosting) {
   if (typeof value !== 'string' || !value.startsWith('/assets/')) {
     fail(`productionPath must be an /assets/ path: ${value}`);
   }
   if (value.includes('playground') || /^https?:\/\//.test(value)) {
     fail(`productionPath references a forbidden runtime location: ${value}`);
   }
-  return path.join(assetsRoot, value.slice('/assets/'.length));
+  const root = hosting === 'api' ? apiPublicRoot : assetsRoot;
+  // 包内资源相对 `src/assets`（去掉 `/assets/`）；API 静态目录整段对应 `/assets`（只去掉前缀斜杠）。
+  const relative = hosting === 'api' ? value.slice(1) : value.slice('/assets/'.length);
+  return path.join(root, relative);
 }
 
 function assertOriginalPath(resource) {
@@ -139,10 +146,12 @@ function readManifest() {
       fail(`pixelSize is required: ${resource.semanticName}`);
     }
     const productionPaths = Array.isArray(resource.productionPath) ? resource.productionPath : [resource.productionPath];
+    const hosting = resource.hosting ?? 'package';
+    if (!allowedHostings.has(hosting)) fail(`hosting must be package|api: ${resource.semanticName}`);
     let resourceBytes = 0;
     for (const productionPath of productionPaths) {
-      const filePath = assetPathFromProductionPath(productionPath);
-      if (!fs.existsSync(filePath)) fail(`missing production asset: ${productionPath}`);
+      const filePath = assetPathFromProductionPath(productionPath, hosting);
+      if (!fs.existsSync(filePath)) fail(`missing production asset: ${productionPath} (hosting=${hosting})`);
       const bytes = fs.statSync(filePath).size;
       if (bytes > maxSingleAssetBytes) fail(`single asset exceeds 300 KiB: ${productionPath} (${bytes})`);
       const size = imageSize(filePath);
@@ -150,7 +159,8 @@ function readManifest() {
       if (size.width !== resource.pixelSize.width || size.height !== resource.pixelSize.height) {
         fail(`pixelSize mismatch for ${productionPath}: declared ${resource.pixelSize.width}x${resource.pixelSize.height}, actual ${size.width}x${size.height}`);
       }
-      resourceBytes += bytes;
+      // 网络托管的资源不占用小程序首屏包体预算。
+      if (hosting === 'package') resourceBytes += bytes;
     }
     if (resource.split === 'main') {
       const frameId = resource.frameId ?? resource.sourceFrame;

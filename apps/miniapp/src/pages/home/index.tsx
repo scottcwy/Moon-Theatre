@@ -380,7 +380,7 @@ export default function Home() {
                   {scripts.map((script, index) => {
                     const originalCover = getScriptCoverUrl(script);
                     const coverUrl = originalCover === '/assets/home/moon-garden-cover.jpg'
-                      ? '/assets/second-contract/hero.webp'
+                      ? '/assets/second-contract/hero.jpg'
                       : originalCover;
                     return (
                       <View
@@ -391,7 +391,7 @@ export default function Home() {
                       >
                         {coverUrl ? (
                           <Image
-                            className={`theater-home__hero-image${coverUrl === '/assets/second-contract/hero.webp' ? ' theater-home__hero-image--courtyard' : ''}`}
+                            className={`theater-home__hero-image${coverUrl === '/assets/second-contract/hero.jpg' ? ' theater-home__hero-image--courtyard' : ''}`}
                             src={coverUrl}
                             mode="aspectFill"
                             lazyLoad
@@ -400,8 +400,8 @@ export default function Home() {
                           <View className="theater-home__hero-image theater-home__hero-image--placeholder" />
                         )}
                         <View className="theater-home__hero-shade" />
-                        {coverUrl === '/assets/second-contract/hero.webp' ? <View className="theater-home__hero-edge theater-home__hero-edge--left" /> : null}
-                        {coverUrl === '/assets/second-contract/hero.webp' ? <View className="theater-home__hero-edge" /> : null}
+                        {coverUrl === '/assets/second-contract/hero.jpg' ? <View className="theater-home__hero-edge theater-home__hero-edge--left" /> : null}
+                        {coverUrl === '/assets/second-contract/hero.jpg' ? <View className="theater-home__hero-edge" /> : null}
                         {script.genre ? <Text className="theater-home__hero-genre">{script.genre}</Text> : null}
                         <View className="theater-home__hero-content">
                           <View className="theater-home__hero-tags">

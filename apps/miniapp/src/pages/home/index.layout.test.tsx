@@ -31,7 +31,7 @@ describe('home hot scripts layout', () => {
     expect(source).toContain('mode="aspectFill"');
     expect(styleSource).toContain('width: 326rpx');
     expect(source).toContain("originalCover === '/assets/home/moon-garden-cover.jpg'");
-    expect(source).toContain("'/assets/second-contract/hero.webp'");
+    expect(source).toContain("'/assets/second-contract/hero.jpg'");
   });
 
   it('将空态留白与剧本行裁切限制在首页展示，保持字体 family', () => {

@@ -71,48 +71,29 @@ const LOCAL_SCRIPT_COVERS: Record<string, string> = {
   'yunyun': '/assets/home/yunyun-cover.jpg',
 };
 
-const LOCAL_CHARACTER_AVATARS: Record<string, string> = {
-  白藏: '/assets/characters/hakuzo.jpg',
-  贺茂清玄: '/assets/characters/kiyoharu.webp',
-  月岛澪: '/assets/characters/mio.webp',
-  久远: '/assets/characters/kuon.webp',
-  程聿怀: '/assets/characters/chengyuhuai.jpg',
-  蒋伯驾: '/assets/characters/jiangbojia.webp',
-  程走柳: '/assets/characters/chengzouliu.webp',
-  缪宏谟: '/assets/characters/miaohongmo.webp',
-  黛利拉: '/assets/characters/delilah.webp',
-  以撒: '/assets/characters/isaac.webp',
-  羌青瓷: '/assets/characters/qiangqingci.webp',
-  奥丁: '/assets/characters/odin.webp',
-  阿奇: '/assets/characters/archie.webp',
-  南窗: '/assets/characters/nanchuang.webp',
-  赋霄: '/assets/characters/fuxiao.webp',
-  岑奕岚: '/assets/characters/cenyilan.webp',
-  季沧海: '/assets/characters/jicanghai.webp',
-  知何: '/assets/characters/zhihe.webp',
-  叶上秋: '/assets/characters/yeshangqiu.webp',
-};
+/**
+ * 角色头像不在小程序包内：由 API 静态目录托管（`apps/api/public/assets/characters`）。
+ * 相对路径拼上构建期注入的 API 基地址；已是绝对地址（CDN / 已托管图）则原样返回。
+ */
+function withAssetBase(url: string | null | undefined): string {
+  const value = url?.trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  const base = typeof API_BASE_URL === 'string' ? API_BASE_URL : '';
+  return `${base}${value}`;
+}
 
-/** 有男女双版本海报的角色：选角时按性别切换头像。默认版本与 LOCAL_CHARACTER_AVATARS 一致。 */
+/** 有男女双版本海报的角色：选角时按性别切换头像。 */
 const CHARACTER_GENDER_VARIANTS: Record<string, Partial<Record<CharacterGender, string>>> = {
   程聿怀: {
     male: '/assets/characters/chengyuhuai.jpg',
-    female: '/assets/characters/chengyuhuai-female.webp',
+    female: '/assets/characters/chengyuhuai-female.jpg',
   },
   羌青瓷: {
-    male: '/assets/characters/qiangqingci-male.webp',
-    female: '/assets/characters/qiangqingci.webp',
+    male: '/assets/characters/qiangqingci-male.jpg',
+    female: '/assets/characters/qiangqingci.jpg',
   },
 };
-
-const CONVERTED_CHARACTER_AVATAR_REDIRECTS = Object.fromEntries(
-  [
-    ...Object.values(LOCAL_CHARACTER_AVATARS),
-    ...Object.values(CHARACTER_GENDER_VARIANTS).flatMap((variants) => Object.values(variants)),
-  ]
-    .filter((path): path is string => Boolean(path?.endsWith('.webp')))
-    .map((path) => [path.replace(/\.webp$/, '.jpg'), path]),
-);
 
 /** 角色卡片决策建议徽标的通用文案；差异化建议后续由后端字段数据驱动。 */
 export const CHARACTER_DECISION_BADGE = '可选角色';
@@ -153,11 +134,8 @@ export function getScriptCoverUrl(script: ScriptCoverInput): string {
 }
 
 export function getCharacterAvatarUrl(name: string, avatarUrl?: string | null, gender?: CharacterGender | null): string {
-  const explicitUrl = avatarUrl?.trim();
   const variantUrl = gender ? CHARACTER_GENDER_VARIANTS[name]?.[gender] : undefined;
-  if (variantUrl) return variantUrl;
-  if (explicitUrl) return CONVERTED_CHARACTER_AVATAR_REDIRECTS[explicitUrl] ?? explicitUrl;
-  return LOCAL_CHARACTER_AVATARS[name] ?? '';
+  return withAssetBase(variantUrl ?? avatarUrl);
 }
 
 /** 返回角色可选的性别变体；无男女双版本的角色返回空数组。 */

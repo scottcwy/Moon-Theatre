@@ -106,6 +106,20 @@ rtk pnpm build:miniapp:prod
 
 该命令读取 `hosts.json` 的 `prod` 注入构建，并在构建后自动运行 `verify:weapp` 扫描产物。
 
+### 5.1 角色头像由 API 静态目录托管
+
+角色头像不在小程序包里，由 API 的 `public/` 目录直接出图：
+
+```
+apps/api/public/assets/characters/*.jpg   →  https://api.yuemanlou.xyz/assets/characters/*.jpg
+```
+
+- 根因与决策见 `docs/adr/0005-character-avatars-hosted-by-api.md`（iOS 微信不渲染包内 webp）。
+- 小程序侧统一在 `getCharacterAvatarUrl` → `withAssetBase()` 拼 `API_BASE_URL`，DB 里的 `avatarUrl` 仍存相对路径，**不需要数据迁移**。
+- `apps/api/Dockerfile` 已 `COPY public`（Next standalone 输出不自带 `public/`）；改图后**必须重新构建并推送 api 镜像**，否则线上 404。
+- `image` 组件的网络 `src` 不受微信「request 合法域名」限制，不需要为图片单独配白名单。
+- 本地自检：`curl -I http://127.0.0.1:3000/assets/characters/hakuzo.jpg` 应返回 `200` + `Content-Type: image/jpeg`。
+
 - 开发环境用 `rtk pnpm dev:miniapp`（默认 `http://127.0.0.1:3000`，配合微信开发者工具"不校验合法域名"）。
 - 真机预览用 `rtk pnpm dev:miniapp:lan`（先在本机 `hosts.json` 的 `lan` 填入电脑局域网 IP）。
 - 等价旧方式：`rtk API_BASE_URL="https://api.yuemanlou.xyz" pnpm --filter @juben-sha/miniapp build:weapp` + `verify:weapp`；`API_BASE_URL` 环境变量仍可临时覆盖 `hosts.json`（供 CI 或紧急切换使用），优先级高于配置文件。

@@ -28,6 +28,8 @@ RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder --chown=nextjs:nodejs /app/apps/api/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/api/.next/static ./apps/api/.next/static
+# 角色头像等包外静态资源：小程序按 https://<api 域名>/assets/... 直接取图
+COPY --from=builder --chown=nextjs:nodejs /app/apps/api/public ./apps/api/public
 
 USER nextjs
 
