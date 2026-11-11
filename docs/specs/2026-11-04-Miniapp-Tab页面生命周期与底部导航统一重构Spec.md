@@ -297,3 +297,12 @@ pnpm run test:deploy-config
 - 微信 smoke 与主页面真实数据 UI：分别通过；2026-11-05 记忆页退役后的主页面 runner 在真实构建、真实剧本/角色 UUID 和真实 API 下为 12/12，聊天页为真实会话而非错误态。
 - 认证 UI：2026-11-05 当前报告 21/21，`auth-character-detail` 与 `auth-moon-tower-character-detail` 的自动化 spread 错误已由 E2E P1-5 修复消除；报告见 [`runtime-ui-authenticated/report.json`](../../apps/miniapp/e2e/artifacts/runtime-ui-authenticated/report.json)。
 - 最终状态：本 Spec 为 `FROZEN / IMPLEMENTED / VERIFIED`；仓库级认证 UI 已全绿，整屏视觉矩阵仍有独立视觉口径阻塞。Tab 生命周期、footer、认证生命周期和 H5 降级目标均有端到端证据。
+
+### S5 切 Tab 白帧复核（2026-11-11，iPhone 真机）
+
+- 触发：体验版在 iPhone 上点底部 footer 切 tab 时出现白帧，用户体感「1-3 秒」。
+- 取证方式：临时在 `useTabPageLifecycle` / `StageTabBar` / `App` 埋 `[diag]` 时间戳（`tap` / `mount` / `didShow` / `ready` / `pageReady` / `afterReady`），真机 vConsole 采样后已全部撤除，未进入 `main`。
+- 实测（iPhone，生产包）：`tap → didShow` 9/14/30 ms；`didShow → pageReady` 51/76/118 ms；`pageReady → afterReady` 105–107 ms；`ready.loadMs` 1–102 ms。整条链路 **< 200 ms**，同页 `mount` 只出现一次（页面被复用，未重建）。
+- 结论：**代码侧没有秒级耗时**，剩余白帧属微信 iOS 原生渲染层绘制/合成，JS 无法测量也无法直接修复；本次不为其引入骨架层或动画补丁。
+- 主因修正：当时真机上所有网络头像都在 `Load failed`（缺 `downloadFile 合法域名`），首帧叠加 6 个失败请求，观感被放大。补齐域名白名单后白帧「不明显了」，本条目按已缓解记录，不再作为发布阻断。
+- 若后续再次明显：优先按 ADR 0005 检查图片域名白名单，其次再考虑首帧背景图（`PageShell` 的 `courtyard.jpg`）改为渐变占位、或用 `custom: false` 做原生 tabBar A/B。

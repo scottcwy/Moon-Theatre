@@ -18,4 +18,4 @@ Status: accepted
 - 主包从 2,026,419 B 降到 1,404,616 B（-621,803 B），首屏包体预算重新有富余。
 - 角色头像改为网络加载：首屏多一次图片请求（单张 30–70 KB），失败时走 `ChatSessionRow`/`CharacterPosterCard` 既有的首字或占位分支。
 - 视觉帧基线里角色头像像素会变（visual-fixture 的 mock 不再提供本地图），基线需按 `prepare-visual-baseline.mjs` 重导，且此后视觉门禁不再覆盖真实头像像素。
-- `image` 组件的网络 `src` 不受微信「request 合法域名」限制，因此不需要为图片单独配域名白名单。
+- `image` 组件的网络 `src` 不受微信「request 合法域名」限制，但**受「downloadFile 合法域名」约束**：上线前必须把 `https://api.yuemanlou.xyz` 加进 downloadFile 白名单，否则 iOS 真机报 `Load failed`、头像全空（2026-11-11 实测）。

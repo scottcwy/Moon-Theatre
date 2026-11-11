@@ -117,7 +117,7 @@ apps/api/public/assets/characters/*.jpg   →  https://api.yuemanlou.xyz/assets/
 - 根因与决策见 `docs/adr/0005-character-avatars-hosted-by-api.md`（iOS 微信不渲染包内 webp）。
 - 小程序侧统一在 `getCharacterAvatarUrl` → `withAssetBase()` 拼 `API_BASE_URL`，DB 里的 `avatarUrl` 仍存相对路径，**不需要数据迁移**。
 - `apps/api/Dockerfile` 已 `COPY public`（Next standalone 输出不自带 `public/`）；改图后**必须重新构建并推送 api 镜像**，否则线上 404。
-- `image` 组件的网络 `src` 不受微信「request 合法域名」限制，不需要为图片单独配白名单。
+- `image` 组件的网络 `src` **不受微信「request 合法域名」约束，但受「downloadFile 合法域名」约束**：必须把 `https://api.yuemanlou.xyz` 同时加入这两份白名单。只加 request 时，真机（iOS 尤明显）会在 Console 打出 `fetching image: ... fail: <TypeError: Load failed>`，头像全空。
 - 本地自检：`curl -I http://127.0.0.1:3000/assets/characters/hakuzo.jpg` 应返回 `200` + `Content-Type: image/jpeg`。
 
 - 开发环境用 `rtk pnpm dev:miniapp`（默认 `http://127.0.0.1:3000`，配合微信开发者工具"不校验合法域名"）。
