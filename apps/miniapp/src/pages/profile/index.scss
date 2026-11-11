@@ -401,6 +401,19 @@
   width: 100%;
 }
 
+// 未登录态：与加载/已登录共用状态栏高度锚点，避免标题压到状态栏上、内容整体过于靠上。
+.profile.profile--signed-out {
+  .profile__topbar {
+    height: calc(var(--profile-status-height, 47px) + 84rpx);
+    padding-top: var(--profile-status-height, 47px);
+    font-size: 34rpx;
+  }
+
+  .profile__hero {
+    margin: 30rpx 8rpx 0;
+  }
+}
+
 // 已确认的个人档案视觉，仅作用于已登录页。
 .profile.profile--redesigned {
   width: 100%;

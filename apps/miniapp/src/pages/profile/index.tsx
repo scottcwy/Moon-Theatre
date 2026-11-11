@@ -253,6 +253,7 @@ export default function Profile() {
   const pageClass = [
     'profile',
     loading && 'profile--loading',
+    !loading && signedOut && 'profile--signed-out',
     !loading && !signedOut && profile && 'profile--redesigned',
   ].filter(Boolean).join(' ');
 
